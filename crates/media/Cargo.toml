@@ -1,0 +1,25 @@
+[package]
+name = "media"
+description = "Track metadata, artwork lookup and artwork color palettes"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+lofty = "0.25.4"
+# Only the decoders covers actually use, plus the JPEG encoder for backdrop thumbnails.
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+log = "0.4"
+
+[dev-dependencies]
+serde_json = "1"
+tempfile = "3"
+
+[lints]
+workspace = true

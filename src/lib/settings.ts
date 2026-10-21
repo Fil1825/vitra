@@ -17,6 +17,8 @@ export interface AppearanceSettings {
   refraction: Switch;
   powerSaving: boolean;
   windowMaterial: WindowMaterial;
+  /** Take the accent color from the playing track's artwork (a theme may pin its own). */
+  artworkAccent: boolean;
 }
 
 export interface Settings {
@@ -33,6 +35,7 @@ export const DEFAULT_SETTINGS: Settings = {
     refraction: 'auto',
     powerSaving: false,
     windowMaterial: 'vibrancy',
+    artworkAccent: true,
   },
 };
 

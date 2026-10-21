@@ -150,6 +150,7 @@ and an explicit list of checks that can only be done on a Mac.
 | Installer size: static FFmpeg+ffprobe ≈ 330 MB (Win/Linux), Deno ≈ 100 MB, mpv ≈ 60–100 MB | See open question 1.                                                                                                                          |
 | `backdrop-filter` with SVG filters only works in Chromium                                  | Feature detection + blur/highlight fallback (WebKit on macOS/Linux).                                                                          |
 | Transparent windows on Linux need a compositor                                             | Detect and fall back to an opaque theme background.                                                                                           |
+| A hard crash on Windows can orphan mpv (no fd-passing IPC there)                           | Assign mpv to a Job Object with kill-on-close (stage 9); macOS/Linux already tie mpv's life to the IPC socket.                                |
 | No GUI in the cloud environment                                                            | Logic in testable crates/modules; UI verified by the owner on macOS following PR instructions.                                                |
 
 ## Open questions

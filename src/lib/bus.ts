@@ -1,4 +1,5 @@
 import type { Settings } from './settings.ts';
+import type { PlayerState, PositionUpdate, Track } from './player.ts';
 import type { WindowEffects } from './window.ts';
 import type { Effects } from '../theme/effects.ts';
 import type { Theme } from '../theme/schema.ts';
@@ -14,6 +15,11 @@ export interface VitraEvents {
   'effects:changed': Effects;
   /** The native backdrop of this window changed (e.g. Liquid Glass was switched on). */
   'window:effects': WindowEffects;
+  'player:state': PlayerState;
+  /** Throttled position updates between state changes. */
+  'player:position': PositionUpdate;
+  /** Metadata and artwork of the current track became available. */
+  'player:track': Track;
 }
 
 export type Handler<T> = (payload: T) => void;

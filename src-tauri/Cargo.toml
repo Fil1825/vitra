@@ -22,6 +22,10 @@ window-vibrancy = "0.8.1"
 thiserror = "2"
 log = "0.4"
 tauri-plugin-log = "2.10.1"
+tauri-plugin-dialog = "2.8.3"
+mpv-ipc = { version = "0.1.0", path = "../crates/mpv-ipc" }
+media = { version = "0.1.0", path = "../crates/media" }
+tokio = { version = "1.54", features = ["sync", "time", "macros"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Only to check the OS version for Liquid Glass; already in the tree via window-vibrancy.

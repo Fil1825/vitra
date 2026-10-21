@@ -1,0 +1,200 @@
+use std::fs;
+use std::io::Cursor;
+use std::path::{Path, PathBuf};
+
+use image::codecs::jpeg::JpegEncoder;
+use image::imageops::FilterType;
+use image::{DynamicImage, GenericImageView};
+
+use crate::MediaError;
+use crate::palette::{Palette, extract_palette};
+
+/// Encoded image bytes as found in a tag or file.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Artwork {
+    pub bytes: Vec<u8>,
+    pub mime: Option<String>,
+}
+
+/// Cover file names next to a track, most likely first (matched case-insensitively).
+const FOLDER_NAMES: &[&str] = &["cover", "folder", "front", "album", "albumart"];
+const FOLDER_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp"];
+
+/// Looks for an album cover image in the track's directory (`cover.jpg`, `Folder.png`, ...).
+pub fn folder_artwork(track: &Path) -> Option<Artwork> {
+    let dir = track.parent()?;
+    let files: Vec<PathBuf> = fs::read_dir(dir)
+        .ok()?
+        .filter_map(|entry| entry.ok().map(|e| e.path()))
+        .collect();
+    let lower = |s: Option<&std::ffi::OsStr>| s.and_then(|s| s.to_str()).map(str::to_lowercase);
+
+    FOLDER_NAMES.iter().find_map(|name| {
+        files.iter().find_map(|path| {
+            let ext = lower(path.extension())?;
+            if lower(path.file_stem()).as_deref() != Some(name)
+                || !FOLDER_EXTENSIONS.contains(&ext.as_str())
+            {
+                return None;
+            }
+            let bytes = fs::read(path).ok()?;
+            let mime = image::guess_format(&bytes)
+                .ok()
+                .map(|f| f.to_mime_type().to_owned());
+            Some(Artwork { bytes, mime })
+        })
+    })
+}
+
+/// Artwork ready for the UI.
+#[derive(Debug, Clone)]
+pub struct PreparedArtwork {
+    /// For display: the original, or a JPEG copy when the original is very large.
+    pub image: Artwork,
+    /// A small JPEG for the blurred window background.
+    pub thumbnail: Vec<u8>,
+    pub palette: Option<Palette>,
+}
+
+/// Larger covers are downscaled before they reach the WebView.
+const DISPLAY_MAX: u32 = 1200;
+/// The backdrop blurs heavily, so a tiny image looks the same and costs far less.
+const THUMBNAIL_MAX: u32 = 96;
+/// Enough pixels for stable dominant colors.
+const PALETTE_SAMPLE: u32 = 48;
+
+/// Decodes artwork once to produce the display image, backdrop thumbnail and palette.
+pub fn prepare_artwork(artwork: Artwork) -> Result<PreparedArtwork, MediaError> {
+    let decoded = image::load_from_memory(&artwork.bytes)?;
+    let (width, height) = decoded.dimensions();
+
+    let image = if width.max(height) > DISPLAY_MAX {
+        let resized = decoded.resize(DISPLAY_MAX, DISPLAY_MAX, FilterType::Triangle);
+        Artwork {
+            bytes: encode_jpeg(&resized, 88)?,
+            mime: Some("image/jpeg".to_owned()),
+        }
+    } else {
+        let mime = artwork.mime.or_else(|| {
+            image::guess_format(&artwork.bytes)
+                .ok()
+                .map(|f| f.to_mime_type().to_owned())
+        });
+        Artwork {
+            bytes: artwork.bytes,
+            mime,
+        }
+    };
+
+    let thumbnail = encode_jpeg(&decoded.thumbnail(THUMBNAIL_MAX, THUMBNAIL_MAX), 80)?;
+    let sample = decoded.thumbnail(PALETTE_SAMPLE, PALETTE_SAMPLE).to_rgb8();
+    let palette = extract_palette(sample.pixels().map(|p| p.0));
+
+    Ok(PreparedArtwork {
+        image,
+        thumbnail,
+        palette,
+    })
+}
+
+fn encode_jpeg(image: &DynamicImage, quality: u8) -> Result<Vec<u8>, MediaError> {
+    let mut out = Cursor::new(Vec::new());
+    JpegEncoder::new_with_quality(&mut out, quality).encode_image(&image.to_rgb8())?;
+    Ok(out.into_inner())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::palette::Rgb;
+    use image::{ImageFormat, Rgb as Pixel, RgbImage};
+
+    /// Left 70 % red, right 30 % blue.
+    fn two_color_png(width: u32, height: u32) -> Vec<u8> {
+        let img = RgbImage::from_fn(width, height, |x, _| {
+            if x < width * 7 / 10 {
+                Pixel([200, 30, 40])
+            } else {
+                Pixel([30, 60, 200])
+            }
+        });
+        let mut out = Cursor::new(Vec::new());
+        img.write_to(&mut out, ImageFormat::Png).unwrap();
+        out.into_inner()
+    }
+
+    #[test]
+    fn small_artwork_is_kept_as_is() {
+        let png = two_color_png(300, 300);
+        let prepared = prepare_artwork(Artwork {
+            bytes: png.clone(),
+            mime: None,
+        })
+        .unwrap();
+        assert_eq!(prepared.image.bytes, png);
+        assert_eq!(prepared.image.mime.as_deref(), Some("image/png"));
+    }
+
+    #[test]
+    fn large_artwork_is_downscaled_to_jpeg() {
+        let prepared = prepare_artwork(Artwork {
+            bytes: two_color_png(2400, 1200),
+            mime: Some("image/png".into()),
+        })
+        .unwrap();
+        assert_eq!(prepared.image.mime.as_deref(), Some("image/jpeg"));
+        let display = image::load_from_memory(&prepared.image.bytes).unwrap();
+        assert_eq!(display.dimensions(), (1200, 600));
+    }
+
+    #[test]
+    fn makes_a_small_thumbnail_and_a_palette() {
+        let prepared = prepare_artwork(Artwork {
+            bytes: two_color_png(400, 400),
+            mime: None,
+        })
+        .unwrap();
+        let thumb = image::load_from_memory(&prepared.thumbnail).unwrap();
+        assert!(thumb.width() <= THUMBNAIL_MAX && thumb.height() <= THUMBNAIL_MAX);
+
+        let palette = prepared.palette.unwrap();
+        let near = |a: Rgb, b: Rgb| {
+            [(a.0, b.0), (a.1, b.1), (a.2, b.2)]
+                .iter()
+                .all(|(x, y)| x.abs_diff(*y) < 16)
+        };
+        assert!(near(palette.colors[0], Rgb(200, 30, 40)));
+        assert!(palette.colors.iter().any(|&c| near(c, Rgb(30, 60, 200))));
+    }
+
+    #[test]
+    fn rejects_bytes_that_are_not_an_image() {
+        let result = prepare_artwork(Artwork {
+            bytes: b"definitely not a picture".to_vec(),
+            mime: None,
+        });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn finds_cover_files_case_insensitively_in_preference_order() {
+        let tmp = tempfile::tempdir().unwrap();
+        let track = tmp.path().join("01 - Song.flac");
+        fs::write(&track, b"").unwrap();
+        fs::write(tmp.path().join("Folder.PNG"), two_color_png(4, 4)).unwrap();
+        fs::write(tmp.path().join("COVER.jpg"), two_color_png(8, 8)).unwrap();
+        fs::write(tmp.path().join("cover.txt"), b"not an image").unwrap();
+
+        let found = folder_artwork(&track).unwrap();
+        assert_eq!(found.bytes, two_color_png(8, 8));
+        assert_eq!(found.mime.as_deref(), Some("image/png"));
+    }
+
+    #[test]
+    fn no_cover_file_means_none() {
+        let tmp = tempfile::tempdir().unwrap();
+        let track = tmp.path().join("song.mp3");
+        fs::write(&track, b"").unwrap();
+        assert_eq!(folder_artwork(&track), None);
+    }
+}

@@ -43,6 +43,7 @@
     "baseOpacity": 0.7,
     "gradient": ["#2B3A67", "#4A2F6B", "#1F4B5A"],
     "gradientOpacity": 0.45,
+    "artworkOpacity": 0.5,
     "useArtwork": true
   },
   "accentFromArtwork": true,

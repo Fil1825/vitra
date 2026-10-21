@@ -4,6 +4,14 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import { bus } from './bus.ts';
 import { SETTINGS_CHANGED_EVENT, type Settings } from './settings.ts';
+import {
+  PLAYER_POSITION_EVENT,
+  PLAYER_STATE_EVENT,
+  PLAYER_TRACK_EVENT,
+  type PlayerState,
+  type PositionUpdate,
+  type Track,
+} from './player.ts';
 import { EFFECTS_CHANGED_EVENT, type WindowEffects } from './window.ts';
 
 /** Re-publishes backend events on the frontend bus. Returns a function that stops it. */
@@ -19,6 +27,11 @@ export async function startBackendBridge(): Promise<UnlistenFn> {
     getCurrentWindow().listen<WindowEffects>(EFFECTS_CHANGED_EVENT, (event) =>
       bus.emit('window:effects', event.payload),
     ),
+    listen<PlayerState>(PLAYER_STATE_EVENT, (event) => bus.emit('player:state', event.payload)),
+    listen<PositionUpdate>(PLAYER_POSITION_EVENT, (event) =>
+      bus.emit('player:position', event.payload),
+    ),
+    listen<Track>(PLAYER_TRACK_EVENT, (event) => bus.emit('player:track', event.payload)),
   ]);
   return () => unlisten.forEach((fn) => fn());
 }

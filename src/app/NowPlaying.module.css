@@ -1,4 +1,4 @@
-.card {
+.empty {
   display: grid;
   justify-items: center;
   gap: var(--vitra-space-2);
@@ -11,6 +11,7 @@
   margin-bottom: var(--vitra-space-3);
 }
 
+.emptyTitle,
 .title {
   margin: 0;
   font-size: 22px;
@@ -18,7 +19,105 @@
   letter-spacing: -0.01em;
 }
 
-.body {
+.emptyBody {
   margin: 0;
   color: var(--vitra-color-text-secondary);
+}
+
+.openButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vitra-space-2);
+  margin-top: var(--vitra-space-3);
+  padding: var(--vitra-space-2) var(--vitra-space-4);
+  border: 0;
+  border-radius: 999px;
+  background: var(--vitra-color-accent);
+  color: var(--vitra-color-accent-contrast);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform var(--vitra-motion-duration) var(--vitra-motion-easing);
+}
+
+.openButton:active {
+  transform: scale(0.97);
+}
+
+.track {
+  display: grid;
+  justify-items: center;
+  gap: var(--vitra-space-1);
+  width: min(460px, 100%);
+  text-align: center;
+}
+
+.cover {
+  display: grid;
+  place-items: center;
+  width: min(42vh, 360px, 100%);
+  aspect-ratio: 1;
+  margin-bottom: var(--vitra-space-4);
+  border-radius: var(--vitra-radius-lg);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--vitra-color-text) 6%, transparent);
+  box-shadow:
+    0 24px 60px color-mix(in srgb, var(--vitra-color-background) 55%, transparent),
+    inset 0 0 0 1px var(--vitra-color-separator);
+}
+
+.coverImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: appear calc(var(--vitra-motion-duration) * 2) var(--vitra-motion-easing);
+}
+
+.coverPlaceholder {
+  width: 55%;
+  opacity: 0.9;
+}
+
+.byline {
+  margin: 0;
+  color: var(--vitra-color-text-secondary);
+  font-size: 15px;
+}
+
+.technical {
+  margin: var(--vitra-space-1) 0 0;
+  color: var(--vitra-color-text-tertiary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--vitra-space-2);
+  margin: 0 0 var(--vitra-space-3);
+  padding: var(--vitra-space-2) var(--vitra-space-3);
+  border-radius: var(--vitra-radius-md);
+  background: color-mix(in srgb, var(--vitra-color-danger) 16%, transparent);
+  color: var(--vitra-color-text);
+  font-size: 13px;
+  text-align: left;
+}
+
+.error svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--vitra-color-danger);
+}
+
+.errorHint {
+  display: block;
+  color: var(--vitra-color-text-secondary);
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
 }
