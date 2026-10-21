@@ -38,6 +38,7 @@ npm run tauri build        # release build + installers
 npm run check              # eslint, prettier, tsc, vitest, vite build
 npm run check:rust         # cargo fmt --check, clippy -D warnings, cargo test
 npm run check:all          # both of the above — must pass before every PR
+npm run check:cross        # clippy for aarch64-apple-darwin + x86_64-pc-windows-msvc from Linux
 ```
 
 `fetch-sidecars` options: `--target <triple>`, `--only mpv,yt-dlp`, `--skip deno`, `--force`,
@@ -165,7 +166,10 @@ themes/                 (stage 7) example themes
 17. **Refraction** needs SVG filters in `backdrop-filter`, which only Blink renders (Windows /
     WebView2). Detection: `CSS.supports` plus the Blink-only `navigator.userAgentData`; WebKit
     (macOS, Linux) gets blur + specular highlight. Settings can force it on/off.
-18. License **GPL-3.0-or-later** (compatible with mpv). Bundle identifier
+18. **Window material** (macOS): `appearance.windowMaterial` = `vibrancy` (NSVisualEffectView) or
+    `liquidGlass` (NSGlassEffectView, macOS 26+, falls back to vibrancy). Changing it re-applies
+    the backdrop on the main thread and emits `window://effects-changed` to that window.
+19. License **GPL-3.0-or-later** (compatible with mpv). Bundle identifier
     `io.github.fil1825.vitra`. macOS minimum **14.0** (official mpv builds require it).
 
 ## Conventions
@@ -192,5 +196,12 @@ themes/                 (stage 7) example themes
   and the preinstalled Chromium (`/opt/pw-browsers/chromium-*/chrome-linux/chrome`). For the real
   app (WebKitGTK): `npx tauri build --debug --no-bundle`, run `target/debug/vitra` under
   `xvfb-run` and click with `xdotool`; settings land in `~/.config/io.github.fil1825.vitra/`.
+- Platform-specific Rust is type-checked from Linux with `npm run check:cross` (also a CI job):
+  macOS uses `scripts/cross-check/fake-cc` as its C compiler because objc2's build script needs
+  one, and nothing is linked during clippy. Run it after touching `#[cfg(target_os = ...)]` code.
+- macOS traffic lights (`trafficLightPosition` in `tauri.conf.json`): `x` is the close button's
+  left edge; on Tahoe the buttons are 14 pt wide, 23 pt apart, and their center sits at `y − 2.5`
+  (measured from the owner's screenshot). Current `{x: 23, y: 33}` centers the close button on
+  the sidebar's corner arc and aligns the row with the title (y ≈ 30).
 - The macOS mpv tarball carries code-signature xattrs; `fetch-sidecars` moves extracted files
   with `rename` (never copies) to keep them. Linux GNU tar prints harmless warnings about them.
