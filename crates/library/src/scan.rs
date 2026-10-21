@@ -177,20 +177,20 @@ fn list(root: &Path, cancel: &AtomicBool) -> std::io::Result<Listing> {
 }
 
 /// Tags of a file; files lofty can't parse (DSF, WMA, ...) are kept with what the path
-/// tells, since mpv still plays them.
+/// tells, since mpv still plays them. A parser panic on a damaged file counts as "no tags"
+/// rather than taking the whole scan down.
 fn read_metadata(path: &Path) -> TrackMetadata {
-    match media::read_track(path) {
-        Ok(info) => info.metadata,
-        Err(err) => {
-            log::debug!("no tags for {}: {err}", path.display());
-            TrackMetadata {
-                format: path
-                    .extension()
-                    .and_then(|ext| ext.to_str())
-                    .map(str::to_ascii_uppercase),
-                ..TrackMetadata::default()
-            }
-        }
+    match std::panic::catch_unwind(|| media::read_track(path)) {
+        Ok(Ok(info)) => return info.metadata,
+        Ok(Err(err)) => log::debug!("no tags for {}: {err}", path.display()),
+        Err(_) => log::warn!("reading tags of {} panicked", path.display()),
+    }
+    TrackMetadata {
+        format: path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(str::to_ascii_uppercase),
+        ..TrackMetadata::default()
     }
 }
 
@@ -266,9 +266,10 @@ fn find_cover(paths: &[String]) -> Option<Vec<u8>> {
         .iter()
         .take(3)
         .find_map(|path| {
-            media::read_track(Path::new(path))
-                .ok()
-                .and_then(|info| info.embedded_artwork)
+            std::panic::catch_unwind(|| media::read_track(Path::new(path)))
+                .ok()?
+                .ok()?
+                .embedded_artwork
         })
         .or_else(|| {
             paths

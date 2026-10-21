@@ -23,14 +23,15 @@ export function AlbumGrid({
   return (
     <ul className={styles.grid}>
       {albums.map((album) => (
-        <li key={album.id} className={styles.tile}>
-          <div
-            className={styles.art}
-            onContextMenu={(event) => {
-              event.preventDefault();
-              showContextMenu(albumMenu(album, allPlaylists)).catch(report('Showing a menu'));
-            }}
-          >
+        <li
+          key={album.id}
+          className={styles.tile}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            showContextMenu(albumMenu(album, allPlaylists)).catch(report('Showing a menu'));
+          }}
+        >
+          <div className={styles.art}>
             <button
               type="button"
               className={styles.open}
