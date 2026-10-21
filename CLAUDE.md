@@ -18,7 +18,7 @@ the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
 | --- | ------------------------------------------------------ | ----------------- |
 | 0   | Preparation: environment, structure, sidecars, plan    | in review (PR #1) |
 | 1   | Shell: transparent window, vibrancy, `<Glass>`, themes | in review (PR #2) |
-| 2   | Engine: mpv IPC, transport controls, artwork backdrop  | not started       |
+| 2   | Engine: mpv IPC, transport controls, artwork backdrop  | in review (PR #3) |
 | 3   | Library & queue: scan, SQLite, views, search, session  | not started       |
 | 4   | Links: yt-dlp playback, playlists, downloads           | not started       |
 | 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | not started       |
@@ -39,7 +39,11 @@ npm run check              # eslint, prettier, tsc, vitest, vite build
 npm run check:rust         # cargo fmt --check, clippy -D warnings, cargo test
 npm run check:all          # both of the above — must pass before every PR
 npm run check:cross        # clippy for aarch64-apple-darwin + x86_64-pc-windows-msvc from Linux
+VITRA_MPV_TESTS=1 cargo test -p mpv-ipc   # also run the tests against a real mpv (on PATH)
 ```
+
+Debugging playback: `VITRA_MPV_ARGS="--ao=null --log-file=/tmp/mpv.log" npm run tauri dev` passes
+extra flags to mpv; files given on the command line (`target/debug/vitra song.flac`) play at launch.
 
 `fetch-sidecars` options: `--target <triple>`, `--only mpv,yt-dlp`, `--skip deno`, `--force`,
 `--out <dir>`, `--require-checksums` (see `--help`).
@@ -94,9 +98,13 @@ src-tauri/              Tauri app crate (`vitra`, lib `vitra_lib`)
   src/window.rs         window creation from config, vibrancy / Mica / Acrylic
   src/error.rs          AppError (serializes to a message for the frontend)
   src/sidecar.rs        locating mpv / yt-dlp / ffmpeg / ffprobe / deno
+  src/player/           mpv supervisor + commands (mod.rs), PlayerState reducer (state.rs),
+                        artwork:// scheme store (artwork.rs)
   tauri.conf.json, capabilities/, icons/ (generated: `npm run tauri icon -- assets/brand/icon-1024.png`)
   sidecars/<triple>/    fetched binaries (git-ignored)
-crates/                 (planned) pure-Rust crates testable without WebKit, e.g. mpv-ipc, lyrics
+crates/                 pure-Rust crates testable without WebKit
+  mpv-ipc/              async mpv JSON IPC client + spawning mpv (in-memory fake + opt-in real-mpv tests)
+  media/                lofty tags, embedded/folder artwork, thumbnails, color palette (fixtures in tests/)
 scripts/
   fetch-sidecars.mjs    downloader (I/O)
   sidecars/plan.mjs     what to download per target (pure, unit-tested)
@@ -118,12 +126,26 @@ themes/                 (stage 7) example themes
    `lyrics://line`, ...). The frontend has a small typed bus (`src/lib/bus.ts`, stage 1) that
    re-publishes them; UI modules subscribe to the bus, never to Tauri directly. This is the
    future plugin API surface (plugins are not implemented in v1).
-5. **mpv** runs as a child process controlled over JSON IPC (Unix socket on macOS/Linux, named
-   pipe on Windows). Always start it with `--no-config` (ignore the user's mpv.conf and the
-   bundle's `pseudo-gui` config), `--idle=yes`, `--no-video`, `--no-terminal`,
-   `--input-ipc-server=...`, `--ytdl-format=bestaudio/best`,
-   `--script-opts=ytdl_hook-ytdl_path=<yt-dlp>`. Engine code sits behind a trait so tests can
-   mock it.
+5. **mpv** runs as a child process controlled over JSON IPC (`crates/mpv-ipc`).
+   - macOS/Linux: one end of a socket pair is mpv's stdin (`--input-ipc-client=fd://0`); mpv
+     quits when that connection closes, so it can't outlive the app even after a crash or
+     `kill -9`. Windows: a named pipe (`--input-ipc-server`); a hard crash there can still leave
+     an orphan until a Job Object is added (stage 9).
+   - Flags (`player::mpv_args`): `--no-config` (ignores the user's mpv.conf and the bundle's
+     pseudo-GUI config), `--load-scripts=no`, `--idle`, `--no-video`, `--no-terminal`,
+     `--input-media-keys=no` (media keys/Now Playing are ours), `--ytdl-format=bestaudio/best`,
+     plus `--media-controls=no` and `--macos-app-activation-policy=prohibited` (no Dock icon) for
+     mpv 0.39+; if mpv exits at startup with those, it is restarted without them.
+   - The supervisor restarts mpv after crashes (≤5 per minute), restoring volume, speed and the
+     current track with its position. Every spawn starts with an `mpv-version` handshake.
+   - `PlayerState::apply` (pure, unit-tested) turns mpv events into UI state; the app emits
+     `player://state`, throttled `player://position` (4/s, the UI extrapolates) and
+     `player://track-changed`. Commands: `player_open/play/pause/toggle/seek/set_volume/...`.
+   - Metadata comes from lofty off the async runtime; formats lofty can't read fall back to
+     mpv's `metadata` property. Artwork (embedded, else `cover.jpg` & co.) is decoded once in
+     `crates/media`: display image (≤1200 px), 96 px backdrop thumbnail, palette + accent.
+   - Artwork reaches the WebView through the `artwork://` URI scheme (in-memory, content-
+     addressed ids, CSP `img-src artwork: http://artwork.localhost`), never via file access.
 6. **Sidecars** (helper binaries):
    - mpv: official builds pinned to `v0.41.0` with SHA-256 (`macos-14-arm`, `macos-15-intel`,
      `x86_64-pc-windows-msvc`). On macOS it is a whole `mpv.app` with dylibs in
@@ -139,39 +161,42 @@ themes/                 (stage 7) example themes
      yt-dlp self-update) → bundled (exe dir, `resources/sidecars/`) → dev
      `src-tauri/sidecars/<triple>/` (debug builds only) → `PATH` + Homebrew/`/usr/local/bin`
      (macOS GUI apps don't inherit the shell `PATH`).
-7. **Frontend**: React 19, TypeScript 6.0 (strict), Vite 8, CSS Modules. Every visual value is
+7. **Accent & backdrop from artwork**: themes opt in with `background.useArtwork` (blurred
+   thumbnail + palette-colored gradient) and `accentFromArtwork`; the user can turn the accent
+   off (`appearance.artworkAccent`). `theme/accent.ts` adjusts the color per light/dark.
+8. **Frontend**: React 19, TypeScript 6.0 (strict), Vite 8, CSS Modules. Every visual value is
    a CSS custom property (`--vitra-*`), so a theme is just a set of variables. Zustand for
    stores, Motion for animation, Lucide icons — each added in the stage that first needs it.
-8. **Multiple windows** = multiple Vite HTML entries (`index.html`, `mini.html`).
-9. **Security**: strict CSP in production (`script-src 'self'`), no remote scripts. Themes are
-   data (JSON + CSS + assets), never JavaScript; `custom.css` is sanitized on import.
-   `devCsp` is `null` because Vite's dev server injects inline scripts — check CSP-sensitive
-   work with `npm run tauri build`.
-10. **Persistence**: SQLite (`rusqlite`, bundled, FTS5) in the app data dir for library,
+9. **Multiple windows** = multiple Vite HTML entries (`index.html`, `mini.html`).
+10. **Security**: strict CSP in production (`script-src 'self'`), no remote scripts. Themes are
+    data (JSON + CSS + assets), never JavaScript; `custom.css` is sanitized on import.
+    `devCsp` is `null` because Vite's dev server injects inline scripts — check CSP-sensitive
+    work with `npm run tauri build`.
+11. **Persistence**: SQLite (`rusqlite`, bundled, FTS5) in the app data dir for library,
     playlists, lyrics, history and session; settings in a JSON file in the app config dir,
     owned by Rust.
-11. **Theme schema**: zod schema is the single source; `docs/theme.schema.json` is generated
+12. **Theme schema**: zod schema is the single source; `docs/theme.schema.json` is generated
     from it (`z.toJSONSchema`) and a test fails if the committed file is stale.
-12. **LRC / enhanced LRC parsing and serialization in Rust** (one implementation shared by tag
+13. **LRC / enhanced LRC parsing and serialization in Rust** (one implementation shared by tag
     reading, `.lrc` files, FTS indexing and saving from the editor).
-13. **i18n from stage 1** (i18next, en + ru) so strings are never hard-coded; stage 9 completes
+14. **i18n from stage 1** (i18next, en + ru) so strings are never hard-coded; stage 9 completes
     and reviews translations. (The spec lists i18n in stage 9; doing it early avoids a rewrite.)
-14. **Windows are created in Rust** from their `tauri.conf.json` entry (`"create": false`) so
+15. **Windows are created in Rust** from their `tauri.conf.json` entry (`"create": false`) so
     transparency can differ per platform: Linux windows are opaque (no vibrancy to show, and a
     transparent window renders black without a compositor).
-15. **Settings flow**: UI calls `useSettings().update` → `set_settings` command → Rust saves
+16. **Settings flow**: UI calls `useSettings().update` → `set_settings` command → Rust saves
     `settings.json` and emits `settings://changed` → `lib/bridge.ts` → bus → every window's store.
-16. **Effects** (`theme/effects.ts`) combine OS preferences (`prefers-reduced-motion`,
+17. **Effects** (`theme/effects.ts`) combine OS preferences (`prefers-reduced-motion`,
     `prefers-reduced-transparency`), user overrides, power saving and engine support, and are
     exposed as `data-motion`, `data-transparency`, `data-backdrop-animation`, `data-vibrancy`,
     `data-platform` on `<html>` for CSS. At most 8 glass layers blur at once (priority-ranked).
-17. **Refraction** needs SVG filters in `backdrop-filter`, which only Blink renders (Windows /
+18. **Refraction** needs SVG filters in `backdrop-filter`, which only Blink renders (Windows /
     WebView2). Detection: `CSS.supports` plus the Blink-only `navigator.userAgentData`; WebKit
     (macOS, Linux) gets blur + specular highlight. Settings can force it on/off.
-18. **Window material** (macOS): `appearance.windowMaterial` = `vibrancy` (NSVisualEffectView) or
+19. **Window material** (macOS): `appearance.windowMaterial` = `vibrancy` (NSVisualEffectView) or
     `liquidGlass` (NSGlassEffectView, macOS 26+, falls back to vibrancy). Changing it re-applies
     the backdrop on the main thread and emits `window://effects-changed` to that window.
-19. License **GPL-3.0-or-later** (compatible with mpv). Bundle identifier
+20. License **GPL-3.0-or-later** (compatible with mpv). Bundle identifier
     `io.github.fil1825.vitra`. macOS minimum **14.0** (official mpv builds require it).
 
 ## Conventions
