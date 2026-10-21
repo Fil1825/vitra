@@ -10,6 +10,10 @@ pub enum AppError {
     Json(#[from] serde_json::Error),
     #[error(transparent)]
     Tauri(#[from] tauri::Error),
+    #[error("file not found: {0}")]
+    NotFound(String),
+    #[error("{0}")]
+    Player(String),
 }
 
 /// Commands reject with the error message; the frontend only needs something readable.

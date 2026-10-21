@@ -54,6 +54,9 @@ pub struct Appearance {
     /// System material behind the window on macOS.
     #[serde(deserialize_with = "or_default")]
     pub window_material: WindowMaterial,
+    /// Tint the accent color from the playing track's artwork (themes can still pin it).
+    #[serde(deserialize_with = "or_true")]
+    pub artwork_accent: bool,
 }
 
 impl Default for Appearance {
@@ -65,6 +68,7 @@ impl Default for Appearance {
             refraction: Switch::Auto,
             power_saving: false,
             window_material: WindowMaterial::Vibrancy,
+            artwork_accent: true,
         }
     }
 }
@@ -107,6 +111,12 @@ where
 {
     let value = serde_json::Value::deserialize(deserializer)?;
     Ok(serde_json::from_value(value).unwrap_or_default())
+}
+
+/// Like [`or_default`] for flags that default to `true`.
+fn or_true<'de, D: Deserializer<'de>>(deserializer: D) -> Result<bool, D::Error> {
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(value.as_bool().unwrap_or(true))
 }
 
 impl Settings {
@@ -260,7 +270,8 @@ mod tests {
                     "transparency": "system",
                     "refraction": "auto",
                     "powerSaving": false,
-                    "windowMaterial": "vibrancy"
+                    "windowMaterial": "vibrancy",
+                    "artworkAccent": true
                 }
             })
         );
