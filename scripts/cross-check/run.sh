@@ -3,6 +3,17 @@
 # platform-specific code (#[cfg(target_os = ...)]) is verified without those machines.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
+
+# tauri-build embeds the Windows icon with llvm-rc. Distro LLVM may only ship it versioned
+# (/usr/lib/llvm-N/bin) without the /usr/bin symlink from the `llvm` package.
+if ! command -v llvm-rc >/dev/null 2>&1; then
+  rc=$(ls /usr/lib/llvm-*/bin/llvm-rc 2>/dev/null | sort -V | tail -n 1)
+  if [ -z "$rc" ]; then
+    echo "llvm-rc not found: install LLVM (e.g. sudo apt-get install llvm)" >&2
+    exit 1
+  fi
+  export RC_x86_64_pc_windows_msvc="$rc"
+fi
 for target in aarch64-apple-darwin x86_64-pc-windows-msvc; do
   rustup target add "$target" >/dev/null 2>&1
   echo "== $target"

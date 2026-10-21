@@ -53,6 +53,8 @@ sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file lib
   libjavascriptcoregtk-4.1-dev libgtk-3-dev libdbus-1-dev
 # Runtime for engine tests (no official Linux mpv binaries exist):
 sudo apt-get install -y mpv
+# llvm-rc for `npm run check:cross` (Windows icon resource):
+sudo apt-get install -y llvm
 ```
 
 `libdbus-1-dev` is for MPRIS (media keys) via `souvlaki` in stage 8.

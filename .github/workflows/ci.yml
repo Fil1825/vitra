@@ -54,5 +54,7 @@ jobs:
         with:
           components: clippy
           targets: aarch64-apple-darwin, x86_64-pc-windows-msvc
+      - name: Install llvm-rc (Windows icon resource)
+        run: sudo apt-get update && sudo apt-get install -y llvm
       - uses: Swatinem/rust-cache@v2
       - run: sh scripts/cross-check/run.sh
