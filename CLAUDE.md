@@ -14,18 +14,18 @@ the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Stage status
 
-| #   | Stage                                                  | Status      |
-| --- | ------------------------------------------------------ | ----------- |
-| 0   | Preparation: environment, structure, sidecars, plan    | in review   |
-| 1   | Shell: transparent window, vibrancy, `<Glass>`, themes | not started |
-| 2   | Engine: mpv IPC, transport controls, artwork backdrop  | not started |
-| 3   | Library & queue: scan, SQLite, views, search, session  | not started |
-| 4   | Links: yt-dlp playback, playlists, downloads           | not started |
-| 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | not started |
-| 6   | Mini player                                            | not started |
-| 7   | Customization: theme editor, `.vitratheme`, layout     | not started |
-| 8   | Sound & system: EQ, crossfade, media keys, tray        | not started |
-| 9   | Integrations, i18n, CI builds, README, first release   | not started |
+| #   | Stage                                                  | Status            |
+| --- | ------------------------------------------------------ | ----------------- |
+| 0   | Preparation: environment, structure, sidecars, plan    | in review (PR #1) |
+| 1   | Shell: transparent window, vibrancy, `<Glass>`, themes | in review (PR #2) |
+| 2   | Engine: mpv IPC, transport controls, artwork backdrop  | not started       |
+| 3   | Library & queue: scan, SQLite, views, search, session  | not started       |
+| 4   | Links: yt-dlp playback, playlists, downloads           | not started       |
+| 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | not started       |
+| 6   | Mini player                                            | not started       |
+| 7   | Customization: theme editor, `.vitratheme`, layout     | not started       |
+| 8   | Sound & system: EQ, crossfade, media keys, tray        | not started       |
+| 9   | Integrations, i18n, CI builds, README, first release   | not started       |
 
 ## Commands
 
@@ -38,6 +38,7 @@ npm run tauri build        # release build + installers
 npm run check              # eslint, prettier, tsc, vitest, vite build
 npm run check:rust         # cargo fmt --check, clippy -D warnings, cargo test
 npm run check:all          # both of the above — must pass before every PR
+npm run check:cross        # clippy for aarch64-apple-darwin + x86_64-pc-windows-msvc from Linux
 ```
 
 `fetch-sidecars` options: `--target <triple>`, `--only mpv,yt-dlp`, `--skip deno`, `--force`,
@@ -52,6 +53,8 @@ sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file lib
   libjavascriptcoregtk-4.1-dev libgtk-3-dev libdbus-1-dev
 # Runtime for engine tests (no official Linux mpv binaries exist):
 sudo apt-get install -y mpv
+# llvm-rc for `npm run check:cross` (Windows icon resource):
+sudo apt-get install -y llvm
 ```
 
 `libdbus-1-dev` is for MPRIS (media keys) via `souvlaki` in stage 8.
@@ -73,13 +76,23 @@ Cargo.toml              Cargo workspace (members: src-tauri, later crates/*)
 package.json            frontend + scripts; Tauri CLI is a devDependency
 index.html              main window entry (mini player gets mini.html in stage 6)
 src/                    React + TypeScript frontend
-  main.tsx, App.tsx
-  lib/                  IPC wrappers, event bus, pure helpers
-  styles/               global CSS, theme tokens
-  (planned) components/ shared UI (Glass, Slider, ...), features/<feature>/, stores/,
-            theme/, i18n/, windows/mini/
+  main.tsx              boot: backend bridge → settings + environment → i18n → render
+  app/                  shell layout (TitleBar, Sidebar, NowPlaying, ControlBar) and
+                        useAppearanceController (theme vars, effect flags, window theme, language)
+  components/           shared UI: Glass/ (glass surface, layer budget, refraction), Backdrop/,
+                        ui/ (IconButton, SegmentedControl, Switch)
+  features/<feature>/   feature UI, e.g. settings/
+  stores/               zustand stores: settings (mirror of Rust), environment, appearance
+  theme/                zod schema, built-in themes (builtin/*.json), tokens → CSS vars, effects
+  i18n/                 i18next setup, locales/en.json + ru.json (typed keys)
+  lib/                  IPC wrappers, event bus + backend bridge, hooks, pure helpers
+  styles/global.css     base document styles
+  (planned) windows/mini/
 src-tauri/              Tauri app crate (`vitra`, lib `vitra_lib`)
-  src/lib.rs            builder, plugins, command registration
+  src/lib.rs            builder, plugins, setup, command registration
+  src/settings.rs       Settings struct, JSON persistence, get/set commands
+  src/window.rs         window creation from config, vibrancy / Mica / Acrylic
+  src/error.rs          AppError (serializes to a message for the frontend)
   src/sidecar.rs        locating mpv / yt-dlp / ffmpeg / ffprobe / deno
   tauri.conf.json, capabilities/, icons/ (generated: `npm run tauri icon -- assets/brand/icon-1024.png`)
   sidecars/<triple>/    fetched binaries (git-ignored)
@@ -143,7 +156,22 @@ themes/                 (stage 7) example themes
     reading, `.lrc` files, FTS indexing and saving from the editor).
 13. **i18n from stage 1** (i18next, en + ru) so strings are never hard-coded; stage 9 completes
     and reviews translations. (The spec lists i18n in stage 9; doing it early avoids a rewrite.)
-14. License **GPL-3.0-or-later** (compatible with mpv). Bundle identifier
+14. **Windows are created in Rust** from their `tauri.conf.json` entry (`"create": false`) so
+    transparency can differ per platform: Linux windows are opaque (no vibrancy to show, and a
+    transparent window renders black without a compositor).
+15. **Settings flow**: UI calls `useSettings().update` → `set_settings` command → Rust saves
+    `settings.json` and emits `settings://changed` → `lib/bridge.ts` → bus → every window's store.
+16. **Effects** (`theme/effects.ts`) combine OS preferences (`prefers-reduced-motion`,
+    `prefers-reduced-transparency`), user overrides, power saving and engine support, and are
+    exposed as `data-motion`, `data-transparency`, `data-backdrop-animation`, `data-vibrancy`,
+    `data-platform` on `<html>` for CSS. At most 8 glass layers blur at once (priority-ranked).
+17. **Refraction** needs SVG filters in `backdrop-filter`, which only Blink renders (Windows /
+    WebView2). Detection: `CSS.supports` plus the Blink-only `navigator.userAgentData`; WebKit
+    (macOS, Linux) gets blur + specular highlight. Settings can force it on/off.
+18. **Window material** (macOS): `appearance.windowMaterial` = `vibrancy` (NSVisualEffectView) or
+    `liquidGlass` (NSGlassEffectView, macOS 26+, falls back to vibrancy). Changing it re-applies
+    the backdrop on the main thread and emits `window://effects-changed` to that window.
+19. License **GPL-3.0-or-later** (compatible with mpv). Bundle identifier
     `io.github.fil1825.vitra`. macOS minimum **14.0** (official mpv builds require it).
 
 ## Conventions
@@ -164,5 +192,18 @@ themes/                 (stage 7) example themes
   work without building the frontend; `tauri build` needs it (it runs `npm run build` itself).
 - Static FFmpeg + ffprobe are ~330 MB on Windows/Linux and Deno ~100 MB: installer size is an
   open question (see docs/PLAN.md).
+- Never animate `opacity`, `filter` or `mask` on an ancestor of a `<Glass>`: it becomes a
+  "backdrop root" and the glass stops seeing what's behind it. Animate `transform` instead.
+- Headless UI checks: `npm run build && npx vite preview`, then drive it with `playwright-core`
+  and the preinstalled Chromium (`/opt/pw-browsers/chromium-*/chrome-linux/chrome`). For the real
+  app (WebKitGTK): `npx tauri build --debug --no-bundle`, run `target/debug/vitra` under
+  `xvfb-run` and click with `xdotool`; settings land in `~/.config/io.github.fil1825.vitra/`.
+- Platform-specific Rust is type-checked from Linux with `npm run check:cross` (also a CI job):
+  macOS uses `scripts/cross-check/fake-cc` as its C compiler because objc2's build script needs
+  one, and nothing is linked during clippy. Run it after touching `#[cfg(target_os = ...)]` code.
+- macOS traffic lights (`trafficLightPosition` in `tauri.conf.json`): `x` is the close button's
+  left edge; on Tahoe the buttons are 14 pt wide, 23 pt apart, and their center sits at `y − 2.5`
+  (measured from the owner's screenshot). Current `{x: 23, y: 33}` centers the close button on
+  the sidebar's corner arc and aligns the row with the title (y ≈ 30).
 - The macOS mpv tarball carries code-signature xattrs; `fetch-sidecars` moves extracted files
   with `rename` (never copies) to keep them. Linux GNU tar prints harmless warnings about them.

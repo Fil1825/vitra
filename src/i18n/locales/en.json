@@ -1,0 +1,83 @@
+{
+  "nav": {
+    "label": "Library navigation",
+    "library": "Library",
+    "albums": "Albums",
+    "artists": "Artists",
+    "songs": "Songs",
+    "recent": "Recently Added",
+    "playlists": "Playlists",
+    "comingSoon": "Coming soon"
+  },
+  "nowPlaying": {
+    "emptyTitle": "Nothing playing",
+    "emptyBody": "Your music will appear here."
+  },
+  "player": {
+    "controls": "Playback controls",
+    "previous": "Previous",
+    "play": "Play",
+    "next": "Next",
+    "volume": "Volume",
+    "notPlaying": "Not playing",
+    "progress": "Playback position"
+  },
+  "settings": {
+    "title": "Settings",
+    "open": "Open settings",
+    "close": "Close settings",
+    "appearance": "Appearance",
+    "theme": "Theme",
+    "autoHint": "Follows the system",
+    "themes": {
+      "auto": "Auto",
+      "light": "Light",
+      "dark": "Dark",
+      "aurora-night": "Aurora Night"
+    },
+    "motion": "Motion",
+    "transparency": "Transparency",
+    "refraction": "Refraction",
+    "preference": {
+      "system": "System",
+      "reduce": "Reduced",
+      "full": "Full"
+    },
+    "switch": {
+      "auto": "Auto",
+      "on": "On",
+      "off": "Off"
+    },
+    "refractionSupported": "This engine renders refraction.",
+    "refractionUnsupported": "This engine can't render refraction, so glass uses blur and highlights instead.",
+    "powerSaving": "Power saving",
+    "powerSavingHint": "Turns off blur, refraction and animations.",
+    "windowMaterial": "Window material",
+    "materials": {
+      "vibrancy": "Vibrancy",
+      "liquidGlass": "Liquid Glass"
+    },
+    "liquidGlassUnsupported": "Liquid Glass needs macOS 26 or later.",
+    "liquidGlassFallback": "Liquid Glass isn't available here, so vibrancy is used.",
+    "language": "Language",
+    "languages": {
+      "system": "System",
+      "en": "English",
+      "ru": "Русский"
+    },
+    "diagnostics": "Diagnostics",
+    "platform": "Platform",
+    "vibrancy": "Window backdrop",
+    "vibrancyKinds": {
+      "macos": "macOS vibrancy",
+      "liquidGlass": "Liquid Glass",
+      "mica": "Mica",
+      "acrylic": "Acrylic",
+      "none": "None"
+    },
+    "glassLayers": "Blurred glass layers",
+    "glassLayersValue": "{{active}} of {{max}}",
+    "sidecars": "Helper programs",
+    "notFound": "not found"
+  }
+}

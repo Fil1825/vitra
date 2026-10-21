@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "id": "dark",
+  "name": "Dark",
+  "author": "Vitra",
+  "appearance": "dark",
+  "colors": {
+    "background": "#121318",
+    "text": "#F2F3F7",
+    "textSecondary": "#F2F3F7A3",
+    "textTertiary": "#F2F3F766",
+    "accent": "#4DA3FF",
+    "accentContrast": "#08111C",
+    "separator": "#FFFFFF1A",
+    "danger": "#FF6369"
+  },
+  "glass": {
+    "blur": 30,
+    "saturation": 1.6,
+    "tint": "#1C1E25",
+    "opacity": 0.5,
+    "border": "#FFFFFF1F",
+    "borderWidth": 1,
+    "highlight": 0.4,
+    "highlightColor": "#FFFFFF",
+    "refraction": 0.35,
+    "shadow": "#00000066",
+    "shadowBlur": 40
+  },
+  "typography": {
+    "fontFamily": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif",
+    "fontSize": 14
+  },
+  "radius": {
+    "small": 8,
+    "medium": 14,
+    "large": 22
+  },
+  "spacing": {
+    "unit": 4
+  },
+  "background": {
+    "baseOpacity": 0.7,
+    "gradient": ["#2B3A67", "#4A2F6B", "#1F4B5A"],
+    "gradientOpacity": 0.45,
+    "useArtwork": true
+  },
+  "accentFromArtwork": true,
+  "motion": {
+    "duration": 240,
+    "easing": "standard",
+    "backgroundSpeed": 1
+  }
+}

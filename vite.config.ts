@@ -23,6 +23,8 @@ export default defineConfig({
     // WebView2 (Chromium) on Windows, WebKit on macOS (14+) and Linux.
     target: ['es2022', 'chrome120', 'safari17'],
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
+    // Assets load from disk inside the app, so the web-oriented 500 kB warning doesn't apply.
+    chunkSizeWarningLimit: 1500,
   },
   test: {
     include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.mjs'],

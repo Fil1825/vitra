@@ -1,0 +1,65 @@
+.bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 2fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--vitra-space-4);
+  padding: var(--vitra-space-3) var(--vitra-space-4);
+}
+
+.track {
+  display: flex;
+  align-items: center;
+  gap: var(--vitra-space-3);
+  min-width: 0;
+}
+
+.artwork {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--vitra-radius-sm);
+  background: linear-gradient(135deg, var(--vitra-backdrop-1), var(--vitra-backdrop-3));
+  opacity: 0.6;
+}
+
+.trackTitle {
+  overflow: hidden;
+  color: var(--vitra-color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transport {
+  display: grid;
+  justify-items: center;
+  gap: var(--vitra-space-1);
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--vitra-space-4);
+}
+
+.progress,
+.volumeTrack {
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--vitra-color-text) 16%, transparent);
+}
+
+.progress {
+  width: 100%;
+}
+
+.volume {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--vitra-space-2);
+  color: var(--vitra-color-text-secondary);
+}
+
+.volumeTrack {
+  width: 96px;
+}

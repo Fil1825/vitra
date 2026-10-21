@@ -1,23 +1,11 @@
-/* Temporary base styles. Stage 1 replaces these with the theme token system. */
+/* Base document styles. Every color and size comes from theme variables (src/theme/tokens.ts). */
 :root {
-  color-scheme: light dark;
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    'Helvetica Neue',
-    sans-serif;
-  line-height: 1.5;
-  background: #101014;
-  color: #f2f2f7;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    background: #f4f4f7;
-    color: #16161a;
-  }
+  font-family: var(--vitra-font-family, system-ui, sans-serif);
+  font-size: var(--vitra-font-size, 14px);
+  line-height: 1.45;
+  color: var(--vitra-color-text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 *,
@@ -26,7 +14,39 @@
   box-sizing: border-box;
 }
 
+/* Transparent so the system vibrancy behind the window shows through (see Backdrop). */
+html,
 body {
+  height: 100%;
   margin: 0;
-  min-height: 100vh;
+  overflow: hidden;
+  background: transparent;
+}
+
+#root {
+  height: 100%;
+}
+
+/* App chrome behaves like native UI: no text selection or I-beam outside inputs. */
+body {
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--vitra-color-accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--vitra-color-accent) 35%, transparent);
+}
+
+:root[data-motion='reduce'] *,
+:root[data-motion='reduce'] *::before,
+:root[data-motion='reduce'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
 }

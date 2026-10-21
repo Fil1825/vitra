@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "id": "aurora-night",
+  "name": "Aurora Night",
+  "author": "Vitra",
+  "appearance": "dark",
+  "colors": {
+    "background": "#05070D",
+    "text": "#EAF6FF",
+    "textSecondary": "#EAF6FFA3",
+    "textTertiary": "#EAF6FF66",
+    "accent": "#3FA9F5",
+    "accentContrast": "#05070D",
+    "separator": "#CFEFFF1F",
+    "danger": "#FF6B81"
+  },
+  "glass": {
+    "blur": 32,
+    "saturation": 1.5,
+    "tint": "#0B1426",
+    "opacity": 0.55,
+    "border": "#CFEFFF24",
+    "borderWidth": 1,
+    "highlight": 0.5,
+    "highlightColor": "#CFEFFF",
+    "refraction": 0.4,
+    "shadow": "#00000080",
+    "shadowBlur": 48
+  },
+  "typography": {
+    "fontFamily": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif",
+    "fontSize": 14
+  },
+  "radius": {
+    "small": 8,
+    "medium": 14,
+    "large": 22
+  },
+  "spacing": {
+    "unit": 4
+  },
+  "background": {
+    "baseOpacity": 0.88,
+    "gradient": ["#2EE6C5", "#3FA9F5", "#7B5CFF"],
+    "gradientOpacity": 0.4,
+    "useArtwork": true
+  },
+  "accentFromArtwork": false,
+  "motion": {
+    "duration": 260,
+    "easing": "emphasized",
+    "backgroundSpeed": 0.7
+  }
+}
