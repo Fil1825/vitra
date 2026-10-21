@@ -12,6 +12,7 @@
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "isolatedModules": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true,
 
     "strict": true,

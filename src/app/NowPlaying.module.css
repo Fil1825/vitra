@@ -1,0 +1,24 @@
+.card {
+  display: grid;
+  justify-items: center;
+  gap: var(--vitra-space-2);
+  width: min(420px, 100%);
+  padding: var(--vitra-space-10) var(--vitra-space-8);
+  text-align: center;
+}
+
+.symbol {
+  margin-bottom: var(--vitra-space-3);
+}
+
+.title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.body {
+  margin: 0;
+  color: var(--vitra-color-text-secondary);
+}

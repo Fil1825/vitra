@@ -1,0 +1,90 @@
+.backdrop {
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.base {
+  position: absolute;
+  inset: 0;
+  background: var(--vitra-color-background);
+  opacity: var(--vitra-backdrop-base-opacity);
+  transition: background-color var(--vitra-motion-duration) var(--vitra-motion-easing);
+}
+
+/* Without a system backdrop (Linux, reduced transparency) the base must be opaque. */
+:root[data-vibrancy='off'] .base,
+:root[data-transparency='reduce'] .base {
+  opacity: 1;
+}
+
+.flow {
+  position: absolute;
+  inset: -25%;
+  opacity: var(--vitra-backdrop-opacity);
+}
+
+.blob {
+  position: absolute;
+  width: 75vmax;
+  height: 75vmax;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, var(--_color) 0%, transparent 68%);
+  animation: drift-a var(--vitra-backdrop-duration) ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.blob:nth-child(1) {
+  --_color: var(--vitra-backdrop-1);
+  top: 0;
+  left: 0;
+}
+
+.blob:nth-child(2) {
+  --_color: var(--vitra-backdrop-2);
+  top: 15%;
+  right: 0;
+  animation-name: drift-b;
+  animation-delay: calc(var(--vitra-backdrop-duration) / -3);
+}
+
+.blob:nth-child(3) {
+  --_color: var(--vitra-backdrop-3);
+  bottom: 0;
+  left: 25%;
+  animation-name: drift-c;
+  animation-delay: calc(var(--vitra-backdrop-duration) / -1.5);
+}
+
+:root[data-backdrop-animation='off'] .blob {
+  animation-play-state: paused;
+}
+
+@keyframes drift-a {
+  50% {
+    transform: translate(18vw, 12vh) scale(1.15);
+  }
+  100% {
+    transform: translate(6vw, 28vh) scale(0.92);
+  }
+}
+
+@keyframes drift-b {
+  50% {
+    transform: translate(-22vw, 14vh) scale(0.9);
+  }
+  100% {
+    transform: translate(-8vw, -10vh) scale(1.12);
+  }
+}
+
+@keyframes drift-c {
+  50% {
+    transform: translate(12vw, -18vh) scale(1.1);
+  }
+  100% {
+    transform: translate(-16vw, -6vh) scale(0.95);
+  }
+}

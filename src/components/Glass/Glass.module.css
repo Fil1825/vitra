@@ -1,0 +1,102 @@
+/*
+ * Every value comes from a theme variable (`--vitra-glass-*`) unless the component overrides it
+ * through a `--glass-*` property (see glassStyle in Glass.tsx).
+ */
+.glass {
+  --_blur: var(--glass-blur, var(--vitra-glass-blur));
+  --_saturation: var(--glass-saturation, var(--vitra-glass-saturation));
+  --_tint: var(--glass-tint, var(--vitra-glass-tint));
+  --_opacity: var(--glass-opacity, var(--vitra-glass-opacity));
+  --_radius: var(--glass-radius, var(--vitra-radius-lg));
+  --_border: var(--glass-border, var(--vitra-glass-border));
+  --_highlight: var(--glass-highlight, var(--vitra-glass-highlight));
+  --_filter: blur(var(--_blur)) saturate(var(--_saturation));
+
+  position: relative;
+  isolation: isolate;
+  border-radius: var(--_radius);
+  background: color-mix(in srgb, var(--_tint) calc(var(--_opacity) * 100%), transparent);
+  box-shadow:
+    var(--vitra-glass-shadow),
+    inset 0 0 0 var(--vitra-glass-border-width) var(--_border);
+  -webkit-backdrop-filter: var(--_filter);
+  backdrop-filter: var(--_filter);
+  transition:
+    background-color var(--vitra-motion-duration) var(--vitra-motion-easing),
+    box-shadow var(--vitra-motion-duration) var(--vitra-motion-easing);
+}
+
+/* Specular rim: bright along the top-left edge, fainter at the bottom-right. */
+.glass::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    color-mix(
+        in srgb,
+        var(--vitra-glass-highlight-color) calc(var(--_highlight) * 100%),
+        transparent
+      )
+      0%,
+    transparent 38%,
+    transparent 62%,
+    color-mix(
+        in srgb,
+        var(--vitra-glass-highlight-color) calc(var(--_highlight) * 45%),
+        transparent
+      )
+      100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Soft sheen across the upper part, the "thickness" of the glass. */
+.glass::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    180deg,
+    color-mix(
+      in srgb,
+      var(--vitra-glass-highlight-color) calc(var(--_highlight) * 14%),
+      transparent
+    ),
+    transparent 45%
+  );
+  pointer-events: none;
+}
+
+.glass[data-refraction='on'] {
+  --_filter: var(--glass-refraction-filter) blur(var(--_blur)) saturate(var(--_saturation));
+}
+
+/* Over the layer budget, reduced transparency or power saving: a solid surface, no blur. */
+.glass[data-blur='off'],
+:root[data-transparency='reduce'] .glass {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: color-mix(
+    in srgb,
+    var(--_tint) calc(max(var(--_opacity), 0.9) * 100%),
+    var(--vitra-color-background)
+  );
+}
+
+.filterHost {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}

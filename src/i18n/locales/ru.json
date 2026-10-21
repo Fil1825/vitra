@@ -1,0 +1,75 @@
+{
+  "nav": {
+    "label": "Навигация по медиатеке",
+    "library": "Медиатека",
+    "albums": "Альбомы",
+    "artists": "Исполнители",
+    "songs": "Песни",
+    "recent": "Недавно добавленные",
+    "playlists": "Плейлисты",
+    "comingSoon": "Скоро"
+  },
+  "nowPlaying": {
+    "emptyTitle": "Ничего не играет",
+    "emptyBody": "Здесь появится ваша музыка."
+  },
+  "player": {
+    "controls": "Управление воспроизведением",
+    "previous": "Назад",
+    "play": "Воспроизвести",
+    "next": "Вперёд",
+    "volume": "Громкость",
+    "notPlaying": "Не воспроизводится",
+    "progress": "Позиция воспроизведения"
+  },
+  "settings": {
+    "title": "Настройки",
+    "open": "Открыть настройки",
+    "close": "Закрыть настройки",
+    "appearance": "Оформление",
+    "theme": "Тема",
+    "autoHint": "Как в системе",
+    "themes": {
+      "auto": "Авто",
+      "light": "Светлая",
+      "dark": "Тёмная",
+      "aurora-night": "Aurora Night"
+    },
+    "motion": "Анимация",
+    "transparency": "Прозрачность",
+    "refraction": "Рефракция",
+    "preference": {
+      "system": "Система",
+      "reduce": "Меньше",
+      "full": "Полностью"
+    },
+    "switch": {
+      "auto": "Авто",
+      "on": "Вкл",
+      "off": "Выкл"
+    },
+    "refractionSupported": "Этот движок умеет рисовать рефракцию.",
+    "refractionUnsupported": "Этот движок не умеет рисовать рефракцию, поэтому стекло использует размытие и блики.",
+    "powerSaving": "Энергосбережение",
+    "powerSavingHint": "Отключает размытие, рефракцию и анимации.",
+    "language": "Язык",
+    "languages": {
+      "system": "Система",
+      "en": "English",
+      "ru": "Русский"
+    },
+    "diagnostics": "Диагностика",
+    "platform": "Платформа",
+    "vibrancy": "Фон окна",
+    "vibrancyKinds": {
+      "macos": "Вибрация macOS",
+      "mica": "Mica",
+      "acrylic": "Acrylic",
+      "none": "Нет"
+    },
+    "glassLayers": "Слои размытого стекла",
+    "glassLayersValue": "{{active}} из {{max}}",
+    "sidecars": "Вспомогательные программы",
+    "notFound": "не найдено"
+  }
+}
