@@ -123,7 +123,8 @@
       "scanning": "Scanning… {{done}} of {{total}}",
       "scanListing": "Looking for files…",
       "scanCovers": "Preparing covers… {{done}} of {{total}}",
-      "watchHint": "Folders are watched: new, changed and deleted files show up by themselves."
+      "watchHint": "Folders are watched: new, changed and deleted files show up by themselves.",
+      "insideFolder": "This folder is already in your library as part of “{{folder}}”."
     }
   },
   "library": {
@@ -206,7 +207,7 @@
     "cover": "Cover",
     "chooseCover": "Choose…",
     "removeCover": "Remove",
-    "noCover": "No cover",
+    "noCover": "No cover in the file",
     "images": "Images",
     "save": "Save",
     "cancel": "Cancel",

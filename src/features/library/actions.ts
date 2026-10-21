@@ -34,6 +34,19 @@ export function shuffleTracks(ids: number[]): void {
     .catch(report('Shuffling'));
 }
 
+/** The library folder that already contains `path` (not `path` itself), if any. */
+export function containingFolder(path: string, folders: readonly string[]): string | undefined {
+  const normalized = path.replace(/[\\/]+$/, '');
+  return folders.find((folder) => {
+    const base = folder.replace(/[\\/]+$/, '');
+    return (
+      normalized !== base &&
+      normalized.startsWith(base) &&
+      ['/', '\\'].includes(normalized.charAt(base.length))
+    );
+  });
+}
+
 /** Asks for a folder and adds it to the library (its scan starts right away). */
 export async function addMusicFolder(): Promise<void> {
   const path = await pickFolder();
@@ -41,9 +54,16 @@ export async function addMusicFolder(): Promise<void> {
     return;
   }
   try {
+    const folders = (await library.folders()).map((folder) => folder.path);
+    const parent = containingFolder(path, folders);
+    if (parent) {
+      await message(i18n.t('settings.library.insideFolder', { folder: parent }), {
+        kind: 'info',
+      });
+      return;
+    }
     await library.addFolder(path);
   } catch (err) {
-    // E.g. a folder inside one that is already in the library.
     await message(String(err), { kind: 'warning' });
   }
 }

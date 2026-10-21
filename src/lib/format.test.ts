@@ -34,6 +34,7 @@ describe('formatTotal', () => {
 
   it('shows minutes, then hours and minutes', () => {
     expect(formatTotal(0, units)).toBe('0 min');
+    expect(formatTotal(12, units)).toBe('1 min');
     expect(formatTotal(42 * 60 + 20, units)).toBe('42 min');
     expect(formatTotal(3600 + 5 * 60, units)).toBe('1 h 05 min');
   });

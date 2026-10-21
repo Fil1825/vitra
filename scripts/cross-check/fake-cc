@@ -1,16 +1,19 @@
 #!/bin/sh
-# Stand-in for an Apple C compiler when type-checking the macOS target on Linux: build scripts
-# (e.g. objc2-exception-helper) need *some* object file, but `cargo clippy` never links it.
-# Answers cc-rs' compiler detection and writes an empty file for `-o <out>`, `-o<out>` or
-# `-Fo<out>`.
+# Stand-in for a C compiler and archiver when type-checking other targets on Linux: build
+# scripts (objc2-exception-helper on macOS, bundled SQLite everywhere) need *some* object
+# file or library, but `cargo clippy` never links them.
+# Answers cc-rs' compiler detection and writes an empty file for `-o <out>`, `-o<out>`,
+# `-Fo<out>` / `/Fo<out>` (MSVC compiler) or `-out:<out>` / `/OUT:<out>` (MSVC lib.exe).
 out=""
 prev=""
 for arg in "$@"; do
   case "$prev" in -o) out="$arg" ;; esac
   case "$arg" in
     --version) echo "fake-cc 1.0"; exit 0 ;;
+    # Before `-o?*`, which would match these too.
+    -out:?* | /out:?* | -OUT:?* | /OUT:?*) out="${arg#?[oO][uU][tT]:}" ;;
     -o?*) out="${arg#-o}" ;;
-    -Fo?*) out="${arg#-Fo}" ;;
+    -Fo?* | /Fo?*) out="${arg#?Fo}" ;;
   esac
   prev="$arg"
 done

@@ -19,7 +19,7 @@ the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
 | 0   | Preparation: environment, structure, sidecars, plan    | in review (PR #1) |
 | 1   | Shell: transparent window, vibrancy, `<Glass>`, themes | in review (PR #2) |
 | 2   | Engine: mpv IPC, transport controls, artwork backdrop  | in review (PR #3) |
-| 3   | Library & queue: scan, SQLite, views, search, session  | not started       |
+| 3   | Library & queue: scan, SQLite, views, search, session  | in review (PR #4) |
 | 4   | Links: yt-dlp playback, playlists, downloads           | not started       |
 | 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | not started       |
 | 6   | Mini player                                            | not started       |
@@ -80,13 +80,16 @@ Cargo.toml              Cargo workspace (members: src-tauri, later crates/*)
 package.json            frontend + scripts; Tauri CLI is a devDependency
 index.html              main window entry (mini player gets mini.html in stage 6)
 src/                    React + TypeScript frontend
-  main.tsx              boot: backend bridge → settings + environment → i18n → render
+  main.tsx              boot: backend bridge → settings, environment, player, queue, library
+                        stores → i18n → render
   app/                  shell layout (TitleBar, Sidebar, NowPlaying, ControlBar) and
                         useAppearanceController (theme vars, effect flags, window theme, language)
   components/           shared UI: Glass/ (glass surface, layer budget, refraction), Backdrop/,
-                        ui/ (IconButton, SegmentedControl, Switch)
-  features/<feature>/   feature UI, e.g. settings/
-  stores/               zustand stores: settings (mirror of Rust), environment, appearance
+                        ui/ (IconButton, SegmentedControl, Switch, Slider)
+  features/<feature>/   feature UI: library/ (views, TrackTable, AlbumGrid, actions + menus),
+                        queue/ (QueuePanel), tags/ (TagEditor), settings/
+  stores/               zustand stores: settings (mirror of Rust), environment, appearance,
+                        player, queue, library (scan status), navigation (routes), ui (panels)
   theme/                zod schema, built-in themes (builtin/*.json), tokens → CSS vars, effects
   i18n/                 i18next setup, locales/en.json + ru.json (typed keys)
   lib/                  IPC wrappers, event bus + backend bridge, hooks, pure helpers
@@ -98,13 +101,19 @@ src-tauri/              Tauri app crate (`vitra`, lib `vitra_lib`)
   src/window.rs         window creation from config, vibrancy / Mica / Acrylic
   src/error.rs          AppError (serializes to a message for the frontend)
   src/sidecar.rs        locating mpv / yt-dlp / ffmpeg / ffprobe / deno
-  src/player/           mpv supervisor + commands (mod.rs), PlayerState reducer (state.rs),
-                        artwork:// scheme store (artwork.rs)
+  src/player/           mpv supervisor, queue mirroring and commands (mod.rs, commands.rs),
+                        PlayerState reducer (state.rs), play queue (queue.rs, pure),
+                        session save/restore (session.rs), artwork:// scheme (artwork.rs)
+  src/library/          LibraryService: DB connection, scanner thread, folder watcher
+                        (watch.rs), library/playlist/tag-editor commands (commands.rs)
   tauri.conf.json, capabilities/, icons/ (generated: `npm run tauri icon -- assets/brand/icon-1024.png`)
   sidecars/<triple>/    fetched binaries (git-ignored)
 crates/                 pure-Rust crates testable without WebKit
   mpv-ipc/              async mpv JSON IPC client + spawning mpv (in-memory fake + opt-in real-mpv tests)
-  media/                lofty tags, embedded/folder artwork, thumbnails, color palette (fixtures in tests/)
+  media/                lofty tags (read + write), embedded/folder artwork, thumbnails, color
+                        palette (fixtures in tests/)
+  library/              SQLite library: schema + migrations, tracks/albums/artists, FTS5
+                        search, playlists, history, session, incremental folder scanner
 scripts/
   fetch-sidecars.mjs    downloader (I/O)
   sidecars/plan.mjs     what to download per target (pure, unit-tested)
@@ -137,7 +146,7 @@ themes/                 (stage 7) example themes
      plus `--media-controls=no` and `--macos-app-activation-policy=prohibited` (no Dock icon) for
      mpv 0.39+; if mpv exits at startup with those, it is restarted without them.
    - The supervisor restarts mpv after crashes (≤5 per minute), restoring volume, speed and the
-     current track with its position. Every spawn starts with an `mpv-version` handshake.
+     queue's current item with its position. Every spawn starts with an `mpv-version` handshake.
    - `PlayerState::apply` (pure, unit-tested) turns mpv events into UI state; the app emits
      `player://state`, throttled `player://position` (4/s, the UI extrapolates) and
      `player://track-changed`. Commands: `player_open/play/pause/toggle/seek/set_volume/...`.
@@ -146,6 +155,7 @@ themes/                 (stage 7) example themes
      `crates/media`: display image (≤1200 px), 96 px backdrop thumbnail, palette + accent.
    - Artwork reaches the WebView through the `artwork://` URI scheme (in-memory, content-
      addressed ids, CSP `img-src artwork: http://artwork.localhost`), never via file access.
+     Library covers are `artwork://localhost/cover/<16 hex>` from `<app data>/covers/`.
 6. **Sidecars** (helper binaries):
    - mpv: official builds pinned to `v0.41.0` with SHA-256 (`macos-14-arm`, `macos-15-intel`,
      `x86_64-pc-windows-msvc`). On macOS it is a whole `mpv.app` with dylibs in
@@ -172,9 +182,10 @@ themes/                 (stage 7) example themes
     data (JSON + CSS + assets), never JavaScript; `custom.css` is sanitized on import.
     `devCsp` is `null` because Vite's dev server injects inline scripts — check CSP-sensitive
     work with `npm run tauri build`.
-11. **Persistence**: SQLite (`rusqlite`, bundled, FTS5) in the app data dir for library,
-    playlists, lyrics, history and session; settings in a JSON file in the app config dir,
-    owned by Rust.
+11. **Persistence**: SQLite (`rusqlite`, bundled, FTS5) in the app data dir (`library.db`, WAL)
+    for library, playlists, lyrics, history and session; settings in a JSON file in the app
+    config dir, owned by Rust. Migrations are numbered SQL batches (`PRAGMA user_version`);
+    never edit a released one. A database that can't be opened is set aside, not fatal.
 12. **Theme schema**: zod schema is the single source; `docs/theme.schema.json` is generated
     from it (`z.toJSONSchema`) and a test fails if the committed file is stale.
 13. **LRC / enhanced LRC parsing and serialization in Rust** (one implementation shared by tag
@@ -196,7 +207,31 @@ themes/                 (stage 7) example themes
 19. **Window material** (macOS): `appearance.windowMaterial` = `vibrancy` (NSVisualEffectView) or
     `liquidGlass` (NSGlassEffectView, macOS 26+, falls back to vibrancy). Changing it re-applies
     the backdrop on the main thread and emits `window://effects-changed` to that window.
-20. License **GPL-3.0-or-later** (compatible with mpv). Bundle identifier
+20. **Library** (`crates/library`, `src-tauri/src/library`):
+    - Albums are keyed by title + album artist (falling back to the track artist); untitled
+      tracks show their file name. Plays, favorites and playlist entries hang off track ids.
+    - Scans are incremental (size + mtime), read tags on up to 8 threads, write in batches of
+      250, follow moved/renamed files (same size and title → same row), never delete tracks of
+      an unreadable folder or a cancelled scan, and date a folder's first scan by file mtime.
+    - Album covers: 512 px JPEGs named by the FNV-1a hash of the source image, cached in
+      `<app data>/covers`, garbage-collected after scans.
+    - One scanner thread with its own connection; commands share another (`LibraryService`).
+      `notify` watches folders; changes rescan the folder 3 s after things settle.
+    - Search: FTS5 `unicode61 remove_diacritics 2`, every word a prefix (`"word"*`), ranked
+      title > artist > album > album artist > lyrics.
+    - Events: `library://changed` (`tracks` | `playlists` | `folders`) and `library://scan`;
+      views reload through `useLibraryData`, which coalesces bursts.
+21. **Queue** (`player/queue.rs`, pure): items in play order with unique `uid`s, `current`,
+    shuffle (current item first, the original order kept to unshuffle), repeat off/all/one.
+    Gapless: mpv's playlist holds the current item and `peek_next()` (`loadfile … append`,
+    `--prefetch-playlist`); `start-file` of that entry advances the queue. A play counts at
+    half the track (at most 4 min). The queue and playback values (position, volume, mute,
+    speed) are saved to the `session` table every few seconds and on exit; the current item
+    comes back paused. `queue://changed` carries the whole queue.
+22. **Context menus** are native (`@tauri-apps/api/menu`, `lib/menu.ts`); the WebView's own
+    menu is suppressed outside text fields. Reordering uses a small pointer-based hook
+    (`lib/reorder.ts`) because HTML5 drag and drop clashes with the window's file drop.
+23. License **GPL-3.0-or-later** (compatible with mpv). Bundle identifier
     `io.github.fil1825.vitra`. macOS minimum **14.0** (official mpv builds require it).
 
 ## Conventions
@@ -224,8 +259,16 @@ themes/                 (stage 7) example themes
   app (WebKitGTK): `npx tauri build --debug --no-bundle`, run `target/debug/vitra` under
   `xvfb-run` and click with `xdotool`; settings land in `~/.config/io.github.fil1825.vitra/`.
 - Platform-specific Rust is type-checked from Linux with `npm run check:cross` (also a CI job):
-  macOS uses `scripts/cross-check/fake-cc` as its C compiler because objc2's build script needs
-  one, and nothing is linked during clippy. Run it after touching `#[cfg(target_os = ...)]` code.
+  `scripts/cross-check/fake-cc` stands in for the Apple and MSVC C compiler and archiver
+  (objc2's build script and bundled SQLite need one) and writes empty files, since nothing is
+  linked during clippy. Run it after touching `#[cfg(target_os = ...)]` code.
+- `convertFileSrc` percent-encodes its whole argument, `/` included: build library cover URLs
+  as `convertFileSrc('cover', 'artwork') + '/' + id` (see `coverUrl`).
+- Lists that virtualize (`useVirtualRange`) measure against the closest
+  `[data-scroll-container]` ancestor; the main area and the queue panel are such containers.
+- The library database and covers live in `~/.local/share/io.github.fil1825.vitra/` on Linux
+  (app data dir); to test a library under Xvfb, insert a row into `folders` or use the
+  settings panel.
 - macOS traffic lights (`trafficLightPosition` in `tauri.conf.json`): `x` is the close button's
   left edge; on Tahoe the buttons are 14 pt wide, 23 pt apart, and their center sits at `y − 2.5`
   (measured from the owner's screenshot). Current `{x: 23, y: 33}` centers the close button on

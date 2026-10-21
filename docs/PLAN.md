@@ -69,6 +69,12 @@ and an explicit list of checks that can only be done on a Mac.
 - Basic tag editor (title, artist, album, year, cover).
 - Tests: queue logic (shuffle/repeat/reorder invariants), scanner on fixture files,
   FTS queries, migrations.
+- Done as planned, plus: favorites view, play history panel, moved/renamed files keep their
+  history, native context menus, album artist in the tag editor. Not done here: drag and drop
+  from the library onto sidebar playlists (context menu instead), multi-disc headers in
+  albums, a column chooser for the songs table.
+- **Mac**: native context menus and `ask`/`message` dialogs, FSEvents folder watching, cover
+  grid scrolling performance on a large library, gapless transitions on real albums.
 
 ## Stage 4 — Links
 
@@ -151,6 +157,8 @@ and an explicit list of checks that can only be done on a Mac.
 | `backdrop-filter` with SVG filters only works in Chromium                                  | Feature detection + blur/highlight fallback (WebKit on macOS/Linux).                                                                          |
 | Transparent windows on Linux need a compositor                                             | Detect and fall back to an opaque theme background.                                                                                           |
 | A hard crash on Windows can orphan mpv (no fd-passing IPC there)                           | Assign mpv to a Job Object with kill-on-close (stage 9); macOS/Linux already tie mpv's life to the IPC socket.                                |
+| A huge queue (tens of thousands of items) is sent whole on every change                    | Fine for normal libraries (≈ 2 MB at 10 000 items); send diffs or pages if it shows up in profiles.                                           |
+| Linux inotify watch limits on very large libraries                                         | Watching degrades to manual rescans (logged); raise `fs.inotify.max_user_watches` if needed.                                                  |
 | No GUI in the cloud environment                                                            | Logic in testable crates/modules; UI verified by the owner on macOS following PR instructions.                                                |
 
 ## Open questions

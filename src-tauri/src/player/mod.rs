@@ -1014,8 +1014,18 @@ fn fill_entry(entry: &mut Entry, metadata: &TrackMetadata) {
     entry.duration = metadata.duration.or(entry.duration);
 }
 
-/// Files to play for opened paths: files as they are, folders as the audio files inside
-/// them (recursively, sorted by path).
+/// Whether a file opened or dropped directly can be played: audio, plus the video containers
+/// the library scanner skips (mpv plays their audio).
+fn playable(path: &Path) -> bool {
+    library::is_audio_file(path)
+        || path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| matches!(ext.to_ascii_lowercase().as_str(), "mp4" | "webm"))
+}
+
+/// Files to play for opened or dropped paths: playable files as they are, folders as the
+/// audio files inside them (recursively, sorted by path).
 fn expand(paths: Vec<PathBuf>) -> Vec<PathBuf> {
     let mut files = Vec::new();
     for path in paths {
@@ -1041,7 +1051,7 @@ fn expand(paths: Vec<PathBuf>) -> Vec<PathBuf> {
             }
             found.sort();
             files.extend(found);
-        } else if path.is_file() {
+        } else if path.is_file() && playable(&path) {
             files.push(path);
         }
         if files.len() >= MAX_OPEN {

@@ -9,7 +9,9 @@ An open-source desktop music player with a **Liquid Glass** look — fully theme
 virtually any audio format, streams audio from links (YouTube, SoundCloud and hundreds of other
 sites) and shows synced lyrics. Runs on macOS, Windows and Linux.
 
-> **Status:** early development (stage 0 of the [plan](docs/PLAN.md)). Nothing to install yet.
+> **Status:** early development (stage 3 of the [plan](docs/PLAN.md)): local playback, the
+> music library and the play queue work; links, lyrics and releases come later. Nothing to
+> install yet.
 
 ## Building from source
 

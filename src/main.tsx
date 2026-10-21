@@ -11,7 +11,25 @@ import { initQueue } from './stores/queue.ts';
 import { initSettings, useSettings } from './stores/settings.ts';
 import './styles/global.css';
 
+/**
+ * The WebView's own context menu (Back, Reload, Inspect Element) makes no sense in an app;
+ * Vitra shows native menus where it has something to offer. Text fields keep theirs for
+ * copy and paste.
+ */
+function suppressWebViewMenu(): void {
+  document.addEventListener('contextmenu', (event) => {
+    const target = event.target;
+    const editable =
+      target instanceof HTMLElement &&
+      (target.isContentEditable || target.closest('input, textarea') !== null);
+    if (!editable) {
+      event.preventDefault();
+    }
+  });
+}
+
 async function boot(root: HTMLElement): Promise<void> {
+  suppressWebViewMenu();
   // Start listening before loading so a change made meanwhile in another window isn't missed.
   await startBackendBridge();
   await Promise.all([initSettings(), initEnvironment(), initPlayer(), initQueue(), initLibrary()]);

@@ -39,7 +39,13 @@ export function usePlayerShortcuts(): void {
           break;
         case 'ArrowLeft':
         case 'ArrowRight': {
-          if (command || state.duration === null) return;
+          // Cmd/Ctrl+←/→: previous / next track, like other players.
+          if (command) {
+            event.preventDefault();
+            (event.key === 'ArrowLeft' ? player.previous() : player.next()).catch(report);
+            return;
+          }
+          if (state.duration === null) return;
           event.preventDefault();
           const delta =
             (event.key === 'ArrowLeft' ? -1 : 1) * SEEK_STEP_S * (event.shiftKey ? 3 : 1);
