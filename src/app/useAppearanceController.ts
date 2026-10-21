@@ -7,7 +7,9 @@ import { useMediaQuery } from '../lib/useMediaQuery.ts';
 import { setWindowAppearance } from '../lib/window.ts';
 import { useAppearance } from '../stores/appearance.ts';
 import { useEnvironment } from '../stores/environment.ts';
+import { usePlayer } from '../stores/player.ts';
 import { useSettings } from '../stores/settings.ts';
+import { accentFor } from '../theme/accent.ts';
 import { applyTheme } from '../theme/apply.ts';
 import { resolveEffects } from '../theme/effects.ts';
 import { AUTO_THEME_ID, resolveTheme } from '../theme/themes.ts';
@@ -31,6 +33,14 @@ export function useAppearanceController(): void {
     () => resolveTheme(appearance.theme, prefersDark),
     [appearance.theme, prefersDark],
   );
+  const palette = usePlayer((s) => s.state.track?.artwork?.palette ?? null);
+  const accent = useMemo(
+    () =>
+      theme.accentFromArtwork && appearance.artworkAccent && palette
+        ? accentFor(palette.accent, theme.appearance)
+        : null,
+    [theme, appearance.artworkAccent, palette],
+  );
   const effects = useMemo(
     () => resolveEffects({ reducedMotion, reducedTransparency }, appearance, supportsRefraction),
     [reducedMotion, reducedTransparency, appearance, supportsRefraction],
@@ -42,6 +52,16 @@ export function useAppearanceController(): void {
     useAppearance.setState({ theme });
     bus.emit('theme:changed', theme);
   }, [theme]);
+
+  // Runs after the theme effect, so it overrides (or restores) the theme's accent.
+  useLayoutEffect(() => {
+    const root = document.documentElement.style;
+    root.setProperty('--vitra-color-accent', accent?.accent ?? theme.colors.accent);
+    root.setProperty(
+      '--vitra-color-accent-contrast',
+      accent?.contrast ?? theme.colors.accentContrast,
+    );
+  }, [theme, accent]);
 
   useLayoutEffect(() => {
     const root = document.documentElement.dataset;

@@ -130,6 +130,17 @@ export function SettingsPanel({ onClose }: { onClose(): void }) {
               />
             </Row>
             <Row
+              label={t('settings.artworkAccent')}
+              hint={t('settings.artworkAccentHint')}
+              layout="inline"
+            >
+              <Switch
+                label={t('settings.artworkAccent')}
+                checked={settings.appearance.artworkAccent}
+                onChange={(artworkAccent) => setAppearance({ artworkAccent })}
+              />
+            </Row>
+            <Row
               label={t('settings.powerSaving')}
               hint={t('settings.powerSavingHint')}
               layout="inline"

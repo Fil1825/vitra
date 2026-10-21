@@ -47,6 +47,7 @@ export function themeToCssVars(theme: Theme): Record<string, string> {
 
     '--vitra-backdrop-base-opacity': String(background.baseOpacity),
     '--vitra-backdrop-opacity': String(background.gradientOpacity),
+    '--vitra-backdrop-artwork-opacity': String(background.artworkOpacity),
     '--vitra-backdrop-duration':
       motion.backgroundSpeed > 0
         ? `${Math.round(BACKDROP_CYCLE_S / motion.backgroundSpeed)}s`

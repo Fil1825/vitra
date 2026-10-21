@@ -1,6 +1,6 @@
 .bar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 2fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 2fr) minmax(0, 1fr);
   align-items: center;
   gap: var(--vitra-space-4);
   padding: var(--vitra-space-3) var(--vitra-space-4);
@@ -18,21 +18,40 @@
   width: 48px;
   height: 48px;
   border-radius: var(--vitra-radius-sm);
+  object-fit: cover;
   background: linear-gradient(135deg, var(--vitra-backdrop-1), var(--vitra-backdrop-3));
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--vitra-color-background) 45%, transparent);
+}
+
+div.artwork {
   opacity: 0.6;
 }
 
-.trackTitle {
+.trackText {
+  display: grid;
+  min-width: 0;
+}
+
+.trackTitle,
+.trackSubtitle {
   overflow: hidden;
-  color: var(--vitra-color-text-secondary);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.trackTitle {
+  font-weight: 600;
+}
+
+.trackSubtitle {
+  color: var(--vitra-color-text-secondary);
+  font-size: 12px;
 }
 
 .transport {
   display: grid;
   justify-items: center;
-  gap: var(--vitra-space-1);
+  gap: 2px;
 }
 
 .buttons {
@@ -41,25 +60,87 @@
   gap: var(--vitra-space-4);
 }
 
-.progress,
-.volumeTrack {
-  height: 4px;
-  border-radius: 2px;
-  background: color-mix(in srgb, var(--vitra-color-text) 16%, transparent);
+.progress {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 52px;
+  align-items: center;
+  gap: var(--vitra-space-2);
+  width: 100%;
 }
 
-.progress {
-  width: 100%;
+.time {
+  color: var(--vitra-color-text-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.time:first-child {
+  text-align: right;
 }
 
 .volume {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--vitra-space-2);
+  gap: var(--vitra-space-1);
   color: var(--vitra-color-text-secondary);
 }
 
-.volumeTrack {
+.volumeSlider {
   width: 96px;
+}
+
+.speed {
+  position: relative;
+}
+
+.speedButton {
+  min-width: 40px;
+  padding: 2px var(--vitra-space-2);
+  border: 0;
+  border-radius: var(--vitra-radius-sm);
+  background: transparent;
+  color: var(--vitra-color-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.speedButton:hover,
+.speedButton[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--vitra-color-text) 10%, transparent);
+  color: var(--vitra-color-text);
+}
+
+.speedMenu {
+  position: absolute;
+  z-index: 20;
+  right: 0;
+  bottom: calc(100% + var(--vitra-space-2));
+  display: grid;
+  min-width: 88px;
+  padding: var(--vitra-space-1);
+}
+
+.speedItem {
+  padding: var(--vitra-space-1) var(--vitra-space-3);
+  border: 0;
+  border-radius: var(--vitra-radius-sm);
+  background: transparent;
+  color: var(--vitra-color-text);
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  cursor: pointer;
+}
+
+.speedItem:hover {
+  background: color-mix(in srgb, var(--vitra-color-text) 10%, transparent);
+}
+
+.speedItem[aria-checked='true'] {
+  color: var(--vitra-color-accent);
+  font-weight: 600;
 }

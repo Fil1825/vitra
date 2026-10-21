@@ -10,17 +10,32 @@
     "comingSoon": "Coming soon"
   },
   "nowPlaying": {
+    "label": "Now Playing",
     "emptyTitle": "Nothing playing",
-    "emptyBody": "Your music will appear here."
+    "emptyBody": "Open audio files or drop them here."
   },
   "player": {
     "controls": "Playback controls",
     "previous": "Previous",
     "play": "Play",
+    "pause": "Pause",
     "next": "Next",
     "volume": "Volume",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "speed": "Playback speed",
     "notPlaying": "Not playing",
-    "progress": "Playback position"
+    "progress": "Playback position",
+    "positionOf": "{{position}} of {{duration}}",
+    "open": "Open Files…",
+    "audioFiles": "Audio",
+    "dropToPlay": "Drop to play",
+    "errors": {
+      "mpvMissing": "The playback engine (mpv) wasn't found.",
+      "mpvMissingHint": "Install mpv, or run npm run fetch-sidecars when building from source.",
+      "mpvFailed": "The playback engine stopped: {{message}}",
+      "playback": "Can't play this file: {{message}}"
+    }
   },
   "settings": {
     "title": "Settings",
@@ -50,6 +65,8 @@
     },
     "refractionSupported": "This engine renders refraction.",
     "refractionUnsupported": "This engine can't render refraction, so glass uses blur and highlights instead.",
+    "artworkAccent": "Accent from artwork",
+    "artworkAccentHint": "Tints the interface with the cover of the playing track. Some themes keep their own accent.",
     "powerSaving": "Power saving",
     "powerSavingHint": "Turns off blur, refraction and animations.",
     "windowMaterial": "Window material",

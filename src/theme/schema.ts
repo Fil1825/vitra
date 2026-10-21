@@ -80,6 +80,8 @@ export const themeSchema = z.object({
     /** Colors of the flowing gradient shown when there is no artwork. */
     gradient: z.array(hexColor).min(2).max(5),
     gradientOpacity: fraction,
+    /** Opacity of the blurred artwork behind everything while a track plays. */
+    artworkOpacity: fraction,
     /** Replace the gradient with colors from the playing track's artwork. */
     useArtwork: z.boolean(),
   }),

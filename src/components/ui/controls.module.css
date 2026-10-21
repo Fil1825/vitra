@@ -99,3 +99,63 @@
 .switch[aria-checked='true'] .thumb {
   transform: translateX(16px);
 }
+
+.slider {
+  --_track: color-mix(in srgb, var(--vitra-color-text) 18%, transparent);
+  --_thumb-size: 12px;
+
+  width: 100%;
+  height: 16px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.slider:disabled {
+  cursor: default;
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--vitra-color-text) var(--_fill),
+    var(--_track) var(--_fill)
+  );
+}
+
+.slider:hover:not(:disabled)::-webkit-slider-runnable-track,
+.slider:focus-visible::-webkit-slider-runnable-track {
+  background: linear-gradient(
+    to right,
+    var(--vitra-color-accent) var(--_fill),
+    var(--_track) var(--_fill)
+  );
+}
+
+.slider::-webkit-slider-thumb {
+  width: var(--_thumb-size);
+  height: var(--_thumb-size);
+  margin-top: calc((4px - var(--_thumb-size)) / 2);
+  border: 0;
+  border-radius: 50%;
+  background: var(--vitra-glass-highlight-color);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--vitra-color-background) 60%, transparent);
+  opacity: 0;
+  transition: opacity var(--vitra-motion-duration) var(--vitra-motion-easing);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.slider:hover:not(:disabled)::-webkit-slider-thumb,
+.slider:focus-visible::-webkit-slider-thumb,
+.slider:active::-webkit-slider-thumb {
+  opacity: 1;
+}
+
+.slider:disabled::-webkit-slider-runnable-track {
+  background: var(--_track);
+}
