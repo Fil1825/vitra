@@ -57,6 +57,11 @@
     color var(--vitra-motion-duration) var(--vitra-motion-easing);
 }
 
+.segment:disabled {
+  color: var(--vitra-color-text-tertiary);
+  cursor: default;
+}
+
 .segment[aria-checked='true'] {
   background: color-mix(in srgb, var(--vitra-color-text) 16%, transparent);
   color: var(--vitra-color-text);

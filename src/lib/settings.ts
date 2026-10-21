@@ -6,6 +6,8 @@ export type Language = 'system' | 'en' | 'ru';
 /** Follow the OS setting, or force reduced / full effects. */
 export type Preference = 'system' | 'reduce' | 'full';
 export type Switch = 'auto' | 'on' | 'off';
+/** System material behind the window on macOS; Liquid Glass needs macOS 26. */
+export type WindowMaterial = 'vibrancy' | 'liquidGlass';
 
 export interface AppearanceSettings {
   /** `auto` or a theme id. */
@@ -14,6 +16,7 @@ export interface AppearanceSettings {
   transparency: Preference;
   refraction: Switch;
   powerSaving: boolean;
+  windowMaterial: WindowMaterial;
 }
 
 export interface Settings {
@@ -29,6 +32,7 @@ export const DEFAULT_SETTINGS: Settings = {
     transparency: 'system',
     refraction: 'auto',
     powerSaving: false,
+    windowMaterial: 'vibrancy',
   },
 };
 

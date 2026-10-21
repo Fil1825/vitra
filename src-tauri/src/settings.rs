@@ -14,6 +14,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use tauri::{AppHandle, Emitter, State};
 
 use crate::error::AppError;
+use crate::window;
 
 /// Emitted to every window with the new [`Settings`] after a change.
 pub const SETTINGS_CHANGED: &str = "settings://changed";
@@ -50,6 +51,9 @@ pub struct Appearance {
     pub refraction: Switch,
     #[serde(deserialize_with = "or_default")]
     pub power_saving: bool,
+    /// System material behind the window on macOS.
+    #[serde(deserialize_with = "or_default")]
+    pub window_material: WindowMaterial,
 }
 
 impl Default for Appearance {
@@ -60,11 +64,21 @@ impl Default for Appearance {
             transparency: Preference::System,
             refraction: Switch::Auto,
             power_saving: false,
+            window_material: WindowMaterial::Vibrancy,
         }
     }
 }
 
 const AUTO_THEME: &str = "auto";
+
+/// `LiquidGlass` (macOS 26+) falls back to `Vibrancy` on older systems.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WindowMaterial {
+    #[default]
+    Vibrancy,
+    LiquidGlass,
+}
 
 /// Follow the OS setting, or force reduced / full effects.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -193,7 +207,11 @@ pub fn set_settings(
     store: State<'_, SettingsStore>,
     settings: Settings,
 ) -> Result<Settings, AppError> {
+    let previous = store.get().appearance.window_material;
     let saved = store.set(settings)?;
+    if saved.appearance.window_material != previous {
+        window::reapply_all(&app, saved.appearance.window_material);
+    }
     app.emit(SETTINGS_CHANGED, &saved)?;
     Ok(saved)
 }
@@ -241,7 +259,8 @@ mod tests {
                     "motion": "system",
                     "transparency": "system",
                     "refraction": "auto",
-                    "powerSaving": false
+                    "powerSaving": false,
+                    "windowMaterial": "vibrancy"
                 }
             })
         );
@@ -252,7 +271,12 @@ mod tests {
         let settings: Settings = serde_json::from_str(
             r#"{
                 "language": "klingon",
-                "appearance": { "theme": "dark", "motion": 42, "powerSaving": true },
+                "appearance": {
+                    "theme": "dark",
+                    "motion": 42,
+                    "powerSaving": true,
+                    "windowMaterial": "chrome"
+                },
                 "fromTheFuture": { "x": 1 }
             }"#,
         )
@@ -262,6 +286,21 @@ mod tests {
         assert_eq!(settings.appearance.theme, "dark");
         assert_eq!(settings.appearance.motion, Preference::System);
         assert!(settings.appearance.power_saving);
+        assert_eq!(
+            settings.appearance.window_material,
+            WindowMaterial::Vibrancy
+        );
+    }
+
+    #[test]
+    fn reads_liquid_glass_material() {
+        let settings: Settings =
+            serde_json::from_str(r#"{ "appearance": { "windowMaterial": "liquidGlass" } }"#)
+                .unwrap();
+        assert_eq!(
+            settings.appearance.window_material,
+            WindowMaterial::LiquidGlass
+        );
     }
 
     #[test]

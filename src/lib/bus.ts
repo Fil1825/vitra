@@ -1,4 +1,5 @@
 import type { Settings } from './settings.ts';
+import type { WindowEffects } from './window.ts';
 import type { Effects } from '../theme/effects.ts';
 import type { Theme } from '../theme/schema.ts';
 
@@ -11,6 +12,8 @@ export interface VitraEvents {
   'settings:changed': Settings;
   'theme:changed': Theme;
   'effects:changed': Effects;
+  /** The native backdrop of this window changed (e.g. Liquid Glass was switched on). */
+  'window:effects': WindowEffects;
 }
 
 export type Handler<T> = (payload: T) => void;

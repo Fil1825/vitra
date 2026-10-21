@@ -4,13 +4,14 @@ import { useTranslation } from 'react-i18next';
 
 import { Glass } from '../../components/Glass/index.ts';
 import { IconButton } from '../../components/ui/IconButton.tsx';
-import { SegmentedControl } from '../../components/ui/SegmentedControl.tsx';
+import { SegmentedControl, type SegmentedOption } from '../../components/ui/SegmentedControl.tsx';
 import { Switch } from '../../components/ui/Switch.tsx';
 import type {
   AppearanceSettings,
   Language,
   Preference,
   Switch as Toggle,
+  WindowMaterial,
 } from '../../lib/settings.ts';
 import { useEnvironment } from '../../stores/environment.ts';
 import { useSettings } from '../../stores/settings.ts';
@@ -23,6 +24,9 @@ export function SettingsPanel({ onClose }: { onClose(): void }) {
   const settings = useSettings((s) => s.settings);
   const update = useSettings((s) => s.update);
   const supportsRefraction = useEnvironment((s) => s.supportsRefraction);
+  const platform = useEnvironment((s) => s.platform);
+  const vibrancy = useEnvironment((s) => s.vibrancy);
+  const liquidGlassSupported = useEnvironment((s) => s.liquidGlassSupported);
 
   const setAppearance = (change: Partial<AppearanceSettings>) =>
     void update((current) => ({ ...current, appearance: { ...current.appearance, ...change } }));
@@ -32,6 +36,19 @@ export function SettingsPanel({ onClose }: { onClose(): void }) {
     { value: 'reduce', label: t('settings.preference.reduce') },
     { value: 'full', label: t('settings.preference.full') },
   ];
+  const materials: SegmentedOption<WindowMaterial>[] = [
+    { value: 'vibrancy', label: t('settings.materials.vibrancy') },
+    {
+      value: 'liquidGlass',
+      label: t('settings.materials.liquidGlass'),
+      disabled: !liquidGlassSupported,
+    },
+  ];
+  const materialHint = !liquidGlassSupported
+    ? t('settings.liquidGlassUnsupported')
+    : settings.appearance.windowMaterial === 'liquidGlass' && vibrancy !== 'liquidGlass'
+      ? t('settings.liquidGlassFallback')
+      : undefined;
   const toggles: { value: Toggle; label: string }[] = [
     { value: 'auto', label: t('settings.switch.auto') },
     { value: 'on', label: t('settings.switch.on') },
@@ -68,6 +85,18 @@ export function SettingsPanel({ onClose }: { onClose(): void }) {
               value={settings.appearance.theme}
               onChange={(theme) => setAppearance({ theme })}
             />
+
+            {/* Window materials are a macOS feature; elsewhere the backdrop is fixed. */}
+            {platform === 'macos' && (
+              <Row label={t('settings.windowMaterial')} hint={materialHint}>
+                <SegmentedControl
+                  label={t('settings.windowMaterial')}
+                  value={settings.appearance.windowMaterial}
+                  options={materials}
+                  onChange={(windowMaterial) => setAppearance({ windowMaterial })}
+                />
+              </Row>
+            )}
 
             <Row label={t('settings.motion')}>
               <SegmentedControl

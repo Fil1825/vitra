@@ -52,6 +52,13 @@
     "refractionUnsupported": "Этот движок не умеет рисовать рефракцию, поэтому стекло использует размытие и блики.",
     "powerSaving": "Энергосбережение",
     "powerSavingHint": "Отключает размытие, рефракцию и анимации.",
+    "windowMaterial": "Материал окна",
+    "materials": {
+      "vibrancy": "Вибрация",
+      "liquidGlass": "Liquid Glass"
+    },
+    "liquidGlassUnsupported": "Liquid Glass работает начиная с macOS 26.",
+    "liquidGlassFallback": "Liquid Glass здесь недоступен, поэтому используется вибрация.",
     "language": "Язык",
     "languages": {
       "system": "Система",
@@ -63,6 +70,7 @@
     "vibrancy": "Фон окна",
     "vibrancyKinds": {
       "macos": "Вибрация macOS",
+      "liquidGlass": "Liquid Glass",
       "mica": "Mica",
       "acrylic": "Acrylic",
       "none": "Нет"

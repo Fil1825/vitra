@@ -17,13 +17,13 @@ pub fn run() {
         )
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
-            app.manage(settings::SettingsStore::load(
-                config_dir.join("settings.json"),
-            ));
+            let settings = settings::SettingsStore::load(config_dir.join("settings.json"));
+            let material = settings.get().appearance.window_material;
+            app.manage(settings);
 
             let effects = window::WindowEffectsState::default();
             let main = window::create_from_config(app, "main")?;
-            effects.apply(&main);
+            effects.apply(&main, material);
             app.manage(effects);
             Ok(())
         })

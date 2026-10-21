@@ -52,6 +52,13 @@
     "refractionUnsupported": "This engine can't render refraction, so glass uses blur and highlights instead.",
     "powerSaving": "Power saving",
     "powerSavingHint": "Turns off blur, refraction and animations.",
+    "windowMaterial": "Window material",
+    "materials": {
+      "vibrancy": "Vibrancy",
+      "liquidGlass": "Liquid Glass"
+    },
+    "liquidGlassUnsupported": "Liquid Glass needs macOS 26 or later.",
+    "liquidGlassFallback": "Liquid Glass isn't available here, so vibrancy is used.",
     "language": "Language",
     "languages": {
       "system": "System",
@@ -63,6 +70,7 @@
     "vibrancy": "Window backdrop",
     "vibrancyKinds": {
       "macos": "macOS vibrancy",
+      "liquidGlass": "Liquid Glass",
       "mica": "Mica",
       "acrylic": "Acrylic",
       "none": "None"

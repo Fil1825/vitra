@@ -3,6 +3,7 @@ import styles from './controls.module.css';
 export interface SegmentedOption<T extends string> {
   value: T;
   label: string;
+  disabled?: boolean;
 }
 
 export interface SegmentedControlProps<T extends string> {
@@ -27,6 +28,7 @@ export function SegmentedControl<T extends string>({
           role="radio"
           aria-checked={option.value === value}
           className={styles.segment}
+          disabled={option.disabled}
           onClick={() => onChange(option.value)}
         >
           {option.label}
