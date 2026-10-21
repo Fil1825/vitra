@@ -1,0 +1,32 @@
+/* Temporary base styles. Stage 1 replaces these with the theme token system. */
+:root {
+  color-scheme: light dark;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    sans-serif;
+  line-height: 1.5;
+  background: #101014;
+  color: #f2f2f7;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    background: #f4f4f7;
+    color: #16161a;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}

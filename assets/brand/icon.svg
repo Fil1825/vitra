@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Vitra</title>
+  <defs>
+    <clipPath id="vi-tile"><path d="M952 512 L951.9 611.9 L951.8 643.8 L951.5 666.9 L951.2 685.8 L950.7 701.9 L950.1 716.2 L949.4 729.1 L948.6 740.8 L947.7 751.7 L946.7 761.9 L945.6 771.3 L944.3 780.3 L943 788.7 L941.5 796.7 L940 804.4 L938.3 811.6 L936.5 818.6 L934.6 825.2 L932.6 831.6 L930.4 837.7 L928.2 843.6 L925.8 849.2 L923.3 854.6 L920.7 859.8 L917.9 864.8 L915.1 869.7 L912.1 874.3 L908.9 878.8 L905.7 883.1 L902.3 887.2 L898.7 891.2 L895 895 L891.2 898.7 L887.2 902.3 L883.1 905.7 L878.8 908.9 L874.3 912.1 L869.7 915.1 L864.8 917.9 L859.8 920.7 L854.6 923.3 L849.2 925.8 L843.6 928.2 L837.7 930.4 L831.6 932.6 L825.2 934.6 L818.6 936.5 L811.6 938.3 L804.4 940 L796.7 941.5 L788.7 943 L780.3 944.3 L771.3 945.6 L761.9 946.7 L751.7 947.7 L740.8 948.6 L729.1 949.4 L716.2 950.1 L701.9 950.7 L685.8 951.2 L666.9 951.5 L643.8 951.8 L611.9 951.9 L512 952 L412.1 951.9 L380.2 951.8 L357.1 951.5 L338.2 951.2 L322.1 950.7 L307.8 950.1 L294.9 949.4 L283.2 948.6 L272.3 947.7 L262.1 946.7 L252.7 945.6 L243.7 944.3 L235.3 943 L227.3 941.5 L219.6 940 L212.4 938.3 L205.4 936.5 L198.8 934.6 L192.4 932.6 L186.3 930.4 L180.4 928.2 L174.8 925.8 L169.4 923.3 L164.2 920.7 L159.2 917.9 L154.3 915.1 L149.7 912.1 L145.2 908.9 L140.9 905.7 L136.8 902.3 L132.8 898.7 L129 895 L125.3 891.2 L121.7 887.2 L118.3 883.1 L115.1 878.8 L111.9 874.3 L108.9 869.7 L106.1 864.8 L103.3 859.8 L100.7 854.6 L98.2 849.2 L95.8 843.6 L93.6 837.7 L91.4 831.6 L89.4 825.2 L87.5 818.6 L85.7 811.6 L84 804.4 L82.5 796.7 L81 788.7 L79.7 780.3 L78.4 771.3 L77.3 761.9 L76.3 751.7 L75.4 740.8 L74.6 729.1 L73.9 716.2 L73.3 701.9 L72.8 685.8 L72.5 666.9 L72.2 643.8 L72.1 611.9 L72 512 L72.1 412.1 L72.2 380.2 L72.5 357.1 L72.8 338.2 L73.3 322.1 L73.9 307.8 L74.6 294.9 L75.4 283.2 L76.3 272.3 L77.3 262.1 L78.4 252.7 L79.7 243.7 L81 235.3 L82.5 227.3 L84 219.6 L85.7 212.4 L87.5 205.4 L89.4 198.8 L91.4 192.4 L93.6 186.3 L95.8 180.4 L98.2 174.8 L100.7 169.4 L103.3 164.2 L106.1 159.2 L108.9 154.3 L111.9 149.7 L115.1 145.2 L118.3 140.9 L121.7 136.8 L125.3 132.8 L129 129 L132.8 125.3 L136.8 121.7 L140.9 118.3 L145.2 115.1 L149.7 111.9 L154.3 108.9 L159.2 106.1 L164.2 103.3 L169.4 100.7 L174.8 98.2 L180.4 95.8 L186.3 93.6 L192.4 91.4 L198.8 89.4 L205.4 87.5 L212.4 85.7 L219.6 84 L227.3 82.5 L235.3 81 L243.7 79.7 L252.7 78.4 L262.1 77.3 L272.3 76.3 L283.2 75.4 L294.9 74.6 L307.8 73.9 L322.1 73.3 L338.2 72.8 L357.1 72.5 L380.2 72.2 L412.1 72.1 L512 72 L611.9 72.1 L643.8 72.2 L666.9 72.5 L685.8 72.8 L701.9 73.3 L716.2 73.9 L729.1 74.6 L740.8 75.4 L751.7 76.3 L761.9 77.3 L771.3 78.4 L780.3 79.7 L788.7 81 L796.7 82.5 L804.4 84 L811.6 85.7 L818.6 87.5 L825.2 89.4 L831.6 91.4 L837.7 93.6 L843.6 95.8 L849.2 98.2 L854.6 100.7 L859.8 103.3 L864.8 106.1 L869.7 108.9 L874.3 111.9 L878.8 115.1 L883.1 118.3 L887.2 121.7 L891.2 125.3 L895 129 L898.7 132.8 L902.3 136.8 L905.7 140.9 L908.9 145.2 L912.1 149.7 L915.1 154.3 L917.9 159.2 L920.7 164.2 L923.3 169.4 L925.8 174.8 L928.2 180.4 L930.4 186.3 L932.6 192.4 L934.6 198.8 L936.5 205.4 L938.3 212.4 L940 219.6 L941.5 227.3 L943 235.3 L944.3 243.7 L945.6 252.7 L946.7 262.1 L947.7 272.3 L948.6 283.2 L949.4 294.9 L950.1 307.8 L950.7 322.1 L951.2 338.2 L951.5 357.1 L951.8 380.2 L951.9 412.1 Z"/></clipPath>
+    <linearGradient id="vi-tile-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B1426"/>
+      <stop offset="1" stop-color="#05070D"/>
+    </linearGradient>
+    <clipPath id="vi-lens"><circle cx="512" cy="512" r="312"/></clipPath>
+    <linearGradient id="vi-night" gradientUnits="userSpaceOnUse" x1="291.4" y1="291.4" x2="732.6" y2="732.6">
+      <stop offset="0" stop-color="#0B1426"/>
+      <stop offset="1" stop-color="#05070D"/>
+    </linearGradient>
+    <linearGradient id="vi-aurora" gradientUnits="userSpaceOnUse" x1="250" y1="760" x2="790" y2="280">
+      <stop offset="0" stop-color="#2EE6C5"/>
+      <stop offset="0.5" stop-color="#3FA9F5"/>
+      <stop offset="1" stop-color="#7B5CFF"/>
+    </linearGradient>
+    <linearGradient id="vi-rim-light" gradientUnits="userSpaceOnUse" x1="291.4" y1="291.4" x2="732.6" y2="732.6">
+      <stop offset="0" stop-color="#CFEFFF"/>
+      <stop offset="0.18" stop-color="#CFEFFF" stop-opacity="0.55"/>
+      <stop offset="0.42" stop-color="#CFEFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="vi-rim-dark" gradientUnits="userSpaceOnUse" x1="732.6" y1="732.6" x2="291.4" y2="291.4">
+      <stop offset="0" stop-color="#7B5CFF" stop-opacity="0.6"/>
+      <stop offset="0.2" stop-color="#7B5CFF" stop-opacity="0.25"/>
+      <stop offset="0.45" stop-color="#7B5CFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="vi-edge-shade" gradientUnits="userSpaceOnUse" x1="291.4" y1="291.4" x2="732.6" y2="732.6">
+      <stop offset="0" stop-color="#05070D" stop-opacity="0.55"/>
+      <stop offset="0.4" stop-color="#05070D" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="vi-caustic" gradientUnits="userSpaceOnUse" x1="291.4" y1="291.4" x2="732.6" y2="732.6">
+      <stop offset="0.55" stop-color="#CFEFFF" stop-opacity="0"/>
+      <stop offset="1" stop-color="#CFEFFF" stop-opacity="0.16"/>
+    </linearGradient>
+    <linearGradient id="vi-v" gradientUnits="userSpaceOnUse" x1="0" y1="342" x2="0" y2="690">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DDF3FF"/>
+    </linearGradient>
+    <filter id="vi-blur-bloom" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><feGaussianBlur stdDeviation="110"/></filter>
+    <filter id="vi-blur-glow" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><feGaussianBlur stdDeviation="18"/></filter>
+    <filter id="vi-blur-aurora" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><feGaussianBlur stdDeviation="24"/></filter>
+    <filter id="vi-blur-aurora-thin" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><feGaussianBlur stdDeviation="12"/></filter>
+    <filter id="vi-blur-v-glow" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><feGaussianBlur stdDeviation="30"/></filter>
+    <filter id="vi-blur-edge" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><feGaussianBlur stdDeviation="7"/></filter>
+  </defs>
+  <g clip-path="url(#vi-tile)">
+    <path d="M952 512 L951.9 611.9 L951.8 643.8 L951.5 666.9 L951.2 685.8 L950.7 701.9 L950.1 716.2 L949.4 729.1 L948.6 740.8 L947.7 751.7 L946.7 761.9 L945.6 771.3 L944.3 780.3 L943 788.7 L941.5 796.7 L940 804.4 L938.3 811.6 L936.5 818.6 L934.6 825.2 L932.6 831.6 L930.4 837.7 L928.2 843.6 L925.8 849.2 L923.3 854.6 L920.7 859.8 L917.9 864.8 L915.1 869.7 L912.1 874.3 L908.9 878.8 L905.7 883.1 L902.3 887.2 L898.7 891.2 L895 895 L891.2 898.7 L887.2 902.3 L883.1 905.7 L878.8 908.9 L874.3 912.1 L869.7 915.1 L864.8 917.9 L859.8 920.7 L854.6 923.3 L849.2 925.8 L843.6 928.2 L837.7 930.4 L831.6 932.6 L825.2 934.6 L818.6 936.5 L811.6 938.3 L804.4 940 L796.7 941.5 L788.7 943 L780.3 944.3 L771.3 945.6 L761.9 946.7 L751.7 947.7 L740.8 948.6 L729.1 949.4 L716.2 950.1 L701.9 950.7 L685.8 951.2 L666.9 951.5 L643.8 951.8 L611.9 951.9 L512 952 L412.1 951.9 L380.2 951.8 L357.1 951.5 L338.2 951.2 L322.1 950.7 L307.8 950.1 L294.9 949.4 L283.2 948.6 L272.3 947.7 L262.1 946.7 L252.7 945.6 L243.7 944.3 L235.3 943 L227.3 941.5 L219.6 940 L212.4 938.3 L205.4 936.5 L198.8 934.6 L192.4 932.6 L186.3 930.4 L180.4 928.2 L174.8 925.8 L169.4 923.3 L164.2 920.7 L159.2 917.9 L154.3 915.1 L149.7 912.1 L145.2 908.9 L140.9 905.7 L136.8 902.3 L132.8 898.7 L129 895 L125.3 891.2 L121.7 887.2 L118.3 883.1 L115.1 878.8 L111.9 874.3 L108.9 869.7 L106.1 864.8 L103.3 859.8 L100.7 854.6 L98.2 849.2 L95.8 843.6 L93.6 837.7 L91.4 831.6 L89.4 825.2 L87.5 818.6 L85.7 811.6 L84 804.4 L82.5 796.7 L81 788.7 L79.7 780.3 L78.4 771.3 L77.3 761.9 L76.3 751.7 L75.4 740.8 L74.6 729.1 L73.9 716.2 L73.3 701.9 L72.8 685.8 L72.5 666.9 L72.2 643.8 L72.1 611.9 L72 512 L72.1 412.1 L72.2 380.2 L72.5 357.1 L72.8 338.2 L73.3 322.1 L73.9 307.8 L74.6 294.9 L75.4 283.2 L76.3 272.3 L77.3 262.1 L78.4 252.7 L79.7 243.7 L81 235.3 L82.5 227.3 L84 219.6 L85.7 212.4 L87.5 205.4 L89.4 198.8 L91.4 192.4 L93.6 186.3 L95.8 180.4 L98.2 174.8 L100.7 169.4 L103.3 164.2 L106.1 159.2 L108.9 154.3 L111.9 149.7 L115.1 145.2 L118.3 140.9 L121.7 136.8 L125.3 132.8 L129 129 L132.8 125.3 L136.8 121.7 L140.9 118.3 L145.2 115.1 L149.7 111.9 L154.3 108.9 L159.2 106.1 L164.2 103.3 L169.4 100.7 L174.8 98.2 L180.4 95.8 L186.3 93.6 L192.4 91.4 L198.8 89.4 L205.4 87.5 L212.4 85.7 L219.6 84 L227.3 82.5 L235.3 81 L243.7 79.7 L252.7 78.4 L262.1 77.3 L272.3 76.3 L283.2 75.4 L294.9 74.6 L307.8 73.9 L322.1 73.3 L338.2 72.8 L357.1 72.5 L380.2 72.2 L412.1 72.1 L512 72 L611.9 72.1 L643.8 72.2 L666.9 72.5 L685.8 72.8 L701.9 73.3 L716.2 73.9 L729.1 74.6 L740.8 75.4 L751.7 76.3 L761.9 77.3 L771.3 78.4 L780.3 79.7 L788.7 81 L796.7 82.5 L804.4 84 L811.6 85.7 L818.6 87.5 L825.2 89.4 L831.6 91.4 L837.7 93.6 L843.6 95.8 L849.2 98.2 L854.6 100.7 L859.8 103.3 L864.8 106.1 L869.7 108.9 L874.3 111.9 L878.8 115.1 L883.1 118.3 L887.2 121.7 L891.2 125.3 L895 129 L898.7 132.8 L902.3 136.8 L905.7 140.9 L908.9 145.2 L912.1 149.7 L915.1 154.3 L917.9 159.2 L920.7 164.2 L923.3 169.4 L925.8 174.8 L928.2 180.4 L930.4 186.3 L932.6 192.4 L934.6 198.8 L936.5 205.4 L938.3 212.4 L940 219.6 L941.5 227.3 L943 235.3 L944.3 243.7 L945.6 252.7 L946.7 262.1 L947.7 272.3 L948.6 283.2 L949.4 294.9 L950.1 307.8 L950.7 322.1 L951.2 338.2 L951.5 357.1 L951.8 380.2 L951.9 412.1 Z" fill="url(#vi-tile-bg)"/>
+    <circle cx="512" cy="512" r="360" fill="#3FA9F5" opacity="0.12" filter="url(#vi-blur-bloom)"/>
+  <circle cx="512" cy="512" r="318" fill="none" stroke="#3FA9F5" stroke-width="20" opacity="0.14" filter="url(#vi-blur-glow)"/>
+  <g clip-path="url(#vi-lens)">
+    
+    <circle cx="512" cy="512" r="312" fill="#FFFFFF" opacity="0.06"/>
+    <path d="M150 790 C320 720 380 560 520 520 S760 400 900 250" fill="none" stroke="url(#vi-aurora)" stroke-width="150" stroke-linecap="round" opacity="0.4" filter="url(#vi-blur-aurora)"/>
+    <path d="M190 620 C330 560 400 430 540 400 S740 320 860 200" fill="none" stroke="url(#vi-aurora)" stroke-width="56" stroke-linecap="round" opacity="0.22" filter="url(#vi-blur-aurora-thin)"/>
+    <path d="M388 392 L512 640 L636 392" fill="none" stroke="#3FA9F5" stroke-width="170" stroke-linecap="round" stroke-linejoin="round" opacity="0.32" filter="url(#vi-blur-v-glow)"/>
+    <circle cx="512" cy="512" r="302" fill="none" stroke="url(#vi-edge-shade)" stroke-width="26" filter="url(#vi-blur-edge)"/>
+    <circle cx="512" cy="512" r="290" fill="none" stroke="url(#vi-caustic)" stroke-width="22" filter="url(#vi-blur-edge)"/>
+  </g>
+  <circle cx="512" cy="512" r="311" fill="none" stroke="url(#vi-rim-dark)" stroke-width="2.5"/>
+  <circle cx="512" cy="512" r="310" fill="none" stroke="url(#vi-rim-light)" stroke-width="6" opacity="0.3"/>
+  <circle cx="512" cy="512" r="311" fill="none" stroke="url(#vi-rim-light)" stroke-width="2"/>
+  <path d="M294.8 365.5 A262 262 0 0 1 365.5 294.8" fill="none" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" opacity="0.42"/>
+  <path d="M388 392 L512 640 L636 392" fill="none" stroke="url(#vi-v)" stroke-width="98" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

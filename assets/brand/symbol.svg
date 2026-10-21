@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="768" height="768" viewBox="128 128 768 768">
+  <title>Vitra</title>
+  <defs>
+    <clipPath id="vs-lens"><circle cx="512" cy="512" r="312"/></clipPath>
+    <linearGradient id="vs-night" gradientUnits="userSpaceOnUse" x1="291.4" y1="291.4" x2="732.6" y2="732.6">
+      <stop offset="0" stop-color="#0B1426"/>
+      <stop offset="1" stop-color="#05070D"/>
+    </linearGradient>
+    <linearGradient id="vs-aurora" gradientUnits="userSpaceOnUse" x1="250" y1="760" x2="790" y2="280">
+      <stop offset="0" stop-color="#2EE6C5"/>
+      <stop offset="0.5" stop-color="#3FA9F5"/>
+      <stop offset="1" stop-color="#7B5CFF"/>
+    </linearGradient>
+    <linearGradient id="vs-rim-light" gradientUnits="userSpaceOnUse" x1="291.4" y1="291.4" x2="732.6" y2="732.6">
+      <stop offset="0" stop-color="#CFEFFF"/>
+      <stop offset="0.18" stop-color="#CFEFFF" stop-opacity="0.55"/>
+      <stop offset="0.42" stop-color="#CFEFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="vs-rim-dark" gradientUnits="userSpaceOnUse" x1="732.6" y1="732.6" x2="291.4" y2="291.4">
+      <stop offset="0" stop-color="#7B5CFF" stop-opacity="0.6"/>
+      <stop offset="0.2" stop-color="#7B5CFF" stop-opacity="0.25"/>
+      <stop offset="0.45" stop-color="#7B5CFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="vs-edge-shade" gradientUnits="userSpaceOnUse" x1="291.4" y1="291.4" x2="732.6" y2="732.6">
+      <stop offset="0" stop-color="#05070D" stop-opacity="0.55"/>
+      <stop offset="0.4" stop-color="#05070D" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="vs-caustic" gradientUnits="userSpaceOnUse" x1="291.4" y1="291.4" x2="732.6" y2="732.6">
+      <stop offset="0.55" stop-color="#CFEFFF" stop-opacity="0"/>
+      <stop offset="1" stop-color="#CFEFFF" stop-opacity="0.16"/>
+    </linearGradient>
+    <linearGradient id="vs-v" gradientUnits="userSpaceOnUse" x1="0" y1="342" x2="0" y2="690">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DDF3FF"/>
+    </linearGradient>
+    <filter id="vs-blur-bloom" filterUnits="userSpaceOnUse" x="128" y="128" width="768" height="768"><feGaussianBlur stdDeviation="110"/></filter>
+    <filter id="vs-blur-glow" filterUnits="userSpaceOnUse" x="128" y="128" width="768" height="768"><feGaussianBlur stdDeviation="18"/></filter>
+    <filter id="vs-blur-aurora" filterUnits="userSpaceOnUse" x="128" y="128" width="768" height="768"><feGaussianBlur stdDeviation="24"/></filter>
+    <filter id="vs-blur-aurora-thin" filterUnits="userSpaceOnUse" x="128" y="128" width="768" height="768"><feGaussianBlur stdDeviation="12"/></filter>
+    <filter id="vs-blur-v-glow" filterUnits="userSpaceOnUse" x="128" y="128" width="768" height="768"><feGaussianBlur stdDeviation="30"/></filter>
+    <filter id="vs-blur-edge" filterUnits="userSpaceOnUse" x="128" y="128" width="768" height="768"><feGaussianBlur stdDeviation="7"/></filter>
+  </defs>
+  <circle cx="512" cy="512" r="318" fill="none" stroke="#3FA9F5" stroke-width="20" opacity="0.14" filter="url(#vs-blur-glow)"/>
+  <g clip-path="url(#vs-lens)">
+    <circle cx="512" cy="512" r="312" fill="url(#vs-night)"/>
+    <circle cx="512" cy="512" r="312" fill="#3FA9F5" opacity="0.12" filter="url(#vs-blur-bloom)"/>
+    <circle cx="512" cy="512" r="312" fill="#FFFFFF" opacity="0.06"/>
+    <path d="M150 790 C320 720 380 560 520 520 S760 400 900 250" fill="none" stroke="url(#vs-aurora)" stroke-width="150" stroke-linecap="round" opacity="0.4" filter="url(#vs-blur-aurora)"/>
+    <path d="M190 620 C330 560 400 430 540 400 S740 320 860 200" fill="none" stroke="url(#vs-aurora)" stroke-width="56" stroke-linecap="round" opacity="0.22" filter="url(#vs-blur-aurora-thin)"/>
+    <path d="M388 392 L512 640 L636 392" fill="none" stroke="#3FA9F5" stroke-width="170" stroke-linecap="round" stroke-linejoin="round" opacity="0.32" filter="url(#vs-blur-v-glow)"/>
+    <circle cx="512" cy="512" r="302" fill="none" stroke="url(#vs-edge-shade)" stroke-width="26" filter="url(#vs-blur-edge)"/>
+    <circle cx="512" cy="512" r="290" fill="none" stroke="url(#vs-caustic)" stroke-width="22" filter="url(#vs-blur-edge)"/>
+  </g>
+  <circle cx="512" cy="512" r="311" fill="none" stroke="url(#vs-rim-dark)" stroke-width="2.5"/>
+  <circle cx="512" cy="512" r="310" fill="none" stroke="url(#vs-rim-light)" stroke-width="6" opacity="0.3"/>
+  <circle cx="512" cy="512" r="311" fill="none" stroke="url(#vs-rim-light)" stroke-width="2"/>
+  <path d="M294.8 365.5 A262 262 0 0 1 365.5 294.8" fill="none" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" opacity="0.42"/>
+  <path d="M388 392 L512 640 L636 392" fill="none" stroke="url(#vs-v)" stroke-width="98" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
