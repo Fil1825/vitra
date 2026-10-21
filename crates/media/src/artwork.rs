@@ -97,6 +97,18 @@ pub fn prepare_artwork(artwork: Artwork) -> Result<PreparedArtwork, MediaError> 
     })
 }
 
+/// A JPEG at most `max` pixels on its longer side, for album grids and lists.
+pub fn cover_thumbnail(bytes: &[u8], max: u32) -> Result<Vec<u8>, MediaError> {
+    let decoded = image::load_from_memory(bytes)?;
+    let (width, height) = decoded.dimensions();
+    let image = if width.max(height) > max {
+        decoded.resize(max, max, FilterType::Triangle)
+    } else {
+        decoded
+    };
+    encode_jpeg(&image, 85)
+}
+
 fn encode_jpeg(image: &DynamicImage, quality: u8) -> Result<Vec<u8>, MediaError> {
     let mut out = Cursor::new(Vec::new());
     JpegEncoder::new_with_quality(&mut out, quality).encode_image(&image.to_rgb8())?;
@@ -121,6 +133,19 @@ mod tests {
         let mut out = Cursor::new(Vec::new());
         img.write_to(&mut out, ImageFormat::Png).unwrap();
         out.into_inner()
+    }
+
+    #[test]
+    fn cover_thumbnails_are_small_jpegs() {
+        let thumb = cover_thumbnail(&two_color_png(1000, 500), 512).unwrap();
+        let decoded = image::load_from_memory(&thumb).unwrap();
+        assert_eq!(image::guess_format(&thumb).unwrap(), ImageFormat::Jpeg);
+        assert_eq!(decoded.dimensions(), (512, 256));
+        let small = cover_thumbnail(&two_color_png(100, 100), 512).unwrap();
+        assert_eq!(
+            image::load_from_memory(&small).unwrap().dimensions(),
+            (100, 100)
+        );
     }
 
     #[test]

@@ -12,6 +12,7 @@ export interface TrackMetadata {
   genre: string | null;
   year: number | null;
   trackNumber: number | null;
+  discNumber: number | null;
   duration: number | null;
   format: string | null;
   sampleRate: number | null;
@@ -29,6 +30,8 @@ export interface Palette {
 export interface Track {
   id: number;
   path: string;
+  /** The library track, if the file is in the library. */
+  libraryId: number | null;
   /** Tag title, or the file name. */
   title: string;
   metadata: TrackMetadata;
@@ -116,10 +119,14 @@ const call = <T = void>(command: string, args?: Record<string, unknown>) =>
 
 export const player = {
   state: () => call<PlayerState>('player_state'),
-  open: (path: string) => call('player_open', { path }),
+  /** Plays files and folders, replacing the queue. */
+  open: (paths: string[]) => call('player_open', { paths }),
   play: () => call('player_play'),
   pause: () => call('player_pause'),
   toggle: () => call('player_toggle'),
+  next: () => call('player_next'),
+  /** Restarts the track, or goes back when near its start. */
+  previous: () => call('player_previous'),
   seek: (position: number) => call('player_seek', { position }),
   setVolume: (volume: number) => call('player_set_volume', { volume }),
   setMuted: (muted: boolean) => call('player_set_muted', { muted }),

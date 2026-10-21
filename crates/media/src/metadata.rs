@@ -20,6 +20,7 @@ pub struct TrackMetadata {
     pub genre: Option<String>,
     pub year: Option<u16>,
     pub track_number: Option<u32>,
+    pub disc_number: Option<u32>,
     /// Seconds.
     pub duration: Option<f64>,
     /// Container/codec family, e.g. "FLAC" or "MP3".
@@ -68,6 +69,7 @@ pub fn read_track(path: &Path) -> Result<TrackInfo, MediaError> {
         metadata.album_artist = text(tag.get_string(ItemKey::AlbumArtist).map(Into::into));
         metadata.year = tag.date().map(|date| date.year);
         metadata.track_number = tag.track();
+        metadata.disc_number = tag.disk();
 
         let pictures = tag.pictures();
         let cover = pictures

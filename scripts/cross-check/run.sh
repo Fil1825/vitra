@@ -17,6 +17,8 @@ fi
 for target in aarch64-apple-darwin x86_64-pc-windows-msvc; do
   rustup target add "$target" >/dev/null 2>&1
   echo "== $target"
+  # No Apple or MSVC toolchain here: C code (bundled SQLite, ...) "compiles" to empty files.
   CC_aarch64_apple_darwin="$here/fake-cc" AR_aarch64_apple_darwin=ar \
+    CC_x86_64_pc_windows_msvc="$here/fake-cc" AR_x86_64_pc_windows_msvc="$here/fake-cc" \
     cargo clippy -p vitra --target "$target" --all-targets -- -D warnings
 done

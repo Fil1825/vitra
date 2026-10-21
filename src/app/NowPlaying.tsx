@@ -3,8 +3,11 @@ import { useTranslation } from 'react-i18next';
 
 import symbolUrl from '../../assets/brand/symbol.svg';
 import { Glass } from '../components/Glass/index.ts';
+import { LibraryLink } from '../features/library/TrackLinks.tsx';
+import { useCurrentLibraryTrack } from '../features/library/useCurrentTrack.ts';
 import { pickAndPlay } from '../lib/openFiles.ts';
 import { artworkUrl, type PlayerError, type TrackMetadata } from '../lib/player.ts';
+import { albumRoute, artistRoute } from '../stores/navigation.ts';
 import { usePlayer } from '../stores/player.ts';
 import styles from './NowPlaying.module.css';
 
@@ -44,6 +47,7 @@ function ErrorBanner({ error }: { error: PlayerError }) {
 export function NowPlaying() {
   const { t } = useTranslation();
   const { track, error } = usePlayer((s) => s.state);
+  const libraryTrack = useCurrentLibraryTrack();
 
   if (!track) {
     return (
@@ -61,9 +65,7 @@ export function NowPlaying() {
   }
 
   const { metadata } = track;
-  const byline = [metadata.artist ?? metadata.albumArtist, metadata.album]
-    .filter(Boolean)
-    .join(' — ');
+  const artist = metadata.artist ?? metadata.albumArtist;
   const technical = technicalLine(metadata);
 
   return (
@@ -81,8 +83,18 @@ export function NowPlaying() {
           <img className={styles.coverPlaceholder} src={symbolUrl} alt="" />
         )}
       </div>
-      <h2 className={styles.title}>{track.title}</h2>
-      {byline && <p className={styles.byline}>{byline}</p>}
+      <h2 className={styles.title}>
+        <LibraryLink to={albumRoute(libraryTrack?.albumId)}>{track.title}</LibraryLink>
+      </h2>
+      {(artist || metadata.album) && (
+        <p className={styles.byline}>
+          {artist && <LibraryLink to={artistRoute(libraryTrack?.artistId)}>{artist}</LibraryLink>}
+          {artist && metadata.album && ' — '}
+          {metadata.album && (
+            <LibraryLink to={albumRoute(libraryTrack?.albumId)}>{metadata.album}</LibraryLink>
+          )}
+        </p>
+      )}
       {technical && <p className={styles.technical}>{technical}</p>}
     </section>
   );

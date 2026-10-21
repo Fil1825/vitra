@@ -4,6 +4,7 @@
 use std::collections::VecDeque;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use media::PreparedArtwork;
@@ -84,7 +85,26 @@ impl ArtworkStore {
     }
 }
 
-fn status(code: StatusCode) -> Response<Vec<u8>> {
+/// Path prefix of library album covers (`artwork://localhost/cover/<id>`), cached on disk.
+pub const COVER_PREFIX: &str = "/cover/";
+
+/// Serves a cached album cover from `dir`. Ids are 16 hex digits (see `library::cover_id`),
+/// which also keeps the request from naming any other file.
+pub fn respond_cover(dir: &Path, id: &str) -> Response<Vec<u8>> {
+    if id.len() != 16 || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return status(StatusCode::BAD_REQUEST);
+    }
+    match std::fs::read(dir.join(format!("{id}.jpg"))) {
+        Ok(bytes) => Response::builder()
+            .header(header::CONTENT_TYPE, "image/jpeg")
+            .header(header::CACHE_CONTROL, "max-age=31536000, immutable")
+            .body(bytes)
+            .unwrap_or_else(|_| status(StatusCode::INTERNAL_SERVER_ERROR)),
+        Err(_) => status(StatusCode::NOT_FOUND),
+    }
+}
+
+pub fn status(code: StatusCode) -> Response<Vec<u8>> {
     let mut response = Response::new(Vec::new());
     *response.status_mut() = code;
     response
@@ -132,6 +152,30 @@ mod tests {
     fn unknown_ids_are_not_found() {
         let store = ArtworkStore::default();
         assert_eq!(store.respond("/nope").status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn serves_cached_covers_by_hex_id_only() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("00112233aabbccdd.jpg"), [0xFF, 0xD8]).unwrap();
+        let ok = respond_cover(dir.path(), "00112233aabbccdd");
+        assert_eq!(ok.status(), StatusCode::OK);
+        assert_eq!(ok.body(), &vec![0xFF, 0xD8]);
+        assert_eq!(
+            respond_cover(dir.path(), "ffffffffffffffff").status(),
+            StatusCode::NOT_FOUND
+        );
+        for bad in [
+            "../../etc/passwd",
+            "00112233aabbccd",
+            "00112233aabbccdz",
+            "",
+        ] {
+            assert_eq!(
+                respond_cover(dir.path(), bad).status(),
+                StatusCode::BAD_REQUEST
+            );
+        }
     }
 
     #[test]

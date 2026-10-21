@@ -14,6 +14,10 @@ pub enum AppError {
     NotFound(String),
     #[error("{0}")]
     Player(String),
+    #[error(transparent)]
+    Library(#[from] library::Error),
+    #[error(transparent)]
+    Media(#[from] media::MediaError),
 }
 
 /// Commands reject with the error message; the frontend only needs something readable.

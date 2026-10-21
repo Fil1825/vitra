@@ -15,7 +15,15 @@ function keys(value: unknown, prefix = ''): string[] {
 
 describe('locales', () => {
   it('English and Russian have the same keys', () => {
-    expect(keys(ru).sort()).toEqual(keys(en).sort());
+    // Plural forms differ by language (Russian has "few" and "many").
+    const base = (all: string[]) =>
+      [...new Set(all.map((key) => key.replace(/_(zero|one|two|few|many|other)$/, '')))].sort();
+    expect(base(keys(ru))).toEqual(base(keys(en)));
+  });
+
+  it('give Russian every plural form it needs', () => {
+    expect(ru.library.songCount_few).toContain('{{count}}');
+    expect(ru.library.songCount_many).toContain('{{count}}');
   });
 
   it('keep interpolation placeholders in translations', () => {

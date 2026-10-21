@@ -11,3 +11,13 @@ export function formatTime(seconds: number): string {
 export function formatSpeed(speed: number): string {
   return `${Number(speed.toFixed(2))}×`;
 }
+
+/** A total length for list headers: `42 min`, `1 h 05 min` (anything playable is at least 1 min). */
+export function formatTotal(seconds: number, units: { hours: string; minutes: string }): string {
+  const minutes = seconds > 0 ? Math.max(1, Math.round(seconds / 60)) : 0;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h > 0
+    ? `${h} ${units.hours} ${String(m).padStart(2, '0')} ${units.minutes}`
+    : `${m} ${units.minutes}`;
+}
