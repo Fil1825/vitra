@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+target/
+
+# Tauri generated files
+src-tauri/gen/schemas/
+
+# Sidecar binaries are fetched by scripts/fetch-sidecars.mjs, never committed
+src-tauri/sidecars/
+.sidecar-cache/
+
+# Logs and local env
+*.log
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp

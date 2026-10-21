@@ -1,0 +1,7 @@
+dist/
+target/
+node_modules/
+package-lock.json
+src-tauri/
+LICENSE
+SPEC.md
