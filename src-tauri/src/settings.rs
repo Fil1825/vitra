@@ -1,0 +1,293 @@
+//! User settings, persisted as JSON in the app config directory.
+//!
+//! Rust owns the settings so every window (and later the tray and global hotkeys) sees the same
+//! values. Loading is forgiving: unknown fields are ignored and missing or invalid values fall
+//! back to defaults, so a file written by an older or newer version never resets everything.
+
+use std::fs;
+use std::io::ErrorKind;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Deserializer, Serialize};
+use tauri::{AppHandle, Emitter, State};
+
+use crate::error::AppError;
+
+/// Emitted to every window with the new [`Settings`] after a change.
+pub const SETTINGS_CHANGED: &str = "settings://changed";
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Settings {
+    #[serde(deserialize_with = "or_default")]
+    pub language: Language,
+    #[serde(deserialize_with = "or_default")]
+    pub appearance: Appearance,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Language {
+    #[default]
+    System,
+    En,
+    Ru,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Appearance {
+    /// `auto` or a theme id; themes themselves live in the frontend.
+    #[serde(deserialize_with = "or_default")]
+    pub theme: String,
+    #[serde(deserialize_with = "or_default")]
+    pub motion: Preference,
+    #[serde(deserialize_with = "or_default")]
+    pub transparency: Preference,
+    #[serde(deserialize_with = "or_default")]
+    pub refraction: Switch,
+    #[serde(deserialize_with = "or_default")]
+    pub power_saving: bool,
+}
+
+impl Default for Appearance {
+    fn default() -> Self {
+        Self {
+            theme: AUTO_THEME.to_owned(),
+            motion: Preference::System,
+            transparency: Preference::System,
+            refraction: Switch::Auto,
+            power_saving: false,
+        }
+    }
+}
+
+const AUTO_THEME: &str = "auto";
+
+/// Follow the OS setting, or force reduced / full effects.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Preference {
+    #[default]
+    System,
+    Reduce,
+    Full,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Switch {
+    #[default]
+    Auto,
+    On,
+    Off,
+}
+
+/// Deserializes a field, falling back to its default when the value has the wrong shape.
+fn or_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: DeserializeOwned + Default,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(serde_json::from_value(value).unwrap_or_default())
+}
+
+impl Settings {
+    /// Normalizes values serde cannot check on its own.
+    fn sanitized(mut self) -> Self {
+        let theme = &self.appearance.theme;
+        let valid = !theme.is_empty()
+            && theme.len() <= 64
+            && theme
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+        if !valid {
+            self.appearance.theme = AUTO_THEME.to_owned();
+        }
+        self
+    }
+}
+
+/// The current settings plus the file they are saved to.
+pub struct SettingsStore {
+    path: PathBuf,
+    current: Mutex<Settings>,
+}
+
+impl SettingsStore {
+    pub fn load(path: PathBuf) -> Self {
+        let current = Mutex::new(read(&path));
+        Self { path, current }
+    }
+
+    pub fn get(&self) -> Settings {
+        self.lock().clone()
+    }
+
+    pub fn set(&self, settings: Settings) -> Result<Settings, AppError> {
+        let settings = settings.sanitized();
+        // Hold the lock while writing so concurrent updates are saved in order.
+        let mut current = self.lock();
+        write_atomic(&self.path, &settings)?;
+        *current = settings.clone();
+        Ok(settings)
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, Settings> {
+        self.current
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+}
+
+fn read(path: &Path) -> Settings {
+    let text = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Settings::default(),
+        Err(err) => {
+            log::warn!("cannot read {}: {err}; using defaults", path.display());
+            return Settings::default();
+        }
+    };
+    match serde_json::from_str::<Settings>(&text) {
+        Ok(settings) => settings.sanitized(),
+        Err(err) => {
+            // Keep the broken file for the user instead of silently overwriting it later.
+            let backup = path.with_extension("json.bak");
+            log::warn!(
+                "invalid settings file {}: {err}; backed up to {}",
+                path.display(),
+                backup.display()
+            );
+            if let Err(err) = fs::rename(path, &backup) {
+                log::warn!("cannot back up settings: {err}");
+            }
+            Settings::default()
+        }
+    }
+}
+
+/// Writes through a temporary file so a crash never leaves a half-written settings file.
+fn write_atomic(path: &Path, settings: &Settings) -> Result<(), AppError> {
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir)?;
+    }
+    let tmp = path.with_extension("json.tmp");
+    fs::write(&tmp, serde_json::to_vec_pretty(settings)?)?;
+    fs::rename(&tmp, path)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_settings(store: State<'_, SettingsStore>) -> Settings {
+    store.get()
+}
+
+/// Saves the settings and broadcasts them to all windows; returns what was actually stored.
+#[tauri::command]
+pub fn set_settings(
+    app: AppHandle,
+    store: State<'_, SettingsStore>,
+    settings: Settings,
+) -> Result<Settings, AppError> {
+    let saved = store.set(settings)?;
+    app.emit(SETTINGS_CHANGED, &saved)?;
+    Ok(saved)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn store_in(dir: &Path) -> SettingsStore {
+        SettingsStore::load(dir.join("settings.json"))
+    }
+
+    #[test]
+    fn missing_file_gives_defaults() {
+        let tmp = tempfile::tempdir().unwrap();
+        assert_eq!(store_in(tmp.path()).get(), Settings::default());
+    }
+
+    #[test]
+    fn saved_settings_survive_a_reload() {
+        let tmp = tempfile::tempdir().unwrap();
+        let settings = Settings {
+            language: Language::Ru,
+            appearance: Appearance {
+                theme: "aurora-night".into(),
+                power_saving: true,
+                ..Appearance::default()
+            },
+        };
+
+        store_in(tmp.path()).set(settings.clone()).unwrap();
+
+        assert_eq!(store_in(tmp.path()).get(), settings);
+    }
+
+    #[test]
+    fn serializes_as_camel_case_json() {
+        let json = serde_json::to_value(Settings::default()).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "language": "system",
+                "appearance": {
+                    "theme": "auto",
+                    "motion": "system",
+                    "transparency": "system",
+                    "refraction": "auto",
+                    "powerSaving": false
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn invalid_fields_fall_back_individually() {
+        let settings: Settings = serde_json::from_str(
+            r#"{
+                "language": "klingon",
+                "appearance": { "theme": "dark", "motion": 42, "powerSaving": true },
+                "fromTheFuture": { "x": 1 }
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(settings.language, Language::System);
+        assert_eq!(settings.appearance.theme, "dark");
+        assert_eq!(settings.appearance.motion, Preference::System);
+        assert!(settings.appearance.power_saving);
+    }
+
+    #[test]
+    fn invalid_theme_id_becomes_auto() {
+        let tmp = tempfile::tempdir().unwrap();
+        let settings = Settings {
+            appearance: Appearance {
+                theme: "../../evil".into(),
+                ..Appearance::default()
+            },
+            ..Settings::default()
+        };
+
+        let saved = store_in(tmp.path()).set(settings).unwrap();
+
+        assert_eq!(saved.appearance.theme, "auto");
+    }
+
+    #[test]
+    fn corrupt_file_is_backed_up_and_defaults_are_used() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("settings.json");
+        fs::write(&path, "{ not json").unwrap();
+
+        assert_eq!(store_in(tmp.path()).get(), Settings::default());
+        assert!(tmp.path().join("settings.json.bak").exists());
+        assert!(!path.exists());
+    }
+}

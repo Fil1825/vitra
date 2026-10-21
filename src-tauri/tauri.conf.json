@@ -11,15 +11,24 @@
   },
   "app": {
     "withGlobalTauri": false,
+    "macOSPrivateApi": true,
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "Vitra",
         "width": 1200,
         "height": 800,
         "minWidth": 760,
         "minHeight": 520,
-        "center": true
+        "center": true,
+        "transparent": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 20,
+          "y": 22
+        }
       }
     ],
     "security": {
