@@ -1,5 +1,7 @@
+import type { LibraryChange, ScanStatus } from './library.ts';
 import type { Settings } from './settings.ts';
 import type { PlayerState, PositionUpdate, Track } from './player.ts';
+import type { QueueState } from './queue.ts';
 import type { WindowEffects } from './window.ts';
 import type { Effects } from '../theme/effects.ts';
 import type { Theme } from '../theme/schema.ts';
@@ -20,6 +22,10 @@ export interface VitraEvents {
   'player:position': PositionUpdate;
   /** Metadata and artwork of the current track became available. */
   'player:track': Track;
+  'queue:changed': QueueState;
+  /** Library data changed; views showing that kind of data refetch it. */
+  'library:changed': LibraryChange;
+  'library:scan': ScanStatus;
 }
 
 export type Handler<T> = (payload: T) => void;

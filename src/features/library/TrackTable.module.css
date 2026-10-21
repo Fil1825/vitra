@@ -1,0 +1,196 @@
+.table {
+  display: grid;
+  min-width: 0;
+}
+
+.header,
+.row {
+  display: grid;
+  align-items: center;
+  gap: var(--vitra-space-3);
+  padding: 0 var(--vitra-space-2);
+}
+
+.header {
+  height: 32px;
+  border-bottom: 1px solid var(--vitra-color-separator);
+}
+
+.headerCell {
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--vitra-color-text-tertiary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.headerCell {
+  cursor: pointer;
+}
+
+button.headerCell:hover,
+.headerCell[data-active] {
+  color: var(--vitra-color-text);
+}
+
+.rows {
+  position: relative;
+}
+
+.row {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 40px;
+  border-radius: var(--vitra-radius-sm);
+  outline-offset: -2px;
+}
+
+.row[data-alt] {
+  background: color-mix(in srgb, var(--vitra-color-text) 3%, transparent);
+}
+
+.row:hover {
+  background: color-mix(in srgb, var(--vitra-color-text) 8%, transparent);
+}
+
+.row[aria-selected='true'] {
+  background: color-mix(in srgb, var(--vitra-color-accent) 24%, transparent);
+}
+
+.row[data-lifted] {
+  opacity: 0.45;
+}
+
+.row[data-playing] .text:first-child,
+.row[data-playing] .titleCell .text {
+  color: var(--vitra-color-accent);
+  font-weight: 600;
+}
+
+.text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.secondary {
+  color: var(--vitra-color-text-secondary);
+}
+
+.numeric {
+  color: var(--vitra-color-text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.number {
+  position: relative;
+  display: grid;
+  place-items: center end;
+  color: var(--vitra-color-text-tertiary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.playing {
+  color: var(--vitra-color-accent);
+}
+
+.rowPlay {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-items: center end;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--vitra-color-text);
+  cursor: pointer;
+}
+
+.row:hover .rowPlay {
+  display: grid;
+}
+
+.row:hover .numberText,
+.row:hover .playing {
+  visibility: hidden;
+}
+
+.titleCell {
+  display: flex;
+  align-items: center;
+  gap: var(--vitra-space-2);
+  min-width: 0;
+}
+
+.thumb {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+}
+
+.favoriteCell {
+  display: grid;
+  place-items: center;
+}
+
+.favorite {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--vitra-color-text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.row:hover .favorite,
+.favorite[data-on] {
+  opacity: 1;
+}
+
+.favorite[data-on] {
+  color: var(--vitra-color-accent);
+}
+
+.favorite:hover {
+  color: var(--vitra-color-text);
+}
+
+.grip {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--vitra-color-text-tertiary);
+  cursor: grab;
+  touch-action: none;
+}
+
+.rows[data-dragging] {
+  cursor: grabbing;
+}
+
+.dropLine {
+  position: absolute;
+  right: var(--vitra-space-2);
+  left: var(--vitra-space-2);
+  height: 2px;
+  margin-top: -1px;
+  border-radius: 1px;
+  background: var(--vitra-color-accent);
+  pointer-events: none;
+}

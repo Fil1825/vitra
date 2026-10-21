@@ -16,6 +16,7 @@ import type {
 import { useEnvironment } from '../../stores/environment.ts';
 import { useSettings } from '../../stores/settings.ts';
 import { Diagnostics } from './Diagnostics.tsx';
+import { LibrarySettings } from './LibrarySettings.tsx';
 import styles from './SettingsPanel.module.css';
 import { ThemePicker } from './ThemePicker.tsx';
 
@@ -79,6 +80,11 @@ export function SettingsPanel({ onClose }: { onClose(): void }) {
         </header>
 
         <div className={styles.content}>
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>{t('settings.library.title')}</h3>
+            <LibrarySettings />
+          </section>
+
           <section className={styles.section}>
             <h3 className={styles.sectionTitle}>{t('settings.appearance')}</h3>
             <ThemePicker

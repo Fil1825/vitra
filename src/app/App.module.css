@@ -11,6 +11,18 @@
   padding: var(--vitra-space-2);
 }
 
+.shell[data-queue] {
+  grid-template-areas:
+    'sidebar header queue'
+    'sidebar main queue'
+    'controls controls controls';
+  grid-template-columns: 232px minmax(0, 1fr) 300px;
+}
+
+.queue {
+  grid-area: queue;
+}
+
 .sidebar {
   grid-area: sidebar;
 }
@@ -20,11 +32,10 @@
 }
 
 .main {
-  display: grid;
   grid-area: main;
-  place-items: center;
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .controls {
@@ -34,6 +45,10 @@
 @media (max-width: 860px) {
   .shell {
     grid-template-columns: 188px minmax(0, 1fr);
+  }
+
+  .shell[data-queue] {
+    grid-template-columns: 188px minmax(0, 1fr) 260px;
   }
 }
 

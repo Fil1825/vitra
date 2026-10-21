@@ -5,14 +5,18 @@ import { useTranslation } from 'react-i18next';
 
 import { Backdrop } from '../components/Backdrop/Backdrop.tsx';
 import { Glass } from '../components/Glass/index.ts';
+import { LibraryView } from '../features/library/LibraryView.tsx';
+import { QueuePanel } from '../features/queue/QueuePanel.tsx';
 import { SettingsPanel } from '../features/settings/SettingsPanel.tsx';
+import { TagEditor } from '../features/tags/TagEditor.tsx';
 import { playPaths } from '../lib/openFiles.ts';
 import { artworkUrl } from '../lib/player.ts';
 import { useAppearance } from '../stores/appearance.ts';
+import { useNavigation } from '../stores/navigation.ts';
 import { usePlayer } from '../stores/player.ts';
+import { useUi } from '../stores/ui.ts';
 import styles from './App.module.css';
 import { ControlBar } from './ControlBar.tsx';
-import { NowPlaying } from './NowPlaying.tsx';
 import { Sidebar } from './Sidebar.tsx';
 import { TitleBar } from './TitleBar.tsx';
 import { useAppearanceController } from './useAppearanceController.ts';
@@ -27,6 +31,11 @@ export function App() {
   const useArtwork = useAppearance((s) => s.theme.background.useArtwork);
   const artwork = usePlayer((s) => s.state.track?.artwork ?? null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const queueOpen = useUi((s) => s.queueOpen);
+  const tagEditorPath = useUi((s) => s.tagEditorPath);
+  const editTags = useUi((s) => s.editTags);
+  const route = useNavigation((s) => s.route);
+  const closeTagEditor = useCallback(() => editTags(null), [editTags]);
   const dropping = useFileDrop(
     useCallback((paths: string[]) => {
       playPaths(paths).catch((err: unknown) => console.error('Playing dropped files failed', err));
@@ -54,17 +63,22 @@ export function App() {
         colors={shownArtwork?.palette?.colors}
         artworkUrl={shownArtwork ? artworkUrl(shownArtwork.id, 'thumb') : undefined}
       />
-      <div className={styles.shell}>
+      <div className={styles.shell} data-queue={queueOpen || undefined}>
         <Sidebar className={styles.sidebar} />
         <TitleBar className={styles.header} onOpenSettings={() => setSettingsOpen(true)} />
-        <main className={styles.main}>
-          <NowPlaying />
+        {/* Keyed by route so each view starts at the top. */}
+        <main key={JSON.stringify(route)} className={styles.main} data-scroll-container>
+          <LibraryView />
         </main>
+        {queueOpen && <QueuePanel className={styles.queue} />}
         <ControlBar className={styles.controls} />
       </div>
       <AnimatePresence>
         {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
       </AnimatePresence>
+      {tagEditorPath && (
+        <TagEditor key={tagEditorPath} path={tagEditorPath} onClose={closeTagEditor} />
+      )}
       {dropping && (
         <div className={styles.dropZone}>
           <Glass className={styles.dropCard} priority={6}>

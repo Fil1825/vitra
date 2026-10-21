@@ -108,6 +108,8 @@ struct Inner {
     /// Serializes operations that change what plays, so two quick clicks can't interleave
     /// their `loadfile` commands and leave mpv's playlist out of step with the queue.
     transport: tokio::sync::Mutex<()>,
+    /// A load is waiting for mpv to come up; a freshly started mpv leaves loading to it.
+    load_waiting: AtomicBool,
     /// The queue changed since the session was last saved.
     queue_dirty: AtomicBool,
     /// The playback values last saved (JSON), to skip writing unchanged ones.
@@ -136,6 +138,7 @@ impl Player {
             queue: Mutex::new(Queue::default()),
             mirror: Mutex::new(Mirror::default()),
             transport: tokio::sync::Mutex::new(()),
+            load_waiting: AtomicBool::new(false),
             queue_dirty: AtomicBool::new(false),
             saved_playback: Mutex::new(String::new()),
         }))
@@ -434,7 +437,10 @@ impl Player {
     async fn load(&self, item: &QueueItem) -> Result<(), AppError> {
         self.begin_track(item);
         // Files opened at launch arrive before mpv is up.
-        let client = self.wait_for_client().await?;
+        self.0.load_waiting.store(true, Ordering::Relaxed);
+        let client = self.wait_for_client().await;
+        self.0.load_waiting.store(false, Ordering::Relaxed);
+        let client = client?;
         command(
             &client,
             vec![json!("set_property"), json!("pause"), json!(false)],
@@ -915,8 +921,9 @@ impl Player {
                 .map_err(mpv_error)?;
         }
         let current = lock(&self.0.queue).current().cloned();
-        if let (Status::Playing | Status::Paused | Status::Loading, Some(item)) =
-            (state.status, current)
+        let waiting = self.0.load_waiting.load(Ordering::Relaxed);
+        if let (Status::Playing | Status::Paused | Status::Loading, Some(item), false) =
+            (state.status, current, waiting)
         {
             *lock(&self.0.pending_seek) = Some(state.position).filter(|p| *p > 0.0);
             self.load_with(client, &item).await?;

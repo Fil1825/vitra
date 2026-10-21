@@ -13,7 +13,17 @@
   min-width: 0;
 }
 
+.artworkButton {
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--vitra-radius-sm);
+  background: transparent;
+  cursor: pointer;
+}
+
 .artwork {
+  display: block;
   flex: none;
   width: 48px;
   height: 48px;
@@ -57,7 +67,13 @@ div.artwork {
 .buttons {
   display: flex;
   align-items: center;
-  gap: var(--vitra-space-4);
+  gap: var(--vitra-space-3);
+}
+
+/* Toggled buttons (shuffle, repeat, queue, favorite) take the accent color. */
+.on,
+.on:hover {
+  color: var(--vitra-color-accent);
 }
 
 .progress {

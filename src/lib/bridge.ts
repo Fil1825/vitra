@@ -3,6 +3,12 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import { bus } from './bus.ts';
+import {
+  LIBRARY_CHANGED_EVENT,
+  LIBRARY_SCAN_EVENT,
+  type LibraryChange,
+  type ScanStatus,
+} from './library.ts';
 import { SETTINGS_CHANGED_EVENT, type Settings } from './settings.ts';
 import {
   PLAYER_POSITION_EVENT,
@@ -12,6 +18,7 @@ import {
   type PositionUpdate,
   type Track,
 } from './player.ts';
+import { QUEUE_CHANGED_EVENT, type QueueState } from './queue.ts';
 import { EFFECTS_CHANGED_EVENT, type WindowEffects } from './window.ts';
 
 /** Re-publishes backend events on the frontend bus. Returns a function that stops it. */
@@ -32,6 +39,11 @@ export async function startBackendBridge(): Promise<UnlistenFn> {
       bus.emit('player:position', event.payload),
     ),
     listen<Track>(PLAYER_TRACK_EVENT, (event) => bus.emit('player:track', event.payload)),
+    listen<QueueState>(QUEUE_CHANGED_EVENT, (event) => bus.emit('queue:changed', event.payload)),
+    listen<LibraryChange>(LIBRARY_CHANGED_EVENT, (event) =>
+      bus.emit('library:changed', event.payload),
+    ),
+    listen<ScanStatus>(LIBRARY_SCAN_EVENT, (event) => bus.emit('library:scan', event.payload)),
   ]);
   return () => unlisten.forEach((fn) => fn());
 }

@@ -1,4 +1,17 @@
-import { Pause, Play, SkipBack, SkipForward, Volume1, Volume2, VolumeX } from 'lucide-react';
+import {
+  Heart,
+  ListMusic,
+  Pause,
+  Play,
+  Repeat,
+  Repeat1,
+  Shuffle,
+  SkipBack,
+  SkipForward,
+  Volume1,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -6,16 +19,43 @@ import { Glass } from '../components/Glass/index.ts';
 import { IconButton } from '../components/ui/IconButton.tsx';
 import { Slider } from '../components/ui/Slider.tsx';
 import { formatTime } from '../lib/format.ts';
+import { library } from '../lib/library.ts';
 import { artworkUrl, player } from '../lib/player.ts';
+import { hasNext, nextRepeat, queue } from '../lib/queue.ts';
+import { useLibraryData } from '../lib/useLibraryData.ts';
+import { useNavigation } from '../stores/navigation.ts';
 import { useLivePosition, usePlayer } from '../stores/player.ts';
+import { useQueue } from '../stores/queue.ts';
+import { useUi } from '../stores/ui.ts';
 import styles from './ControlBar.module.css';
 import { SpeedMenu } from './SpeedMenu.tsx';
 
 const report = (err: unknown) => console.error('Player command failed', err);
 
+/** Heart for the playing track, if it is in the library. */
+function FavoriteButton({ trackId }: { trackId: number }) {
+  const { t } = useTranslation();
+  const favorite =
+    useLibraryData(`track:${trackId}`, () => library.track(trackId)).data?.favorite ?? false;
+  return (
+    <IconButton
+      label={t(favorite ? 'player.unfavorite' : 'player.favorite')}
+      aria-pressed={favorite}
+      className={favorite ? styles.on : undefined}
+      onClick={() => library.setFavorite(trackId, !favorite).catch(report)}
+    >
+      <Heart size={16} fill={favorite ? 'currentColor' : 'none'} />
+    </IconButton>
+  );
+}
+
 export function ControlBar({ className }: { className?: string }) {
   const { t } = useTranslation();
   const state = usePlayer((s) => s.state);
+  const queueState = useQueue((s) => s.queue);
+  const queueOpen = useUi((s) => s.queueOpen);
+  const toggleQueue = useUi((s) => s.toggleQueue);
+  const go = useNavigation((s) => s.go);
   const position = useLivePosition();
   const [scrub, setScrub] = useState<number | null>(null);
   const [volume, setVolume] = useState<number | null>(null);
@@ -28,6 +68,11 @@ export function ControlBar({ className }: { className?: string }) {
   const VolumeIcon =
     state.muted || shownVolume === 0 ? VolumeX : shownVolume < 50 ? Volume1 : Volume2;
   const subtitle = [track?.metadata.artist, track?.metadata.album].filter(Boolean).join(' — ');
+  const repeatLabel = {
+    off: t('player.repeatOff'),
+    all: t('player.repeatAll'),
+    one: t('player.repeatOne'),
+  }[queueState.repeat];
 
   return (
     <Glass
@@ -37,24 +82,39 @@ export function ControlBar({ className }: { className?: string }) {
       priority={3}
     >
       <div className={styles.track}>
-        {track?.artwork ? (
-          <img className={styles.artwork} src={artworkUrl(track.artwork.id)} alt="" />
-        ) : (
-          <div className={styles.artwork} aria-hidden="true" />
-        )}
+        <button
+          type="button"
+          className={styles.artworkButton}
+          aria-label={t('nav.nowPlaying')}
+          onClick={() => go({ view: 'nowPlaying' })}
+        >
+          {track?.artwork ? (
+            <img className={styles.artwork} src={artworkUrl(track.artwork.id)} alt="" />
+          ) : (
+            <div className={styles.artwork} aria-hidden="true" />
+          )}
+        </button>
         <div className={styles.trackText}>
           <span className={styles.trackTitle}>{track?.title ?? t('player.notPlaying')}</span>
           {subtitle && <span className={styles.trackSubtitle}>{subtitle}</span>}
         </div>
+        {track?.libraryId != null && <FavoriteButton trackId={track.libraryId} />}
       </div>
 
       <div className={styles.transport}>
         <div className={styles.buttons}>
           <IconButton
+            label={t('player.shuffle')}
+            aria-pressed={queueState.shuffle}
+            className={queueState.shuffle ? styles.on : undefined}
+            onClick={() => queue.setShuffle(!queueState.shuffle).catch(report)}
+          >
+            <Shuffle size={16} />
+          </IconButton>
+          <IconButton
             label={t('player.previous')}
-            disabled={!loaded}
-            // Restarts the track; going to the previous one needs the queue (stage 3).
-            onClick={() => player.seek(0).catch(report)}
+            disabled={track === null}
+            onClick={() => player.previous().catch(report)}
           >
             <SkipBack size={18} fill="currentColor" />
           </IconButton>
@@ -70,8 +130,20 @@ export function ControlBar({ className }: { className?: string }) {
               <Play size={22} fill="currentColor" />
             )}
           </IconButton>
-          <IconButton label={t('player.next')} disabled>
+          <IconButton
+            label={t('player.next')}
+            disabled={!hasNext(queueState)}
+            onClick={() => player.next().catch(report)}
+          >
             <SkipForward size={18} fill="currentColor" />
+          </IconButton>
+          <IconButton
+            label={repeatLabel}
+            aria-pressed={queueState.repeat !== 'off'}
+            className={queueState.repeat !== 'off' ? styles.on : undefined}
+            onClick={() => queue.setRepeat(nextRepeat(queueState.repeat)).catch(report)}
+          >
+            {queueState.repeat === 'one' ? <Repeat1 size={16} /> : <Repeat size={16} />}
           </IconButton>
         </div>
         <div className={styles.progress}>
@@ -120,6 +192,14 @@ export function ControlBar({ className }: { className?: string }) {
           }}
           onCommit={() => setVolume(null)}
         />
+        <IconButton
+          label={t(queueOpen ? 'player.hideQueue' : 'player.showQueue')}
+          aria-pressed={queueOpen}
+          className={queueOpen ? styles.on : undefined}
+          onClick={toggleQueue}
+        >
+          <ListMusic size={17} />
+        </IconButton>
       </div>
     </Glass>
   );
