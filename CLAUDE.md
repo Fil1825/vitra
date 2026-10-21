@@ -81,13 +81,13 @@ src/                    React + TypeScript frontend
 src-tauri/              Tauri app crate (`vitra`, lib `vitra_lib`)
   src/lib.rs            builder, plugins, command registration
   src/sidecar.rs        locating mpv / yt-dlp / ffmpeg / ffprobe / deno
-  tauri.conf.json, capabilities/, icons/ (generated from assets/icon.svg via `npx tauri icon`)
+  tauri.conf.json, capabilities/, icons/ (generated: `npm run tauri icon -- assets/brand/icon-1024.png`)
   sidecars/<triple>/    fetched binaries (git-ignored)
 crates/                 (planned) pure-Rust crates testable without WebKit, e.g. mpv-ipc, lyrics
 scripts/
   fetch-sidecars.mjs    downloader (I/O)
   sidecars/plan.mjs     what to download per target (pure, unit-tested)
-assets/icon.svg         app icon source (original artwork, no Apple assets)
+assets/brand/           logo, app icon source, mono tray icon, palette (see its README)
 docs/                   PLAN.md; later THEMES.md, theme.schema.json
 themes/                 (stage 7) example themes
 .github/workflows/      CI

@@ -25,7 +25,10 @@ and an explicit list of checks that can only be done on a Mac.
   `window-vibrancy` (macOS `NSVisualEffectView`, Windows 11 Mica/Acrylic, Linux: no vibrancy,
   translucent background fallback). Needs `macOSPrivateApi` for transparency on macOS.
 - Theme token system: `--vitra-*` CSS variables for colors, glass, typography, radii, spacing,
-  motion; Light, Dark and Auto (follows the OS) built-in themes; applied at runtime.
+  motion; Light, Dark, Auto (follows the OS) and **Aurora Night** built-in themes, applied at
+  runtime. Aurora Night is the brand theme (palette in `assets/brand/README.md`): dark navy
+  background, ice-blue accent, and the aurora gradient as the dynamic background when no
+  artwork is playing.
 - `<Glass>` component: `blur`, `saturation`, `tint`, `opacity`, `radius`, `border`,
   `highlight`, `refraction`; defaults from theme variables. Refraction through an SVG
   `feDisplacementMap` used in `backdrop-filter`, enabled only when feature detection proves it
@@ -119,7 +122,7 @@ and an explicit list of checks that can only be done on a Mac.
 - 10-band EQ with presets and custom presets (`lavfi` `equalizer` chain, updated live).
 - ReplayGain (track/album), volume normalization (`dynaudnorm`/`loudnorm`), crossfade.
 - Media keys and Now Playing via `souvlaki` (macOS, Windows SMTC, Linux MPRIS).
-- Tray / menu-bar icon with basic controls; global hotkeys (`tauri-plugin-global-shortcut`).
+- Tray / menu-bar icon (`assets/brand/mono.svg`, a template image on macOS) with basic controls; global hotkeys (`tauri-plugin-global-shortcut`).
 - **Mac-only checks**: media keys, Now Playing widget, menu-bar icon.
 
 ## Stage 9 — Release
