@@ -124,7 +124,9 @@
       "scanListing": "Looking for files…",
       "scanCovers": "Preparing covers… {{done}} of {{total}}",
       "watchHint": "Folders are watched: new, changed and deleted files show up by themselves.",
-      "insideFolder": "This folder is already in your library as part of “{{folder}}”."
+      "insideFolder": "This folder is already in your library as part of “{{folder}}”.",
+      "addOpenedFiles": "Add opened files to the library",
+      "addOpenedFilesHint": "Files you open or drop join the library as single songs, with favorites, history and playlists. A folder added later takes them in."
     }
   },
   "library": {
@@ -180,7 +182,11 @@
     "album": "Album",
     "artist": "Artist",
     "nothingHere": "Nothing here yet",
-    "loadFailed": "Couldn't load this view: {{message}}"
+    "loadFailed": "Couldn't load this view: {{message}}",
+    "removeFromLibrary": "Remove from Library…",
+    "removeOneConfirm": "Remove “{{title}}” from the library? The file stays on disk, but its play count and playlist entries are lost.",
+    "removeManyConfirm_one": "Remove {{count}} song from the library? The files stay on disk, but play counts and playlist entries are lost.",
+    "removeManyConfirm_other": "Remove {{count}} songs from the library? The files stay on disk, but play counts and playlist entries are lost."
   },
   "queue": {
     "title": "Queue",
@@ -215,5 +221,10 @@
     "notWritable": "Tags of this file format can't be edited.",
     "saveFailed": "Couldn't save the tags: {{message}}",
     "yearInvalid": "Enter a year such as 1999, or leave it empty."
+  },
+  "dialog": {
+    "cancel": "Cancel",
+    "remove": "Remove",
+    "delete": "Delete"
   }
 }

@@ -265,8 +265,17 @@ impl Queue {
 
     /// Updates the display info of every item playing `path` (e.g. after a tag edit).
     pub fn update_entries(&mut self, path: &str, update: impl Fn(&mut Entry)) -> bool {
+        self.update_where(|entry| entry.path == path, update)
+    }
+
+    /// Updates every entry `matches` picks; returns whether there was one.
+    pub fn update_where(
+        &mut self,
+        matches: impl Fn(&Entry) -> bool,
+        update: impl Fn(&mut Entry),
+    ) -> bool {
         let mut changed = false;
-        for item in self.items.iter_mut().filter(|item| item.entry.path == path) {
+        for item in self.items.iter_mut().filter(|item| matches(&item.entry)) {
             update(&mut item.entry);
             changed = true;
         }
@@ -515,6 +524,18 @@ mod tests {
         assert!(changed);
         assert_eq!(titles(&queue), ["A!", "b", "A!"]);
         assert!(!queue.update_entries("/zzz.flac", |_| {}));
+    }
+
+    #[test]
+    fn updates_entries_by_track() {
+        let mut queue = queue(&["a", "b"], 0);
+        queue.items[1].entry.track_id = Some(7);
+        let changed = queue.update_where(
+            |entry| entry.track_id == Some(7),
+            |entry| entry.track_id = None,
+        );
+        assert!(changed);
+        assert!(queue.items.iter().all(|item| item.entry.track_id.is_none()));
     }
 
     #[test]

@@ -172,6 +172,21 @@ pub async fn library_track(
     library.run(move |db| db.track(id)).await
 }
 
+/// Removes single tracks (added on their own) from the library; their files stay on disk.
+#[tauri::command]
+pub async fn library_remove_tracks(
+    library: State<'_, LibraryService>,
+    player: State<'_, Player>,
+    track_ids: Vec<i64>,
+) -> Result<usize, AppError> {
+    let service = library.inner().clone();
+    let ids = track_ids.clone();
+    let removed =
+        tauri::async_runtime::spawn_blocking(move || service.remove_single_tracks(&ids)).await??;
+    player.tracks_removed(&track_ids);
+    Ok(removed)
+}
+
 #[tauri::command]
 pub async fn library_history(
     library: State<'_, LibraryService>,

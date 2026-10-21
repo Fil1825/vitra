@@ -1,4 +1,3 @@
-import { ask } from '@tauri-apps/plugin-dialog';
 import {
   AudioLines,
   Clock3,
@@ -19,6 +18,7 @@ import { Glass } from '../components/Glass/index.ts';
 import { IconButton } from '../components/ui/IconButton.tsx';
 import { createPlaylist, report } from '../features/library/actions.ts';
 import { usePlaylists } from '../features/library/usePlaylists.ts';
+import { confirm } from '../lib/confirm.ts';
 import { playlists } from '../lib/library.ts';
 import { showContextMenu } from '../lib/menu.ts';
 import { useNavigation, type Route } from '../stores/navigation.ts';
@@ -161,7 +161,7 @@ export function Sidebar({ className }: { className?: string }) {
       {
         label: t('library.deletePlaylist'),
         action: () => {
-          ask(t('library.deletePlaylistConfirm', { name }), { kind: 'warning' })
+          confirm(t('library.deletePlaylistConfirm', { name }), 'delete')
             .then(async (confirmed) => {
               if (confirmed) {
                 await playlists.remove(id);

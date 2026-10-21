@@ -1,9 +1,9 @@
-import { ask } from '@tauri-apps/plugin-dialog';
 import { ListMusic, MoreHorizontal } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { IconButton } from '../../components/ui/IconButton.tsx';
+import { confirm } from '../../lib/confirm.ts';
 import { library, playlists } from '../../lib/library.ts';
 import { showContextMenu } from '../../lib/menu.ts';
 import { useLibraryData } from '../../lib/useLibraryData.ts';
@@ -41,9 +41,10 @@ export function PlaylistView({ id }: { id: number }) {
     if (!data) {
       return;
     }
-    const confirmed = await ask(t('library.deletePlaylistConfirm', { name: data.name }), {
-      kind: 'warning',
-    });
+    const confirmed = await confirm(
+      t('library.deletePlaylistConfirm', { name: data.name }),
+      'delete',
+    );
     if (confirmed) {
       await playlists.remove(id);
       useNavigation.getState().goBack();

@@ -214,7 +214,14 @@ themes/                 (stage 7) example themes
       250, follow moved/renamed files (same size and title → same row), never delete tracks of
       an unreadable folder or a cancelled scan, and date a folder's first scan by file mtime.
     - Album covers: 512 px JPEGs named by the FNV-1a hash of the source image, cached in
-      `<app data>/covers`, garbage-collected after scans.
+      `<app data>/covers`, garbage-collected after scans. Albums sharing a cover share the id,
+      so each write goes through its own temporary file (`<id>.<pid>-<n>.part`).
+    - Single tracks: files opened or dropped outside library folders join the library with
+      `folder_id = NULL` (setting `library.addOpenedFiles`, on by default; done in the
+      background after playback starts, then the queue entries get their track ids). Adding a
+      folder that contains them takes them in (same rows, so favorites and history stay).
+      Only single tracks can be removed from the library (`library_remove_tracks`); tracks in
+      folders would come back with the next scan.
     - One scanner thread with its own connection; commands share another (`LibraryService`).
       `notify` watches folders; changes rescan the folder 3 s after things settle.
     - Search: FTS5 `unicode61 remove_diacritics 2`, every word a prefix (`"word"*`), ranked

@@ -106,6 +106,23 @@ impl Library {
                 tx.execute("DELETE FROM folders WHERE id = ?", [child])?;
             }
         }
+        // Single files added earlier that live in this folder join it: the scan then sees them
+        // as known instead of adding duplicates, and they keep favorites and history.
+        let single: Vec<(i64, String)> = {
+            let mut statement =
+                tx.prepare("SELECT id, path FROM tracks WHERE folder_id IS NULL")?;
+            statement
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+                .collect::<rusqlite::Result<_>>()?
+        };
+        for (track, track_path) in single {
+            if Path::new(&track_path).starts_with(new) {
+                tx.execute(
+                    "UPDATE tracks SET folder_id = ?1 WHERE id = ?2",
+                    params![id, track],
+                )?;
+            }
+        }
         tx.commit()?;
         self.folder(id)?
             .ok_or_else(|| Error::Invalid("folder vanished".into()))
@@ -125,6 +142,28 @@ impl Library {
         prune(&tx)?;
         tx.commit()?;
         Ok(())
+    }
+
+    /// Removes single tracks (added on their own, outside any folder) from the library; the
+    /// files stay on disk. Tracks inside library folders are left alone, since the next scan
+    /// would bring them back anyway. Returns how many were removed.
+    pub fn remove_single_tracks(&mut self, ids: &[i64]) -> Result<usize> {
+        let tx = self.conn.transaction()?;
+        let mut single = Vec::new();
+        for &id in ids {
+            let found: Option<i64> = tx
+                .query_row(
+                    "SELECT id FROM tracks WHERE id = ? AND folder_id IS NULL",
+                    [id],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            single.extend(found);
+        }
+        delete_tracks(&tx, &single)?;
+        prune(&tx)?;
+        tx.commit()?;
+        Ok(single.len())
     }
 
     /// The folder (if any) that contains `path`.
@@ -229,6 +268,63 @@ mod tests {
         assert_eq!(titles, ["Two"]);
         assert_eq!(library.artists().unwrap().len(), 1);
         assert!(library.search("one", 10).unwrap().tracks.is_empty());
+    }
+
+    #[test]
+    fn a_new_folder_takes_in_single_tracks_inside_it() {
+        let mut library = Library::open_in_memory().unwrap();
+        library
+            .upsert_tracks(
+                None,
+                &[
+                    scanned("/music/a/1.mp3", "Inside", "X", "Y", 1),
+                    scanned("/elsewhere/2.mp3", "Outside", "X", "Y", 2),
+                ],
+            )
+            .unwrap();
+        let inside = library.track_by_path("/music/a/1.mp3").unwrap().unwrap();
+        library.set_favorite(inside.id, true).unwrap();
+
+        let folder = library.add_folder("/music").unwrap();
+        assert_eq!(folder.track_count, 1);
+        let known = library.known_files(folder.id).unwrap();
+        assert_eq!(known["/music/a/1.mp3"].id, inside.id);
+        let outside = library.track_by_path("/elsewhere/2.mp3").unwrap().unwrap();
+        assert_eq!(outside.folder_id, None);
+        assert!(library.track(inside.id).unwrap().unwrap().favorite);
+    }
+
+    #[test]
+    fn only_single_tracks_can_be_removed() {
+        let mut library = Library::open_in_memory().unwrap();
+        let folder = library.add_folder("/music").unwrap();
+        library
+            .upsert_tracks(
+                Some(folder.id),
+                &[scanned("/music/1.mp3", "Kept", "X", "A", 1)],
+            )
+            .unwrap();
+        library
+            .upsert_tracks(None, &[scanned("/tmp/2.mp3", "Single", "Y", "B", 1)])
+            .unwrap();
+        let ids: Vec<i64> = library
+            .tracks(&TrackFilter::All)
+            .unwrap()
+            .into_iter()
+            .map(|t| t.id)
+            .collect();
+
+        assert_eq!(library.remove_single_tracks(&ids).unwrap(), 1);
+        let left: Vec<_> = library
+            .tracks(&TrackFilter::All)
+            .unwrap()
+            .into_iter()
+            .map(|t| t.title)
+            .collect();
+        assert_eq!(left, ["Kept"]);
+        // Its album and artist went with it.
+        assert_eq!(library.artists().unwrap().len(), 1);
+        assert!(library.search("single", 10).unwrap().tracks.is_empty());
     }
 
     #[test]

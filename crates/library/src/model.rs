@@ -38,6 +38,9 @@ pub struct Track {
     pub added_at: i64,
     /// Cover thumbnail id of the track's album.
     pub cover: Option<String>,
+    /// The library folder the file is in; `None` for a single file added on its own (opened
+    /// or dropped), which only leaves the library when the user removes it.
+    pub folder_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

@@ -26,6 +26,16 @@ interface NavigationState {
   goForward(): void;
 }
 
+/** The album page of a track, if it has an album. */
+export function albumRoute(albumId: number | null | undefined): Route | null {
+  return albumId == null ? null : { view: 'album', id: albumId };
+}
+
+/** The artist page of a track, if it has an artist. */
+export function artistRoute(artistId: number | null | undefined): Route | null {
+  return artistId == null ? null : { view: 'artist', id: artistId };
+}
+
 export function sameRoute(a: Route, b: Route): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }

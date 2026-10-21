@@ -111,6 +111,7 @@ pub fn run() {
             library::library_artist_albums,
             library::library_search,
             library::library_set_favorite,
+            library::library_remove_tracks,
             library::library_history,
             library::playlists_list,
             library::playlist_get,

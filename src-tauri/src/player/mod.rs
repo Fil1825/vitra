@@ -32,6 +32,7 @@ use tokio::sync::Notify;
 
 use crate::error::AppError;
 use crate::library::{LibraryService, entry_from_track};
+use crate::settings::SettingsStore;
 use crate::sidecar::{self, Sidecar};
 
 pub use artwork::{
@@ -188,15 +189,99 @@ impl Player {
         if files.is_empty() {
             return Err(AppError::NotFound("no playable files".into()));
         }
-        let entries = self.file_entries(files).await;
+        let entries = self.file_entries(files.clone()).await;
         let untagged: Vec<String> = entries
             .iter()
             .filter(|entry| entry.track_id.is_none())
             .map(|entry| entry.path.clone())
             .collect();
         self.play_entries(entries, 0).await?;
-        self.read_entry_tags(untagged);
+        let library = self.library().filter(|_| self.adds_opened_files());
+        match library {
+            // Playback starts right away; the files join the library in the background.
+            Some(library) if !untagged.is_empty() => self.import(library, files),
+            _ => self.read_entry_tags(untagged),
+        }
         Ok(())
+    }
+
+    fn adds_opened_files(&self) -> bool {
+        self.0
+            .app
+            .try_state::<SettingsStore>()
+            .is_some_and(|settings| settings.get().library.add_opened_files)
+    }
+
+    /// Adds opened files to the library, then links their queue entries to the new tracks.
+    fn import(&self, library: LibraryService, files: Vec<PathBuf>) {
+        let player = self.clone();
+        tauri::async_runtime::spawn(async move {
+            match tauri::async_runtime::spawn_blocking(move || library.add_files(&files)).await {
+                Ok(Ok(tracks)) => player.link_tracks(&tracks),
+                Ok(Err(err)) => log::warn!("cannot add opened files to the library: {err}"),
+                Err(err) => log::warn!("adding opened files failed: {err}"),
+            }
+        });
+    }
+
+    /// Queued files became library tracks: give their entries (and the playing track) the
+    /// track ids, so favorites, history and playlists work for them.
+    fn link_tracks(&self, tracks: &[library::Track]) {
+        let mut queued = false;
+        {
+            let mut queue = lock(&self.0.queue);
+            for track in tracks {
+                let entry = entry_from_track(track.clone());
+                queued |= queue.update_entries(&track.path, |queued| *queued = entry.clone());
+            }
+        }
+        let playing = {
+            let mut state = lock(&self.0.state);
+            match state.track.as_mut() {
+                Some(current) => tracks
+                    .iter()
+                    .find(|track| track.path == current.path)
+                    .is_some_and(|track| {
+                        let linked = current.library_id != Some(track.id);
+                        current.library_id = Some(track.id);
+                        linked
+                    }),
+                None => false,
+            }
+        };
+        if queued {
+            self.emit_queue();
+        }
+        if playing {
+            self.emit_state();
+        }
+    }
+
+    /// Tracks left the library: their queue entries become plain files again.
+    pub fn tracks_removed(&self, ids: &[i64]) {
+        let queued = lock(&self.0.queue).update_where(
+            |entry| entry.track_id.is_some_and(|id| ids.contains(&id)),
+            |entry| {
+                entry.track_id = None;
+                entry.cover = None;
+            },
+        );
+        let playing = {
+            let mut state = lock(&self.0.state);
+            match state.track.as_mut() {
+                Some(track) if track.library_id.is_some_and(|id| ids.contains(&id)) => {
+                    track.library_id = None;
+                    true
+                }
+                _ => false,
+            }
+        };
+        if queued {
+            self.emit_queue();
+        }
+        if playing {
+            self.emit_state();
+        }
     }
 
     /// Queue entries for files: library rows where the library knows them, else just a title

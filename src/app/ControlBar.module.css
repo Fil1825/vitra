@@ -50,6 +50,10 @@ div.artwork {
 }
 
 .trackTitle {
+  text-align: left;
+}
+
+.trackTitle {
   font-weight: 600;
 }
 

@@ -28,6 +28,8 @@ export interface LibraryTrack {
   addedAt: number;
   /** Cover id of the track's album. */
   cover: string | null;
+  /** The library folder the file is in; `null` for a single file added on its own. */
+  folderId: number | null;
 }
 
 export interface Album {
@@ -162,6 +164,8 @@ export const library = {
   search: (query: string, limit: number) => call<SearchResults>('library_search', { query, limit }),
   setFavorite: (trackId: number, favorite: boolean) =>
     call('library_set_favorite', { trackId, favorite }),
+  /** Removes single tracks (not in a library folder); returns how many went. */
+  removeTracks: (trackIds: number[]) => call<number>('library_remove_tracks', { trackIds }),
   history: (limit: number) => call<HistoryEntry[]>('library_history', { limit }),
 };
 

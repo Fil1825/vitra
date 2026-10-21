@@ -1,6 +1,7 @@
 import { message } from '@tauri-apps/plugin-dialog';
 
 import { i18n } from '../../i18n/index.ts';
+import { confirm } from '../../lib/confirm.ts';
 import {
   library,
   playlists,
@@ -70,6 +71,18 @@ export async function addMusicFolder(): Promise<void> {
 
 export function setFavorite(ids: number[], favorite: boolean): void {
   Promise.all(ids.map((id) => library.setFavorite(id, favorite))).catch(report('Favoriting'));
+}
+
+/** Asks, then removes single tracks from the library (their files stay on disk). */
+async function removeFromLibrary(tracks: LibraryTrack[]): Promise<void> {
+  const [first] = tracks;
+  const question =
+    tracks.length === 1 && first
+      ? i18n.t('library.removeOneConfirm', { title: first.title })
+      : i18n.t('library.removeManyConfirm', { count: tracks.length });
+  if (await confirm(question, 'remove')) {
+    await library.removeTracks(tracks.map((track) => track.id));
+  }
 }
 
 /** Creates a playlist with the tracks, opens it and starts renaming it. */
@@ -149,8 +162,16 @@ export function trackMenu(
       });
     }
   }
-  if (extra.length > 0) {
-    entries.push('separator', ...extra);
+  const tail = [...extra];
+  // Tracks in library folders would come back with the next scan; only single files can go.
+  if (tracks.length > 0 && tracks.every((track) => track.folderId === null)) {
+    tail.push({
+      label: i18n.t('library.removeFromLibrary'),
+      action: () => void removeFromLibrary(tracks).catch(report('Removing from the library')),
+    });
+  }
+  if (tail.length > 0) {
+    entries.push('separator', ...tail);
   }
   return entries;
 }

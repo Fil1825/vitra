@@ -286,6 +286,29 @@ impl LibraryService {
         }
     }
 
+    /// Adds files the user opened to the library (blocking; reads tags and covers). Uses its
+    /// own connection so views stay responsive while a large folder is read.
+    pub fn add_files(&self, paths: &[PathBuf]) -> Result<Vec<Track>, AppError> {
+        let paths: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
+        let mut db = Library::open(&self.0.db_path)?;
+        let tracks = db.add_files(&paths, &self.0.covers_dir)?;
+        self.changed(Change::Tracks);
+        self.changed(Change::Folders);
+        Ok(tracks)
+    }
+
+    /// Removes single tracks (not in a library folder) from the library; files stay on disk.
+    pub fn remove_single_tracks(&self, ids: &[i64]) -> Result<usize, AppError> {
+        let removed = self.with(|db| {
+            let removed = db.remove_single_tracks(ids)?;
+            db.remove_unused_covers(&self.0.covers_dir)?;
+            Ok(removed)
+        })?;
+        self.changed(Change::Tracks);
+        self.changed(Change::Playlists);
+        Ok(removed)
+    }
+
     /// Re-reads tags of files after they were edited.
     pub fn refresh_files(&self, paths: &[&Path]) -> Result<(), AppError> {
         self.with(|db| db.refresh_files(paths, &self.0.covers_dir))?;

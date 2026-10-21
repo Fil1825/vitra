@@ -22,8 +22,9 @@ import { formatTime } from '../lib/format.ts';
 import { library } from '../lib/library.ts';
 import { artworkUrl, player } from '../lib/player.ts';
 import { hasNext, nextRepeat, queue } from '../lib/queue.ts';
-import { useLibraryData } from '../lib/useLibraryData.ts';
-import { useNavigation } from '../stores/navigation.ts';
+import { LibraryLink } from '../features/library/TrackLinks.tsx';
+import { useCurrentLibraryTrack } from '../features/library/useCurrentTrack.ts';
+import { albumRoute, artistRoute, useNavigation } from '../stores/navigation.ts';
 import { useLivePosition, usePlayer } from '../stores/player.ts';
 import { useQueue } from '../stores/queue.ts';
 import { useUi } from '../stores/ui.ts';
@@ -33,10 +34,8 @@ import { SpeedMenu } from './SpeedMenu.tsx';
 const report = (err: unknown) => console.error('Player command failed', err);
 
 /** Heart for the playing track, if it is in the library. */
-function FavoriteButton({ trackId }: { trackId: number }) {
+function FavoriteButton({ trackId, favorite }: { trackId: number; favorite: boolean }) {
   const { t } = useTranslation();
-  const favorite =
-    useLibraryData(`track:${trackId}`, () => library.track(trackId)).data?.favorite ?? false;
   return (
     <IconButton
       label={t(favorite ? 'player.unfavorite' : 'player.favorite')}
@@ -56,6 +55,7 @@ export function ControlBar({ className }: { className?: string }) {
   const queueOpen = useUi((s) => s.queueOpen);
   const toggleQueue = useUi((s) => s.toggleQueue);
   const go = useNavigation((s) => s.go);
+  const libraryTrack = useCurrentLibraryTrack();
   const position = useLivePosition();
   const [scrub, setScrub] = useState<number | null>(null);
   const [volume, setVolume] = useState<number | null>(null);
@@ -95,10 +95,28 @@ export function ControlBar({ className }: { className?: string }) {
           )}
         </button>
         <div className={styles.trackText}>
-          <span className={styles.trackTitle}>{track?.title ?? t('player.notPlaying')}</span>
-          {subtitle && <span className={styles.trackSubtitle}>{subtitle}</span>}
+          <LibraryLink to={albumRoute(libraryTrack?.albumId)} className={styles.trackTitle}>
+            {track?.title ?? t('player.notPlaying')}
+          </LibraryLink>
+          {subtitle && (
+            <span className={styles.trackSubtitle}>
+              {track?.metadata.artist ? (
+                <LibraryLink to={artistRoute(libraryTrack?.artistId)}>
+                  {track.metadata.artist}
+                </LibraryLink>
+              ) : null}
+              {track?.metadata.artist && track.metadata.album ? ' — ' : null}
+              {track?.metadata.album ? (
+                <LibraryLink to={albumRoute(libraryTrack?.albumId)}>
+                  {track.metadata.album}
+                </LibraryLink>
+              ) : null}
+            </span>
+          )}
         </div>
-        {track?.libraryId != null && <FavoriteButton trackId={track.libraryId} />}
+        {libraryTrack && (
+          <FavoriteButton trackId={libraryTrack.id} favorite={libraryTrack.favorite} />
+        )}
       </div>
 
       <div className={styles.transport}>

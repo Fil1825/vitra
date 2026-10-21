@@ -26,6 +26,25 @@ pub struct Settings {
     pub language: Language,
     #[serde(deserialize_with = "or_default")]
     pub appearance: Appearance,
+    #[serde(deserialize_with = "or_default")]
+    pub library: LibrarySettings,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct LibrarySettings {
+    /// Files opened or dropped outside the library folders join the library as single
+    /// tracks, so they get favorites, history and playlists too.
+    #[serde(deserialize_with = "or_true")]
+    pub add_opened_files: bool,
+}
+
+impl Default for LibrarySettings {
+    fn default() -> Self {
+        Self {
+            add_opened_files: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -250,6 +269,9 @@ mod tests {
                 power_saving: true,
                 ..Appearance::default()
             },
+            library: LibrarySettings {
+                add_opened_files: false,
+            },
         };
 
         store_in(tmp.path()).set(settings.clone()).unwrap();
@@ -272,7 +294,8 @@ mod tests {
                     "powerSaving": false,
                     "windowMaterial": "vibrancy",
                     "artworkAccent": true
-                }
+                },
+                "library": { "addOpenedFiles": true }
             })
         );
     }
@@ -301,6 +324,18 @@ mod tests {
             settings.appearance.window_material,
             WindowMaterial::Vibrancy
         );
+    }
+
+    #[test]
+    fn adding_opened_files_defaults_to_on() {
+        let old: Settings = serde_json::from_str(r#"{ "language": "en" }"#).unwrap();
+        assert!(old.library.add_opened_files);
+        let off: Settings =
+            serde_json::from_str(r#"{ "library": { "addOpenedFiles": false } }"#).unwrap();
+        assert!(!off.library.add_opened_files);
+        let broken: Settings =
+            serde_json::from_str(r#"{ "library": { "addOpenedFiles": "no" } }"#).unwrap();
+        assert!(broken.library.add_opened_files);
     }
 
     #[test]

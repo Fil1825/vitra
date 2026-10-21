@@ -10,7 +10,7 @@ use crate::{Library, Result, now};
 pub(crate) const TRACK_COLUMNS: &str = "t.id, t.path, t.title, ar.name, t.artist_id, al.title,
     t.album_id, t.album_artist, t.genre, t.year, t.track_number, t.disc_number, t.duration,
     t.format, t.sample_rate, t.bit_depth, t.bitrate, t.favorite, t.play_count,
-    t.last_played_at, t.added_at, al.cover";
+    t.last_played_at, t.added_at, al.cover, t.folder_id";
 
 pub(crate) const TRACK_FROM: &str = "tracks t
     LEFT JOIN artists ar ON ar.id = t.artist_id
@@ -44,6 +44,7 @@ pub(crate) fn track_from_row(row: &Row<'_>) -> rusqlite::Result<Track> {
         last_played_at: row.get(19)?,
         added_at: row.get(20)?,
         cover: row.get(21)?,
+        folder_id: row.get(22)?,
     })
 }
 
@@ -442,7 +443,7 @@ impl Library {
             .query_map([limit], |row| {
                 Ok(HistoryEntry {
                     track: track_from_row(row)?,
-                    played_at: row.get(22)?,
+                    played_at: row.get(23)?,
                 })
             })?
             .collect::<rusqlite::Result<_>>()?;

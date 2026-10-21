@@ -1,11 +1,13 @@
-import { ask } from '@tauri-apps/plugin-dialog';
 import { FolderPlus, RefreshCw, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { IconButton } from '../../components/ui/IconButton.tsx';
+import { Switch } from '../../components/ui/Switch.tsx';
+import { confirm } from '../../lib/confirm.ts';
 import { library, type ScanStatus } from '../../lib/library.ts';
 import { useLibraryData } from '../../lib/useLibraryData.ts';
 import { useScanStatus } from '../../stores/library.ts';
+import { useSettings } from '../../stores/settings.ts';
 import { addMusicFolder, report } from '../library/actions.ts';
 import styles from './SettingsPanel.module.css';
 
@@ -34,11 +36,11 @@ export function LibrarySettings() {
   const folders = useLibraryData('folders', library.folders, FOLDER_CHANGES).data ?? [];
   const status = useScanStatus((s) => s.status);
   const scanText = useScanText()(status);
+  const addOpenedFiles = useSettings((s) => s.settings.library.addOpenedFiles);
+  const update = useSettings((s) => s.update);
 
   const remove = async (id: number, path: string) => {
-    const confirmed = await ask(t('settings.library.removeFolderConfirm', { path }), {
-      kind: 'warning',
-    });
+    const confirmed = await confirm(t('settings.library.removeFolderConfirm', { path }), 'remove');
     if (confirmed) {
       await library.removeFolder(id);
     }
@@ -86,6 +88,22 @@ export function LibrarySettings() {
         <FolderPlus size={15} aria-hidden="true" />
         {t('settings.library.addFolder')}
       </button>
+      <div className={styles.inlineRow}>
+        <div className={styles.rowText}>
+          <span>{t('settings.library.addOpenedFiles')}</span>
+          <span className={styles.hint}>{t('settings.library.addOpenedFilesHint')}</span>
+        </div>
+        <Switch
+          label={t('settings.library.addOpenedFiles')}
+          checked={addOpenedFiles}
+          onChange={(checked) =>
+            void update((current) => ({
+              ...current,
+              library: { ...current.library, addOpenedFiles: checked },
+            }))
+          }
+        />
+      </div>
     </div>
   );
 }

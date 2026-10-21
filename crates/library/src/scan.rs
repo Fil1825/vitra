@@ -8,7 +8,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc;
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
@@ -17,7 +17,7 @@ use rusqlite::{OptionalExtension, params};
 use serde::Serialize;
 
 use crate::folders::KnownFile;
-use crate::model::ScannedTrack;
+use crate::model::{ScannedTrack, Track};
 use crate::tracks::{delete_tracks, file_title, prune, upsert_track};
 use crate::{Error, Library, Result, now};
 
@@ -279,8 +279,23 @@ fn find_cover(paths: &[String]) -> Option<Vec<u8>> {
         .map(|artwork| artwork.bytes)
 }
 
+/// How [`Library::store_files`] treats files.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Store {
+    /// Re-read files the library knows (or a library folder contains); ignore others.
+    Refresh,
+    /// Add any file; skip files the library already has unchanged.
+    Add,
+}
+
+/// Temporary cover files older than this are leftovers of a crash, not a write in progress.
+const STALE_PART: Duration = Duration::from_secs(600);
+
 /// Writes the cover thumbnail if it isn't cached yet; returns its id.
 fn cache_cover(bytes: &[u8], covers_dir: &Path) -> Option<String> {
+    // Albums sharing a cover get the same id and may be cached by two threads at once, so
+    // each write uses its own temporary file.
+    static NEXT_PART: AtomicU64 = AtomicU64::new(0);
     let id = cover_id(bytes);
     let target = covers_dir.join(format!("{id}.jpg"));
     if target.is_file() {
@@ -290,12 +305,18 @@ fn cache_cover(bytes: &[u8], covers_dir: &Path) -> Option<String> {
         .inspect_err(|err| log::info!("cannot decode a cover: {err}"))
         .ok()?;
     // Written under a temporary name first, so a half-written file is never served.
-    let partial = covers_dir.join(format!("{id}.jpg.part"));
+    let part = NEXT_PART.fetch_add(1, Ordering::Relaxed);
+    let partial = covers_dir.join(format!("{id}.{}-{part}.part", std::process::id()));
     let written = fs::create_dir_all(covers_dir)
         .and_then(|()| fs::write(&partial, thumbnail))
         .and_then(|()| fs::rename(&partial, &target));
     match written {
         Ok(()) => Some(id),
+        // Another thread finished the same cover first.
+        Err(_) if target.is_file() => {
+            let _ = fs::remove_file(&partial);
+            Some(id)
+        }
         Err(err) => {
             log::warn!("cannot cache a cover in {}: {err}", covers_dir.display());
             let _ = fs::remove_file(&partial);
@@ -485,49 +506,103 @@ impl Library {
     /// Re-reads tags of specific files, e.g. after the tag editor saved them. Files that
     /// aren't in the library (or inside a library folder) are ignored.
     pub fn refresh_files(&mut self, paths: &[&Path], covers_dir: &Path) -> Result<()> {
+        self.store_files(paths, covers_dir, Store::Refresh)
+    }
+
+    /// Adds files the user opened or dropped: files inside a library folder join it, others
+    /// become single tracks. Files already in the library are only re-read if they changed.
+    /// Returns the library tracks of the given paths, in order.
+    pub fn add_files(&mut self, paths: &[&Path], covers_dir: &Path) -> Result<Vec<Track>> {
+        self.store_files(paths, covers_dir, Store::Add)?;
+        let mut tracks = Vec::with_capacity(paths.len());
+        for path in paths {
+            if let Some(key) = path.to_str() {
+                tracks.extend(self.track_by_path(key)?);
+            }
+        }
+        Ok(tracks)
+    }
+
+    /// Reads tags of files outside a folder scan and stores them, with album covers.
+    fn store_files(&mut self, paths: &[&Path], covers_dir: &Path, mode: Store) -> Result<()> {
+        struct Job {
+            path: PathBuf,
+            key: String,
+            folder_id: Option<i64>,
+            size: u64,
+            mtime: i64,
+        }
         let mut touched_albums = HashSet::new();
-        let mut tracks = Vec::new();
+        let mut jobs = Vec::new();
         for path in paths {
             let Some(key) = path.to_str() else {
-                continue;
-            };
-            let existing: Option<(Option<i64>, Option<i64>)> = self
-                .conn
-                .query_row(
-                    "SELECT folder_id, album_id FROM tracks WHERE path = ?",
-                    [key],
-                    |row| Ok((row.get(0)?, row.get(1)?)),
-                )
-                .optional()?;
-            let folder_id = match existing {
-                Some((folder_id, album_id)) => {
-                    // The old album may lose its cover source.
-                    touched_albums.extend(album_id);
-                    folder_id
-                }
-                None => self.folder_containing(path)?.map(|folder| folder.id),
-            };
-            let Some(folder_id) = folder_id else {
                 continue;
             };
             let Ok(metadata) = fs::metadata(path) else {
                 continue;
             };
-            tracks.push((
-                folder_id,
-                ScannedTrack {
-                    path: key.to_owned(),
-                    size: metadata.len(),
-                    mtime: mtime(&metadata),
-                    metadata: read_metadata(path),
+            if !metadata.is_file() {
+                continue;
+            }
+            let (size, mtime) = (metadata.len(), mtime(&metadata));
+            let existing: Option<(Option<i64>, Option<i64>, i64, i64)> = self
+                .conn
+                .query_row(
+                    "SELECT folder_id, album_id, file_size, file_mtime FROM tracks WHERE path = ?",
+                    [key],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                )
+                .optional()?;
+            let folder_id = match existing {
+                Some((_, _, known_size, known_mtime))
+                    if mode == Store::Add && known_size == size as i64 && known_mtime == mtime =>
+                {
+                    continue;
+                }
+                Some((folder_id, album_id, ..)) => {
+                    // The old album may lose its cover source.
+                    touched_albums.extend(album_id);
+                    folder_id
+                }
+                None => match self.folder_containing(path)? {
+                    Some(folder) => Some(folder.id),
+                    None if mode == Store::Add => None,
+                    None => continue,
                 },
-            ));
+            };
+            jobs.push(Job {
+                path: path.to_path_buf(),
+                key: key.to_owned(),
+                folder_id,
+                size,
+                mtime,
+            });
         }
+        if jobs.is_empty() {
+            return Ok(());
+        }
+
+        let mut read: Vec<Option<TrackMetadata>> = vec![None; jobs.len()];
+        parallel(
+            &jobs,
+            &AtomicBool::new(false),
+            |job| read_metadata(&job.path),
+            |index, metadata| {
+                read[index] = Some(metadata);
+                Ok(())
+            },
+        )?;
 
         let tx = self.conn.transaction()?;
         let at = now();
-        for (folder_id, track) in &tracks {
-            let id = upsert_track(&tx, Some(*folder_id), track, at)?;
+        for (job, metadata) in jobs.iter().zip(read) {
+            let track = ScannedTrack {
+                path: job.key.clone(),
+                size: job.size,
+                mtime: job.mtime,
+                metadata: metadata.unwrap_or_default(),
+            };
+            let id = upsert_track(&tx, job.folder_id, &track, at)?;
             let album: Option<i64> =
                 tx.query_row("SELECT album_id FROM tracks WHERE id = ?", [id], |row| {
                     row.get(0)
@@ -605,8 +680,20 @@ impl Library {
             let Some(name) = name.to_str() else {
                 continue;
             };
-            let id = name.strip_suffix(".jpg").or(name.strip_suffix(".jpg.part"));
-            if id.is_some_and(|id| !used.contains(id)) && fs::remove_file(&path).is_ok() {
+            let unused = match name.strip_suffix(".jpg") {
+                Some(id) => !used.contains(id),
+                // A temporary file is someone's write in progress unless it is old.
+                None => {
+                    name.ends_with(".part")
+                        && entry
+                            .metadata()
+                            .and_then(|m| m.modified())
+                            .ok()
+                            .and_then(|t| t.elapsed().ok())
+                            .is_some_and(|age| age > STALE_PART)
+                }
+            };
+            if unused && fs::remove_file(&path).is_ok() {
                 removed += 1;
             }
         }
@@ -753,6 +840,36 @@ mod tests {
     }
 
     #[test]
+    fn caching_one_cover_from_many_threads_at_once_works() {
+        // Albums sharing a cover race to cache the same id.
+        let art = media::read_track(&fixtures().join("tagged.flac"))
+            .unwrap()
+            .embedded_artwork
+            .unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let ids: Vec<Option<String>> = std::thread::scope(|scope| {
+            let workers: Vec<_> = (0..8)
+                .map(|_| scope.spawn(|| cache_cover(&art.bytes, dir.path())))
+                .collect();
+            workers.into_iter().map(|w| w.join().unwrap()).collect()
+        });
+        let expected = cover_id(&art.bytes);
+        assert!(
+            ids.iter()
+                .all(|id| id.as_deref() == Some(expected.as_str()))
+        );
+        let files: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        assert_eq!(
+            files,
+            [format!("{expected}.jpg")],
+            "no temporary files left"
+        );
+    }
+
+    #[test]
     fn rescanning_an_unchanged_folder_reads_nothing() {
         let mut s = setup();
         s.scan();
@@ -874,6 +991,99 @@ mod tests {
         s.library.remove_folder(s.folder).unwrap();
         s.library.remove_unused_covers(&s.covers).unwrap();
         assert_eq!(cached(), 0);
+    }
+
+    #[test]
+    fn opened_files_become_single_tracks_with_covers() {
+        let mut s = setup();
+        let elsewhere = s._tmp.path().join("Downloads");
+        fs::create_dir_all(&elsewhere).unwrap();
+        let file = elsewhere.join("song.flac");
+        fs::copy(fixtures().join("tagged.flac"), &file).unwrap();
+
+        let tracks = s.library.add_files(&[&file], &s.covers).unwrap();
+        assert_eq!(tracks.len(), 1);
+        let track = &tracks[0];
+        assert_eq!(track.title, "Aurora");
+        assert_eq!(track.folder_id, None);
+        let cover = track
+            .cover
+            .as_ref()
+            .expect("its album got the embedded cover");
+        assert!(s.covers.join(format!("{cover}.jpg")).is_file());
+
+        // Opening it again changes nothing.
+        s.library.set_favorite(track.id, true).unwrap();
+        let again = s.library.add_files(&[&file], &s.covers).unwrap();
+        assert_eq!(again[0].id, track.id);
+        assert!(again[0].favorite);
+
+        // Missing files and folders are skipped.
+        let none = s
+            .library
+            .add_files(&[&elsewhere, &elsewhere.join("gone.mp3")], &s.covers)
+            .unwrap();
+        assert!(none.is_empty());
+    }
+
+    #[test]
+    fn opened_files_inside_a_library_folder_join_it() {
+        let mut s = setup();
+        let file = s.music.join("Other/polar.mp3");
+        let tracks = s.library.add_files(&[&file], &s.covers).unwrap();
+        assert_eq!(tracks[0].folder_id, Some(s.folder));
+        // The scan sees it as known.
+        let summary = s.scan();
+        assert_eq!(summary.added, 2);
+        assert_eq!(s.titles().len(), 3);
+    }
+
+    #[test]
+    fn a_single_track_keeps_its_history_when_its_folder_is_added() {
+        let tmp = tempfile::tempdir().unwrap();
+        let music = tmp.path().join("Later");
+        fs::create_dir_all(&music).unwrap();
+        let file = music.join("song.flac");
+        fs::copy(fixtures().join("tagged.flac"), &file).unwrap();
+        let covers = tmp.path().join("covers");
+        let mut library = Library::open_in_memory().unwrap();
+
+        let single = library.add_files(&[&file], &covers).unwrap().remove(0);
+        library.set_favorite(single.id, true).unwrap();
+        library.record_play(single.id, 100).unwrap();
+
+        let folder = library.add_folder(music.to_str().unwrap()).unwrap();
+        let summary = library
+            .scan_folder(folder.id, &covers, &AtomicBool::new(false), &mut |_| {})
+            .unwrap();
+        assert_eq!((summary.added, summary.unchanged), (0, 1));
+        let tracks = library.tracks(&TrackFilter::All).unwrap();
+        assert_eq!(tracks.len(), 1, "no duplicate");
+        assert_eq!(tracks[0].id, single.id);
+        assert_eq!(tracks[0].folder_id, Some(folder.id));
+        assert!(tracks[0].favorite);
+        assert_eq!(tracks[0].play_count, 1);
+    }
+
+    #[test]
+    fn retagging_a_single_track_refreshes_it() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join("song.wav");
+        fs::copy(fixtures().join("untagged.wav"), &file).unwrap();
+        let covers = tmp.path().join("covers");
+        let mut library = Library::open_in_memory().unwrap();
+        let single = library.add_files(&[&file], &covers).unwrap().remove(0);
+        assert_eq!(single.title, "song");
+
+        let values = media::TagValues {
+            title: "Named".into(),
+            ..media::TagValues::default()
+        };
+        media::write_tags(&file, &values, &media::CoverChange::Keep).unwrap();
+        library.refresh_files(&[&file], &covers).unwrap();
+        let after = library.track(single.id).unwrap().unwrap();
+        assert_eq!(after.title, "Named");
+        assert_eq!(after.folder_id, None);
     }
 
     #[test]

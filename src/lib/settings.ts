@@ -21,9 +21,15 @@ export interface AppearanceSettings {
   artworkAccent: boolean;
 }
 
+export interface LibrarySettings {
+  /** Files opened or dropped outside the library folders join the library as single tracks. */
+  addOpenedFiles: boolean;
+}
+
 export interface Settings {
   language: Language;
   appearance: AppearanceSettings;
+  library: LibrarySettings;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -37,6 +43,7 @@ export const DEFAULT_SETTINGS: Settings = {
     windowMaterial: 'vibrancy',
     artworkAccent: true,
   },
+  library: { addOpenedFiles: true },
 };
 
 /** Tauri event carrying the new settings after any window changed them. */
