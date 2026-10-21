@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="618" height="256" viewBox="0 0 618 256">
+  <title>Vitra</title>
+  <defs>
+    <clipPath id="vhd-lens"><circle cx="512" cy="512" r="312"/></clipPath>
+    <linearGradient id="vhd-night" gradientUnits="userSpaceOnUse" x1="291.4" y1="291.4" x2="732.6" y2="732.6">
+      <stop offset="0" stop-color="#0B1426"/>
+      <stop offset="1" stop-color="#05070D"/>
+    </linearGradient>
+    <linearGradient id="vhd-aurora" gradientUnits="userSpaceOnUse" x1="250" y1="760" x2="790" y2="280">
+      <stop offset="0" stop-color="#2EE6C5"/>
+      <stop offset="0.5" stop-color="#3FA9F5"/>
+      <stop offset="1" stop-color="#7B5CFF"/>
+    </linearGradient>
+    <linearGradient id="vhd-rim-light" gradientUnits="userSpaceOnUse" x1="291.4" y1="291.4" x2="732.6" y2="732.6">
+      <stop offset="0" stop-color="#CFEFFF"/>
+      <stop offset="0.18" stop-color="#CFEFFF" stop-opacity="0.55"/>
+      <stop offset="0.42" stop-color="#CFEFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="vhd-rim-dark" gradientUnits="userSpaceOnUse" x1="732.6" y1="732.6" x2="291.4" y2="291.4">
+      <stop offset="0" stop-color="#7B5CFF" stop-opacity="0.6"/>
+      <stop offset="0.2" stop-color="#7B5CFF" stop-opacity="0.25"/>
+      <stop offset="0.45" stop-color="#7B5CFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="vhd-edge-shade" gradientUnits="userSpaceOnUse" x1="291.4" y1="291.4" x2="732.6" y2="732.6">
+      <stop offset="0" stop-color="#05070D" stop-opacity="0.55"/>
+      <stop offset="0.4" stop-color="#05070D" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="vhd-caustic" gradientUnits="userSpaceOnUse" x1="291.4" y1="291.4" x2="732.6" y2="732.6">
+      <stop offset="0.55" stop-color="#CFEFFF" stop-opacity="0"/>
+      <stop offset="1" stop-color="#CFEFFF" stop-opacity="0.16"/>
+    </linearGradient>
+    <linearGradient id="vhd-v" gradientUnits="userSpaceOnUse" x1="0" y1="342" x2="0" y2="690">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DDF3FF"/>
+    </linearGradient>
+    <filter id="vhd-blur-bloom" filterUnits="userSpaceOnUse" x="128" y="128" width="768" height="768"><feGaussianBlur stdDeviation="110"/></filter>
+    <filter id="vhd-blur-glow" filterUnits="userSpaceOnUse" x="128" y="128" width="768" height="768"><feGaussianBlur stdDeviation="18"/></filter>
+    <filter id="vhd-blur-aurora" filterUnits="userSpaceOnUse" x="128" y="128" width="768" height="768"><feGaussianBlur stdDeviation="24"/></filter>
+    <filter id="vhd-blur-aurora-thin" filterUnits="userSpaceOnUse" x="128" y="128" width="768" height="768"><feGaussianBlur stdDeviation="12"/></filter>
+    <filter id="vhd-blur-v-glow" filterUnits="userSpaceOnUse" x="128" y="128" width="768" height="768"><feGaussianBlur stdDeviation="30"/></filter>
+    <filter id="vhd-blur-edge" filterUnits="userSpaceOnUse" x="128" y="128" width="768" height="768"><feGaussianBlur stdDeviation="7"/></filter>
+  </defs>
+  <g transform="scale(0.33333) translate(-128 -128)">
+  <circle cx="512" cy="512" r="318" fill="none" stroke="#3FA9F5" stroke-width="20" opacity="0.14" filter="url(#vhd-blur-glow)"/>
+  <g clip-path="url(#vhd-lens)">
+    <circle cx="512" cy="512" r="312" fill="url(#vhd-night)"/>
+    <circle cx="512" cy="512" r="312" fill="#3FA9F5" opacity="0.12" filter="url(#vhd-blur-bloom)"/>
+    <circle cx="512" cy="512" r="312" fill="#FFFFFF" opacity="0.06"/>
+    <path d="M150 790 C320 720 380 560 520 520 S760 400 900 250" fill="none" stroke="url(#vhd-aurora)" stroke-width="150" stroke-linecap="round" opacity="0.4" filter="url(#vhd-blur-aurora)"/>
+    <path d="M190 620 C330 560 400 430 540 400 S740 320 860 200" fill="none" stroke="url(#vhd-aurora)" stroke-width="56" stroke-linecap="round" opacity="0.22" filter="url(#vhd-blur-aurora-thin)"/>
+    <path d="M388 392 L512 640 L636 392" fill="none" stroke="#3FA9F5" stroke-width="170" stroke-linecap="round" stroke-linejoin="round" opacity="0.32" filter="url(#vhd-blur-v-glow)"/>
+    <circle cx="512" cy="512" r="302" fill="none" stroke="url(#vhd-edge-shade)" stroke-width="26" filter="url(#vhd-blur-edge)"/>
+    <circle cx="512" cy="512" r="290" fill="none" stroke="url(#vhd-caustic)" stroke-width="22" filter="url(#vhd-blur-edge)"/>
+  </g>
+  <circle cx="512" cy="512" r="311" fill="none" stroke="url(#vhd-rim-dark)" stroke-width="2.5"/>
+  <circle cx="512" cy="512" r="310" fill="none" stroke="url(#vhd-rim-light)" stroke-width="6" opacity="0.3"/>
+  <circle cx="512" cy="512" r="311" fill="none" stroke="url(#vhd-rim-light)" stroke-width="2"/>
+  <path d="M294.8 365.5 A262 262 0 0 1 365.5 294.8" fill="none" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" opacity="0.42"/>
+  <path d="M388 392 L512 640 L636 392" fill="none" stroke="url(#vhd-v)" stroke-width="98" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <path transform="translate(280.8 174) scale(0.131429)" fill="#F2F8FF" d="M307 0 24 -700H149L370 -133H326L549 -700H672L387 0ZM798.0 0V-480H908.0V0ZM853.0 -568Q825.0 -568 806.5 -587.0Q788.0 -606 788.0 -634Q788.0 -662 806.5 -681.0Q825.0 -700 853.0 -700Q882.0 -700 900.0 -681.0Q918.0 -662 918.0 -634Q918.0 -606 900.0 -587.0Q882.0 -568 853.0 -568ZM1144.0 0V-680H1254.0V0ZM1029.0 -380V-480H1369.0V-380ZM1489.0 0V-480H1599.0V0ZM1599.0 -267 1561.0 -286Q1561.0 -377 1601.5 -433.5Q1642.0 -490 1724.0 -490Q1760.0 -490 1789.0 -477.0Q1818.0 -464 1843.0 -435L1771.0 -361Q1758.0 -375 1742.0 -381.0Q1726.0 -387 1705.0 -387Q1659.0 -387 1629.0 -358.0Q1599.0 -329 1599.0 -267ZM2123.0 10Q2058.0 10 2005.5 -23.0Q1953.0 -56 1922.5 -112.5Q1892.0 -169 1892.0 -239Q1892.0 -310 1922.5 -366.5Q1953.0 -423 2005.5 -456.5Q2058.0 -490 2123.0 -490Q2178.0 -490 2220.5 -466.5Q2263.0 -443 2288.0 -402.0Q2313.0 -361 2313.0 -309V-171Q2313.0 -119 2288.5 -78.0Q2264.0 -37 2221.0 -13.5Q2178.0 10 2123.0 10ZM2141.0 -94Q2202.0 -94 2239.5 -135.0Q2277.0 -176 2277.0 -240Q2277.0 -283 2260.0 -316.0Q2243.0 -349 2212.5 -367.5Q2182.0 -386 2141.0 -386Q2101.0 -386 2070.5 -367.5Q2040.0 -349 2022.5 -316.0Q2005.0 -283 2005.0 -240Q2005.0 -197 2022.5 -164.0Q2040.0 -131 2070.5 -112.5Q2101.0 -94 2141.0 -94ZM2270.0 0V-129L2289.0 -246L2270.0 -362V-480H2380.0V0Z"/>
+</svg>
