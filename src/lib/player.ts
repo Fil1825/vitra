@@ -12,6 +12,7 @@ export interface TrackMetadata {
   genre: string | null;
   year: number | null;
   trackNumber: number | null;
+  discNumber: number | null;
   duration: number | null;
   format: string | null;
   sampleRate: number | null;

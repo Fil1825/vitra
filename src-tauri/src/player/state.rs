@@ -32,6 +32,8 @@ pub struct Track {
     /// Changes with every load, so late metadata for an older load can be dropped.
     pub id: u64,
     pub path: String,
+    /// The library track, if the file is in the library.
+    pub library_id: Option<i64>,
     /// Tag title, or the file name without extension.
     pub title: String,
     pub metadata: TrackMetadata,
@@ -289,6 +291,7 @@ mod tests {
         state.track = Some(Track {
             id: 1,
             path: "/a.flac".into(),
+            library_id: None,
             title: "A".into(),
             metadata: TrackMetadata::default(),
             artwork: None,
