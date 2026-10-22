@@ -1,0 +1,21 @@
+{
+  "_type": "video",
+  "id": "dX3k_QDnzHE",
+  "title": "Midnight City",
+  "track": "Midnight City",
+  "artists": ["M83"],
+  "creators": ["M83"],
+  "album": "Hurry Up, We're Dreaming",
+  "release_year": 2011,
+  "uploader": "M83 - Topic",
+  "channel": "M83 - Topic",
+  "upload_date": "20150723",
+  "duration": 244,
+  "thumbnail": "https://i.ytimg.com/vi/dX3k_QDnzHE/maxresdefault.jpg",
+  "webpage_url": "https://www.youtube.com/watch?v=dX3k_QDnzHE",
+  "original_url": "https://music.youtube.com/watch?v=dX3k_QDnzHE",
+  "extractor": "youtube",
+  "extractor_key": "Youtube",
+  "is_live": false,
+  "live_status": "not_live"
+}

@@ -1,0 +1,37 @@
+{
+  "_type": "playlist",
+  "id": "album",
+  "title": "Two Songs",
+  "release_year": null,
+  "upload_date": "20261022",
+  "thumbnail": "http://127.0.0.1:8765/cover.png",
+  "webpage_url": "http://127.0.0.1:8765/album.html",
+  "original_url": "http://127.0.0.1:8765/album.html",
+  "extractor": "generic",
+  "extractor_key": "Generic",
+  "entries": [
+    {
+      "id": "album-1",
+      "title": "Two Songs (1)",
+      "release_year": null,
+      "thumbnail": null,
+      "webpage_url": "http://127.0.0.1:8765/album.html",
+      "url": "http://127.0.0.1:8765/single.flac",
+      "extractor": "html5",
+      "extractor_key": "HTML5MediaEmbed",
+      "playlist_count": 2
+    },
+    {
+      "id": "album-2",
+      "title": "Two Songs (2)",
+      "release_year": null,
+      "thumbnail": null,
+      "webpage_url": "http://127.0.0.1:8765/album.html",
+      "url": "http://127.0.0.1:8765/wave.flac",
+      "extractor": "html5",
+      "extractor_key": "HTML5MediaEmbed",
+      "playlist_count": 2
+    }
+  ],
+  "playlist_count": 2
+}

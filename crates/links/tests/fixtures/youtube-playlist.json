@@ -1,0 +1,54 @@
+{
+  "_type": "playlist",
+  "id": "PLvitra000000000000000000000000000",
+  "title": "Night Drive",
+  "uploader": "Vitra Tester",
+  "channel": "Vitra Tester",
+  "webpage_url": "https://www.youtube.com/playlist?list=PLvitra000000000000000000000000000",
+  "original_url": "https://www.youtube.com/playlist?list=PLvitra000000000000000000000000000",
+  "extractor": "youtube:tab",
+  "extractor_key": "YoutubeTab",
+  "playlist_count": 4,
+  "entries": [
+    {
+      "_type": "url",
+      "ie_key": "Youtube",
+      "id": "aaaaaaaaaaa",
+      "url": "https://www.youtube.com/watch?v=aaaaaaaaaaa",
+      "title": "Kavinsky - Nightcall (Official Video)",
+      "duration": 258,
+      "channel": "Kavinsky",
+      "uploader": "Kavinsky"
+    },
+    {
+      "_type": "url",
+      "ie_key": "Youtube",
+      "id": "bbbbbbbbbbb",
+      "url": "https://www.youtube.com/watch?v=bbbbbbbbbbb",
+      "title": "Resonance",
+      "duration": 212,
+      "channel": "HOME - Topic",
+      "uploader": "HOME - Topic"
+    },
+    {
+      "_type": "url",
+      "ie_key": "Youtube",
+      "id": "deleted0000",
+      "url": "https://www.youtube.com/watch?v=deleted0000",
+      "title": "[Deleted video]",
+      "duration": null,
+      "channel": null,
+      "uploader": null
+    },
+    {
+      "_type": "url",
+      "ie_key": "Youtube",
+      "id": "ccccccccccc",
+      "url": "https://www.youtube.com/watch?v=ccccccccccc",
+      "title": "Pendulum - Tarantula",
+      "duration": 333,
+      "channel": "Pendulum",
+      "uploader": "Pendulum"
+    }
+  ]
+}
