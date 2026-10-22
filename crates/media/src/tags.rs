@@ -1,4 +1,5 @@
-//! Writing tags: the basic tag editor (title, artist, album, album artist, year, cover).
+//! Writing tags: the basic tag editor (title, artist, album, album artist, year, cover) and
+//! the lyrics editor.
 
 use std::ffi::OsString;
 use std::fs;
@@ -54,9 +55,24 @@ fn set_text(tag: &mut Tag, key: ItemKey, value: &str) {
     }
 }
 
-/// Writes tags into the file's main tag (creating one if the file has none). The original
-/// is replaced only once the new file is complete, so a failed write never damages it.
-pub fn write_tags(path: &Path, values: &TagValues, cover: &CoverChange) -> Result<(), MediaError> {
+/// The field plain (and LRC) lyrics go to. ID3v2 keeps them in USLT, which lofty only maps
+/// from `UnsyncLyrics`; other formats' common field (Vorbis `LYRICS`, MP4 `©lyr`) is `Lyrics`.
+fn lyrics_key(tag: &Tag) -> ItemKey {
+    if tag.tag_type() == TagType::Id3v2 {
+        ItemKey::UnsyncLyrics
+    } else {
+        ItemKey::Lyrics
+    }
+}
+
+/// Edits the file's main tag (creating one if the file has none). The edit is written to a
+/// copy that replaces the original only once it is complete, so a failed write never damages
+/// it. `new_lyrics` also removes timed lyrics that would outrank the new text.
+fn edit_tag(
+    path: &Path,
+    new_lyrics: bool,
+    edit: impl FnOnce(&mut Tag) -> Result<(), MediaError>,
+) -> Result<(), MediaError> {
     let mut file = lofty::read_from_path(path)?;
     if file.primary_tag().is_none() {
         file.insert_tag(Tag::new(file.primary_tag_type()));
@@ -64,52 +80,7 @@ pub fn write_tags(path: &Path, values: &TagValues, cover: &CoverChange) -> Resul
     let Some(tag) = file.primary_tag_mut() else {
         return Err(MediaError::Unsupported);
     };
-
-    set_text(tag, ItemKey::TrackTitle, &values.title);
-    set_text(tag, ItemKey::TrackArtist, &values.artist);
-    set_text(tag, ItemKey::AlbumTitle, &values.album);
-    set_text(tag, ItemKey::AlbumArtist, &values.album_artist);
-    if let Some(lyrics) = &values.lyrics {
-        // ID3v2 keeps plain lyrics in USLT, which lofty only maps from `UnsyncLyrics`; other
-        // formats' common field (Vorbis `LYRICS`, MP4 `©lyr`) is `Lyrics`.
-        let key = if tag.tag_type() == TagType::Id3v2 {
-            ItemKey::UnsyncLyrics
-        } else {
-            ItemKey::Lyrics
-        };
-        set_text(tag, key, lyrics);
-    }
-    match values.year {
-        Some(year) => tag.set_date(Timestamp {
-            year,
-            ..Timestamp::default()
-        }),
-        None => tag.remove_date(),
-    }
-    match cover {
-        CoverChange::Keep => {}
-        // Every picture goes: the reader falls back to any picture when there's no front cover.
-        CoverChange::Remove => {
-            let types: Vec<PictureType> = tag.pictures().iter().map(Picture::pic_type).collect();
-            for picture_type in types {
-                tag.remove_picture_type(picture_type);
-            }
-        }
-        CoverChange::Replace(bytes) => {
-            let mime = match image::guess_format(bytes)? {
-                image::ImageFormat::Png => MimeType::Png,
-                image::ImageFormat::Jpeg => MimeType::Jpeg,
-                _ => return Err(MediaError::Unsupported),
-            };
-            tag.remove_picture_type(PictureType::CoverFront);
-            tag.push_picture(
-                Picture::unchecked(bytes.clone())
-                    .pic_type(PictureType::CoverFront)
-                    .mime_type(mime)
-                    .build(),
-            );
-        }
-    }
+    edit(tag)?;
 
     let temp = temp_path(path);
     let written = fs::copy(path, &temp)
@@ -118,16 +89,78 @@ pub fn write_tags(path: &Path, values: &TagValues, cover: &CoverChange) -> Resul
             file.save_to_path(&temp, WriteOptions::default())
                 .map_err(MediaError::from)
         })
-        // New lyrics must not be outranked by old timed ones the generic tag doesn't show.
-        .and_then(|()| match values.lyrics {
-            Some(_) => crate::lyrics::clear_timed_lyrics(&temp),
-            None => Ok(()),
+        // Old timed lyrics live outside the generic tag, so saving it keeps them.
+        .and_then(|()| {
+            if new_lyrics {
+                crate::lyrics::clear_timed_lyrics(&temp)
+            } else {
+                Ok(())
+            }
         })
         .and_then(|()| fs::rename(&temp, path).map_err(MediaError::from));
     if written.is_err() {
         let _ = fs::remove_file(&temp);
     }
     written
+}
+
+/// Writes the tag editor's fields.
+pub fn write_tags(path: &Path, values: &TagValues, cover: &CoverChange) -> Result<(), MediaError> {
+    edit_tag(path, values.lyrics.is_some(), |tag| {
+        set_text(tag, ItemKey::TrackTitle, &values.title);
+        set_text(tag, ItemKey::TrackArtist, &values.artist);
+        set_text(tag, ItemKey::AlbumTitle, &values.album);
+        set_text(tag, ItemKey::AlbumArtist, &values.album_artist);
+        if let Some(lyrics) = &values.lyrics {
+            set_text(tag, lyrics_key(tag), lyrics);
+        }
+        match values.year {
+            Some(year) => tag.set_date(Timestamp {
+                year,
+                ..Timestamp::default()
+            }),
+            None => tag.remove_date(),
+        }
+        match cover {
+            CoverChange::Keep => {}
+            // Every picture goes: the reader falls back to any picture when there's no front
+            // cover.
+            CoverChange::Remove => {
+                let types: Vec<PictureType> =
+                    tag.pictures().iter().map(Picture::pic_type).collect();
+                for picture_type in types {
+                    tag.remove_picture_type(picture_type);
+                }
+            }
+            CoverChange::Replace(bytes) => {
+                let mime = match image::guess_format(bytes)? {
+                    image::ImageFormat::Png => MimeType::Png,
+                    image::ImageFormat::Jpeg => MimeType::Jpeg,
+                    _ => return Err(MediaError::Unsupported),
+                };
+                tag.remove_picture_type(PictureType::CoverFront);
+                tag.push_picture(
+                    Picture::unchecked(bytes.clone())
+                        .pic_type(PictureType::CoverFront)
+                        .mime_type(mime)
+                        .build(),
+                );
+            }
+        }
+        Ok(())
+    })
+}
+
+/// Replaces the lyrics in a file's tags (plain text or LRC) and nothing else; an empty text
+/// removes them. Timed frames (`SYLT`, `SYNCEDLYRICS`) go too, so the new text is what's read.
+pub fn write_lyrics(path: &Path, text: &str) -> Result<(), MediaError> {
+    edit_tag(path, true, |tag| {
+        // A file may carry both fields (taggers differ); only one is written.
+        tag.remove_key(ItemKey::Lyrics);
+        tag.remove_key(ItemKey::UnsyncLyrics);
+        set_text(tag, lyrics_key(tag), text);
+        Ok(())
+    })
 }
 
 #[cfg(test)]
@@ -214,6 +247,31 @@ mod tests {
             );
             write_tags(&path, &values(), &CoverChange::Keep).unwrap();
             assert!(lyrics_of(&path).is_some(), "{name}: kept when not given");
+        }
+    }
+
+    #[test]
+    fn write_lyrics_changes_only_the_lyrics() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in ["tagged.flac", "tagged.mp3", "untagged.wav"] {
+            let path = copy_fixture(dir.path(), name);
+            let before = read_track(&path).unwrap();
+            write_lyrics(&path, "[00:01.00]Строка\n[00:02.00]Line").unwrap();
+            assert_eq!(
+                lyrics_of(&path).as_deref(),
+                Some("[00:01.00]Строка\n[00:02.00]Line"),
+                "{name}"
+            );
+            let after = read_track(&path).unwrap();
+            assert_eq!(after.metadata.title, before.metadata.title, "{name}");
+            assert_eq!(after.metadata.artist, before.metadata.artist, "{name}");
+            assert_eq!(
+                after.embedded_artwork.is_some(),
+                before.embedded_artwork.is_some(),
+                "{name}"
+            );
+            write_lyrics(&path, "  ").unwrap();
+            assert_eq!(lyrics_of(&path), None, "{name}: removed");
         }
     }
 

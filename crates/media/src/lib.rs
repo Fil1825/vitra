@@ -11,7 +11,7 @@ pub use artwork::{Artwork, PreparedArtwork, cover_thumbnail, folder_artwork, pre
 pub use lyrics::{TagLyrics, read_lyrics};
 pub use metadata::{TrackInfo, TrackMetadata, read_track};
 pub use palette::{Palette, Rgb, extract_palette};
-pub use tags::{CoverChange, TagValues, write_tags};
+pub use tags::{CoverChange, TagValues, write_lyrics, write_tags};
 
 #[derive(Debug, thiserror::Error)]
 pub enum MediaError {
