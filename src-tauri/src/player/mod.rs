@@ -32,6 +32,7 @@ use tokio::sync::Notify;
 
 use crate::error::AppError;
 use crate::library::{LibraryService, entry_from_track};
+use crate::links::LinkService;
 use crate::settings::SettingsStore;
 use crate::sidecar::{self, Sidecar};
 
@@ -89,6 +90,9 @@ struct Mirror {
     failures: usize,
     /// Whether the current playback was counted as a play.
     counted: bool,
+    /// The playing entry was a playlist (a radio station's `.m3u`/`.pls`) that mpv replaced
+    /// with its entries: the next `start-file` is the same queue item.
+    redirected: bool,
 }
 
 struct Inner {
@@ -281,6 +285,54 @@ impl Player {
         }
         if playing {
             self.emit_state();
+        }
+    }
+
+    /// Link tracks got more complete metadata or a cover (a playlist being filled in):
+    /// refresh their queue entries and, if one is playing, the current track.
+    pub fn remote_tracks_updated(&self, tracks: &[library::Track]) {
+        let queued = {
+            let mut queue = lock(&self.0.queue);
+            let mut changed = false;
+            for track in tracks {
+                let entry = entry_from_track(track.clone());
+                changed |= queue.update_entries(&track.path, |queued| *queued = entry.clone());
+            }
+            changed
+        };
+        let current = {
+            let mut state = lock(&self.0.state);
+            let duration_known = state.duration.is_some();
+            state.track.as_mut().and_then(|current| {
+                let track = tracks.iter().find(|track| track.path == current.path)?;
+                current.library_id = Some(track.id);
+                current.title.clone_from(&track.title);
+                current.metadata.artist.clone_from(&track.artist);
+                current.metadata.album.clone_from(&track.album);
+                if !duration_known {
+                    current.metadata.duration = track.duration;
+                }
+                Some((current.id, current.path.clone()))
+            })
+        };
+        self.emit_queue_if(queued);
+        if let Some((id, path)) = current {
+            self.emit_state();
+            self.read_metadata(id, PathBuf::from(path));
+        }
+    }
+
+    /// A link was downloaded: its queue entries play the file from now on. The playing
+    /// stream (if it is one of them) goes on undisturbed.
+    pub fn link_downloaded(&self, url: &str, track: &library::Track) {
+        let entry = entry_from_track(track.clone());
+        let queued = lock(&self.0.queue).update_entries(url, |queued| *queued = entry.clone());
+        self.emit_queue_if(queued);
+    }
+
+    fn emit_queue_if(&self, changed: bool) {
+        if changed {
+            self.emit_queue();
         }
     }
 
@@ -487,9 +539,10 @@ impl Player {
             let mut state = lock(&self.0.state);
             // Tracks from the same folder usually share a cover: keep showing it until the
             // new one is read, instead of flashing an empty backdrop between them.
-            let same_folder = state.track.as_ref().is_some_and(|track| {
-                Path::new(&track.path).parent() == Path::new(&entry.path).parent()
-            });
+            let same_folder = !links::is_remote(&entry.path)
+                && state.track.as_ref().is_some_and(|track| {
+                    Path::new(&track.path).parent() == Path::new(&entry.path).parent()
+                });
             let artwork = state
                 .track
                 .take()
@@ -804,7 +857,23 @@ impl Player {
     fn read_metadata(&self, id: u64, path: PathBuf) {
         let player = self.clone();
         tauri::async_runtime::spawn(async move {
+            let link = path.to_str().filter(|path| links::is_remote(path));
+            let thumbnail = match link {
+                Some(url) => player.link_thumbnail(url).await,
+                None => None,
+            };
+            let remote = link.is_some();
             let result = tauri::async_runtime::spawn_blocking(move || {
+                // A link has no file to read: its tags come with its queue entry, its
+                // artwork is its thumbnail.
+                if remote {
+                    let artwork = thumbnail.and_then(|bytes| {
+                        media::prepare_artwork(media::Artwork { bytes, mime: None })
+                            .inspect_err(|err| log::info!("thumbnail of a link: {err}"))
+                            .ok()
+                    });
+                    return (TrackMetadata::default(), artwork);
+                }
                 let info = media::read_track(&path)
                     .inspect_err(|err| log::info!("tags of {}: {err}", path.display()))
                     .unwrap_or_default();
@@ -853,6 +922,71 @@ impl Player {
             player.emit_state();
             player.emit(TRACK_EVENT, &track);
         });
+    }
+
+    /// A link's thumbnail: from a recent resolution, else the library's cached cover.
+    async fn link_thumbnail(&self, url: &str) -> Option<Vec<u8>> {
+        if let Some(links) = self.0.app.try_state::<LinkService>()
+            && let Some(bytes) = links.thumbnail(url)
+        {
+            return Some(bytes.as_ref().clone());
+        }
+        let library = self.library()?;
+        let url = url.to_owned();
+        let covers = library.covers_dir().to_path_buf();
+        library
+            .run(move |db| {
+                let cover = db.track_by_path(&url)?.and_then(|track| track.cover);
+                Ok(cover.and_then(|id| std::fs::read(covers.join(format!("{id}.jpg"))).ok()))
+            })
+            .await
+            .ok()
+            .flatten()
+    }
+
+    /// Internet radio names the song playing in its stream metadata (`icy-title`, usually
+    /// "Artist - Title"): show it in place of the station.
+    fn stream_title_changed(&self, data: Option<&Value>) {
+        let Some(tags) = data.and_then(Value::as_object) else {
+            return;
+        };
+        let tag = |key: &str| {
+            tags.iter()
+                .find(|(k, _)| k.eq_ignore_ascii_case(key))
+                .and_then(|(_, v)| v.as_str())
+                .map(str::trim)
+                .filter(|v| !v.is_empty())
+                .map(str::to_owned)
+        };
+        let Some(song) = tag("icy-title") else {
+            return;
+        };
+        let station = tag("icy-name");
+        let track = {
+            let mut state = lock(&self.0.state);
+            let Some(track) = state
+                .track
+                .as_mut()
+                .filter(|track| links::is_remote(&track.path))
+            else {
+                return;
+            };
+            let (artist, title) = match song.split_once(" - ") {
+                Some((artist, title)) if !artist.trim().is_empty() && !title.trim().is_empty() => {
+                    (Some(artist.trim().to_owned()), title.trim().to_owned())
+                }
+                _ => (station.clone(), song),
+            };
+            if track.title == title && track.metadata.artist == artist {
+                return;
+            }
+            track.title = title;
+            track.metadata.artist = artist;
+            track.metadata.album = station.or(track.metadata.album.take());
+            track.clone()
+        };
+        self.emit_state();
+        self.emit(TRACK_EVENT, &track);
     }
 
     /// Formats lofty can't read (DSF, WMA, ...) still have tags mpv/FFmpeg understands.
@@ -919,10 +1053,21 @@ impl Player {
             Event::StartFile {
                 playlist_entry_id: Some(entry),
             } => {
-                let preloaded = lock(&self.0.mirror).next.map(|(id, _)| id);
+                let preloaded = {
+                    let mut mirror = lock(&self.0.mirror);
+                    // The first entry of an expanded playlist stands in for it.
+                    if mirror.redirected {
+                        mirror.redirected = false;
+                        mirror.current = mirror.current.map(|(_, uid)| (*entry, uid));
+                    }
+                    mirror.next.map(|(id, _)| id)
+                };
                 if preloaded == Some(*entry) {
                     self.advanced(client, *entry).await;
                 }
+            }
+            Event::PropertyChange { name, data, .. } if name == "metadata" => {
+                self.stream_title_changed(data.as_ref());
             }
             Event::EndFile {
                 reason,
@@ -936,6 +1081,7 @@ impl Player {
                 if is_current {
                     let has_next = mirror.next.is_some();
                     match reason {
+                        EndReason::Redirect => mirror.redirected = true,
                         // mpv goes straight on to the preloaded file: no idle in between.
                         EndReason::Eof if has_next => apply = false,
                         EndReason::Error => {
@@ -1182,9 +1328,16 @@ fn fill_missing(target: &mut TrackMetadata, source: TrackMetadata) {
     );
 }
 
+/// Programs mpv's yt-dlp hook runs for links.
+#[derive(Debug, Clone, Default)]
+struct LinkHelpers {
+    ytdlp: Option<PathBuf>,
+    deno: Option<PathBuf>,
+}
+
 /// Command-line flags for mpv. `--no-config` keeps the user's mpv.conf (and the bundle's
 /// pseudo-GUI config) out; media keys and Now Playing belong to Vitra, not mpv.
-fn mpv_args(with_newer_options: bool) -> Vec<OsString> {
+fn mpv_args(with_newer_options: bool, helpers: &LinkHelpers) -> Vec<OsString> {
     let mut args: Vec<OsString> = [
         "--idle=yes",
         "--no-config",
@@ -1212,6 +1365,18 @@ fn mpv_args(with_newer_options: bool) -> Vec<OsString> {
             args.push("--macos-app-activation-policy=prohibited".into());
         }
     }
+    // mpv looks for yt-dlp only next to itself and on PATH. `-append` takes one key=value
+    // pair, so paths with commas are safe.
+    if let Some(ytdlp) = &helpers.ytdlp {
+        let mut arg = OsString::from("--script-opts-append=ytdl_hook-ytdl_path=");
+        arg.push(ytdlp);
+        args.push(arg);
+    }
+    if let Some(deno) = &helpers.deno {
+        let mut arg = OsString::from("--ytdl-raw-options-append=js-runtimes=deno:");
+        arg.push(deno);
+        args.push(arg);
+    }
     // Debugging aid, e.g. VITRA_MPV_ARGS="--ao=null --log-file=/tmp/mpv.log".
     if let Ok(extra) = std::env::var("VITRA_MPV_ARGS") {
         args.extend(extra.split_whitespace().map(OsString::from));
@@ -1227,13 +1392,17 @@ async fn supervise(player: Player) {
         return;
     };
     log::info!("using mpv at {} ({:?})", mpv.path.display(), mpv.source);
+    let helpers = LinkHelpers {
+        ytdlp: paths.locate(Sidecar::YtDlp).map(|found| found.path),
+        deno: paths.locate(Sidecar::Deno).map(|found| found.path),
+    };
 
     let mut newer_options = true;
     let mut failures: VecDeque<Instant> = VecDeque::new();
     loop {
         let spawned = MpvProcess::spawn(SpawnOptions {
             binary: mpv.path.clone(),
-            args: mpv_args(newer_options),
+            args: mpv_args(newer_options, &helpers),
             pipe_prefix: "vitra-mpv".into(),
             startup_timeout: STARTUP_TIMEOUT,
         })
@@ -1390,8 +1559,8 @@ mod tests {
 
     #[test]
     fn version_specific_flags_can_be_dropped() {
-        let newer = mpv_args(true);
-        let older = mpv_args(false);
+        let newer = mpv_args(true, &LinkHelpers::default());
+        let older = mpv_args(false, &LinkHelpers::default());
         assert!(older.iter().all(|a| a != "--media-controls=no"));
         assert!(newer.len() >= older.len());
         for required in [
@@ -1402,5 +1571,26 @@ mod tests {
         ] {
             assert!(older.iter().any(|a| a == required), "{required}");
         }
+    }
+
+    #[test]
+    fn links_use_our_yt_dlp_and_deno() {
+        let helpers = LinkHelpers {
+            ytdlp: Some(PathBuf::from("/Apps/Vitra, Inc/yt-dlp")),
+            deno: Some(PathBuf::from("/bin/deno")),
+        };
+        let args = mpv_args(true, &helpers);
+        assert!(args.contains(&"--ytdl-format=bestaudio/best".into()));
+        assert!(
+            args.contains(
+                &"--script-opts-append=ytdl_hook-ytdl_path=/Apps/Vitra, Inc/yt-dlp".into()
+            )
+        );
+        assert!(args.contains(&"--ytdl-raw-options-append=js-runtimes=deno:/bin/deno".into()));
+        assert!(
+            mpv_args(true, &LinkHelpers::default())
+                .iter()
+                .all(|arg| !arg.to_string_lossy().contains("ytdl_path"))
+        );
     }
 }

@@ -75,7 +75,8 @@ impl Player {
         let current = queue.current().cloned();
         *lock(&self.0.queue) = queue;
         // A file deleted since is shown in the queue but not loaded (it would only fail).
-        if let Some(item) = current.filter(|item| Path::new(&item.entry.path).is_file()) {
+        let playable = |path: &str| links::is_remote(path) || Path::new(path).is_file();
+        if let Some(item) = current.filter(|item| playable(&item.entry.path)) {
             self.begin_track(&item);
             let mut state = lock(&self.0.state);
             state.status = Status::Paused;

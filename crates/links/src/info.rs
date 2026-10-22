@@ -34,7 +34,7 @@ struct RawInfo {
 }
 
 /// One playable item.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct LinkTrack {
     /// What to play (and store as the track's path).
     pub url: String,

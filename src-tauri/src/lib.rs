@@ -2,6 +2,7 @@
 
 mod error;
 mod library;
+mod links;
 mod player;
 mod settings;
 mod sidecar;
@@ -59,6 +60,8 @@ pub fn run() {
 
             let library = LibraryService::start(app.handle().clone(), &app.path().app_data_dir()?)?;
             app.manage(library);
+            app.manage(links::LinkService::new(app.handle().clone())?);
+            app.manage(links::Downloads::new(app.handle().clone())?);
 
             let player = Player::new(app.handle().clone());
             player.start();
@@ -124,6 +127,18 @@ pub fn run() {
             library::tags_load,
             library::tags_save,
             library::artwork_preview,
+            links::link_resolve,
+            links::link_play,
+            links::link_import,
+            links::link_download,
+            links::downloads_list,
+            links::downloads_add,
+            links::downloads_cancel,
+            links::downloads_retry,
+            links::downloads_clear,
+            links::downloads_folder,
+            links::ytdlp_info,
+            links::ytdlp_update,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Vitra");

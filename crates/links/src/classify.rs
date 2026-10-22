@@ -65,6 +65,47 @@ pub fn parse_link(input: &str) -> Result<Link> {
     })
 }
 
+/// Decodes `%XX` escapes (invalid UTF-8 is replaced).
+fn percent_decode(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let hex = |b: u8| (b as char).to_digit(16);
+        match (bytes[i], bytes.get(i + 1), bytes.get(i + 2)) {
+            (b'%', Some(&hi), Some(&lo)) if hex(hi).is_some() && hex(lo).is_some() => {
+                out.push((hex(hi).unwrap_or(0) * 16 + hex(lo).unwrap_or(0)) as u8);
+                i += 3;
+            }
+            (byte, ..) => {
+                out.push(byte);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// A title for a link nothing better is known about (a direct file or a radio stream): its
+/// file name without extension, else its host.
+pub fn link_title(url: &str) -> String {
+    let Ok(parsed) = Url::parse(url) else {
+        return url.to_owned();
+    };
+    let name = parsed
+        .path_segments()
+        .and_then(|mut segments| segments.rfind(|s| !s.is_empty()))
+        .map(percent_decode)
+        .map(|name| match name.rsplit_once('.') {
+            Some((stem, ext)) if !stem.is_empty() && ext.len() <= 5 => stem.to_owned(),
+            _ => name,
+        })
+        .map(|name| name.trim().to_owned())
+        .filter(|name| !name.is_empty());
+    name.or_else(|| parsed.host_str().map(str::to_owned))
+        .unwrap_or_else(|| url.to_owned())
+}
+
 /// Whether a library path is a link rather than a local file.
 pub fn is_remote(path: &str) -> bool {
     path.starts_with("http://") || path.starts_with("https://")
@@ -125,6 +166,24 @@ mod tests {
         ] {
             assert!(parse_link(input).is_err(), "{input}");
         }
+    }
+
+    #[test]
+    fn names_links_by_file_or_host() {
+        assert_eq!(
+            link_title("https://example.com/music/My%20Song.mp3?x=1"),
+            "My Song"
+        );
+        assert_eq!(
+            link_title("http://radio.example.com:8000/"),
+            "radio.example.com"
+        );
+        assert_eq!(link_title("http://ice.example.com/live.pls"), "live");
+        assert_eq!(
+            link_title("https://e.com/%D0%BF%D0%B5%D1%81%D0%BD%D1%8F"),
+            "песня"
+        );
+        assert_eq!(link_title("https://e.com/100%"), "100%");
     }
 
     #[test]

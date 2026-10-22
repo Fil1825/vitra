@@ -10,7 +10,9 @@ mod progress;
 mod template;
 pub mod ytdlp;
 
-pub use classify::{Link, LinkKind, is_remote, parse_link};
+pub use ytdlp::YtDlp;
+
+pub use classify::{Link, LinkKind, is_remote, link_title, parse_link};
 pub use download::{AudioFormat, DownloadOptions, DownloadStatus, MP3_BITRATES, download_args};
 pub use info::{LinkPlaylist, LinkTrack, Resolved, parse_entry, parse_info};
 pub use progress::{DownloadEvent, parse_progress_line};

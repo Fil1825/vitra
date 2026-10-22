@@ -18,6 +18,8 @@ pub enum AppError {
     Library(#[from] library::Error),
     #[error(transparent)]
     Media(#[from] media::MediaError),
+    #[error(transparent)]
+    Link(#[from] links::LinkError),
 }
 
 /// Commands reject with the error message; the frontend only needs something readable.

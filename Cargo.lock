@@ -4158,6 +4158,7 @@ name = "vitra"
 version = "0.1.0"
 dependencies = [
  "library",
+ "links",
  "log",
  "media",
  "mpv-ipc",
