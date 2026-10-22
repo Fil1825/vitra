@@ -88,6 +88,17 @@ and an explicit list of checks that can only be done on a Mac.
   retry; streamed track record replaced by the local file (playlists, lyrics, play counts kept).
 - "Update yt-dlp" button: copies yt-dlp into the app data dir and runs `yt-dlp -U` there.
 - Tests: `yt-dlp -J` parsing on recorded fixtures, filename templating, download state machine.
+- Done as planned, plus: links are library tracks (path = page URL) so favorites, playlists and
+  history work for them; a download takes over the stream's row; imported playlists fill in
+  their entries' metadata and thumbnails in the background; radio shows the stream's
+  `icy-title`; opt-in tests against the real yt-dlp (CI job `yt-dlp (real)`). Fixtures for
+  YouTube and SoundCloud are hand-written from yt-dlp's documented fields (the cloud can't reach
+  those sites); `scripts/record-ytdlp-fixtures.sh` records real ones. Not done here: reading
+  `.webloc`/`.url` shortcut files, resuming downloads after a restart (the queue lives in
+  memory).
+- **Mac**: real YouTube/SoundCloud playback and downloads (needs Deno for YouTube), the paste
+  shortcut outside text fields (WebKit's `beforepaste`), dropping a link from Safari, yt-dlp
+  self-update from the app data folder.
 
 ## Stage 5 — Lyrics
 

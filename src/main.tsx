@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './app/App.tsx';
 import { initI18n, resolveLocale } from './i18n/index.ts';
 import { startBackendBridge } from './lib/bridge.ts';
+import { initDownloads } from './stores/downloads.ts';
 import { initEnvironment } from './stores/environment.ts';
 import { initLibrary } from './stores/library.ts';
 import { initPlayer } from './stores/player.ts';
@@ -32,7 +33,14 @@ async function boot(root: HTMLElement): Promise<void> {
   suppressWebViewMenu();
   // Start listening before loading so a change made meanwhile in another window isn't missed.
   await startBackendBridge();
-  await Promise.all([initSettings(), initEnvironment(), initPlayer(), initQueue(), initLibrary()]);
+  await Promise.all([
+    initSettings(),
+    initEnvironment(),
+    initPlayer(),
+    initQueue(),
+    initLibrary(),
+    initDownloads(),
+  ]);
   await initI18n(resolveLocale(useSettings.getState().settings.language, navigator.languages));
 
   createRoot(root).render(

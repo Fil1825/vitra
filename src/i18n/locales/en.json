@@ -14,12 +14,13 @@
     "search": "Search",
     "clearSearch": "Clear search",
     "back": "Back",
-    "forward": "Forward"
+    "forward": "Forward",
+    "downloads": "Downloads"
   },
   "nowPlaying": {
     "label": "Now Playing",
     "emptyTitle": "Nothing playing",
-    "emptyBody": "Open audio files or drop them here."
+    "emptyBody": "Open audio files, drop them here, or paste a link."
   },
   "player": {
     "controls": "Playback controls",
@@ -127,6 +128,31 @@
       "insideFolder": "This folder is already in your library as part of “{{folder}}”.",
       "addOpenedFiles": "Add opened files to the library",
       "addOpenedFilesHint": "Files you open or drop join the library as single songs, with favorites, history and playlists. A folder added later takes them in."
+    },
+    "downloads": {
+      "title": "Downloads",
+      "folder": "Download folder",
+      "chooseFolder": "Choose…",
+      "defaultFolder": "Use Default",
+      "format": "Format",
+      "formats": {
+        "original": "Original"
+      },
+      "formatHints": {
+        "original": "The site’s own audio (usually Opus or M4A), not re-encoded: the best quality.",
+        "mp3": "Converted to MP3: plays everywhere.",
+        "flac": "Converted to FLAC: lossless container, but no better than the original."
+      },
+      "bitrate": "MP3 bitrate, kbit/s",
+      "template": "File name",
+      "templateHint": "Use {artist}, {title}, {album} and {year}; a missing value takes its separator with it.",
+      "update": "Update",
+      "updating": "Updating…",
+      "updated": "Updated to {{version}}",
+      "updateFailed": "Couldn’t update: {{message}}",
+      "ytDlpVersion": "Version {{version}}. Sites change often; update when links stop working.",
+      "ytDlpMissing": "yt-dlp wasn’t found, so links can’t be played or downloaded.",
+      "ffmpegMissing": "FFmpeg wasn’t found: downloads need it."
     }
   },
   "library": {
@@ -186,7 +212,11 @@
     "removeFromLibrary": "Remove from Library…",
     "removeOneConfirm": "Remove “{{title}}” from the library? The file stays on disk, but its play count and playlist entries are lost.",
     "removeManyConfirm_one": "Remove {{count}} song from the library? The files stay on disk, but play counts and playlist entries are lost.",
-    "removeManyConfirm_other": "Remove {{count}} songs from the library? The files stay on disk, but play counts and playlist entries are lost."
+    "removeManyConfirm_other": "Remove {{count}} songs from the library? The files stay on disk, but play counts and playlist entries are lost.",
+    "streamed": "Plays from the web",
+    "removeLinkConfirm": "Remove “{{title}}” from the library? Its play count and playlist entries are lost.",
+    "removeLinksConfirm_one": "Remove {{count}} link from the library? Play counts and playlist entries are lost.",
+    "removeLinksConfirm_other": "Remove {{count}} links from the library? Play counts and playlist entries are lost."
   },
   "queue": {
     "title": "Queue",
@@ -226,5 +256,49 @@
     "cancel": "Cancel",
     "remove": "Remove",
     "delete": "Delete"
+  },
+  "links": {
+    "title": "Open Link",
+    "openLink": "Open Link…",
+    "close": "Close",
+    "address": "Link",
+    "placeholder": "Paste a link to a song, playlist or radio stream",
+    "lookUp": "Open",
+    "hint": "YouTube, YouTube Music, SoundCloud, links to audio files and internet radio (.m3u, .pls, streams). You can also paste a link anywhere in the window.",
+    "resolving": "Getting info…",
+    "live": "Live",
+    "downloaded": "Downloaded",
+    "inLibrary": "In the library",
+    "imported": "Imported",
+    "download": "Download",
+    "downloadAll": "Download All",
+    "import": "Import Playlist",
+    "openPlaylist": "Show Playlist",
+    "importHint": "Playing or importing adds the playlist to the sidebar; its songs fill in as their details arrive.",
+    "copyLink": "Copy Link",
+    "refreshPlaylist": "Update from Source",
+    "errors": {
+      "invalid": "That doesn’t look like a web link.",
+      "ytDlpMissing": "yt-dlp wasn’t found. It plays links from YouTube, SoundCloud and other sites.",
+      "timeout": "The site didn’t answer in time. Try again later.",
+      "unsupported": "This site isn’t supported.",
+      "failed": "Couldn’t open the link: {{message}}"
+    }
+  },
+  "downloads": {
+    "title": "Downloads",
+    "clear": "Clear Finished",
+    "savingTo": "Saving to {{folder}}",
+    "empty": "No downloads",
+    "emptyBody": "Download songs from links with Download in their menu or in the link dialog.",
+    "queued": "Waiting",
+    "downloading": "Downloading…",
+    "progress": "Downloading… {{percent}}%",
+    "processing": "Converting and tagging…",
+    "done": "Done",
+    "failed": "Failed: {{message}}",
+    "cancelled": "Cancelled",
+    "retry": "Retry",
+    "cancel": "Cancel"
   }
 }

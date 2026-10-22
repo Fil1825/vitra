@@ -28,6 +28,7 @@ function track(id: number, title: string, extra: Partial<LibraryTrack> = {}): Li
     addedAt: 0,
     cover: null,
     folderId: 1,
+    sourceUrl: null,
     ...extra,
   };
 }

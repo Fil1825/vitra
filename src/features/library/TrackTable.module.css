@@ -132,6 +132,11 @@ button.headerCell:hover,
   min-width: 0;
 }
 
+.remote {
+  flex: none;
+  color: var(--vitra-color-text-tertiary);
+}
+
 .thumb {
   flex: none;
   width: 28px;

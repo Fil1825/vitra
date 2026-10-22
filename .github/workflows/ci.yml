@@ -62,3 +62,21 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y llvm
       - uses: Swatinem/rust-cache@v2
       - run: sh scripts/cross-check/run.sh
+
+  ytdlp:
+    name: yt-dlp (real)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      # The latest yt-dlp, as users get it: a failure here means yt-dlp's output changed.
+      - run: node scripts/fetch-sidecars.mjs --only yt-dlp
+      - run: cargo test -p links --test real_ytdlp
+        env:
+          VITRA_YTDLP: ${{ github.workspace }}/src-tauri/sidecars/x86_64-unknown-linux-gnu/yt-dlp

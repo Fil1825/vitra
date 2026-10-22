@@ -211,3 +211,41 @@
   font-size: 13px;
   cursor: pointer;
 }
+
+.addFolder:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.buttonRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vitra-space-2);
+}
+
+.textInput {
+  width: 100%;
+  padding: 6px var(--vitra-space-2);
+  border: 1px solid var(--vitra-color-separator);
+  border-radius: var(--vitra-radius-sm);
+  background: color-mix(in srgb, var(--vitra-color-text) 6%, transparent);
+  color: var(--vitra-color-text);
+  font: inherit;
+  font-size: 13px;
+  user-select: text;
+}
+
+.textInput:focus {
+  border-color: var(--vitra-color-accent);
+  outline: none;
+}
+
+.spin {
+  animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

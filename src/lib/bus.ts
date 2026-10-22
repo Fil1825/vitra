@@ -1,4 +1,5 @@
 import type { LibraryChange, ScanStatus } from './library.ts';
+import type { DownloadJob } from './links.ts';
 import type { Settings } from './settings.ts';
 import type { PlayerState, PositionUpdate, Track } from './player.ts';
 import type { QueueState } from './queue.ts';
@@ -26,6 +27,8 @@ export interface VitraEvents {
   /** Library data changed; views showing that kind of data refetch it. */
   'library:changed': LibraryChange;
   'library:scan': ScanStatus;
+  /** The download queue changed (a job was added, progressed or finished). */
+  'downloads:changed': DownloadJob[];
 }
 
 export type Handler<T> = (payload: T) => void;

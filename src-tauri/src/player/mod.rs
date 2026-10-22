@@ -307,6 +307,7 @@ impl Player {
                 let track = tracks.iter().find(|track| track.path == current.path)?;
                 current.library_id = Some(track.id);
                 current.title.clone_from(&track.title);
+                current.metadata.title = Some(track.title.clone());
                 current.metadata.artist.clone_from(&track.artist);
                 current.metadata.album.clone_from(&track.album);
                 if !duration_known {
@@ -554,6 +555,9 @@ impl Player {
                 library_id: entry.track_id,
                 title: entry.title.clone(),
                 metadata: TrackMetadata {
+                    // A link's entry is all there is to know (the stream's own tags, which
+                    // mpv would fill in, are often the uploader's file names).
+                    title: links::is_remote(&entry.path).then(|| entry.title.clone()),
                     artist: entry.artist.clone(),
                     album: entry.album.clone(),
                     duration: entry.duration,
@@ -980,6 +984,7 @@ impl Player {
             if track.title == title && track.metadata.artist == artist {
                 return;
             }
+            track.metadata.title = Some(title.clone());
             track.title = title;
             track.metadata.artist = artist;
             track.metadata.album = station.or(track.metadata.album.take());

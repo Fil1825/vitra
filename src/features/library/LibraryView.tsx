@@ -1,5 +1,6 @@
 import { NowPlaying } from '../../app/NowPlaying.tsx';
 import { useNavigation } from '../../stores/navigation.ts';
+import { DownloadsView } from '../links/DownloadsView.tsx';
 import { AlbumsView } from './AlbumsView.tsx';
 import { AlbumView } from './AlbumView.tsx';
 import { ArtistsView } from './ArtistsView.tsx';
@@ -35,6 +36,8 @@ export function LibraryView() {
       return <SongsView key="favorites" favorites />;
     case 'playlist':
       return <PlaylistView key={route.id} id={route.id} />;
+    case 'downloads':
+      return <DownloadsView />;
     case 'search':
       return <SearchView query={route.query} />;
   }

@@ -11,6 +11,7 @@ export type Route =
   | { view: 'songs' }
   | { view: 'favorites' }
   | { view: 'playlist'; id: number }
+  | { view: 'downloads' }
   | { view: 'search'; query: string };
 
 const MAX_HISTORY = 50;
