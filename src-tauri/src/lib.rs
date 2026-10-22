@@ -4,6 +4,7 @@ mod drag;
 mod error;
 mod library;
 mod links;
+mod lyrics;
 mod player;
 mod settings;
 mod sidecar;
@@ -62,8 +63,10 @@ pub fn run() {
             effects.apply(&main, material);
             app.manage(effects);
 
-            let library = LibraryService::start(app.handle().clone(), &app.path().app_data_dir()?)?;
+            let data_dir = app.path().app_data_dir()?;
+            let library = LibraryService::start(app.handle().clone(), &data_dir)?;
             app.manage(library);
+            app.manage(lyrics::LyricsService::new(app.handle().clone(), &data_dir));
             let links = links::LinkService::new(app.handle().clone())?;
             links.warm_up();
             app.manage(links);
@@ -145,6 +148,15 @@ pub fn run() {
             links::downloads_folder,
             links::ytdlp_info,
             links::ytdlp_update,
+            lyrics::lyrics_current,
+            lyrics::lyrics_set_offset,
+            lyrics::lyrics_search_online,
+            lyrics::lyrics_get,
+            lyrics::lyrics_parse,
+            lyrics::lyrics_serialize,
+            lyrics::lyrics_save,
+            lyrics::lyrics_import,
+            lyrics::lyrics_export,
             drag::drag_link,
         ])
         .build(tauri::generate_context!())

@@ -12,9 +12,10 @@ use std::sync::Mutex;
 use links::AudioFormat;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::error::AppError;
+use crate::lyrics::LyricsService;
 use crate::window;
 
 /// Emitted to every window with the new [`Settings`] after a change.
@@ -31,7 +32,38 @@ pub struct Settings {
     pub library: LibrarySettings,
     #[serde(deserialize_with = "or_default")]
     pub downloads: DownloadSettings,
+    #[serde(deserialize_with = "or_default")]
+    pub lyrics: LyricsSettings,
 }
+
+/// The lyrics view and where lyrics come from.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct LyricsSettings {
+    /// Look lyrics up on LRCLIB when a track has none (sends its title, artist, album and
+    /// duration to lrclib.net).
+    #[serde(deserialize_with = "or_default")]
+    pub online: bool,
+    /// Text size in the lyrics view, relative to the theme's.
+    #[serde(deserialize_with = "or_default")]
+    pub font_scale: f64,
+    /// Show a translation line under the original when the lyrics have one.
+    #[serde(deserialize_with = "or_true")]
+    pub show_translation: bool,
+}
+
+impl Default for LyricsSettings {
+    fn default() -> Self {
+        Self {
+            online: false,
+            font_scale: 1.0,
+            show_translation: true,
+        }
+    }
+}
+
+/// The range the lyrics view's text size can be scaled in.
+const FONT_SCALES: std::ops::RangeInclusive<f64> = 0.7..=1.6;
 
 /// Downloading links into the library.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -192,6 +224,12 @@ impl Settings {
         if !Path::new(downloads.folder.trim()).is_absolute() {
             downloads.folder.clear();
         }
+        let scale = &mut self.lyrics.font_scale;
+        *scale = if scale.is_finite() && *scale > 0.0 {
+            scale.clamp(*FONT_SCALES.start(), *FONT_SCALES.end())
+        } else {
+            1.0
+        };
         self
     }
 }
@@ -278,10 +316,17 @@ pub fn set_settings(
     store: State<'_, SettingsStore>,
     settings: Settings,
 ) -> Result<Settings, AppError> {
-    let previous = store.get().appearance.window_material;
+    let previous = store.get();
     let saved = store.set(settings)?;
-    if saved.appearance.window_material != previous {
+    if saved.appearance.window_material != previous.appearance.window_material {
         window::reapply_all(&app, saved.appearance.window_material);
+    }
+    // Turning online lyrics on looks the playing track up right away.
+    if saved.lyrics.online
+        && !previous.lyrics.online
+        && let Some(lyrics) = app.try_state::<LyricsService>()
+    {
+        lyrics.reload();
     }
     app.emit(SETTINGS_CHANGED, &saved)?;
     Ok(saved)
@@ -323,6 +368,11 @@ mod tests {
                 mp3_bitrate: 192,
                 template: "{title}".into(),
             },
+            lyrics: LyricsSettings {
+                online: true,
+                font_scale: 1.2,
+                show_translation: false,
+            },
         };
 
         store_in(tmp.path()).set(settings.clone()).unwrap();
@@ -352,7 +402,8 @@ mod tests {
                     "format": "original",
                     "mp3Bitrate": 320,
                     "template": "{artist} - {title}"
-                }
+                },
+                "lyrics": { "online": false, "fontScale": 1.0, "showTranslation": true }
             })
         );
     }
@@ -404,6 +455,24 @@ mod tests {
         )
         .unwrap();
         assert_eq!(settings.sanitized().downloads, DownloadSettings::default());
+    }
+
+    #[test]
+    fn lyrics_text_size_stays_in_range() {
+        let read = |json: &str| -> LyricsSettings {
+            serde_json::from_str::<Settings>(json)
+                .unwrap()
+                .sanitized()
+                .lyrics
+        };
+        assert_eq!(read(r#"{ "lyrics": { "fontScale": 9 } }"#).font_scale, 1.6);
+        assert_eq!(read(r#"{ "lyrics": { "fontScale": 0 } }"#).font_scale, 1.0);
+        assert_eq!(
+            read(r#"{ "lyrics": { "fontScale": "big" } }"#).font_scale,
+            1.0
+        );
+        let old = read(r#"{ "language": "en" }"#);
+        assert_eq!(old, LyricsSettings::default());
     }
 
     #[test]

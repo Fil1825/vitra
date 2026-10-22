@@ -1,6 +1,8 @@
-//! Decoding lyrics files. `.lrc` files are mostly UTF-8, but older ones come in UTF-16 (with a
-//! byte order mark) or in a legacy 8-bit code page: Windows-1251 for Cyrillic ones, Latin-1 /
-//! Windows-1252 for Western ones.
+//! Lyrics files. A track's `.lrc` sits next to it with the same name. They are mostly UTF-8,
+//! but older ones come in UTF-16 (with a byte order mark) or in a legacy 8-bit code page:
+//! Windows-1251 for Cyrillic ones, Latin-1 / Windows-1252 for Western ones.
+
+use std::path::{Path, PathBuf};
 
 /// Windows-1251 from 0x80 to 0xBF; 0xC0–0xFF are А–я in order.
 const CP1251_HIGH: [char; 64] = [
@@ -64,9 +66,34 @@ pub fn decode_text(bytes: &[u8]) -> String {
     }
 }
 
+/// The `.lrc` file that goes with a track.
+pub fn lrc_path(track: &Path) -> PathBuf {
+    track.with_extension("lrc")
+}
+
+/// The text of a track's `.lrc` (`.LRC` too, on case-sensitive file systems), if it has one.
+pub fn read_lrc(track: &Path) -> Option<String> {
+    [lrc_path(track), track.with_extension("LRC")]
+        .iter()
+        .find_map(|path| std::fs::read(path).ok())
+        .map(|bytes| decode_text(&bytes))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn finds_the_lrc_next_to_a_track() {
+        let dir = std::env::temp_dir().join(format!("vitra-lrc-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let track = dir.join("01 Song.flac");
+        assert_eq!(read_lrc(&track), None);
+        std::fs::write(dir.join("01 Song.lrc"), "[00:01.00]Hi").unwrap();
+        assert_eq!(read_lrc(&track).as_deref(), Some("[00:01.00]Hi"));
+        assert_eq!(lrc_path(&track), dir.join("01 Song.lrc"));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn reads_utf8_with_and_without_a_bom() {

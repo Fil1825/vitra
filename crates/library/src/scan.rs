@@ -181,7 +181,14 @@ fn list(root: &Path, cancel: &AtomicBool) -> std::io::Result<Listing> {
 /// rather than taking the whole scan down.
 pub(crate) fn read_metadata(path: &Path) -> TrackMetadata {
     match std::panic::catch_unwind(|| media::read_track(path)) {
-        Ok(Ok(info)) => return info.metadata,
+        Ok(Ok(info)) => {
+            let mut metadata = info.metadata;
+            // Lyrics in a `.lrc` next to the file are searchable too.
+            if metadata.lyrics.is_none() {
+                metadata.lyrics = lyrics::read_lrc(path);
+            }
+            return metadata;
+        }
         Ok(Err(err)) => log::debug!("no tags for {}: {err}", path.display()),
         Err(_) => log::warn!("reading tags of {} panicked", path.display()),
     }

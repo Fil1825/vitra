@@ -33,6 +33,7 @@ use tokio::sync::Notify;
 use crate::error::AppError;
 use crate::library::{LibraryService, entry_from_track};
 use crate::links::LinkService;
+use crate::lyrics::{LyricsService, TrackInfo};
 use crate::settings::SettingsStore;
 use crate::sidecar::{self, Sidecar};
 
@@ -183,6 +184,35 @@ impl Player {
             .map(|library| library.inner().clone())
     }
 
+    fn lyrics(&self) -> Option<LyricsService> {
+        self.0
+            .app
+            .try_state::<LyricsService>()
+            .map(|lyrics| lyrics.inner().clone())
+    }
+
+    /// Tells the lyrics where playback is.
+    fn follow_lyrics(&self) {
+        let playing = {
+            let state = lock(&self.0.state);
+            state.track.as_ref().map(|track| (track.id, state.position))
+        };
+        if let (Some((id, position)), Some(lyrics)) = (playing, self.lyrics()) {
+            lyrics.position(id, position);
+        }
+    }
+
+    /// The playing track joined or left the library.
+    fn library_id_changed(&self) {
+        let track = lock(&self.0.state)
+            .track
+            .as_ref()
+            .map(|track| (track.id, track.library_id));
+        if let (Some((id, library_id)), Some(lyrics)) = (track, self.lyrics()) {
+            lyrics.library_id_changed(id, library_id);
+        }
+    }
+
     pub fn queue(&self) -> QueueView {
         lock(&self.0.queue).view()
     }
@@ -258,6 +288,7 @@ impl Player {
         }
         if playing {
             self.emit_state();
+            self.library_id_changed();
         }
     }
 
@@ -285,6 +316,7 @@ impl Player {
         }
         if playing {
             self.emit_state();
+            self.library_id_changed();
         }
     }
 
@@ -574,6 +606,9 @@ impl Player {
         // A seek asked for while the previous track was loading doesn't apply to this one.
         *lock(&self.0.pending_seek) = None;
         self.emit_state();
+        if let Some(lyrics) = self.lyrics() {
+            lyrics.track_started(id, &entry.path, entry.track_id);
+        }
         self.read_metadata(id, PathBuf::from(&entry.path));
     }
 
@@ -812,6 +847,7 @@ impl Player {
         .await?;
         lock(&self.0.state).position = position;
         self.emit_position(true);
+        self.follow_lyrics();
         Ok(())
     }
 
@@ -942,6 +978,15 @@ impl Player {
             }
             player.emit_state();
             player.emit(TRACK_EVENT, &track);
+            if let Some(lyrics) = player.lyrics() {
+                lyrics.track_ready(TrackInfo {
+                    id: track.id,
+                    path: track.path,
+                    library_id: track.library_id,
+                    title: track.title,
+                    metadata: track.metadata,
+                });
+            }
         });
     }
 
@@ -1141,6 +1186,7 @@ impl Player {
         }
         if changes.position {
             self.count_play();
+            self.follow_lyrics();
         }
     }
 

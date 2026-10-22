@@ -27,6 +27,7 @@ mpv-ipc = { version = "0.1.0", path = "../crates/mpv-ipc" }
 media = { version = "0.1.0", path = "../crates/media" }
 library = { version = "0.1.0", path = "../crates/library" }
 links = { version = "0.1.0", path = "../crates/links" }
+lyrics = { version = "0.1.0", path = "../crates/lyrics" }
 # Watches library folders (FSEvents / inotify / ReadDirectoryChangesW).
 notify = "8.2.0"
 tokio = { version = "1.54", features = ["sync", "time", "macros"] }

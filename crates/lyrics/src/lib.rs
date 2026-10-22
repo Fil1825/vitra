@@ -8,18 +8,18 @@
 //!   lyrics sites that ship both in one file).
 //! - `[offset:±ms]` is applied by [`Lyrics::normalized`]; other `[key:value]` tags are kept.
 
+mod file;
 pub mod lrclib;
 mod parse;
 mod sylt;
-mod text;
 mod time;
 mod write;
 
 use serde::{Deserialize, Serialize};
 
+pub use file::{decode_text, lrc_path, read_lrc};
 pub use parse::parse;
 pub use sylt::from_sylt;
-pub use text::decode_text;
 pub use time::{format_timestamp, parse_timestamp};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

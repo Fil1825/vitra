@@ -4170,6 +4170,7 @@ dependencies = [
  "library",
  "links",
  "log",
+ "lyrics",
  "media",
  "mpv-ipc",
  "notify",
