@@ -137,6 +137,18 @@ pub fn file_stem(template: &str, fields: &FileNameFields<'_>) -> String {
     }
 }
 
+/// `stem`, or the first of `stem (2)`, `stem (3)`, ... that `taken` says is free, so a
+/// download never overwrites a file (or another download's name).
+pub fn unique_stem(stem: &str, taken: impl Fn(&str) -> bool) -> String {
+    if !taken(stem) {
+        return stem.to_owned();
+    }
+    (2..)
+        .map(|n| format!("{stem} ({n})"))
+        .find(|candidate| !taken(candidate))
+        .unwrap_or_else(|| stem.to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -208,6 +220,13 @@ mod tests {
         assert_eq!(sanitize_file_name("CON"), "CON_");
         assert_eq!(sanitize_file_name("com1.txt"), "com1.txt_");
         assert_eq!(sanitize_file_name("Console"), "Console");
+    }
+
+    #[test]
+    fn taken_names_get_a_number() {
+        assert_eq!(unique_stem("A - T", |_| false), "A - T");
+        let taken = ["A - T", "A - T (2)"];
+        assert_eq!(unique_stem("A - T", |s| taken.contains(&s)), "A - T (3)");
     }
 
     #[test]

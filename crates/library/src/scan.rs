@@ -102,7 +102,7 @@ struct Listing {
     unreadable: Vec<PathBuf>,
 }
 
-fn mtime(metadata: &fs::Metadata) -> i64 {
+pub(crate) fn mtime(metadata: &fs::Metadata) -> i64 {
     metadata
         .modified()
         .ok()
@@ -179,7 +179,7 @@ fn list(root: &Path, cancel: &AtomicBool) -> std::io::Result<Listing> {
 /// Tags of a file; files lofty can't parse (DSF, WMA, ...) are kept with what the path
 /// tells, since mpv still plays them. A parser panic on a damaged file counts as "no tags"
 /// rather than taking the whole scan down.
-fn read_metadata(path: &Path) -> TrackMetadata {
+pub(crate) fn read_metadata(path: &Path) -> TrackMetadata {
     match std::panic::catch_unwind(|| media::read_track(path)) {
         Ok(Ok(info)) => return info.metadata,
         Ok(Err(err)) => log::debug!("no tags for {}: {err}", path.display()),
@@ -292,7 +292,7 @@ enum Store {
 const STALE_PART: Duration = Duration::from_secs(600);
 
 /// Writes the cover thumbnail if it isn't cached yet; returns its id.
-fn cache_cover(bytes: &[u8], covers_dir: &Path) -> Option<String> {
+pub(crate) fn cache_cover(bytes: &[u8], covers_dir: &Path) -> Option<String> {
     // Albums sharing a cover get the same id and may be cached by two threads at once, so
     // each write uses its own temporary file.
     static NEXT_PART: AtomicU64 = AtomicU64::new(0);
@@ -614,13 +614,23 @@ impl Library {
 
         let mut albums: Vec<i64> = touched_albums.into_iter().collect();
         albums.sort_unstable();
+        self.refresh_covers(&albums, covers_dir)
+    }
+
+    /// Finds the covers of albums whose tracks changed outside a scan and drops unused ones.
+    pub(crate) fn refresh_covers(&mut self, album_ids: &[i64], covers_dir: &Path) -> Result<()> {
         let mut ignore = |_| {};
         let mut reporter = Reporter {
             folder_id: 0,
             callback: &mut ignore,
             last: None,
         };
-        self.update_covers(&albums, covers_dir, &AtomicBool::new(false), &mut reporter)?;
+        self.update_covers(
+            album_ids,
+            covers_dir,
+            &AtomicBool::new(false),
+            &mut reporter,
+        )?;
         self.remove_unused_covers(covers_dir)?;
         Ok(())
     }
