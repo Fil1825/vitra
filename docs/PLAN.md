@@ -88,6 +88,29 @@ and an explicit list of checks that can only be done on a Mac.
   retry; streamed track record replaced by the local file (playlists, lyrics, play counts kept).
 - "Update yt-dlp" button: copies yt-dlp into the app data dir and runs `yt-dlp -U` there.
 - Tests: `yt-dlp -J` parsing on recorded fixtures, filename templating, download state machine.
+- Done as planned, plus: links are library tracks (path = page URL) so favorites, playlists and
+  history work for them; a download takes over the stream's row; imported playlists fill in
+  their entries' metadata and thumbnails in the background; radio shows the stream's
+  `icy-title`; opt-in tests against the real yt-dlp (CI job `yt-dlp (real)`). Fixtures for
+  YouTube and SoundCloud are hand-written from yt-dlp's documented fields (the cloud can't reach
+  those sites); `scripts/record-ytdlp-fixtures.sh` records real ones. Not done here: reading
+  `.webloc`/`.url` shortcut files, resuming downloads after a restart (the queue lives in
+  memory).
+- After the Mac review: macOS uses yt-dlp's **folder build** (`yt-dlp_macos.zip`), because
+  the single-file build took ~25 s per call there (macOS re-checks the Python libraries it
+  unpacks on every run). It can't update itself, so "Update" downloads the latest zip (curl +
+  checksum + `ditto`) into the app data folder. yt-dlp is run once at start to get macOS's
+  one-time check of a new copy over with. `npm run bundle` ships the fetched sidecars as
+  resources. While a link opens the player shows a spinner and seeking waits for the file.
+- Second Mac round: links dragged from a browser are read off the macOS drag pasteboard
+  (Tauri's drop events only carry file paths and never reach the page); a macOS CI job runs
+  `cargo test` and the real yt-dlp tests with the folder build. Windows and Linux don't
+  expose dragged links to Tauri; paste works there.
+- **Mac**: real YouTube/SoundCloud playback and downloads (needs Deno for YouTube), the paste
+  shortcut outside text fields (WebKit's `beforepaste`), dropping a link from Safari (drag
+  pasteboard) while files and folders from Finder still drop as before, the
+  yt-dlp update (zip into the app data folder), `npm run bundle` producing an app whose
+  `Contents/Resources/sidecars/` works (signatures of mpv.app and the yt-dlp folder).
 
 ## Stage 5 — Lyrics
 

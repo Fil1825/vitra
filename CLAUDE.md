@@ -20,7 +20,7 @@ the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
 | 1   | Shell: transparent window, vibrancy, `<Glass>`, themes | in review (PR #2) |
 | 2   | Engine: mpv IPC, transport controls, artwork backdrop  | in review (PR #3) |
 | 3   | Library & queue: scan, SQLite, views, search, session  | in review (PR #4) |
-| 4   | Links: yt-dlp playback, playlists, downloads           | not started       |
+| 4   | Links: yt-dlp playback, playlists, downloads           | in review (PR #5) |
 | 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | not started       |
 | 6   | Mini player                                            | not started       |
 | 7   | Customization: theme editor, `.vitratheme`, layout     | not started       |
@@ -33,13 +33,17 @@ the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
 npm ci                     # install frontend deps and the Tauri CLI
 npm run fetch-sidecars     # download mpv / yt-dlp / FFmpeg / Deno for this machine
 npm run tauri dev          # run the app with hot reload
-npm run tauri build        # release build + installers
+npm run tauri build        # release build + installers, without the sidecars
+npm run bundle             # the same with the fetched sidecars inside (see key decision 6)
 
 npm run check              # eslint, prettier, tsc, vitest, vite build
 npm run check:rust         # cargo fmt --check, clippy -D warnings, cargo test
 npm run check:all          # both of the above — must pass before every PR
 npm run check:cross        # clippy for aarch64-apple-darwin + x86_64-pc-windows-msvc from Linux
 VITRA_MPV_TESTS=1 cargo test -p mpv-ipc   # also run the tests against a real mpv (on PATH)
+VITRA_YTDLP=src-tauri/sidecars/<triple>/yt-dlp cargo test -p links --test real_ytdlp
+                                          # real yt-dlp against a local HTTP server (FFmpeg on PATH)
+scripts/record-ytdlp-fixtures.sh          # re-record yt-dlp fixtures (needs the sites reachable)
 ```
 
 Debugging playback: `VITRA_MPV_ARGS="--ao=null --log-file=/tmp/mpv.log" npm run tauri dev` passes
@@ -87,9 +91,11 @@ src/                    React + TypeScript frontend
   components/           shared UI: Glass/ (glass surface, layer budget, refraction), Backdrop/,
                         ui/ (IconButton, SegmentedControl, Switch, Slider)
   features/<feature>/   feature UI: library/ (views, TrackTable, AlbumGrid, actions + menus),
-                        queue/ (QueuePanel), tags/ (TagEditor), settings/
+                        queue/ (QueuePanel), tags/ (TagEditor), links/ (LinkDialog,
+                        DownloadsView), settings/
   stores/               zustand stores: settings (mirror of Rust), environment, appearance,
-                        player, queue, library (scan status), navigation (routes), ui (panels)
+                        player, queue, library (scan status), downloads, navigation (routes),
+                        ui (panels, dialogs)
   theme/                zod schema, built-in themes (builtin/*.json), tokens → CSS vars, effects
   i18n/                 i18next setup, locales/en.json + ru.json (typed keys)
   lib/                  IPC wrappers, event bus + backend bridge, hooks, pure helpers
@@ -106,6 +112,8 @@ src-tauri/              Tauri app crate (`vitra`, lib `vitra_lib`)
                         session save/restore (session.rs), artwork:// scheme (artwork.rs)
   src/library/          LibraryService: DB connection, scanner thread, folder watcher
                         (watch.rs), library/playlist/tag-editor commands (commands.rs)
+  src/links/            LinkService (resolve, play, import + background enrich, yt-dlp
+                        update), Downloads (queue, 2 at a time), commands
   tauri.conf.json, capabilities/, icons/ (generated: `npm run tauri icon -- assets/brand/icon-1024.png`)
   sidecars/<triple>/    fetched binaries (git-ignored)
 crates/                 pure-Rust crates testable without WebKit
@@ -113,7 +121,11 @@ crates/                 pure-Rust crates testable without WebKit
   media/                lofty tags (read + write), embedded/folder artwork, thumbnails, color
                         palette (fixtures in tests/)
   library/              SQLite library: schema + migrations, tracks/albums/artists, FTS5
-                        search, playlists, history, session, incremental folder scanner
+                        search, playlists, history, session, incremental folder scanner,
+                        links as tracks (remote.rs)
+  links/                URL classification, yt-dlp -J parsing, file name templates, progress
+                        lines, download state machine, YtDlp runner (fixtures + opt-in real
+                        tests in tests/)
 scripts/
   fetch-sidecars.mjs    downloader (I/O)
   sidecars/plan.mjs     what to download per target (pure, unit-tested)
@@ -161,7 +173,13 @@ themes/                 (stage 7) example themes
      `x86_64-pc-windows-msvc`). On macOS it is a whole `mpv.app` with dylibs in
      `Contents/MacOS/lib`, so it ships as a directory resource, not a Tauri `externalBin`.
      Linux uses the system mpv (no official binaries).
-   - yt-dlp: latest standalone release, checked against `SHA2-256SUMS`.
+   - yt-dlp: latest release, checked against `SHA2-256SUMS`. Windows and Linux get the
+     single-file build (`yt-dlp[.exe]`); **macOS gets the folder build** `yt-dlp_macos.zip`
+     (`yt-dlp/yt-dlp_macos` + `_internal/`): the single-file build unpacks Python into a new
+     temporary folder on every run and macOS checks those libraries each time (~25 s per
+     call), while the folder build is checked once (~25 s on its very first run, then 0.2 s;
+     the app runs `--version` at start to get that over with). The folder build can't
+     `-U` itself.
    - FFmpeg + ffprobe (yt-dlp needs both for `-x`/embedding): macOS from
      ffmpeg.martin-riedl.de (static, signed), Windows/Linux from BtbN's GitHub releases (newest
      stable GPL build picked from `checksums.sha256`). Homebrew FFmpeg works as a fallback.
@@ -170,7 +188,14 @@ themes/                 (stage 7) example themes
    - Lookup order (`src-tauri/src/sidecar.rs`): app data `sidecars/` (updatable copies, e.g.
      yt-dlp self-update) → bundled (exe dir, `resources/sidecars/`) → dev
      `src-tauri/sidecars/<triple>/` (debug builds only) → `PATH` + Homebrew/`/usr/local/bin`
-     (macOS GUI apps don't inherit the shell `PATH`).
+     (macOS GUI apps don't inherit the shell `PATH`). On macOS only `yt-dlp/yt-dlp_macos`
+     counts in those folders; a single-file `yt-dlp` is used from `PATH` only.
+   - Bundling: `npm run bundle` adds `src-tauri/tauri.bundle.conf.json`, whose
+     `beforeBuildCommand` runs `scripts/stage-sidecars.mjs` (copies
+     `sidecars/<TAURI_ENV_TARGET_TRIPLE>/` to `sidecars/bundle/`, with `ditto` on macOS) and
+     whose `bundle.resources` ships that as `<resources>/sidecars/`. It isn't in
+     `tauri.conf.json` because tauri-build requires resource folders to exist at compile time
+     and copies them into `target/` on every build.
 7. **Accent & backdrop from artwork**: themes opt in with `background.useArtwork` (blurred
    thumbnail + palette-colored gradient) and `accentFromArtwork`; the user can turn the accent
    off (`appearance.artworkAccent`). `theme/accent.ts` adjusts the color per light/dark.
@@ -235,10 +260,43 @@ themes/                 (stage 7) example themes
     half the track (at most 4 min). The queue and playback values (position, volume, mute,
     speed) are saved to the `session` table every few seconds and on exit; the current item
     comes back paused. `queue://changed` carries the whole queue.
-22. **Context menus** are native (`@tauri-apps/api/menu`, `lib/menu.ts`); the WebView's own
+22. **Links** (`crates/links`, `src-tauri/src/links`, `features/links`):
+    - Only `http(s)` links are accepted, and the URL always goes after `--` in yt-dlp's
+      arguments. yt-dlp runs with `--ignore-config --no-warnings` and
+      `--js-runtimes deno:<path>` when Deno is found.
+    - Pages are resolved with `yt-dlp -J --flat-playlist --no-playlist`, writing the thumbnail
+      in the same run (`--no-simulate --skip-download --write-thumbnail`); direct audio files
+      and radio (`.m3u`/`.pls`/HLS) skip yt-dlp. No HTTP client of our own.
+    - A link is a library track whose path is its page URL (`tracks.source_url`, migration 2);
+      its thumbnail is the track's own cover (`tracks.cover`, shown before the album's).
+      Listings (`complete: false`) never overwrite what a full description stored. Links
+      join the library when played if `library.addOpenedFiles` is on; always when imported
+      or downloaded.
+    - Imported playlists keep `playlists.source_url`; importing again replaces their entries
+      and keeps the name. Entries are filled in afterwards by `yt-dlp -j` (one line each).
+    - mpv plays links through its own yt-dlp hook: `--script-opts-append=ytdl_hook-ytdl_path=`
+      and `--ytdl-raw-options-append=js-runtimes=deno:` point it at our binaries. Radio
+      playlists end in `end-file reason=redirect`, after which the next `start-file` is the
+      same queue item; `metadata` is observed for `icy-title`.
+    - Downloads: `-f bestaudio/best -x` (+ `--audio-format mp3|flac`), `--embed-metadata`,
+      `--embed-thumbnail`, `--convert-thumbnails jpg`, `--no-mtime`; progress via
+      `--progress-template` (download progress on stdout, post-processing on **stderr**) and
+      `--print after_move:`; partial files in `<cache>/downloads/<job>`. Then Vitra writes its
+      own title/artist/album/year and saved lyrics into the file and
+      `Library::attach_download` swaps the stream's path for the file (same row; a row the
+      watcher added first is merged in).
+    - "Update yt-dlp": on macOS `links::release::install_zip_release` downloads the latest
+      `yt-dlp_macos.zip` and `SHA2-256SUMS` with `curl`, checks the hash (`sha2`), unpacks
+      with `ditto` and swaps the folder into `<app data>/sidecars/yt-dlp/` (a
+      `.release-sha256` marker skips the same release). Elsewhere it copies a bundled
+      yt-dlp to `<app data>/sidecars/` (found first from then on) and runs `-U` there; a
+      system yt-dlp is updated in place (pip/Homebrew ones refuse).
+    - While mpv opens a link (its hook waits for yt-dlp) the status is `loading`: the UI
+      shows a spinner and disables seeking, and `Player::seek` defers to `file-loaded`.
+23. **Context menus** are native (`@tauri-apps/api/menu`, `lib/menu.ts`); the WebView's own
     menu is suppressed outside text fields. Reordering uses a small pointer-based hook
     (`lib/reorder.ts`) because HTML5 drag and drop clashes with the window's file drop.
-23. License **GPL-3.0-or-later** (compatible with mpv). Bundle identifier
+24. License **GPL-3.0-or-later** (compatible with mpv). Bundle identifier
     `io.github.fil1825.vitra`. macOS minimum **14.0** (official mpv builds require it).
 
 ## Conventions
@@ -280,5 +338,16 @@ themes/                 (stage 7) example themes
   left edge; on Tahoe the buttons are 14 pt wide, 23 pt apart, and their center sits at `y − 2.5`
   (measured from the owner's screenshot). Current `{x: 23, y: 33}` centers the close button on
   the sidebar's corner arc and aligns the row with the title (y ≈ 30).
+- The cloud can't reach YouTube or SoundCloud: test links with a local page
+  (`python3 -m http.server` serving an HTML file with `<audio src=…>`; yt-dlp's generic
+  extractor handles it, naming entries "Title (1)") and keep 127.0.0.1 in `NO_PROXY`.
+- Tauri's drag-and-drop handler reports every drop as handled, so the page never gets HTML
+  `drop` events, and it reads only file paths: a link dragged from a browser arrives as a
+  `drop` without paths. `useFileDrop` then calls `drag_link` (`src-tauri/src/drag.rs`), which
+  reads the macOS drag pasteboard (`public.url`, legacy `NSURLPboardType`, plain text).
+  Windows and Linux report nothing for links; paste works there. Don't turn off
+  `dragDropEnabled`: file and folder drops need its real paths.
+- lofty can't write `ItemKey::Lyrics` to ID3v2; use `ItemKey::UnsyncLyrics` (USLT) there.
+  lofty also warns about every odd MP3 frame; the app logs `lofty` at error level only.
 - The macOS mpv tarball carries code-signature xattrs; `fetch-sidecars` moves extracted files
   with `rename` (never copies) to keep them. Linux GNU tar prints harmless warnings about them.

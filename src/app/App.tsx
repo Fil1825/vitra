@@ -1,11 +1,12 @@
 import { AnimatePresence, MotionConfig } from 'motion/react';
-import { Music } from 'lucide-react';
+import { Link2, Music } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Backdrop } from '../components/Backdrop/Backdrop.tsx';
 import { Glass } from '../components/Glass/index.ts';
 import { LibraryView } from '../features/library/LibraryView.tsx';
+import { LinkDialog } from '../features/links/LinkDialog.tsx';
 import { QueuePanel } from '../features/queue/QueuePanel.tsx';
 import { SettingsPanel } from '../features/settings/SettingsPanel.tsx';
 import { TagEditor } from '../features/tags/TagEditor.tsx';
@@ -21,11 +22,13 @@ import { Sidebar } from './Sidebar.tsx';
 import { TitleBar } from './TitleBar.tsx';
 import { useAppearanceController } from './useAppearanceController.ts';
 import { useFileDrop } from './useFileDrop.ts';
+import { useLinkInput } from './useLinkInput.ts';
 import { usePlayerShortcuts } from './usePlayerShortcuts.ts';
 
 export function App() {
   useAppearanceController();
   usePlayerShortcuts();
+  useLinkInput();
   const { t } = useTranslation();
   const motionEnabled = useAppearance((s) => s.effects.motion);
   const useArtwork = useAppearance((s) => s.theme.background.useArtwork);
@@ -36,10 +39,14 @@ export function App() {
   const editTags = useUi((s) => s.editTags);
   const route = useNavigation((s) => s.route);
   const closeTagEditor = useCallback(() => editTags(null), [editTags]);
+  const linkInput = useUi((s) => s.linkInput);
+  const openLink = useUi((s) => s.openLink);
+  const closeLink = useCallback(() => openLink(null), [openLink]);
   const dropping = useFileDrop(
     useCallback((paths: string[]) => {
       playPaths(paths).catch((err: unknown) => console.error('Playing dropped files failed', err));
     }, []),
+    useCallback((url: string) => useUi.getState().openLink(url), []),
   );
   const shownArtwork = useArtwork ? artwork : null;
 
@@ -79,11 +86,16 @@ export function App() {
       {tagEditorPath && (
         <TagEditor key={tagEditorPath} path={tagEditorPath} onClose={closeTagEditor} />
       )}
+      {linkInput !== null && <LinkDialog key={linkInput} initial={linkInput} onClose={closeLink} />}
       {dropping && (
         <div className={styles.dropZone}>
           <Glass className={styles.dropCard} priority={6}>
-            <Music size={32} aria-hidden="true" />
-            {t('player.dropToPlay')}
+            {dropping === 'link' ? (
+              <Link2 size={32} aria-hidden="true" />
+            ) : (
+              <Music size={32} aria-hidden="true" />
+            )}
+            {t(dropping === 'link' ? 'player.dropToOpenLink' : 'player.dropToPlay')}
           </Glass>
         </div>
       )}

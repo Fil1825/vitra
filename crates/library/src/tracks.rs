@@ -10,7 +10,7 @@ use crate::{Library, Result, now};
 pub(crate) const TRACK_COLUMNS: &str = "t.id, t.path, t.title, ar.name, t.artist_id, al.title,
     t.album_id, t.album_artist, t.genre, t.year, t.track_number, t.disc_number, t.duration,
     t.format, t.sample_rate, t.bit_depth, t.bitrate, t.favorite, t.play_count,
-    t.last_played_at, t.added_at, al.cover, t.folder_id";
+    t.last_played_at, t.added_at, COALESCE(t.cover, al.cover), t.folder_id, t.source_url";
 
 pub(crate) const TRACK_FROM: &str = "tracks t
     LEFT JOIN artists ar ON ar.id = t.artist_id
@@ -45,11 +45,14 @@ pub(crate) fn track_from_row(row: &Row<'_>) -> rusqlite::Result<Track> {
         added_at: row.get(20)?,
         cover: row.get(21)?,
         folder_id: row.get(22)?,
+        source_url: row.get(23)?,
     })
 }
 
+/// An album without a cover of its own (only links in it) shows one of its tracks' covers.
 pub(crate) const ALBUM_SELECT: &str = "SELECT al.id, al.title, ar.name, al.artist_id, al.year,
-        al.cover, COUNT(t.id), COALESCE(SUM(t.duration), 0), MAX(t.added_at)
+        COALESCE(al.cover, MAX(t.cover)), COUNT(t.id), COALESCE(SUM(t.duration), 0),
+        MAX(t.added_at)
     FROM albums al
     LEFT JOIN artists ar ON ar.id = al.artist_id
     JOIN tracks t ON t.album_id = al.id";
@@ -71,8 +74,11 @@ pub(crate) fn album_from_row(row: &Row<'_>) -> rusqlite::Result<Album> {
 pub(crate) const ARTIST_SELECT: &str = "SELECT ar.id, ar.name,
         (SELECT COUNT(*) FROM albums WHERE artist_id = ar.id),
         (SELECT COUNT(*) FROM tracks WHERE artist_id = ar.id),
-        (SELECT cover FROM albums WHERE artist_id = ar.id AND cover IS NOT NULL
-            ORDER BY year DESC LIMIT 1)
+        COALESCE(
+            (SELECT cover FROM albums WHERE artist_id = ar.id AND cover IS NOT NULL
+                ORDER BY year DESC LIMIT 1),
+            (SELECT cover FROM tracks WHERE artist_id = ar.id AND cover IS NOT NULL
+                ORDER BY added_at DESC LIMIT 1))
     FROM artists ar";
 
 pub(crate) fn artist_from_row(row: &Row<'_>) -> rusqlite::Result<Artist> {
@@ -443,7 +449,7 @@ impl Library {
             .query_map([limit], |row| {
                 Ok(HistoryEntry {
                     track: track_from_row(row)?,
-                    played_at: row.get(23)?,
+                    played_at: row.get(24)?,
                 })
             })?
             .collect::<rusqlite::Result<_>>()?;
@@ -459,21 +465,22 @@ impl Library {
         Ok(())
     }
 
-    /// Cover ids some album uses.
+    /// Cover ids some album or track uses.
     pub fn cover_ids(&self) -> Result<HashSet<String>> {
-        let mut statement = self
-            .conn
-            .prepare("SELECT DISTINCT cover FROM albums WHERE cover IS NOT NULL")?;
+        let mut statement = self.conn.prepare(
+            "SELECT cover FROM albums WHERE cover IS NOT NULL
+             UNION SELECT cover FROM tracks WHERE cover IS NOT NULL",
+        )?;
         let ids = statement
             .query_map([], |row| row.get(0))?
             .collect::<rusqlite::Result<_>>()?;
         Ok(ids)
     }
 
-    /// Paths of an album's tracks in album order.
+    /// Paths of an album's tracks in album order, files only (no links).
     pub fn album_paths(&self, album_id: i64) -> Result<Vec<String>> {
         let mut statement = self.conn.prepare(
-            "SELECT path FROM tracks WHERE album_id = ?
+            "SELECT path FROM tracks WHERE album_id = ? AND path IS NOT source_url
              ORDER BY disc_number, track_number, title COLLATE NOCASE",
         )?;
         let paths = statement

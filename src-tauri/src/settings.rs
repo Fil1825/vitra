@@ -9,6 +9,7 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+use links::AudioFormat;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 use tauri::{AppHandle, Emitter, State};
@@ -28,6 +29,36 @@ pub struct Settings {
     pub appearance: Appearance,
     #[serde(deserialize_with = "or_default")]
     pub library: LibrarySettings,
+    #[serde(deserialize_with = "or_default")]
+    pub downloads: DownloadSettings,
+}
+
+/// Downloading links into the library.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct DownloadSettings {
+    /// Where downloads go; empty means `<Music>/Vitra`.
+    #[serde(deserialize_with = "or_default")]
+    pub folder: String,
+    #[serde(deserialize_with = "or_default")]
+    pub format: AudioFormat,
+    /// kbit/s, for MP3 (one of [`links::MP3_BITRATES`]).
+    #[serde(deserialize_with = "or_default")]
+    pub mp3_bitrate: u32,
+    /// File name template, e.g. `{artist} - {title}`.
+    #[serde(deserialize_with = "or_default")]
+    pub template: String,
+}
+
+impl Default for DownloadSettings {
+    fn default() -> Self {
+        Self {
+            folder: String::new(),
+            format: AudioFormat::Original,
+            mp3_bitrate: 320,
+            template: links::DEFAULT_TEMPLATE.to_owned(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -149,6 +180,17 @@ impl Settings {
                 .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
         if !valid {
             self.appearance.theme = AUTO_THEME.to_owned();
+        }
+        let downloads = &mut self.downloads;
+        if !links::MP3_BITRATES.contains(&downloads.mp3_bitrate) {
+            downloads.mp3_bitrate = DownloadSettings::default().mp3_bitrate;
+        }
+        if downloads.template.trim().is_empty() {
+            downloads.template = links::DEFAULT_TEMPLATE.to_owned();
+        }
+        // Only an absolute folder makes sense; anything else means the default.
+        if !Path::new(downloads.folder.trim()).is_absolute() {
+            downloads.folder.clear();
         }
         self
     }
@@ -272,6 +314,15 @@ mod tests {
             library: LibrarySettings {
                 add_opened_files: false,
             },
+            downloads: DownloadSettings {
+                folder: std::env::temp_dir()
+                    .join("Vitra")
+                    .to_string_lossy()
+                    .into_owned(),
+                format: AudioFormat::Mp3,
+                mp3_bitrate: 192,
+                template: "{title}".into(),
+            },
         };
 
         store_in(tmp.path()).set(settings.clone()).unwrap();
@@ -295,7 +346,13 @@ mod tests {
                     "windowMaterial": "vibrancy",
                     "artworkAccent": true
                 },
-                "library": { "addOpenedFiles": true }
+                "library": { "addOpenedFiles": true },
+                "downloads": {
+                    "folder": "",
+                    "format": "original",
+                    "mp3Bitrate": 320,
+                    "template": "{artist} - {title}"
+                }
             })
         );
     }
@@ -336,6 +393,17 @@ mod tests {
         let broken: Settings =
             serde_json::from_str(r#"{ "library": { "addOpenedFiles": "no" } }"#).unwrap();
         assert!(broken.library.add_opened_files);
+    }
+
+    #[test]
+    fn odd_download_settings_fall_back() {
+        let settings: Settings = serde_json::from_str(
+            r#"{ "downloads": {
+                "folder": "relative/dir", "format": "wav", "mp3Bitrate": 1000, "template": " "
+            } }"#,
+        )
+        .unwrap();
+        assert_eq!(settings.sanitized().downloads, DownloadSettings::default());
     }
 
     #[test]

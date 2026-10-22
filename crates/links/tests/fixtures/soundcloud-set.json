@@ -1,0 +1,26 @@
+{
+  "_type": "playlist",
+  "id": "2284613",
+  "title": "Soulhack",
+  "uploader": "Forss",
+  "webpage_url": "https://soundcloud.com/forss/sets/soulhack",
+  "extractor": "soundcloud:set",
+  "extractor_key": "SoundcloudSet",
+  "entries": [
+    {
+      "_type": "url",
+      "ie_key": "Soundcloud",
+      "id": "100000001",
+      "url": "https://soundcloud.com/forss/sets/soulhack/track-1",
+      "title": "Track 1"
+    },
+    {
+      "_type": "url",
+      "ie_key": "Soundcloud",
+      "id": "100000002",
+      "url": "https://soundcloud.com/forss/sets/soulhack/track-2",
+      "title": "Track 2",
+      "uploader": "Forss"
+    }
+  ]
+}

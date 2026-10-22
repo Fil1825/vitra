@@ -1,10 +1,11 @@
-import { ChevronLeft, ChevronRight, FolderOpen, Settings2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FolderOpen, Link2, Settings2 } from 'lucide-react';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { IconButton } from '../components/ui/IconButton.tsx';
 import { pickAndPlay } from '../lib/openFiles.ts';
 import { useNavigation } from '../stores/navigation.ts';
+import { useUi } from '../stores/ui.ts';
 import styles from './TitleBar.module.css';
 
 export interface TitleBarProps {
@@ -61,6 +62,9 @@ export function TitleBar({ className, onOpenSettings }: TitleBarProps) {
           }
         >
           <FolderOpen size={18} />
+        </IconButton>
+        <IconButton label={t('links.openLink')} onClick={() => useUi.getState().openLink('')}>
+          <Link2 size={18} />
         </IconButton>
         <IconButton label={t('settings.open')} onClick={onOpenSettings}>
           <Settings2 size={18} />

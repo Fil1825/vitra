@@ -5,8 +5,11 @@ use mpv_ipc::{EndReason, Event};
 use serde::Serialize;
 use serde_json::Value;
 
-/// Properties observed on every mpv instance; their changes drive [`PlayerState::apply`].
-pub const OBSERVED: &[&str] = &["pause", "time-pos", "duration", "volume", "mute", "speed"];
+/// Properties observed on every mpv instance; their changes drive [`PlayerState::apply`]
+/// (and `metadata`, the stream titles of internet radio, the player).
+pub const OBSERVED: &[&str] = &[
+    "pause", "time-pos", "duration", "volume", "mute", "speed", "metadata",
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

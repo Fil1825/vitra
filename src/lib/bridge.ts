@@ -9,6 +9,7 @@ import {
   type LibraryChange,
   type ScanStatus,
 } from './library.ts';
+import { DOWNLOADS_CHANGED_EVENT, type DownloadJob } from './links.ts';
 import { SETTINGS_CHANGED_EVENT, type Settings } from './settings.ts';
 import {
   PLAYER_POSITION_EVENT,
@@ -44,6 +45,9 @@ export async function startBackendBridge(): Promise<UnlistenFn> {
       bus.emit('library:changed', event.payload),
     ),
     listen<ScanStatus>(LIBRARY_SCAN_EVENT, (event) => bus.emit('library:scan', event.payload)),
+    listen<DownloadJob[]>(DOWNLOADS_CHANGED_EVENT, (event) =>
+      bus.emit('downloads:changed', event.payload),
+    ),
   ]);
   return () => unlisten.forEach((fn) => fn());
 }

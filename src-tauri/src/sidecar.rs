@@ -51,19 +51,26 @@ impl Sidecar {
     /// Candidate locations of the executable relative to a sidecar root.
     ///
     /// mpv ships with shared libraries, so `fetch-sidecars` keeps it in its own directory.
+    /// So does yt-dlp on macOS: the single-file build unpacks Python on every run and macOS
+    /// checks those fresh libraries each time (~25 s), so only the folder build counts there.
     fn layouts(self) -> Vec<PathBuf> {
-        let mut layouts = Vec::with_capacity(2);
-        if self == Sidecar::Mpv {
-            if cfg!(target_os = "macos") {
-                layouts.push(PathBuf::from("mpv/mpv.app/Contents/MacOS/mpv"));
-            } else {
-                layouts.push(Path::new("mpv").join(self.file_name()));
-            }
+        match self {
+            Sidecar::Mpv if cfg!(target_os = "macos") => vec![
+                PathBuf::from("mpv/mpv.app/Contents/MacOS/mpv"),
+                PathBuf::from(self.file_name()),
+            ],
+            Sidecar::Mpv => vec![
+                Path::new("mpv").join(self.file_name()),
+                PathBuf::from(self.file_name()),
+            ],
+            Sidecar::YtDlp if cfg!(target_os = "macos") => vec![PathBuf::from(YT_DLP_MACOS)],
+            _ => vec![PathBuf::from(self.file_name())],
         }
-        layouts.push(PathBuf::from(self.file_name()));
-        layouts
     }
 }
+
+/// yt-dlp's folder build on macOS, relative to a sidecar root (`scripts/sidecars/plan.mjs`).
+pub const YT_DLP_MACOS: &str = "yt-dlp/yt-dlp_macos";
 
 /// Where a sidecar was found.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -221,7 +228,8 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let app_data = tmp.path().join("app-data");
         let dev = tmp.path().join("dev");
-        let name = Sidecar::YtDlp.file_name();
+        // The layout differs per OS (yt-dlp is a folder on macOS).
+        let name = Sidecar::YtDlp.layouts()[0].clone();
         touch_executable(&app_data.join(&name));
         touch_executable(&dev.join(&name));
 
@@ -247,6 +255,31 @@ mod tests {
         let paths = SearchPaths::default().with_root(tmp.path(), SidecarSource::Bundled);
 
         assert_eq!(paths.locate(Sidecar::Mpv).map(|l| l.path), Some(expected));
+    }
+
+    #[test]
+    fn yt_dlp_on_macos_is_the_folder_build() {
+        let single = tempfile::tempdir().unwrap();
+        touch_executable(&single.path().join(Sidecar::YtDlp.file_name()));
+        let folder = tempfile::tempdir().unwrap();
+        touch_executable(&folder.path().join(YT_DLP_MACOS));
+        let found = |root: &Path| {
+            SearchPaths::default()
+                .with_root(root, SidecarSource::AppData)
+                .locate(Sidecar::YtDlp)
+                .map(|l| l.path)
+        };
+        if cfg!(target_os = "macos") {
+            // A single-file copy left from before is ignored: it would be the slow one.
+            assert_eq!(found(single.path()), None);
+            assert_eq!(found(folder.path()), Some(folder.path().join(YT_DLP_MACOS)));
+        } else {
+            assert_eq!(
+                found(single.path()),
+                Some(single.path().join(Sidecar::YtDlp.file_name()))
+            );
+            assert_eq!(found(folder.path()), None);
+        }
     }
 
     #[test]

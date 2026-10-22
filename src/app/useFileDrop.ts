@@ -1,8 +1,12 @@
 import { isTauri } from '@tauri-apps/api/core';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import { dragLink } from '../lib/links.ts';
 import { isAudioFile } from '../lib/player.ts';
+
+/** What is being dragged over the window: something playable from disk, or a web link. */
+export type DropKind = 'files' | 'link';
 
 /**
  * Whether a dragged path looks playable: an audio file, or (no extension) most likely a
@@ -14,12 +18,18 @@ export function isPlayableDrop(path: string): boolean {
 }
 
 /**
- * Tracks files dragged over the window (Tauri reports real paths, unlike HTML drag & drop)
- * and calls `onDrop` with the dropped paths. Returns whether something playable is being
- * dragged over.
+ * Tracks what is dragged over the window. Tauri reports real paths for files (unlike HTML
+ * drag and drop) and calls `onDrop` with them. A link dragged from a browser comes as a drop
+ * without paths, since Tauri keeps the drop from the page: the backend then reads the link
+ * off the drag pasteboard (macOS) and `onLink` gets it. Returns what is being dragged over.
  */
-export function useFileDrop(onDrop: (paths: string[]) => void): boolean {
-  const [active, setActive] = useState(false);
+export function useFileDrop(
+  onDrop: (paths: string[]) => void,
+  onLink: (url: string) => void,
+): DropKind | null {
+  const [active, setActive] = useState<DropKind | null>(null);
+  // Answers for an earlier drag are dropped.
+  const drag = useRef(0);
 
   useEffect(() => {
     if (!isTauri()) {
@@ -27,19 +37,36 @@ export function useFileDrop(onDrop: (paths: string[]) => void): boolean {
     }
     let unlisten: (() => void) | undefined;
     let disposed = false;
+    const report = (err: unknown) => console.error('Reading a dragged link failed', err);
     getCurrentWebview()
       .onDragDropEvent(({ payload }) => {
         switch (payload.type) {
-          case 'enter':
-            setActive(payload.paths.some(isPlayableDrop));
+          case 'enter': {
+            const current = ++drag.current;
+            if (payload.paths.length > 0) {
+              setActive(payload.paths.some(isPlayableDrop) ? 'files' : null);
+            } else {
+              setActive(null);
+              dragLink().then((url) => {
+                if (url && drag.current === current) setActive('link');
+              }, report);
+            }
             break;
+          }
           case 'leave':
-            setActive(false);
+            drag.current++;
+            setActive(null);
             break;
-          case 'drop':
-            setActive(false);
-            onDrop(payload.paths);
+          case 'drop': {
+            drag.current++;
+            setActive(null);
+            if (payload.paths.length > 0) {
+              onDrop(payload.paths);
+            } else {
+              dragLink().then((url) => url && onLink(url), report);
+            }
             break;
+          }
           default:
             break;
         }
@@ -53,7 +80,7 @@ export function useFileDrop(onDrop: (paths: string[]) => void): boolean {
       disposed = true;
       unlisten?.();
     };
-  }, [onDrop]);
+  }, [onDrop, onLink]);
 
   return active;
 }

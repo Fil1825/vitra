@@ -5,7 +5,7 @@ use rusqlite::Connection;
 use crate::Result;
 
 /// Each entry upgrades the schema by one version. Never edit a released migration; add a new one.
-const MIGRATIONS: &[&str] = &[
+pub(crate) const MIGRATIONS: &[&str] = &[
     // 1: initial schema.
     r"
     CREATE TABLE folders (
@@ -103,6 +103,15 @@ const MIGRATIONS: &[&str] = &[
         tokenize = 'unicode61 remove_diacritics 2',
         prefix = '1 2 3'
     );
+    ",
+    // 2: links (stage 4). `source_url` is the web page a track or playlist came from: a
+    // streamed track's path is that URL; a downloaded one keeps it next to its file path.
+    // `tracks.cover` is a track's own cover (a link's thumbnail), shown before the album's.
+    r"
+    ALTER TABLE tracks ADD COLUMN source_url TEXT;
+    ALTER TABLE tracks ADD COLUMN cover TEXT;
+    CREATE INDEX tracks_source ON tracks(source_url);
+    ALTER TABLE playlists ADD COLUMN source_url TEXT;
     ",
 ];
 

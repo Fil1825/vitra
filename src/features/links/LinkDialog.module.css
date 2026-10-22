@@ -1,0 +1,252 @@
+.backdrop {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--vitra-space-4);
+  background: color-mix(in srgb, var(--vitra-color-background) 35%, transparent);
+}
+
+.dialog {
+  display: grid;
+  width: min(560px, calc(100vw - 2 * var(--vitra-space-4)));
+  max-height: calc(100vh - 2 * var(--vitra-space-4));
+  overflow: auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--vitra-space-3);
+  padding: var(--vitra-space-4) var(--vitra-space-3) 0 var(--vitra-space-5);
+}
+
+.title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.form {
+  display: flex;
+  gap: var(--vitra-space-2);
+  padding: var(--vitra-space-3) var(--vitra-space-5) 0;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px var(--vitra-space-3);
+  border: 1px solid var(--vitra-color-separator);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vitra-color-text) 6%, transparent);
+  color: var(--vitra-color-text);
+  font: inherit;
+  font-size: 14px;
+  user-select: text;
+}
+
+.input:focus {
+  border-color: var(--vitra-color-accent);
+  outline: none;
+}
+
+.body {
+  display: grid;
+  gap: var(--vitra-space-4);
+  padding: var(--vitra-space-4) var(--vitra-space-5) var(--vitra-space-5);
+}
+
+.hint {
+  margin: 0;
+  color: var(--vitra-color-text-tertiary);
+  font-size: 12px;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--vitra-space-2);
+  margin: 0;
+  color: var(--vitra-color-text-secondary);
+  font-size: 13px;
+}
+
+.spin {
+  animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.error {
+  margin: 0;
+  color: var(--vitra-color-danger);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--vitra-space-4);
+}
+
+.thumbnail {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border-radius: var(--vitra-radius-md);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--vitra-color-text) 6%, transparent);
+  box-shadow: inset 0 0 0 1px var(--vitra-color-separator);
+  color: var(--vitra-color-text-tertiary);
+}
+
+.thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumbnail svg {
+  width: 36px;
+  height: 36px;
+}
+
+.summaryText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.kind {
+  color: var(--vitra-color-text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.name {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.details {
+  margin: 0;
+  overflow: hidden;
+  color: var(--vitra-color-text-secondary);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--vitra-space-2);
+  margin: 0;
+  color: var(--vitra-color-text-tertiary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.badge {
+  padding: 1px var(--vitra-space-2);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vitra-color-accent) 18%, transparent);
+  color: var(--vitra-color-text);
+  font-size: 11px;
+}
+
+.entries {
+  display: grid;
+  max-height: 220px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border-radius: var(--vitra-radius-sm);
+  background: color-mix(in srgb, var(--vitra-color-text) 4%, transparent);
+}
+
+.entry {
+  display: grid;
+  grid-template-columns: 2.2em minmax(0, 2fr) minmax(0, 1fr) auto;
+  gap: var(--vitra-space-2);
+  padding: 5px var(--vitra-space-3);
+  font-size: 13px;
+}
+
+.entry + .entry {
+  border-top: 1px solid var(--vitra-color-separator);
+}
+
+.entryNumber,
+.entryTime {
+  color: var(--vitra-color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.entryTitle,
+.entryArtist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entryArtist {
+  color: var(--vitra-color-text-secondary);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vitra-space-2);
+}
+
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vitra-space-2);
+  padding: 7px var(--vitra-space-4);
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--vitra-color-accent);
+  color: var(--vitra-color-accent-contrast);
+}
+
+.secondary {
+  background: color-mix(in srgb, var(--vitra-color-text) 10%, transparent);
+  color: var(--vitra-color-text);
+}
+
+.primary:disabled,
+.secondary:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+@media (max-width: 480px) {
+  .summary {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+}

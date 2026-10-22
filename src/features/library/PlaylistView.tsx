@@ -5,11 +5,12 @@ import { useTranslation } from 'react-i18next';
 import { IconButton } from '../../components/ui/IconButton.tsx';
 import { confirm } from '../../lib/confirm.ts';
 import { library, playlists } from '../../lib/library.ts';
-import { showContextMenu } from '../../lib/menu.ts';
+import { isRemotePath, links } from '../../lib/links.ts';
+import { showContextMenu, type MenuEntry } from '../../lib/menu.ts';
 import { useLibraryData } from '../../lib/useLibraryData.ts';
 import { useNavigation } from '../../stores/navigation.ts';
 import { useUi } from '../../stores/ui.ts';
-import { report } from './actions.ts';
+import { copyText, downloadTracks, report } from './actions.ts';
 import { EmptyState, LoadError, PlayButtons } from './common.tsx';
 import { Cover } from './Cover.tsx';
 import styles from './Library.module.css';
@@ -78,12 +79,33 @@ export function PlaylistView({ id }: { id: number }) {
             <PlayButtons ids={list.map((track) => track.id)} />
             <IconButton
               label={t('library.playlist')}
-              onClick={() =>
-                showContextMenu([
+              onClick={() => {
+                const sourceUrl = data?.sourceUrl ?? null;
+                const streamed = list.filter((track) => isRemotePath(track.path));
+                const entries: MenuEntry[] = [
                   { label: t('library.renamePlaylist'), action: () => renamePlaylist(id) },
                   { label: t('library.deletePlaylist'), action: () => void remove() },
-                ]).catch(report('Showing a menu'))
-              }
+                ];
+                if (streamed.length > 0 || sourceUrl !== null) {
+                  entries.push('separator');
+                }
+                if (streamed.length > 0) {
+                  entries.push({
+                    label: t('links.downloadAll'),
+                    action: () => downloadTracks(streamed),
+                  });
+                }
+                if (sourceUrl !== null) {
+                  entries.push(
+                    {
+                      label: t('links.refreshPlaylist'),
+                      action: () => void links.import(sourceUrl).catch(report('Refreshing')),
+                    },
+                    { label: t('links.copyLink'), action: () => copyText(sourceUrl) },
+                  );
+                }
+                showContextMenu(entries).catch(report('Showing a menu'));
+              }}
             >
               <MoreHorizontal size={18} />
             </IconButton>

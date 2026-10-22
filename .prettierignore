@@ -5,3 +5,5 @@ package-lock.json
 src-tauri/
 LICENSE
 SPEC.md
+# Recorded yt-dlp output, kept as recorded.
+crates/links/tests/fixtures/

@@ -1,7 +1,9 @@
 //! Vitra desktop app: Tauri setup and command registration.
 
+mod drag;
 mod error;
 mod library;
+mod links;
 mod player;
 mod settings;
 mod sidecar;
@@ -21,6 +23,9 @@ pub fn run() {
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Info)
+                // lofty warns about every odd MP3 frame while a library is scanned; the
+                // scanner reports files it can't read itself.
+                .level_for("lofty", log::LevelFilter::Error)
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
@@ -59,6 +64,10 @@ pub fn run() {
 
             let library = LibraryService::start(app.handle().clone(), &app.path().app_data_dir()?)?;
             app.manage(library);
+            let links = links::LinkService::new(app.handle().clone())?;
+            links.warm_up();
+            app.manage(links);
+            app.manage(links::Downloads::new(app.handle().clone())?);
 
             let player = Player::new(app.handle().clone());
             player.start();
@@ -124,6 +133,19 @@ pub fn run() {
             library::tags_load,
             library::tags_save,
             library::artwork_preview,
+            links::link_resolve,
+            links::link_play,
+            links::link_import,
+            links::link_download,
+            links::downloads_list,
+            links::downloads_add,
+            links::downloads_cancel,
+            links::downloads_retry,
+            links::downloads_clear,
+            links::downloads_folder,
+            links::ytdlp_info,
+            links::ytdlp_update,
+            drag::drag_link,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Vitra");

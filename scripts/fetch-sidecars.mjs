@@ -166,7 +166,7 @@ async function install(sidecar) {
         }
       }
       for (const f of download.files) {
-        const from = download.archive ? findEntry(source, f.find) : source;
+        const from = download.archive && !f.root ? findEntry(source, f.find) : source;
         const to = path.join(outDir, f.to);
         fs.rmSync(to, { recursive: true, force: true });
         fs.mkdirSync(path.dirname(to), { recursive: true });

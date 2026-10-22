@@ -9,9 +9,18 @@ An open-source desktop music player with a **Liquid Glass** look — fully theme
 virtually any audio format, streams audio from links (YouTube, SoundCloud and hundreds of other
 sites) and shows synced lyrics. Runs on macOS, Windows and Linux.
 
-> **Status:** early development (stage 3 of the [plan](docs/PLAN.md)): local playback, the
-> music library and the play queue work; links, lyrics and releases come later. Nothing to
-> install yet.
+> **Status:** early development (stage 4 of the [plan](docs/PLAN.md)): local playback, the
+> music library, the play queue, and playing and downloading links work; lyrics and releases
+> come later. Nothing to install yet.
+
+## Links
+
+Paste a link anywhere in the window (or press ⌘U / Ctrl+U): YouTube, YouTube Music,
+SoundCloud, links to audio files and internet radio (`.m3u`, `.pls`, streams). Vitra plays the
+audio only. Playlist links become playlists in the library. **Download** saves a link into the
+library (original audio, MP3 or FLAC, with cover and tags) and keeps its play count, favorites
+and playlist entries. Sites change often; Settings → Downloads → yt-dlp → **Update** gets the
+latest yt-dlp.
 
 ## Building from source
 

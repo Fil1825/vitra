@@ -26,10 +26,12 @@ export interface LibraryTrack {
   lastPlayedAt: number | null;
   /** Unix seconds. */
   addedAt: number;
-  /** Cover id of the track's album. */
+  /** Cover id: the track's own (a link's thumbnail), else its album's. */
   cover: string | null;
-  /** The library folder the file is in; `null` for a single file added on its own. */
+  /** The library folder the file is in; `null` for a single file or a link. */
   folderId: number | null;
+  /** The web page the track comes from: while it streams, `path` is this URL too. */
+  sourceUrl: string | null;
 }
 
 export interface Album {
@@ -59,6 +61,8 @@ export interface Playlist {
   duration: number;
   createdAt: number;
   updatedAt: number;
+  /** The web playlist it was imported from. */
+  sourceUrl: string | null;
 }
 
 export interface Folder {

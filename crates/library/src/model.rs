@@ -36,11 +36,14 @@ pub struct Track {
     pub play_count: i64,
     pub last_played_at: Option<i64>,
     pub added_at: i64,
-    /// Cover thumbnail id of the track's album.
+    /// Cover thumbnail id: the track's own (a link's thumbnail), else its album's.
     pub cover: Option<String>,
     /// The library folder the file is in; `None` for a single file added on its own (opened
-    /// or dropped), which only leaves the library when the user removes it.
+    /// or dropped) or a link, which only leave the library when the user removes them.
     pub folder_id: Option<i64>,
+    /// The web page the track comes from. While it streams, `path` is this URL; once
+    /// downloaded, `path` is the file.
+    pub source_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -77,6 +80,8 @@ pub struct Playlist {
     pub duration: f64,
     pub created_at: i64,
     pub updated_at: i64,
+    /// The web playlist it was imported from.
+    pub source_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -102,6 +107,20 @@ pub struct ScannedTrack {
     /// Unix seconds.
     pub mtime: i64,
     pub metadata: TrackMetadata,
+}
+
+/// A track that plays from a link, as yt-dlp described it.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct RemoteTrack {
+    pub url: String,
+    pub title: String,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub year: Option<u16>,
+    pub duration: Option<f64>,
+    /// Described from the track's own page, not from a playlist listing: its values replace
+    /// what the library has. Listings only fill in tracks the library doesn't know yet.
+    pub complete: bool,
 }
 
 /// Which tracks to list.

@@ -3,13 +3,13 @@ use rusqlite::{OptionalExtension, Transaction, params};
 use crate::model::Playlist;
 use crate::{Error, Library, Result, now};
 
-const PLAYLIST_SELECT: &str = "SELECT p.id, p.name, COUNT(t.id), COALESCE(SUM(t.duration), 0),
-        p.created_at, p.updated_at
+pub(crate) const PLAYLIST_SELECT: &str = "SELECT p.id, p.name, COUNT(t.id),
+        COALESCE(SUM(t.duration), 0), p.created_at, p.updated_at, p.source_url
     FROM playlists p
     LEFT JOIN playlist_items pi ON pi.playlist_id = p.id
     LEFT JOIN tracks t ON t.id = pi.track_id";
 
-fn playlist_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Playlist> {
+pub(crate) fn playlist_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Playlist> {
     Ok(Playlist {
         id: row.get(0)?,
         name: row.get(1)?,
@@ -17,6 +17,7 @@ fn playlist_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Playlist> {
         duration: row.get(3)?,
         created_at: row.get(4)?,
         updated_at: row.get(5)?,
+        source_url: row.get(6)?,
     })
 }
 
@@ -52,7 +53,7 @@ fn items(tx: &Transaction<'_>, playlist_id: i64) -> Result<Vec<i64>> {
 /// Rewrites a playlist with positions 0..n. Playlists are small enough (thousands of rows at
 /// most) that renumbering everything is simpler than shifting ranges, and it heals the gaps
 /// left when tracks are deleted.
-fn write_items(tx: &Transaction<'_>, playlist_id: i64, ids: &[i64]) -> Result<()> {
+pub(crate) fn write_items(tx: &Transaction<'_>, playlist_id: i64, ids: &[i64]) -> Result<()> {
     tx.execute(
         "DELETE FROM playlist_items WHERE playlist_id = ?",
         [playlist_id],

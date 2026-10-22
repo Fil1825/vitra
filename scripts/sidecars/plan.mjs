@@ -3,7 +3,8 @@
 //
 // Layout produced in src-tauri/sidecars/<target triple>/ (must match src-tauri/src/sidecar.rs):
 //   mpv/                 mpv with its shared libraries (mpv.app on macOS, mpv.exe + DLLs on Windows)
-//   yt-dlp[.exe]
+//   yt-dlp[.exe]         a single file on Windows and Linux;
+//   yt-dlp/yt-dlp_macos  on macOS a folder with the program and its `_internal/` libraries
 //   ffmpeg[.exe], ffprobe[.exe]
 //   deno[.exe]           JavaScript runtime yt-dlp needs for YouTube
 //   manifest.json        what was fetched, from where, with which checksum
@@ -28,8 +29,8 @@ const MPV_BUILDS = {
 };
 
 const TARGETS = {
-  'aarch64-apple-darwin': { os: 'macos', ytDlp: 'yt-dlp_macos', ffmpeg: 'arm64' },
-  'x86_64-apple-darwin': { os: 'macos', ytDlp: 'yt-dlp_macos', ffmpeg: 'amd64' },
+  'aarch64-apple-darwin': { os: 'macos', ytDlp: 'yt-dlp_macos.zip', ffmpeg: 'arm64' },
+  'x86_64-apple-darwin': { os: 'macos', ytDlp: 'yt-dlp_macos.zip', ffmpeg: 'amd64' },
   'x86_64-pc-windows-msvc': { os: 'windows', ytDlp: 'yt-dlp.exe', ffmpeg: 'win64' },
   'x86_64-unknown-linux-gnu': { os: 'linux', ytDlp: 'yt-dlp_linux', ffmpeg: 'linux64' },
   'aarch64-unknown-linux-gnu': { os: 'linux', ytDlp: 'yt-dlp_linux_aarch64', ffmpeg: 'linuxarm64' },
@@ -70,7 +71,8 @@ const MARTIN_RIEDL = 'https://ffmpeg.martin-riedl.de/redirect/latest/macos';
  * Each sidecar is either `{ type: 'system' }` (must come from the OS package manager) or
  * `{ type: 'download', downloads, executables, versionArgs }`. A download lists candidate
  * `urls` (tried in order), how to verify its `checksum`, its `archive` format and the
- * `files` to move into the sidecar directory.
+ * `files` to move into the sidecar directory: `{ find, to }` moves one entry of the archive,
+ * `{ root: true, to }` the whole unpacked archive, `{ to }` the downloaded file itself.
  */
 export function planFor(target) {
   const info = TARGETS[target];
@@ -81,20 +83,7 @@ export function planFor(target) {
 
   return {
     mpv: mpvPlan(target, info),
-    'yt-dlp': {
-      type: 'download',
-      downloads: [
-        {
-          name: info.ytDlp,
-          urls: [`${YT_DLP_RELEASE}/${info.ytDlp}`],
-          checksum: { type: 'sums-file', url: `${YT_DLP_RELEASE}/SHA2-256SUMS`, entry: info.ytDlp },
-          archive: null,
-          files: [{ to: exe('yt-dlp') }],
-        },
-      ],
-      executables: [exe('yt-dlp')],
-      versionArgs: ['--version'],
-    },
+    'yt-dlp': ytDlpPlan(info, exe),
     ffmpeg: {
       type: 'download',
       downloads:
@@ -119,6 +108,34 @@ export function planFor(target) {
       executables: [exe('deno')],
       versionArgs: ['--version'],
     },
+  };
+}
+
+/** Where yt-dlp's program lives in the sidecar folder on macOS (see `ytDlpPlan`). */
+export const YT_DLP_MACOS = 'yt-dlp/yt-dlp_macos';
+
+function ytDlpPlan(info, exe) {
+  const download = {
+    name: info.ytDlp,
+    urls: [`${YT_DLP_RELEASE}/${info.ytDlp}`],
+    checksum: { type: 'sums-file', url: `${YT_DLP_RELEASE}/SHA2-256SUMS`, entry: info.ytDlp },
+  };
+  if (info.os === 'macos') {
+    // Not the single-file build: that one unpacks Python into a fresh temporary folder on
+    // every run, and macOS checks each of those libraries again (~25 s per run). The folder
+    // build is checked once. It can't update itself; Vitra downloads the zip again instead.
+    return {
+      type: 'download',
+      downloads: [{ ...download, archive: 'zip', files: [{ root: true, to: 'yt-dlp' }] }],
+      executables: [YT_DLP_MACOS],
+      versionArgs: ['--version'],
+    };
+  }
+  return {
+    type: 'download',
+    downloads: [{ ...download, archive: null, files: [{ to: exe('yt-dlp') }] }],
+    executables: [exe('yt-dlp')],
+    versionArgs: ['--version'],
   };
 }
 
@@ -185,6 +202,14 @@ function btbnDownload(info, exe) {
     archive: info.os === 'windows' ? 'zip' : 'tar',
     files: [exe('ffmpeg'), exe('ffprobe')].map((f) => ({ find: f, to: f })),
   };
+}
+
+/**
+ * What of a fetched sidecar folder goes into the app bundle: the programs, not the
+ * manifest or leftovers of an interrupted fetch.
+ */
+export function bundledEntries(names) {
+  return names.filter((name) => name !== 'manifest.json' && !name.startsWith('.')).sort();
 }
 
 /**

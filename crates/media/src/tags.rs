@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 use lofty::config::WriteOptions;
 use lofty::picture::{MimeType, Picture, PictureType};
 use lofty::prelude::*;
-use lofty::tag::Tag;
 use lofty::tag::items::Timestamp;
+use lofty::tag::{Tag, TagType};
 use serde::Deserialize;
 
 use crate::MediaError;
@@ -22,6 +22,10 @@ pub struct TagValues {
     pub album: String,
     pub album_artist: String,
     pub year: Option<u16>,
+    /// Unsynced lyrics; `None` leaves them as they are. Not edited in the tag editor (the
+    /// lyrics editor comes in stage 5); downloads write the lyrics saved in the app.
+    #[serde(skip)]
+    pub lyrics: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -65,6 +69,16 @@ pub fn write_tags(path: &Path, values: &TagValues, cover: &CoverChange) -> Resul
     set_text(tag, ItemKey::TrackArtist, &values.artist);
     set_text(tag, ItemKey::AlbumTitle, &values.album);
     set_text(tag, ItemKey::AlbumArtist, &values.album_artist);
+    if let Some(lyrics) = &values.lyrics {
+        // ID3v2 keeps plain lyrics in USLT, which lofty only maps from `UnsyncLyrics`; other
+        // formats' common field (Vorbis `LYRICS`, MP4 `©lyr`) is `Lyrics`.
+        let key = if tag.tag_type() == TagType::Id3v2 {
+            ItemKey::UnsyncLyrics
+        } else {
+            ItemKey::Lyrics
+        };
+        set_text(tag, key, lyrics);
+    }
     match values.year {
         Some(year) => tag.set_date(Timestamp {
             year,
@@ -142,7 +156,16 @@ mod tests {
             album: "Album".into(),
             album_artist: String::new(),
             year: Some(1999),
+            lyrics: None,
         }
+    }
+
+    fn lyrics_of(path: &Path) -> Option<String> {
+        let file = lofty::read_from_path(path).unwrap();
+        let tag = file.primary_tag()?;
+        tag.get_string(ItemKey::Lyrics)
+            .or_else(|| tag.get_string(ItemKey::UnsyncLyrics))
+            .map(str::to_owned)
     }
 
     #[test]
@@ -167,6 +190,26 @@ mod tests {
             .filter(|e| e.file_name().to_string_lossy().ends_with(".vitra-tmp"))
             .collect();
         assert!(leftovers.is_empty());
+    }
+
+    #[test]
+    fn writes_lyrics_only_when_given() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in ["tagged.flac", "tagged.mp3", "untagged.wav"] {
+            let path = copy_fixture(dir.path(), name);
+            let with_lyrics = TagValues {
+                lyrics: Some("Первая строка\nSecond line".into()),
+                ..values()
+            };
+            write_tags(&path, &with_lyrics, &CoverChange::Keep).unwrap();
+            assert_eq!(
+                lyrics_of(&path).as_deref(),
+                Some("Первая строка\nSecond line"),
+                "{name}"
+            );
+            write_tags(&path, &values(), &CoverChange::Keep).unwrap();
+            assert!(lyrics_of(&path).is_some(), "{name}: kept when not given");
+        }
     }
 
     #[test]

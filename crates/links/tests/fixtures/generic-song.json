@@ -1,0 +1,13 @@
+{
+  "_type": "video",
+  "id": "song-1",
+  "title": "Northern Song (1)",
+  "release_year": null,
+  "upload_date": "20261022",
+  "thumbnail": "http://127.0.0.1:8765/cover.png",
+  "webpage_url": "http://127.0.0.1:8765/song.html",
+  "original_url": "http://127.0.0.1:8765/song.html",
+  "url": "http://127.0.0.1:8765/single.flac",
+  "extractor": "html5",
+  "extractor_key": "HTML5MediaEmbed"
+}

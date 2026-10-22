@@ -1,6 +1,7 @@
 import {
   Heart,
   ListMusic,
+  LoaderCircle,
   Pause,
   Play,
   Repeat,
@@ -61,8 +62,10 @@ export function ControlBar({ className }: { className?: string }) {
   const [volume, setVolume] = useState<number | null>(null);
 
   const { track, duration } = state;
-  const loaded = track !== null && state.status !== 'idle';
-  const playing = state.status === 'playing' || state.status === 'loading';
+  // Seeking needs an open file; a link can take a while to open (yt-dlp asks the site first).
+  const seekable = track !== null && (state.status === 'playing' || state.status === 'paused');
+  const loading = track !== null && state.status === 'loading';
+  const playing = state.status === 'playing' || loading;
   const shownPosition = scrub ?? position;
   const shownVolume = volume ?? state.volume;
   const VolumeIcon =
@@ -137,12 +140,15 @@ export function ControlBar({ className }: { className?: string }) {
             <SkipBack size={18} fill="currentColor" />
           </IconButton>
           <IconButton
-            label={playing ? t('player.pause') : t('player.play')}
+            label={loading ? t('player.loading') : playing ? t('player.pause') : t('player.play')}
             size="large"
             disabled={track === null}
+            aria-busy={loading || undefined}
             onClick={() => player.toggle().catch(report)}
           >
-            {playing ? (
+            {loading ? (
+              <LoaderCircle size={22} className={styles.spin} />
+            ) : playing ? (
               <Pause size={22} fill="currentColor" />
             ) : (
               <Play size={22} fill="currentColor" />
@@ -171,7 +177,7 @@ export function ControlBar({ className }: { className?: string }) {
             value={shownPosition}
             max={duration ?? 0}
             step={0.1}
-            disabled={!loaded || duration === null}
+            disabled={!seekable || duration === null}
             valueText={t('player.positionOf', {
               position: formatTime(shownPosition),
               duration: formatTime(duration ?? 0),

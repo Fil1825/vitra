@@ -1,9 +1,10 @@
-import { AudioLines, GripVertical, Heart, Play } from 'lucide-react';
+import { AudioLines, Globe, GripVertical, Heart, Play } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { formatTime } from '../../lib/format.ts';
 import type { LibraryTrack } from '../../lib/library.ts';
+import { isRemotePath } from '../../lib/links.ts';
 import { showContextMenu, type MenuEntry } from '../../lib/menu.ts';
 import { useRowDrag } from '../../lib/reorder.ts';
 import {
@@ -219,6 +220,16 @@ export function TrackTable({
           <span key={column} className={styles.titleCell}>
             {covers && <Cover id={track.cover} className={styles.thumb} />}
             <span className={styles.text}>{track.title}</span>
+            {isRemotePath(track.path) && (
+              <Globe
+                size={12}
+                className={styles.remote}
+                role="img"
+                aria-label={t('library.streamed')}
+              >
+                <title>{t('library.streamed')}</title>
+              </Globe>
+            )}
           </span>
         );
       case 'artist':

@@ -1,5 +1,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
+import type { AudioFormat } from './links.ts';
+
 // Mirrors `Settings` in src-tauri/src/settings.rs, which owns and persists them.
 
 export type Language = 'system' | 'en' | 'ru';
@@ -26,10 +28,21 @@ export interface LibrarySettings {
   addOpenedFiles: boolean;
 }
 
+export interface DownloadSettings {
+  /** Where downloads go; empty means `<Music>/Vitra`. */
+  folder: string;
+  format: AudioFormat;
+  /** kbit/s, for MP3. */
+  mp3Bitrate: number;
+  /** File name template with `{artist}`, `{title}`, `{album}`, `{year}`. */
+  template: string;
+}
+
 export interface Settings {
   language: Language;
   appearance: AppearanceSettings;
   library: LibrarySettings;
+  downloads: DownloadSettings;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -44,6 +57,7 @@ export const DEFAULT_SETTINGS: Settings = {
     artworkAccent: true,
   },
   library: { addOpenedFiles: true },
+  downloads: { folder: '', format: 'original', mp3Bitrate: 320, template: '{artist} - {title}' },
 };
 
 /** Tauri event carrying the new settings after any window changed them. */

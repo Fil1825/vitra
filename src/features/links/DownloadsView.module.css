@@ -1,0 +1,106 @@
+.folder {
+  margin: calc(-1 * var(--vitra-space-4)) 0 0;
+  overflow: hidden;
+  color: var(--vitra-color-text-tertiary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list {
+  display: grid;
+  gap: var(--vitra-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.job {
+  display: flex;
+  align-items: center;
+  gap: var(--vitra-space-3);
+  padding: var(--vitra-space-2) var(--vitra-space-2) var(--vitra-space-2) var(--vitra-space-3);
+  border-radius: var(--vitra-radius-md);
+  background: color-mix(in srgb, var(--vitra-color-text) 5%, transparent);
+}
+
+.text {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.4fr);
+  flex: 1;
+  align-items: center;
+  gap: 4px var(--vitra-space-3);
+  min-width: 0;
+  font-size: 13px;
+}
+
+.title,
+.artist,
+.status {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.title {
+  font-weight: 600;
+}
+
+.artist,
+.status {
+  color: var(--vitra-color-text-secondary);
+}
+
+.status {
+  font-variant-numeric: tabular-nums;
+}
+
+.job[data-state='failed'] .status {
+  color: var(--vitra-color-danger);
+}
+
+.bar {
+  grid-column: 1 / -1;
+  height: 3px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--vitra-color-text) 10%, transparent);
+}
+
+.fill,
+.indeterminate {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--vitra-color-accent);
+}
+
+.fill {
+  transform-origin: left;
+  transition: transform 250ms linear;
+}
+
+.indeterminate {
+  width: 30%;
+  animation: slide 1.4s ease-in-out infinite;
+}
+
+@keyframes slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(340%);
+  }
+}
+
+.buttons {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+
+@media (max-width: 720px) {
+  .text {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

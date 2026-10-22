@@ -9,6 +9,7 @@ import {
   type LibraryTrack,
   type Playlist,
 } from '../../lib/library.ts';
+import { downloads, isRemotePath } from '../../lib/links.ts';
 import type { MenuEntry } from '../../lib/menu.ts';
 import { pickFolder } from '../../lib/openFiles.ts';
 import { queue } from '../../lib/queue.ts';
@@ -76,13 +77,31 @@ export function setFavorite(ids: number[], favorite: boolean): void {
 /** Asks, then removes single tracks from the library (their files stay on disk). */
 async function removeFromLibrary(tracks: LibraryTrack[]): Promise<void> {
   const [first] = tracks;
+  // Links have no file to stay on disk.
+  const links = tracks.every((track) => isRemotePath(track.path));
   const question =
     tracks.length === 1 && first
-      ? i18n.t('library.removeOneConfirm', { title: first.title })
-      : i18n.t('library.removeManyConfirm', { count: tracks.length });
+      ? i18n.t(links ? 'library.removeLinkConfirm' : 'library.removeOneConfirm', {
+          title: first.title,
+        })
+      : i18n.t(links ? 'library.removeLinksConfirm' : 'library.removeManyConfirm', {
+          count: tracks.length,
+        });
   if (await confirm(question, 'remove')) {
     await library.removeTracks(tracks.map((track) => track.id));
   }
+}
+
+/** Queues link tracks for download (the others are skipped by the backend). */
+export function downloadTracks(tracks: LibraryTrack[]): void {
+  const ids = tracks.filter((track) => isRemotePath(track.path)).map((track) => track.id);
+  if (ids.length > 0) {
+    downloads.add(ids).catch(report('Downloading'));
+  }
+}
+
+export function copyText(text: string): void {
+  navigator.clipboard.writeText(text).catch(report('Copying'));
 }
 
 /** Creates a playlist with the tracks, opens it and starts renaming it. */
@@ -143,11 +162,26 @@ export function trackMenu(
       action: () => setFavorite(ids, !allFavorite),
     },
   ];
-  if (single) {
+  const streamed = tracks.filter((track) => isRemotePath(track.path));
+  if (streamed.length > 0) {
     entries.push('separator', {
-      label: i18n.t('library.editTags'),
-      action: () => useUi.getState().editTags(single.path),
+      label: i18n.t('links.download'),
+      action: () => downloadTracks(streamed),
     });
+  }
+  if (single) {
+    entries.push('separator');
+    // A link has no file to tag; its download gets tags.
+    if (!isRemotePath(single.path)) {
+      entries.push({
+        label: i18n.t('library.editTags'),
+        action: () => useUi.getState().editTags(single.path),
+      });
+    }
+    const { sourceUrl } = single;
+    if (sourceUrl !== null) {
+      entries.push({ label: i18n.t('links.copyLink'), action: () => copyText(sourceUrl) });
+    }
     const { albumId, artistId } = single;
     if (albumId !== null) {
       entries.push({

@@ -2,6 +2,7 @@ import {
   AudioLines,
   Clock3,
   Disc3,
+  Download,
   Heart,
   ListMusic,
   Music2,
@@ -20,7 +21,9 @@ import { createPlaylist, report } from '../features/library/actions.ts';
 import { usePlaylists } from '../features/library/usePlaylists.ts';
 import { confirm } from '../lib/confirm.ts';
 import { playlists } from '../lib/library.ts';
+import { isActive } from '../lib/links.ts';
 import { showContextMenu } from '../lib/menu.ts';
+import { useDownloads } from '../stores/downloads.ts';
 import { useNavigation, type Route } from '../stores/navigation.ts';
 import { useUi } from '../stores/ui.ts';
 import styles from './Sidebar.module.css';
@@ -107,11 +110,14 @@ function NavItem({
   route,
   label,
   icon: Icon,
+  badge,
   onContextMenu,
 }: {
   route: Route;
   label: string;
   icon: LucideIcon;
+  /** A count shown at the end (e.g. running downloads). */
+  badge?: number;
   onContextMenu?(event: MouseEvent): void;
 }) {
   const current = useNavigation((s) => s.route);
@@ -130,8 +136,25 @@ function NavItem({
       >
         <Icon size={16} className={styles.icon} aria-hidden="true" />
         <span className={styles.label}>{label}</span>
+        {badge !== undefined && badge > 0 && <span className={styles.badge}>{badge}</span>}
       </button>
     </li>
+  );
+}
+
+function DownloadsItem({ visible, badge }: { visible: boolean; badge: number }) {
+  const { t } = useTranslation();
+  const open = useNavigation((s) => s.route.view === 'downloads');
+  if (!visible && !open) {
+    return null;
+  }
+  return (
+    <NavItem
+      route={{ view: 'downloads' }}
+      label={t('nav.downloads')}
+      icon={Download}
+      badge={badge}
+    />
   );
 }
 
@@ -139,6 +162,8 @@ export function Sidebar({ className }: { className?: string }) {
   const { t } = useTranslation();
   const all = usePlaylists();
   const renamePlaylist = useUi((s) => s.renamePlaylist);
+  const activeDownloads = useDownloads((s) => s.jobs.filter((job) => isActive(job.status)).length);
+  const hasDownloads = useDownloads((s) => s.jobs.length > 0);
   const items: { route: Route; label: string; icon: LucideIcon }[] = [
     { route: { view: 'nowPlaying' }, label: t('nav.nowPlaying'), icon: AudioLines },
     { route: { view: 'recent' }, label: t('nav.recent'), icon: Clock3 },
@@ -193,6 +218,8 @@ export function Sidebar({ className }: { className?: string }) {
           {items.map((item) => (
             <NavItem key={item.route.view} {...item} />
           ))}
+          {/* Shown once there is something to show, or while it is open. */}
+          <DownloadsItem visible={hasDownloads} badge={activeDownloads} />
         </ul>
         <div className={styles.sectionRow}>
           <p className={styles.section}>{t('nav.playlists')}</p>
