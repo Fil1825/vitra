@@ -571,6 +571,8 @@ impl Player {
             state.error = None;
         }
         lock(&self.0.mirror).counted = false;
+        // A seek asked for while the previous track was loading doesn't apply to this one.
+        *lock(&self.0.pending_seek) = None;
         self.emit_state();
         self.read_metadata(id, PathBuf::from(&entry.path));
     }
@@ -787,6 +789,21 @@ impl Player {
 
     pub async fn seek(&self, position: f64) -> Result<(), AppError> {
         let position = position.max(0.0);
+        // mpv can't seek a file it is still opening (a link waits for yt-dlp): seek once it
+        // is loaded.
+        let loading = {
+            let mut state = lock(&self.0.state);
+            let loading = state.status == Status::Loading && state.track.is_some();
+            if loading {
+                state.position = position;
+            }
+            loading
+        };
+        if loading {
+            *lock(&self.0.pending_seek) = Some(position);
+            self.emit_position(true);
+            return Ok(());
+        }
         let client = self.client()?;
         command(
             &client,

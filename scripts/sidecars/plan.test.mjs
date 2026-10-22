@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   SIDECARS,
   SUPPORTED_TARGETS,
+  YT_DLP_MACOS,
+  bundledEntries,
   exeName,
   hostTarget,
   parseSha256,
@@ -52,6 +54,26 @@ describe('planFor', () => {
     expect(mpv.executables).toEqual(['mpv/mpv.app/Contents/MacOS/mpv']);
   });
 
+  it('fetches the folder build of yt-dlp on macOS', () => {
+    const ytDlp = planFor('aarch64-apple-darwin')['yt-dlp'];
+    const [download] = ytDlp.downloads;
+    expect(download.name).toBe('yt-dlp_macos.zip');
+    expect(download.archive).toBe('zip');
+    expect(download.checksum).toMatchObject({ type: 'sums-file', entry: 'yt-dlp_macos.zip' });
+    expect(download.files).toEqual([{ root: true, to: 'yt-dlp' }]);
+    expect(ytDlp.executables).toEqual([YT_DLP_MACOS]);
+    expect(YT_DLP_MACOS).toBe('yt-dlp/yt-dlp_macos');
+  });
+
+  it('fetches single-file yt-dlp builds elsewhere', () => {
+    const windows = planFor('x86_64-pc-windows-msvc')['yt-dlp'];
+    expect(windows.downloads[0]).toMatchObject({ name: 'yt-dlp.exe', archive: null });
+    expect(windows.executables).toEqual(['yt-dlp.exe']);
+    const linux = planFor('x86_64-unknown-linux-gnu')['yt-dlp'];
+    expect(linux.downloads[0].name).toBe('yt-dlp_linux');
+    expect(linux.executables).toEqual(['yt-dlp']);
+  });
+
   it('uses the system mpv on Linux', () => {
     expect(planFor('x86_64-unknown-linux-gnu').mpv.type).toBe('system');
   });
@@ -67,6 +89,14 @@ describe('planFor', () => {
 
   it('rejects unknown targets', () => {
     expect(() => planFor('riscv64gc-unknown-linux-gnu')).toThrow(/Unsupported target/);
+  });
+});
+
+describe('bundledEntries', () => {
+  it('ships the programs only', () => {
+    expect(
+      bundledEntries(['yt-dlp', 'manifest.json', '.work-abc', 'mpv', 'ffprobe', 'ffmpeg']),
+    ).toEqual(['ffmpeg', 'ffprobe', 'mpv', 'yt-dlp']);
   });
 });
 

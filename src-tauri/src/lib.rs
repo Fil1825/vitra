@@ -22,6 +22,9 @@ pub fn run() {
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Info)
+                // lofty warns about every odd MP3 frame while a library is scanned; the
+                // scanner reports files it can't read itself.
+                .level_for("lofty", log::LevelFilter::Error)
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
@@ -60,7 +63,9 @@ pub fn run() {
 
             let library = LibraryService::start(app.handle().clone(), &app.path().app_data_dir()?)?;
             app.manage(library);
-            app.manage(links::LinkService::new(app.handle().clone())?);
+            let links = links::LinkService::new(app.handle().clone())?;
+            links.warm_up();
+            app.manage(links);
             app.manage(links::Downloads::new(app.handle().clone())?);
 
             let player = Player::new(app.handle().clone());

@@ -499,16 +499,66 @@ impl LinkService {
             path: found
                 .as_ref()
                 .map(|found| found.path.to_string_lossy().into_owned()),
-            updatable: found.is_some_and(|found| found.source != SidecarSource::System),
+            // On macOS Vitra installs the release itself; elsewhere a copy updates itself.
+            updatable: cfg!(target_os = "macos")
+                || found.is_some_and(|found| found.source != SidecarSource::System),
             ffmpeg: paths.locate(Sidecar::Ffmpeg).is_some(),
         }
     }
 
-    /// Updates yt-dlp: the bundled binary is copied into the app data folder first (an app
-    /// bundle may be read-only or signed), then `yt-dlp -U` replaces that copy. Returns the
-    /// new version.
+    /// Runs yt-dlp once in the background, so the first link doesn't wait for macOS to check
+    /// a freshly installed yt-dlp (a one-time ~25 s on first launch).
+    pub fn warm_up(&self) {
+        let Ok(ytdlp) = self.ytdlp() else {
+            return;
+        };
+        tauri::async_runtime::spawn(async move {
+            let started = Instant::now();
+            match ytdlp.version().await {
+                Ok(version) => log::info!(
+                    "yt-dlp {version} at {} answered in {:.1} s",
+                    ytdlp.binary.display(),
+                    started.elapsed().as_secs_f64()
+                ),
+                Err(err) => log::warn!("yt-dlp at {} failed: {err}", ytdlp.binary.display()),
+            }
+        });
+    }
+
+    /// Updates yt-dlp and returns the new version. On macOS the latest release's folder build
+    /// is downloaded into the app data folder (it can't update itself); elsewhere the bundled
+    /// binary is copied there first (an app bundle may be read-only or signed), then
+    /// `yt-dlp -U` replaces that copy.
     pub async fn update_ytdlp(&self) -> Result<String, AppError> {
         let _updating = self.0.updating.lock().await;
+        if cfg!(target_os = "macos") {
+            let sidecars = self.0.app.path().app_data_dir()?.join("sidecars");
+            let folder = sidecars.join(sidecar::YT_DLP_MACOS);
+            let Some(dir) = folder.parent() else {
+                return Err(AppError::NotFound(sidecar::YT_DLP_MACOS.into()));
+            };
+            let installed = links::release::install_zip_release(
+                links::release::LATEST_RELEASE,
+                "yt-dlp_macos.zip",
+                dir,
+            )
+            .await?;
+            log::info!(
+                "yt-dlp in {}: {}",
+                dir.display(),
+                if installed {
+                    "installed the latest release"
+                } else {
+                    "already the latest"
+                }
+            );
+            let ytdlp = YtDlp {
+                binary: folder,
+                ..self.ytdlp()?
+            };
+            // The first run also gets the system's one-time check over with.
+            return Ok(ytdlp.version().await?);
+        }
         let paths = sidecar::search_paths(&self.0.app);
         let found = paths
             .locate(Sidecar::YtDlp)

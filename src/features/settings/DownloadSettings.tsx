@@ -75,7 +75,7 @@ function YtDlpUpdate() {
       <button
         type="button"
         className={styles.addFolder}
-        disabled={update.state === 'running' || info?.path === null}
+        disabled={update.state === 'running' || (info !== null && !info.path && !info.updatable)}
         onClick={run}
       >
         {update.state === 'running' ? (

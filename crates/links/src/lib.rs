@@ -7,6 +7,7 @@ mod classify;
 mod download;
 mod info;
 mod progress;
+pub mod release;
 mod template;
 pub mod ytdlp;
 

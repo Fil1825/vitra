@@ -2,8 +2,8 @@
 //! Opt-in: `VITRA_YTDLP=/path/to/yt-dlp cargo test -p links --test real_ytdlp`.
 //! FFmpeg is taken from `VITRA_FFMPEG` or `PATH`.
 
-use std::io::{BufRead, BufReader, Write};
-use std::net::TcpListener;
+mod common;
+
 use std::path::{Path, PathBuf};
 
 use links::ytdlp::YtDlp;
@@ -34,64 +34,41 @@ fn ytdlp() -> Option<YtDlp> {
     })
 }
 
-/// Serves a few pages and files on 127.0.0.1; returns the base URL.
+/// Serves a song page, a two-song page, their cover and audio; returns the base URL.
 fn serve() -> String {
     let flac = std::fs::read(
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../media/tests/fixtures/tagged.flac"),
     )
     .unwrap();
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let base = format!("http://{}", listener.local_addr().unwrap());
-    let page = |title: &str, body: &str| {
-        format!(
-            "<!doctype html><html><head><title>{title}</title>\
-             <meta property=\"og:title\" content=\"{title}\">\
-             <meta property=\"og:image\" content=\"{base}/cover.png\"></head>\
-             <body>{body}</body></html>"
-        )
-        .into_bytes()
-    };
-    let song = page("Northern Song", "<audio src=\"one.flac\"></audio>");
-    let album = page(
-        "Two Songs",
-        "<audio src=\"one.flac\"></audio><audio src=\"two.flac\"></audio>",
-    );
-    std::thread::spawn(move || {
-        for stream in listener.incoming().flatten() {
-            let mut reader = BufReader::new(stream.try_clone().unwrap());
-            let mut request = String::new();
-            if reader.read_line(&mut request).is_err() {
-                continue;
-            }
-            // Skip the headers.
-            let mut header = String::new();
-            while reader.read_line(&mut header).is_ok_and(|n| n > 2) {
-                header.clear();
-            }
-            let path = request.split(' ').nth(1).unwrap_or("/");
-            let (body, kind): (&[u8], &str) = match path {
-                "/song.html" => (&song, "text/html"),
-                "/album.html" => (&album, "text/html"),
-                "/cover.png" => (PNG, "image/png"),
-                "/one.flac" | "/two.flac" => (&flac, "audio/flac"),
-                _ => (b"not found", "text/plain"),
-            };
-            let status = if body == b"not found" {
-                "404 Not Found"
-            } else {
-                "200 OK"
-            };
-            let mut stream = stream;
-            let _ = write!(
-                stream,
-                "HTTP/1.1 {status}\r\nContent-Type: {kind}\r\nContent-Length: {}\r\n\
-                 Connection: close\r\n\r\n",
-                body.len()
-            );
-            let _ = stream.write_all(body);
-        }
-    });
-    base
+    common::serve(|base| {
+        let page = |title: &str, body: &str| {
+            format!(
+                "<!doctype html><html><head><title>{title}</title>\
+                 <meta property=\"og:title\" content=\"{title}\">\
+                 <meta property=\"og:image\" content=\"{base}/cover.png\"></head>\
+                 <body>{body}</body></html>"
+            )
+            .into_bytes()
+        };
+        vec![
+            (
+                "/song.html",
+                page("Northern Song", "<audio src=\"one.flac\"></audio>"),
+                "text/html",
+            ),
+            (
+                "/album.html",
+                page(
+                    "Two Songs",
+                    "<audio src=\"one.flac\"></audio><audio src=\"two.flac\"></audio>",
+                ),
+                "text/html",
+            ),
+            ("/cover.png", PNG.to_vec(), "image/png"),
+            ("/one.flac", flac.clone(), "audio/flac"),
+            ("/two.flac", flac, "audio/flac"),
+        ]
+    })
 }
 
 #[tokio::test]

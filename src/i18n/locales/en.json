@@ -33,6 +33,8 @@
     "unmute": "Unmute",
     "speed": "Playback speed",
     "notPlaying": "Not playing",
+    "loading": "Loading…",
+    "openingLink": "Opening link…",
     "progress": "Playback position",
     "positionOf": "{{position}} of {{duration}}",
     "open": "Open Files…",

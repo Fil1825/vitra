@@ -20,7 +20,9 @@ use crate::{LinkError, Result};
 const RESOLVE_TIMEOUT: Duration = Duration::from_secs(90);
 /// `yt-dlp -U` downloads a new binary.
 const UPDATE_TIMEOUT: Duration = Duration::from_secs(300);
-const VERSION_TIMEOUT: Duration = Duration::from_secs(30);
+/// The first run of a freshly installed yt-dlp on macOS waits for the system to check its
+/// libraries (~25 s on an M-series Mac).
+const VERSION_TIMEOUT: Duration = Duration::from_secs(120);
 /// stderr lines kept for the error message of a failed download.
 const ERROR_LINES: usize = 20;
 const IMAGE_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp"];

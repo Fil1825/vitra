@@ -164,3 +164,13 @@ div.artwork {
   color: var(--vitra-color-accent);
   font-weight: 600;
 }
+
+.spin {
+  animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

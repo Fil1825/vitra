@@ -96,9 +96,16 @@ and an explicit list of checks that can only be done on a Mac.
   those sites); `scripts/record-ytdlp-fixtures.sh` records real ones. Not done here: reading
   `.webloc`/`.url` shortcut files, resuming downloads after a restart (the queue lives in
   memory).
+- After the Mac review: macOS uses yt-dlp's **folder build** (`yt-dlp_macos.zip`), because
+  the single-file build took ~25 s per call there (macOS re-checks the Python libraries it
+  unpacks on every run). It can't update itself, so "Update" downloads the latest zip (curl +
+  checksum + `ditto`) into the app data folder. yt-dlp is run once at start to get macOS's
+  one-time check of a new copy over with. `npm run bundle` ships the fetched sidecars as
+  resources. While a link opens the player shows a spinner and seeking waits for the file.
 - **Mac**: real YouTube/SoundCloud playback and downloads (needs Deno for YouTube), the paste
-  shortcut outside text fields (WebKit's `beforepaste`), dropping a link from Safari, yt-dlp
-  self-update from the app data folder.
+  shortcut outside text fields (WebKit's `beforepaste`), dropping a link from Safari, the
+  yt-dlp update (zip into the app data folder), `npm run bundle` producing an app whose
+  `Contents/Resources/sidecars/` works (signatures of mpv.app and the yt-dlp folder).
 
 ## Stage 5 — Lyrics
 

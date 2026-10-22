@@ -33,7 +33,8 @@ the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
 npm ci                     # install frontend deps and the Tauri CLI
 npm run fetch-sidecars     # download mpv / yt-dlp / FFmpeg / Deno for this machine
 npm run tauri dev          # run the app with hot reload
-npm run tauri build        # release build + installers
+npm run tauri build        # release build + installers, without the sidecars
+npm run bundle             # the same with the fetched sidecars inside (see key decision 6)
 
 npm run check              # eslint, prettier, tsc, vitest, vite build
 npm run check:rust         # cargo fmt --check, clippy -D warnings, cargo test
@@ -172,7 +173,13 @@ themes/                 (stage 7) example themes
      `x86_64-pc-windows-msvc`). On macOS it is a whole `mpv.app` with dylibs in
      `Contents/MacOS/lib`, so it ships as a directory resource, not a Tauri `externalBin`.
      Linux uses the system mpv (no official binaries).
-   - yt-dlp: latest standalone release, checked against `SHA2-256SUMS`.
+   - yt-dlp: latest release, checked against `SHA2-256SUMS`. Windows and Linux get the
+     single-file build (`yt-dlp[.exe]`); **macOS gets the folder build** `yt-dlp_macos.zip`
+     (`yt-dlp/yt-dlp_macos` + `_internal/`): the single-file build unpacks Python into a new
+     temporary folder on every run and macOS checks those libraries each time (~25 s per
+     call), while the folder build is checked once (~25 s on its very first run, then 0.2 s;
+     the app runs `--version` at start to get that over with). The folder build can't
+     `-U` itself.
    - FFmpeg + ffprobe (yt-dlp needs both for `-x`/embedding): macOS from
      ffmpeg.martin-riedl.de (static, signed), Windows/Linux from BtbN's GitHub releases (newest
      stable GPL build picked from `checksums.sha256`). Homebrew FFmpeg works as a fallback.
@@ -181,7 +188,14 @@ themes/                 (stage 7) example themes
    - Lookup order (`src-tauri/src/sidecar.rs`): app data `sidecars/` (updatable copies, e.g.
      yt-dlp self-update) → bundled (exe dir, `resources/sidecars/`) → dev
      `src-tauri/sidecars/<triple>/` (debug builds only) → `PATH` + Homebrew/`/usr/local/bin`
-     (macOS GUI apps don't inherit the shell `PATH`).
+     (macOS GUI apps don't inherit the shell `PATH`). On macOS only `yt-dlp/yt-dlp_macos`
+     counts in those folders; a single-file `yt-dlp` is used from `PATH` only.
+   - Bundling: `npm run bundle` adds `src-tauri/tauri.bundle.conf.json`, whose
+     `beforeBuildCommand` runs `scripts/stage-sidecars.mjs` (copies
+     `sidecars/<TAURI_ENV_TARGET_TRIPLE>/` to `sidecars/bundle/`, with `ditto` on macOS) and
+     whose `bundle.resources` ships that as `<resources>/sidecars/`. It isn't in
+     `tauri.conf.json` because tauri-build requires resource folders to exist at compile time
+     and copies them into `target/` on every build.
 7. **Accent & backdrop from artwork**: themes opt in with `background.useArtwork` (blurred
    thumbnail + palette-colored gradient) and `accentFromArtwork`; the user can turn the accent
    off (`appearance.artworkAccent`). `theme/accent.ts` adjusts the color per light/dark.
@@ -271,8 +285,14 @@ themes/                 (stage 7) example themes
       own title/artist/album/year and saved lyrics into the file and
       `Library::attach_download` swaps the stream's path for the file (same row; a row the
       watcher added first is merged in).
-    - "Update yt-dlp" copies a bundled yt-dlp to `<app data>/sidecars/` (found first from then
-      on) and runs `-U` there; a system yt-dlp is updated in place (pip/Homebrew ones refuse).
+    - "Update yt-dlp": on macOS `links::release::install_zip_release` downloads the latest
+      `yt-dlp_macos.zip` and `SHA2-256SUMS` with `curl`, checks the hash (`sha2`), unpacks
+      with `ditto` and swaps the folder into `<app data>/sidecars/yt-dlp/` (a
+      `.release-sha256` marker skips the same release). Elsewhere it copies a bundled
+      yt-dlp to `<app data>/sidecars/` (found first from then on) and runs `-U` there; a
+      system yt-dlp is updated in place (pip/Homebrew ones refuse).
+    - While mpv opens a link (its hook waits for yt-dlp) the status is `loading`: the UI
+      shows a spinner and disables seeking, and `Player::seek` defers to `file-loaded`.
 23. **Context menus** are native (`@tauri-apps/api/menu`, `lib/menu.ts`); the WebView's own
     menu is suppressed outside text fields. Reordering uses a small pointer-based hook
     (`lib/reorder.ts`) because HTML5 drag and drop clashes with the window's file drop.
@@ -322,5 +342,6 @@ themes/                 (stage 7) example themes
   (`python3 -m http.server` serving an HTML file with `<audio src=…>`; yt-dlp's generic
   extractor handles it, naming entries "Title (1)") and keep 127.0.0.1 in `NO_PROXY`.
 - lofty can't write `ItemKey::Lyrics` to ID3v2; use `ItemKey::UnsyncLyrics` (USLT) there.
+  lofty also warns about every odd MP3 frame; the app logs `lofty` at error level only.
 - The macOS mpv tarball carries code-signature xattrs; `fetch-sidecars` moves extracted files
   with `rename` (never copies) to keep them. Linux GNU tar prints harmless warnings about them.

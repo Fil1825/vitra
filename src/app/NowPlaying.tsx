@@ -1,10 +1,11 @@
-import { AlertTriangle, FolderOpen } from 'lucide-react';
+import { AlertTriangle, FolderOpen, LoaderCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import symbolUrl from '../../assets/brand/symbol.svg';
 import { Glass } from '../components/Glass/index.ts';
 import { LibraryLink } from '../features/library/TrackLinks.tsx';
 import { useCurrentLibraryTrack } from '../features/library/useCurrentTrack.ts';
+import { isRemotePath } from '../lib/links.ts';
 import { pickAndPlay } from '../lib/openFiles.ts';
 import { artworkUrl, type PlayerError, type TrackMetadata } from '../lib/player.ts';
 import { albumRoute, artistRoute } from '../stores/navigation.ts';
@@ -46,7 +47,7 @@ function ErrorBanner({ error }: { error: PlayerError }) {
 
 export function NowPlaying() {
   const { t } = useTranslation();
-  const { track, error } = usePlayer((s) => s.state);
+  const { track, error, status } = usePlayer((s) => s.state);
   const libraryTrack = useCurrentLibraryTrack();
 
   if (!track) {
@@ -95,7 +96,14 @@ export function NowPlaying() {
           )}
         </p>
       )}
-      {technical && <p className={styles.technical}>{technical}</p>}
+      {status === 'loading' ? (
+        <p className={styles.technical} role="status">
+          <LoaderCircle size={13} className={styles.spin} aria-hidden="true" />
+          {t(isRemotePath(track.path) ? 'player.openingLink' : 'player.loading')}
+        </p>
+      ) : (
+        technical && <p className={styles.technical}>{technical}</p>
+      )}
     </section>
   );
 }

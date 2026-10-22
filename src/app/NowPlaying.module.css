@@ -85,10 +85,23 @@
 }
 
 .technical {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vitra-space-1);
   margin: var(--vitra-space-1) 0 0;
   color: var(--vitra-color-text-tertiary);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+}
+
+.spin {
+  animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .error {
