@@ -25,10 +25,10 @@ fn cp1251(byte: u8) -> char {
 }
 
 fn utf16(bytes: &[u8], little_endian: bool) -> String {
-    let units: Vec<u16> = bytes
-        .chunks_exact(2)
-        .map(|pair| {
-            let pair = [pair[0], pair[1]];
+    let (pairs, _) = bytes.as_chunks::<2>();
+    let units: Vec<u16> = pairs
+        .iter()
+        .map(|&pair| {
             if little_endian {
                 u16::from_le_bytes(pair)
             } else {
