@@ -10,6 +10,12 @@ import {
   type ScanStatus,
 } from './library.ts';
 import { DOWNLOADS_CHANGED_EVENT, type DownloadJob } from './links.ts';
+import {
+  LYRICS_CHANGED_EVENT,
+  LYRICS_LINE_EVENT,
+  type CurrentLyrics,
+  type LineUpdate,
+} from './lyrics.ts';
 import { SETTINGS_CHANGED_EVENT, type Settings } from './settings.ts';
 import {
   PLAYER_POSITION_EVENT,
@@ -48,6 +54,10 @@ export async function startBackendBridge(): Promise<UnlistenFn> {
     listen<DownloadJob[]>(DOWNLOADS_CHANGED_EVENT, (event) =>
       bus.emit('downloads:changed', event.payload),
     ),
+    listen<CurrentLyrics>(LYRICS_CHANGED_EVENT, (event) =>
+      bus.emit('lyrics:changed', event.payload),
+    ),
+    listen<LineUpdate>(LYRICS_LINE_EVENT, (event) => bus.emit('lyrics:line', event.payload)),
   ]);
   return () => unlisten.forEach((fn) => fn());
 }

@@ -38,12 +38,25 @@ export interface DownloadSettings {
   template: string;
 }
 
+export interface LyricsSettings {
+  /** Look lyrics up on LRCLIB when a track has none. */
+  online: boolean;
+  /** Text size in the lyrics view, relative to the theme's (0.7–1.6). */
+  fontScale: number;
+  /** Show a translation line under the original when the lyrics have one. */
+  showTranslation: boolean;
+}
+
 export interface Settings {
   language: Language;
   appearance: AppearanceSettings;
   library: LibrarySettings;
   downloads: DownloadSettings;
+  lyrics: LyricsSettings;
 }
+
+export const FONT_SCALE_MIN = 0.7;
+export const FONT_SCALE_MAX = 1.6;
 
 export const DEFAULT_SETTINGS: Settings = {
   language: 'system',
@@ -58,6 +71,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   library: { addOpenedFiles: true },
   downloads: { folder: '', format: 'original', mp3Bitrate: 320, template: '{artist} - {title}' },
+  lyrics: { online: false, fontScale: 1, showTranslation: true },
 };
 
 /** Tauri event carrying the new settings after any window changed them. */

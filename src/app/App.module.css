@@ -11,16 +11,20 @@
   padding: var(--vitra-space-2);
 }
 
-.shell[data-queue] {
+.shell[data-panel] {
   grid-template-areas:
-    'sidebar header queue'
-    'sidebar main queue'
+    'sidebar header panel'
+    'sidebar main panel'
     'controls controls controls';
   grid-template-columns: 232px minmax(0, 1fr) 300px;
 }
 
-.queue {
-  grid-area: queue;
+.shell[data-panel='lyrics'] {
+  grid-template-columns: 232px minmax(0, 1fr) 340px;
+}
+
+.panel {
+  grid-area: panel;
 }
 
 .sidebar {
@@ -47,7 +51,7 @@
     grid-template-columns: 188px minmax(0, 1fr);
   }
 
-  .shell[data-queue] {
+  .shell[data-panel] {
     grid-template-columns: 188px minmax(0, 1fr) 260px;
   }
 }

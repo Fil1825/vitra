@@ -55,7 +55,9 @@
     "favorite": "Add to Favorites",
     "unfavorite": "Remove from Favorites",
     "showQueue": "Show queue",
-    "hideQueue": "Hide queue"
+    "hideQueue": "Hide queue",
+    "showLyrics": "Show lyrics",
+    "hideLyrics": "Hide lyrics"
   },
   "settings": {
     "title": "Settings",
@@ -156,6 +158,13 @@
       "ytDlpVersion": "Version {{version}}. Sites change often; update when links stop working.",
       "ytDlpMissing": "yt-dlp wasn’t found, so links can’t be played or downloaded.",
       "ffmpegMissing": "FFmpeg wasn’t found: downloads need it."
+    },
+    "lyrics": {
+      "title": "Lyrics",
+      "online": "Find lyrics online",
+      "onlineHint": "When a song has no lyrics, look them up on LRCLIB (lrclib.net). The song’s title, artist, album and length are sent there.",
+      "translation": "Show translations",
+      "translationHint": "Lyrics sometimes carry a translation under each line."
     }
   },
   "library": {
@@ -219,7 +228,8 @@
     "streamed": "Plays from the web",
     "removeLinkConfirm": "Remove “{{title}}” from the library? Its play count and playlist entries are lost.",
     "removeLinksConfirm_one": "Remove {{count}} link from the library? Play counts and playlist entries are lost.",
-    "removeLinksConfirm_other": "Remove {{count}} links from the library? Play counts and playlist entries are lost."
+    "removeLinksConfirm_other": "Remove {{count}} links from the library? Play counts and playlist entries are lost.",
+    "editLyrics": "Edit Lyrics…"
   },
   "queue": {
     "title": "Queue",
@@ -258,7 +268,9 @@
   "dialog": {
     "cancel": "Cancel",
     "remove": "Remove",
-    "delete": "Delete"
+    "delete": "Delete",
+    "save": "Save",
+    "discard": "Discard"
   },
   "links": {
     "title": "Open Link",
@@ -303,5 +315,61 @@
     "cancelled": "Cancelled",
     "retry": "Retry",
     "cancel": "Cancel"
+  },
+  "lyrics": {
+    "title": "Lyrics",
+    "nothingPlaying": "Lyrics of the playing song show up here.",
+    "searching": "Searching LRCLIB…",
+    "missing": "No lyrics",
+    "missingOffline": "Add them yourself, or look them up on LRCLIB.",
+    "missingOnline": "LRCLIB doesn’t have them either. You can add them yourself.",
+    "searchFailed": "LRCLIB couldn’t be reached.",
+    "add": "Add Lyrics",
+    "searchOnline": "Search LRCLIB",
+    "edit": "Edit lyrics",
+    "smaller": "Smaller text",
+    "larger": "Larger text",
+    "offset": "Sync offset",
+    "earlier": "Show lyrics earlier",
+    "later": "Show lyrics later",
+    "resetOffset": "Reset the sync offset",
+    "showTranslation": "Show translation",
+    "hideTranslation": "Hide translation",
+    "fromLrclib": "Lyrics from LRCLIB",
+    "editor": {
+      "title": "Lyrics",
+      "mode": "Editor mode",
+      "text": "Text",
+      "sync": "Sync",
+      "placeholder": "Paste or type the lyrics, one line per line. LRC with [mm:ss.xx] times works too.",
+      "import": "Import…",
+      "export": "Export…",
+      "lyricsFiles": "Lyrics",
+      "saveTo": "Save to",
+      "targets": {
+        "tags": "File tags",
+        "file": ".lrc file",
+        "library": "Vitra only"
+      },
+      "hints": {
+        "tags": "Written into the song file. A backup copy of the file is kept first.",
+        "file": "Saved as {{file}} next to the song.",
+        "library": "Kept in Vitra’s library; the file isn’t changed."
+      },
+      "confirmTags": "Write the lyrics into “{{file}}”? A backup copy of the file is kept in Vitra’s data folder.",
+      "saveFailed": "Couldn’t save the lyrics: {{message}}",
+      "discard": "Discard your changes to these lyrics?",
+      "untimed_one": "{{count}} line has no time yet and will be left out.",
+      "untimed_other": "{{count}} lines have no time yet and will be left out.",
+      "playToSync": "Syncing needs the song playing.",
+      "playTrack": "Play Song",
+      "syncHint": "Press Space as each line starts. Backspace takes the last tap back; ↑ and ↓ move the highlight. Click a line to start from it.",
+      "back5": "Back 5 seconds",
+      "undo": "Undo the last line",
+      "shiftAll": "Shift all",
+      "seekToLine": "Play from this line",
+      "break": "verse break",
+      "end": "End"
+    }
   }
 }

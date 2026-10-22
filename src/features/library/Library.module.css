@@ -210,3 +210,27 @@
   min-height: 100%;
   padding: var(--vitra-space-4);
 }
+
+.nowPlaying[data-lyrics] {
+  grid-template-columns: minmax(240px, 0.9fr) minmax(0, 1.1fr);
+  gap: var(--vitra-space-4);
+  height: 100%;
+  padding-right: 0;
+}
+
+.stageLyrics {
+  align-self: stretch;
+  justify-self: stretch;
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  /* Too narrow for both: the lyrics panel is the place for them then. */
+  .nowPlaying[data-lyrics] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stageLyrics {
+    display: none;
+  }
+}

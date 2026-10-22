@@ -7,6 +7,8 @@ import { Backdrop } from '../components/Backdrop/Backdrop.tsx';
 import { Glass } from '../components/Glass/index.ts';
 import { LibraryView } from '../features/library/LibraryView.tsx';
 import { LinkDialog } from '../features/links/LinkDialog.tsx';
+import { LyricsEditor } from '../features/lyrics/LyricsEditor.tsx';
+import { LyricsPanel } from '../features/lyrics/LyricsPanel.tsx';
 import { QueuePanel } from '../features/queue/QueuePanel.tsx';
 import { SettingsPanel } from '../features/settings/SettingsPanel.tsx';
 import { TagEditor } from '../features/tags/TagEditor.tsx';
@@ -34,11 +36,14 @@ export function App() {
   const useArtwork = useAppearance((s) => s.theme.background.useArtwork);
   const artwork = usePlayer((s) => s.state.track?.artwork ?? null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const queueOpen = useUi((s) => s.queueOpen);
+  const sidePanel = useUi((s) => s.sidePanel);
   const tagEditorPath = useUi((s) => s.tagEditorPath);
   const editTags = useUi((s) => s.editTags);
   const route = useNavigation((s) => s.route);
   const closeTagEditor = useCallback(() => editTags(null), [editTags]);
+  const lyricsEditor = useUi((s) => s.lyricsEditor);
+  const editLyrics = useUi((s) => s.editLyrics);
+  const closeLyricsEditor = useCallback(() => editLyrics(null), [editLyrics]);
   const linkInput = useUi((s) => s.linkInput);
   const openLink = useUi((s) => s.openLink);
   const closeLink = useCallback(() => openLink(null), [openLink]);
@@ -70,14 +75,15 @@ export function App() {
         colors={shownArtwork?.palette?.colors}
         artworkUrl={shownArtwork ? artworkUrl(shownArtwork.id, 'thumb') : undefined}
       />
-      <div className={styles.shell} data-queue={queueOpen || undefined}>
+      <div className={styles.shell} data-panel={sidePanel ?? undefined}>
         <Sidebar className={styles.sidebar} />
         <TitleBar className={styles.header} onOpenSettings={() => setSettingsOpen(true)} />
         {/* Keyed by route so each view starts at the top. */}
         <main key={JSON.stringify(route)} className={styles.main} data-scroll-container>
           <LibraryView />
         </main>
-        {queueOpen && <QueuePanel className={styles.queue} />}
+        {sidePanel === 'queue' && <QueuePanel className={styles.panel} />}
+        {sidePanel === 'lyrics' && <LyricsPanel className={styles.panel} />}
         <ControlBar className={styles.controls} />
       </div>
       <AnimatePresence>
@@ -85,6 +91,9 @@ export function App() {
       </AnimatePresence>
       {tagEditorPath && (
         <TagEditor key={tagEditorPath} path={tagEditorPath} onClose={closeTagEditor} />
+      )}
+      {lyricsEditor && (
+        <LyricsEditor key={lyricsEditor.path} target={lyricsEditor} onClose={closeLyricsEditor} />
       )}
       {linkInput !== null && <LinkDialog key={linkInput} initial={linkInput} onClose={closeLink} />}
       {dropping && (

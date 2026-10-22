@@ -2,6 +2,7 @@ import {
   Heart,
   ListMusic,
   LoaderCircle,
+  MicVocal,
   Pause,
   Play,
   Repeat,
@@ -53,8 +54,10 @@ export function ControlBar({ className }: { className?: string }) {
   const { t } = useTranslation();
   const state = usePlayer((s) => s.state);
   const queueState = useQueue((s) => s.queue);
-  const queueOpen = useUi((s) => s.queueOpen);
-  const toggleQueue = useUi((s) => s.toggleQueue);
+  const sidePanel = useUi((s) => s.sidePanel);
+  const togglePanel = useUi((s) => s.togglePanel);
+  const queueOpen = sidePanel === 'queue';
+  const lyricsOpen = sidePanel === 'lyrics';
   const go = useNavigation((s) => s.go);
   const libraryTrack = useCurrentLibraryTrack();
   const position = useLivePosition();
@@ -217,10 +220,18 @@ export function ControlBar({ className }: { className?: string }) {
           onCommit={() => setVolume(null)}
         />
         <IconButton
+          label={t(lyricsOpen ? 'player.hideLyrics' : 'player.showLyrics')}
+          aria-pressed={lyricsOpen}
+          className={lyricsOpen ? styles.on : undefined}
+          onClick={() => togglePanel('lyrics')}
+        >
+          <MicVocal size={17} />
+        </IconButton>
+        <IconButton
           label={t(queueOpen ? 'player.hideQueue' : 'player.showQueue')}
           aria-pressed={queueOpen}
           className={queueOpen ? styles.on : undefined}
-          onClick={toggleQueue}
+          onClick={() => togglePanel('queue')}
         >
           <ListMusic size={17} />
         </IconButton>

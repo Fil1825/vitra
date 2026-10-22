@@ -1,0 +1,317 @@
+.view {
+  --lyrics-size: calc(22px * var(--lyrics-scale, 1));
+  --lyrics-lit: var(--vitra-color-text);
+  --lyrics-dim: color-mix(in srgb, var(--vitra-color-text) 32%, transparent);
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.view[data-variant='stage'] {
+  --lyrics-size: calc(32px * var(--lyrics-scale, 1));
+
+  height: 100%;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: 0 var(--vitra-space-2);
+}
+
+.offset {
+  display: inline-flex;
+  align-items: center;
+}
+
+.offsetValue {
+  min-width: 52px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: var(--vitra-radius-sm);
+  background: transparent;
+  color: var(--vitra-color-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.offsetValue:disabled {
+  cursor: default;
+}
+
+.offsetValue:not(:disabled):hover {
+  background: color-mix(in srgb, var(--vitra-color-text) 8%, transparent);
+}
+
+.on {
+  color: var(--vitra-color-accent);
+}
+
+.scroller {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  /* Lines fade in and out at the edges instead of being cut off. */
+  mask-image: linear-gradient(transparent, #000 12%, #000 82%, transparent);
+}
+
+.scroller::-webkit-scrollbar {
+  display: none;
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 30vh var(--vitra-space-4) 50vh;
+}
+
+.line {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  margin: 0;
+  padding: calc(var(--lyrics-size) * 0.3) var(--vitra-space-2);
+  border: 0;
+  border-radius: var(--vitra-radius-md);
+  background: transparent;
+  color: var(--lyrics-dim);
+  font: inherit;
+  font-size: var(--lyrics-size);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.22;
+  text-align: start;
+  cursor: pointer;
+  transform: scale(0.94);
+  transform-origin: left center;
+  transition:
+    transform 0.5s var(--vitra-motion-easing),
+    color 0.4s var(--vitra-motion-easing),
+    filter 0.5s var(--vitra-motion-easing);
+}
+
+.line:hover {
+  background: color-mix(in srgb, var(--vitra-color-text) 6%, transparent);
+}
+
+.line:focus-visible {
+  outline: 2px solid var(--vitra-color-accent);
+  outline-offset: -2px;
+}
+
+.line[data-state='active'] {
+  color: var(--lyrics-lit);
+  transform: scale(1);
+}
+
+.scroller[data-blur] .line:not([data-state='active']) {
+  filter: blur(calc(var(--distance, 1) * 0.7px));
+}
+
+.scroller[data-browsing] .line {
+  filter: none;
+  color: color-mix(in srgb, var(--vitra-color-text) 60%, transparent);
+}
+
+.scroller[data-browsing] .line[data-state='active'] {
+  color: var(--lyrics-lit);
+}
+
+.text {
+  overflow-wrap: anywhere;
+}
+
+.word {
+  color: var(--lyrics-dim);
+}
+
+.word[data-state='sung'] {
+  color: var(--lyrics-lit);
+}
+
+.word[data-state='singing'] {
+  background: linear-gradient(
+    90deg,
+    var(--lyrics-lit) var(--fill, 0%),
+    var(--lyrics-dim) calc(var(--fill, 0%) + 16%)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.translation {
+  font-size: 0.62em;
+  font-weight: 600;
+  letter-spacing: 0;
+  opacity: 0.85;
+}
+
+.gap {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--lyrics-size) * 0.22);
+  height: 0;
+  padding: 0 var(--vitra-space-2);
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    height 0.4s var(--vitra-motion-easing),
+    opacity 0.4s var(--vitra-motion-easing);
+}
+
+.gap[data-active] {
+  height: calc(var(--lyrics-size) * 1.6);
+  opacity: 1;
+}
+
+.gap span {
+  width: calc(var(--lyrics-size) * 0.32);
+  height: calc(var(--lyrics-size) * 0.32);
+  border-radius: 50%;
+  background: var(--lyrics-lit);
+  animation: breathe 1.6s ease-in-out infinite;
+}
+
+.gap span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.gap span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.plain {
+  padding: var(--vitra-space-6) var(--vitra-space-6) 30vh;
+}
+
+.plainLine {
+  display: grid;
+  margin: 0;
+  padding: 2px 0;
+  color: var(--vitra-color-text);
+  font-size: calc(var(--lyrics-size) * 0.8);
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--vitra-space-2);
+  margin: auto;
+  padding: var(--vitra-space-6);
+  color: var(--vitra-color-text-secondary);
+  text-align: center;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.missing {
+  display: grid;
+  justify-items: center;
+  gap: var(--vitra-space-2);
+  margin: auto;
+  padding: var(--vitra-space-6) var(--vitra-space-4);
+  color: var(--vitra-color-text-secondary);
+  text-align: center;
+}
+
+.missing svg {
+  color: var(--vitra-color-text-tertiary);
+}
+
+.missingTitle {
+  margin: 0;
+  color: var(--vitra-color-text);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.missingBody,
+.error {
+  max-width: 320px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.error {
+  color: var(--vitra-color-danger);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--vitra-space-2);
+  margin-top: var(--vitra-space-2);
+}
+
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px var(--vitra-space-4);
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--vitra-color-accent);
+  color: var(--vitra-color-accent-contrast);
+}
+
+.secondary {
+  background: color-mix(in srgb, var(--vitra-color-text) 10%, transparent);
+  color: var(--vitra-color-text);
+}
+
+.credit {
+  position: absolute;
+  right: var(--vitra-space-4);
+  bottom: var(--vitra-space-2);
+  margin: 0;
+  color: var(--vitra-color-text-tertiary);
+  font-size: 11px;
+  pointer-events: none;
+}

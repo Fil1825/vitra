@@ -178,6 +178,16 @@ export function trackMenu(
         action: () => useUi.getState().editTags(single.path),
       });
     }
+    entries.push({
+      label: i18n.t('library.editLyrics'),
+      action: () =>
+        useUi.getState().editLyrics({
+          path: single.path,
+          libraryId: single.id,
+          title: single.title,
+          artist: single.artist,
+        }),
+    });
     const { sourceUrl } = single;
     if (sourceUrl !== null) {
       entries.push({ label: i18n.t('links.copyLink'), action: () => copyText(sourceUrl) });
