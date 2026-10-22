@@ -118,6 +118,11 @@ pub fn write_tags(path: &Path, values: &TagValues, cover: &CoverChange) -> Resul
             file.save_to_path(&temp, WriteOptions::default())
                 .map_err(MediaError::from)
         })
+        // New lyrics must not be outranked by old timed ones the generic tag doesn't show.
+        .and_then(|()| match values.lyrics {
+            Some(_) => crate::lyrics::clear_timed_lyrics(&temp),
+            None => Ok(()),
+        })
         .and_then(|()| fs::rename(&temp, path).map_err(MediaError::from));
     if written.is_err() {
         let _ = fs::remove_file(&temp);

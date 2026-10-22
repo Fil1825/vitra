@@ -30,6 +30,9 @@ pub struct TrackMetadata {
     /// kbit/s.
     pub bitrate: Option<u32>,
     pub channels: Option<u8>,
+    /// Lyrics from the tags' lyrics field (often LRC), for search. Not sent to the windows.
+    #[serde(skip)]
+    pub lyrics: Option<String>,
 }
 
 /// What `read_track` found in a file.
@@ -70,6 +73,11 @@ pub fn read_track(path: &Path) -> Result<TrackInfo, MediaError> {
         metadata.year = tag.date().map(|date| date.year);
         metadata.track_number = tag.track();
         metadata.disc_number = tag.disk();
+        metadata.lyrics = text(
+            tag.get_string(ItemKey::Lyrics)
+                .or_else(|| tag.get_string(ItemKey::UnsyncLyrics))
+                .map(Into::into),
+        );
 
         let pictures = tag.pictures();
         let cover = pictures

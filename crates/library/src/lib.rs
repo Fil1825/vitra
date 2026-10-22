@@ -5,6 +5,7 @@
 //! mode, so a scan writing through one connection doesn't block queries on another.
 
 mod folders;
+mod lyrics;
 mod model;
 mod playlists;
 mod remote;
@@ -20,6 +21,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::Connection;
 
+pub use lyrics::{SOURCE_ONLINE, SOURCE_USER, SavedLyrics};
 pub use model::*;
 pub use scan::{ScanPhase, ScanProgress, ScanSummary, cover_id, is_audio_file};
 pub use tracks::AlbumSort;
@@ -122,5 +124,25 @@ mod tests {
         assert_eq!(library.schema_version().unwrap(), schema::version());
         let track = library.track_by_path("/m/a.mp3").unwrap().unwrap();
         assert_eq!((track.title.as_str(), track.source_url), ("A", None));
+    }
+
+    #[test]
+    fn migration_3_folds_yo_in_the_existing_index() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("library.db");
+        {
+            let conn = Connection::open(&path).unwrap();
+            for sql in &schema::MIGRATIONS[..2] {
+                conn.execute_batch(sql).unwrap();
+            }
+            conn.pragma_update(None, "user_version", 2).unwrap();
+            conn.execute_batch(
+                "INSERT INTO tracks (id, path, title, added_at) VALUES (1, '/m/a.mp3', 'Ёлка', 1);
+                 INSERT INTO track_search (rowid, title) VALUES (1, 'Ёлка');",
+            )
+            .unwrap();
+        }
+        let library = Library::open(&path).unwrap();
+        assert_eq!(library.search_track_ids("елка").unwrap(), [1]);
     }
 }

@@ -182,18 +182,6 @@ impl Library {
             .optional()?)
     }
 
-    /// Lyrics saved in the app for a track.
-    pub fn lyrics_text(&self, track_id: i64) -> Result<Option<String>> {
-        Ok(self
-            .conn
-            .query_row(
-                "SELECT text FROM lyrics WHERE track_id = ?",
-                [track_id],
-                |row| row.get(0),
-            )
-            .optional()?)
-    }
-
     /// Puts a downloaded file in place of the streamed track `track_id`. The row stays, so
     /// playlists, lyrics, favorites and play counts carry over; its tags now come from the
     /// file, and it joins the library folder the file is in (if any). If a scan already

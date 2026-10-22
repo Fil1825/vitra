@@ -4,6 +4,7 @@ use std::path::Path;
 use rusqlite::{OptionalExtension, Row, Transaction, params, params_from_iter};
 
 use crate::model::{Album, Artist, HistoryEntry, ScannedTrack, Track, TrackFilter};
+use crate::search::fold;
 use crate::{Library, Result, now};
 
 /// Columns of [`Track`], in [`track_from_row`] order. Joins `artists ar` and `albums al`.
@@ -208,19 +209,35 @@ pub(crate) fn upsert_track(
         |row| row.get(0),
     )?;
 
+    // Lyrics saved in the app come first, as when they're shown.
+    let saved: Option<String> = tx
+        .query_row("SELECT text FROM lyrics WHERE track_id = ?", [id], |row| {
+            row.get(0)
+        })
+        .optional()?;
+    let words = saved
+        .as_deref()
+        .or(m.lyrics.as_deref())
+        .map(searchable_lyrics);
     tx.execute("DELETE FROM track_search WHERE rowid = ?", [id])?;
     tx.execute(
         "INSERT INTO track_search (rowid, title, artist, album, album_artist, lyrics)
-         VALUES (?1, ?2, ?3, ?4, ?5, (SELECT text FROM lyrics WHERE track_id = ?1))",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![
             id,
-            title,
-            artist,
-            non_empty(m.album.as_deref()),
-            album_artist
+            fold(&title),
+            artist.map(fold),
+            non_empty(m.album.as_deref()).map(fold),
+            album_artist.map(fold),
+            words
         ],
     )?;
     Ok(id)
+}
+
+/// Lyrics as searchable words: LRC timestamps and tags would only add noise to the index.
+pub(crate) fn searchable_lyrics(text: &str) -> String {
+    fold(&lyrics::parse(text).plain_text())
 }
 
 fn artist_id_for_album(
