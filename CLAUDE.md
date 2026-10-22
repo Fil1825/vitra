@@ -21,7 +21,7 @@ the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
 | 2   | Engine: mpv IPC, transport controls, artwork backdrop  | in review (PR #3) |
 | 3   | Library & queue: scan, SQLite, views, search, session  | in review (PR #4) |
 | 4   | Links: yt-dlp playback, playlists, downloads           | in review (PR #5) |
-| 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | not started       |
+| 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | in review (PR #6) |
 | 6   | Mini player                                            | not started       |
 | 7   | Customization: theme editor, `.vitratheme`, layout     | not started       |
 | 8   | Sound & system: EQ, crossfade, media keys, tray        | not started       |
@@ -84,18 +84,19 @@ Cargo.toml              Cargo workspace (members: src-tauri, later crates/*)
 package.json            frontend + scripts; Tauri CLI is a devDependency
 index.html              main window entry (mini player gets mini.html in stage 6)
 src/                    React + TypeScript frontend
-  main.tsx              boot: backend bridge → settings, environment, player, queue, library
-                        stores → i18n → render
+  main.tsx              boot: backend bridge → settings, environment, player, queue, library,
+                        downloads, lyrics stores → i18n → render
   app/                  shell layout (TitleBar, Sidebar, NowPlaying, ControlBar) and
                         useAppearanceController (theme vars, effect flags, window theme, language)
   components/           shared UI: Glass/ (glass surface, layer budget, refraction), Backdrop/,
                         ui/ (IconButton, SegmentedControl, Switch, Slider)
   features/<feature>/   feature UI: library/ (views, TrackTable, AlbumGrid, actions + menus),
                         queue/ (QueuePanel), tags/ (TagEditor), links/ (LinkDialog,
-                        DownloadsView), settings/
+                        DownloadsView), lyrics/ (LyricsView, LyricsPanel, LyricsEditor +
+                        SyncPane, tap-sync model sync.ts), settings/
   stores/               zustand stores: settings (mirror of Rust), environment, appearance,
-                        player, queue, library (scan status), downloads, navigation (routes),
-                        ui (panels, dialogs)
+                        player, queue, library (scan status), downloads, lyrics, navigation
+                        (routes), ui (side panel, dialogs)
   theme/                zod schema, built-in themes (builtin/*.json), tokens → CSS vars, effects
   i18n/                 i18next setup, locales/en.json + ru.json (typed keys)
   lib/                  IPC wrappers, event bus + backend bridge, hooks, pure helpers
@@ -114,15 +115,20 @@ src-tauri/              Tauri app crate (`vitra`, lib `vitra_lib`)
                         (watch.rs), library/playlist/tag-editor commands (commands.rs)
   src/links/            LinkService (resolve, play, import + background enrich, yt-dlp
                         update), Downloads (queue, 2 at a time), commands
+  src/lyrics/           LyricsService (playing track's lyrics, offset, line events), source
+                        priority (sources.rs), LRCLIB via curl (online.rs), backups before
+                        tag writes (backup.rs), editor commands
   tauri.conf.json, capabilities/, icons/ (generated: `npm run tauri icon -- assets/brand/icon-1024.png`)
   sidecars/<triple>/    fetched binaries (git-ignored)
 crates/                 pure-Rust crates testable without WebKit
   mpv-ipc/              async mpv JSON IPC client + spawning mpv (in-memory fake + opt-in real-mpv tests)
-  media/                lofty tags (read + write), embedded/folder artwork, thumbnails, color
-                        palette (fixtures in tests/)
+  media/                lofty tags (read + write, lyrics incl. SYLT / SYNCEDLYRICS),
+                        embedded/folder artwork, thumbnails, color palette (fixtures in tests/)
   library/              SQLite library: schema + migrations, tracks/albums/artists, FTS5
                         search, playlists, history, session, incremental folder scanner,
-                        links as tracks (remote.rs)
+                        links as tracks (remote.rs), saved lyrics + offsets (lyrics.rs)
+  lyrics/               LRC / enhanced LRC parser and writer, SYLT conversion, .lrc files
+                        and their encodings, LRCLIB URLs and result matching (pure)
   links/                URL classification, yt-dlp -J parsing, file name templates, progress
                         lines, download state machine, YtDlp runner (fixtures + opt-in real
                         tests in tests/)
@@ -250,7 +256,9 @@ themes/                 (stage 7) example themes
     - One scanner thread with its own connection; commands share another (`LibraryService`).
       `notify` watches folders; changes rescan the folder 3 s after things settle.
     - Search: FTS5 `unicode61 remove_diacritics 2`, every word a prefix (`"word"*`), ranked
-      title > artist > album > album artist > lyrics.
+      title > artist > album > album artist > lyrics. `remove_diacritics` doesn't fold
+      ё → е (they are separate letters to Unicode), so `search::fold` does it for the index
+      and for queries (migration 3 refolded existing rows).
     - Events: `library://changed` (`tracks` | `playlists` | `folders`) and `library://scan`;
       views reload through `useLibraryData`, which coalesces bursts.
 21. **Queue** (`player/queue.rs`, pure): items in play order with unique `uid`s, `current`,
@@ -293,10 +301,37 @@ themes/                 (stage 7) example themes
       system yt-dlp is updated in place (pip/Homebrew ones refuse).
     - While mpv opens a link (its hook waits for yt-dlp) the status is `loading`: the UI
       shows a spinner and disables seeking, and `Player::seek` defers to `file-loaded`.
-23. **Context menus** are native (`@tauri-apps/api/menu`, `lib/menu.ts`); the WebView's own
+23. **Lyrics** (`crates/lyrics`, `src-tauri/src/lyrics`, `features/lyrics`):
+    - One model (`Lyrics { lines, synced, offset_ms, tags }`, lines with optional word
+      timings and a translation) for tags, `.lrc`, search and the editor. A line repeating the
+      previous line's timestamp is its translation; `[offset]` follows LRC (positive =
+      sooner) and is folded into the timestamps (`normalized()`) before anything uses them.
+      Timestamps are written in hundredths.
+    - Sources, best first (`lyrics/sources.rs`): lyrics the user saved in the app (an
+      explicit choice made after seeing what the file has) → synced tags (`SYLT`, or LRC in
+      `SYNCEDLYRICS`/`LYRICS`/`USLT`/`©lyr`) → `.lrc` next to the file (UTF-8/16,
+      Windows-1251 or Latin-1) → plain tags → lyrics cached from LRCLIB. The spec lists the
+      app DB after the tags; user lyrics come first so "save to Vitra only" isn't hidden by
+      a file. lofty's generic tag doesn't show `SYLT` or `SYNCEDLYRICS`, so they're read from
+      the concrete tags and removed whenever new lyrics are written.
+    - The editor saves LRC text into the format's lyrics field (`USLT`, `LYRICS`, `©lyr`),
+      not `SYLT`; saving to tags or `.lrc` drops the user's DB copy so the file wins. A copy
+      of the file goes to `<app data>/backups/tags|lrc/` first (newest 10 kept).
+    - LRCLIB (setting `lyrics.online`, off by default): curl with a User-Agent naming Vitra,
+      `/api/get` (title, artist, album, duration ±2 s) then `/api/search`, URLs percent-
+      encoded to ASCII (Windows passes non-ASCII arguments in the ANSI code page). Results are
+      cached in the DB (`source = 'lrclib'`), misses in `lyrics_lookups` for 30 days.
+    - The user's sync offset is per track (`tracks.lyrics_offset`, positive = later) or per
+      session for files outside the library. `lyrics://changed` carries the whole state;
+      `lyrics://line` fires when the playing line changes (for the mini player and plugins:
+      the view keeps its own frame clock for karaoke).
+    - The view: the playing line a third of the way down, smooth scroll and per-line blur
+      only with motion on, scrolling by hand pauses following for 3 s. Tap-sync captures
+      Space/Backspace/arrows before the player's shortcuts while the edited track plays.
+24. **Context menus** are native (`@tauri-apps/api/menu`, `lib/menu.ts`); the WebView's own
     menu is suppressed outside text fields. Reordering uses a small pointer-based hook
     (`lib/reorder.ts`) because HTML5 drag and drop clashes with the window's file drop.
-24. License **GPL-3.0-or-later** (compatible with mpv). Bundle identifier
+25. License **GPL-3.0-or-later** (compatible with mpv). Bundle identifier
     `io.github.fil1825.vitra`. macOS minimum **14.0** (official mpv builds require it).
 
 ## Conventions

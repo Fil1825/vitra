@@ -124,6 +124,20 @@ and an explicit list of checks that can only be done on a Mac.
   adjustable live.
 - Editor: paste/write, tap-to-sync with Space (undo line, shift all), save to tags (confirm +
   backup) / `.lrc` / DB only, import/export `.lrc`.
+- Done as planned, with these choices: lyrics the user saved in the app come before the
+  file's (otherwise "save to Vitra only" would be hidden by plain lyrics in the tags); synced
+  lyrics go into tags as LRC text in the lyrics field (`USLT`/`LYRICS`/`©lyr`), and stale
+  `SYLT`/`SYNCEDLYRICS` are removed so they can't outrank it; tag backups go to
+  `<app data>/backups/` (newest 10). Also: `.lrc` files in UTF-16, Windows-1251 or Latin-1;
+  lyrics words are searchable (ё and е find each other); a lyrics panel next to the queue
+  and lyrics beside the artwork in Now Playing; LRCLIB results cached, misses re-checked
+  after 30 days; "Search LRCLIB" on demand even with online lookups off. Not done here:
+  writing `SYLT` frames, word-level tap-sync (lines only; word timings from files are kept and
+  move with their line).
+- **Mac**: how the view looks and scrolls (blur, karaoke fill, smooth scrolling in WebKit),
+  Space in the sync view not pausing playback, saving into tags of an M4A (`©lyr`) and an MP3
+  (`USLT`) and reading them back in Apple Music / Finder, the native save/import/export
+  dialogs, LRCLIB lookups over the real network (curl on macOS).
 
 ## Stage 6 — Mini player
 

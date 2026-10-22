@@ -308,7 +308,9 @@ impl LyricsService {
                     Some(_) => checked_at.is_some_and(|at| library::now() - at < RECHECK_AFTER),
                     None => lock(&self.0.misses).contains(&track.path),
                 };
-                self.online_allowed() && !recently_missed
+                // Matching relies on the duration; a stream without one (radio) isn't a song.
+                let song = track.metadata.duration.is_some_and(|d| d > 0.0);
+                self.online_allowed() && song && !recently_missed
             }
         };
         if wanted {

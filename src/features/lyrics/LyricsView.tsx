@@ -244,7 +244,7 @@ export function LyricsView({
 
 function PlainLyrics({ lyrics, showTranslation }: { lyrics: Lyrics; showTranslation: boolean }) {
   return (
-    <div className={styles.scroller}>
+    <div className={styles.scroller} data-plain>
       <div className={styles.plain}>
         {lyrics.lines.map((line, index) => (
           <p key={index} className={styles.plainLine}>

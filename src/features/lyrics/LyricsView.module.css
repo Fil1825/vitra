@@ -65,6 +65,11 @@
   mask-image: linear-gradient(transparent, #000 12%, #000 82%, transparent);
 }
 
+/* Plain lyrics start at the top, so only a thin edge fades there. */
+.scroller[data-plain] {
+  mask-image: linear-gradient(transparent, #000 var(--vitra-space-4), #000 85%, transparent);
+}
+
 .scroller::-webkit-scrollbar {
   display: none;
 }
@@ -206,7 +211,7 @@
 }
 
 .plain {
-  padding: var(--vitra-space-6) var(--vitra-space-6) 30vh;
+  padding: var(--vitra-space-4) var(--vitra-space-4) 30vh;
 }
 
 .plainLine {
