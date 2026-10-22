@@ -341,6 +341,12 @@ themes/                 (stage 7) example themes
 - The cloud can't reach YouTube or SoundCloud: test links with a local page
   (`python3 -m http.server` serving an HTML file with `<audio src=…>`; yt-dlp's generic
   extractor handles it, naming entries "Title (1)") and keep 127.0.0.1 in `NO_PROXY`.
+- Tauri's drag-and-drop handler reports every drop as handled, so the page never gets HTML
+  `drop` events, and it reads only file paths: a link dragged from a browser arrives as a
+  `drop` without paths. `useFileDrop` then calls `drag_link` (`src-tauri/src/drag.rs`), which
+  reads the macOS drag pasteboard (`public.url`, legacy `NSURLPboardType`, plain text).
+  Windows and Linux report nothing for links; paste works there. Don't turn off
+  `dragDropEnabled`: file and folder drops need its real paths.
 - lofty can't write `ItemKey::Lyrics` to ID3v2; use `ItemKey::UnsyncLyrics` (USLT) there.
   lofty also warns about every odd MP3 frame; the app logs `lofty` at error level only.
 - The macOS mpv tarball carries code-signature xattrs; `fetch-sidecars` moves extracted files

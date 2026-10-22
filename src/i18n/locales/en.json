@@ -40,6 +40,7 @@
     "open": "Open Files…",
     "audioFiles": "Audio",
     "dropToPlay": "Drop to play",
+    "dropToOpenLink": "Drop to open the link",
     "errors": {
       "mpvMissing": "The playback engine (mpv) wasn't found.",
       "mpvMissingHint": "Install mpv, or run npm run fetch-sidecars when building from source.",

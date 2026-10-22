@@ -1,5 +1,6 @@
 //! Vitra desktop app: Tauri setup and command registration.
 
+mod drag;
 mod error;
 mod library;
 mod links;
@@ -144,6 +145,7 @@ pub fn run() {
             links::downloads_folder,
             links::ytdlp_info,
             links::ytdlp_update,
+            drag::drag_link,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Vitra");

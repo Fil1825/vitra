@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 
-import { isRemotePath, looksLikeLink } from '../lib/links.ts';
+import { looksLikeLink } from '../lib/links.ts';
 import { useUi } from '../stores/ui.ts';
 
-/** Text fields keep paste and drop for themselves. */
+/** Text fields keep paste for themselves. */
 function isEditable(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLElement &&
@@ -11,18 +11,10 @@ function isEditable(target: EventTarget | null): boolean {
   );
 }
 
-/** The first link of a `text/uri-list` (lines starting with `#` are comments). */
-export function firstUri(list: string): string | null {
-  const line = list
-    .split(/\r?\n/)
-    .map((entry) => entry.trim())
-    .find((entry) => entry !== '' && !entry.startsWith('#'));
-  return line ?? null;
-}
-
 /**
  * Ways to open a link: Cmd/Ctrl+U opens the link dialog; pasting a link anywhere outside a
- * text field, or dropping one from a browser, opens it with that link.
+ * text field opens it with that link. (Dropped links come through `useFileDrop`: Tauri keeps
+ * drops from the page.)
  */
 export function useLinkInput(): void {
   useEffect(() => {
@@ -51,35 +43,14 @@ export function useLinkInput(): void {
         open(text.trim());
       }
     };
-    const draggedLink = (event: DragEvent) =>
-      event.dataTransfer?.types.includes('text/uri-list') === true && !isEditable(event.target);
-    const onDragOver = (event: DragEvent) => {
-      if (draggedLink(event)) {
-        event.preventDefault();
-      }
-    };
-    const onDrop = (event: DragEvent) => {
-      if (!draggedLink(event)) {
-        return;
-      }
-      const uri = firstUri(event.dataTransfer?.getData('text/uri-list') ?? '');
-      if (uri && isRemotePath(uri)) {
-        event.preventDefault();
-        open(uri);
-      }
-    };
 
     window.addEventListener('keydown', onKey);
     document.addEventListener('beforepaste', onBeforePaste);
     document.addEventListener('paste', onPaste);
-    document.addEventListener('dragover', onDragOver);
-    document.addEventListener('drop', onDrop);
     return () => {
       window.removeEventListener('keydown', onKey);
       document.removeEventListener('beforepaste', onBeforePaste);
       document.removeEventListener('paste', onPaste);
-      document.removeEventListener('dragover', onDragOver);
-      document.removeEventListener('drop', onDrop);
     };
   }, []);
 }

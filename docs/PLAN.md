@@ -102,8 +102,13 @@ and an explicit list of checks that can only be done on a Mac.
   checksum + `ditto`) into the app data folder. yt-dlp is run once at start to get macOS's
   one-time check of a new copy over with. `npm run bundle` ships the fetched sidecars as
   resources. While a link opens the player shows a spinner and seeking waits for the file.
+- Second Mac round: links dragged from a browser are read off the macOS drag pasteboard
+  (Tauri's drop events only carry file paths and never reach the page); a macOS CI job runs
+  `cargo test` and the real yt-dlp tests with the folder build. Windows and Linux don't
+  expose dragged links to Tauri; paste works there.
 - **Mac**: real YouTube/SoundCloud playback and downloads (needs Deno for YouTube), the paste
-  shortcut outside text fields (WebKit's `beforepaste`), dropping a link from Safari, the
+  shortcut outside text fields (WebKit's `beforepaste`), dropping a link from Safari (drag
+  pasteboard) while files and folders from Finder still drop as before, the
   yt-dlp update (zip into the app data folder), `npm run bundle` producing an app whose
   `Contents/Resources/sidecars/` works (signatures of mpv.app and the yt-dlp folder).
 

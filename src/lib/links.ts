@@ -121,6 +121,14 @@ export const downloads = {
   folder: () => call<string>('downloads_folder'),
 };
 
+/**
+ * The link being dragged (or just dropped) onto the window, read by the backend from the drag
+ * pasteboard; `null` when it isn't a link or the system doesn't tell (only macOS does).
+ */
+export function dragLink(): Promise<string | null> {
+  return isTauri() ? invoke<string | null>('drag_link') : Promise.resolve(null);
+}
+
 export const ytdlp = {
   info: () => call<YtDlpInfo>('ytdlp_info'),
   /** Updates yt-dlp; resolves with the new version. */

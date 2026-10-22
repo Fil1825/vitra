@@ -228,7 +228,8 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let app_data = tmp.path().join("app-data");
         let dev = tmp.path().join("dev");
-        let name = Sidecar::YtDlp.file_name();
+        // The layout differs per OS (yt-dlp is a folder on macOS).
+        let name = Sidecar::YtDlp.layouts()[0].clone();
         touch_executable(&app_data.join(&name));
         touch_executable(&dev.join(&name));
 

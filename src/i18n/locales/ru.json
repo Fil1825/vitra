@@ -40,6 +40,7 @@
     "open": "Открыть файлы…",
     "audioFiles": "Аудио",
     "dropToPlay": "Отпустите, чтобы воспроизвести",
+    "dropToOpenLink": "Отпустите, чтобы открыть ссылку",
     "errors": {
       "mpvMissing": "Движок воспроизведения (mpv) не найден.",
       "mpvMissingHint": "Установите mpv или, при сборке из исходников, выполните npm run fetch-sidecars.",

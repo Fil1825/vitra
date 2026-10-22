@@ -32,8 +32,10 @@ notify = "8.2.0"
 tokio = { version = "1.54", features = ["sync", "time", "macros"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# Only to check the OS version for Liquid Glass; already in the tree via window-vibrancy.
-objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSProcessInfo"] }
+# The OS version (Liquid Glass) and the drag pasteboard (links dropped from a browser); both
+# already in the tree via window-vibrancy, tao and wry.
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSProcessInfo", "NSString"] }
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSPasteboard"] }
 
 [dev-dependencies]
 tempfile = "3"

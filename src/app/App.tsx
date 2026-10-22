@@ -1,5 +1,5 @@
 import { AnimatePresence, MotionConfig } from 'motion/react';
-import { Music } from 'lucide-react';
+import { Link2, Music } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -46,6 +46,7 @@ export function App() {
     useCallback((paths: string[]) => {
       playPaths(paths).catch((err: unknown) => console.error('Playing dropped files failed', err));
     }, []),
+    useCallback((url: string) => useUi.getState().openLink(url), []),
   );
   const shownArtwork = useArtwork ? artwork : null;
 
@@ -89,8 +90,12 @@ export function App() {
       {dropping && (
         <div className={styles.dropZone}>
           <Glass className={styles.dropCard} priority={6}>
-            <Music size={32} aria-hidden="true" />
-            {t('player.dropToPlay')}
+            {dropping === 'link' ? (
+              <Link2 size={32} aria-hidden="true" />
+            ) : (
+              <Music size={32} aria-hidden="true" />
+            )}
+            {t(dropping === 'link' ? 'player.dropToOpenLink' : 'player.dropToPlay')}
           </Glass>
         </div>
       )}
