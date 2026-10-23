@@ -9,6 +9,7 @@ mod lyrics;
 mod mini;
 mod player;
 mod settings;
+mod shortcuts;
 mod sidecar;
 mod themes;
 mod window;

@@ -309,3 +309,69 @@
   resize: vertical;
   line-height: 1.4;
 }
+
+/* Keyboard shortcuts: the action, its keys, and buttons to remove or reset them. */
+.shortcutGroup {
+  display: grid;
+  gap: 2px;
+}
+
+.shortcutGroupTitle {
+  margin: var(--vitra-space-2) 0 var(--vitra-space-1);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.shortcutRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 56px;
+  align-items: center;
+  gap: var(--vitra-space-2);
+  min-height: 32px;
+}
+
+.shortcutName {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.keycap {
+  min-width: 64px;
+  padding: 3px var(--vitra-space-2);
+  border: 1px solid var(--vitra-color-separator);
+  border-radius: var(--vitra-radius-sm);
+  background: color-mix(in srgb, var(--vitra-color-text) 6%, transparent);
+  color: var(--vitra-color-text);
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  cursor: pointer;
+}
+
+.keycap:hover {
+  background: color-mix(in srgb, var(--vitra-color-text) 12%, transparent);
+}
+
+.keycap[data-empty] {
+  color: var(--vitra-color-text-tertiary);
+}
+
+.keycap[data-recording] {
+  border-color: var(--vitra-color-accent);
+  background: color-mix(in srgb, var(--vitra-color-accent) 16%, transparent);
+  color: var(--vitra-color-accent);
+}
+
+.shortcutButtons {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.shortcutNote {
+  grid-column: 1 / -1;
+  color: var(--vitra-color-text-secondary);
+  font-size: 12px;
+}

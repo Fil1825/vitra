@@ -110,6 +110,8 @@ export interface Settings {
   /** The main window's modules and where they are (normalized by the backend). */
   layout: Layout;
   layoutPresets: LayoutPreset[];
+  /** Keyboard shortcuts the user changed: action id → combination, `null` for none. */
+  shortcuts: Record<string, string | null>;
 }
 
 /** The range of the mini player's background opacity. */
@@ -153,6 +155,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   layout: DEFAULT_LAYOUT,
   layoutPresets: [],
+  shortcuts: {},
 };
 
 /** Tauri event carrying the new settings after any window changed them. */

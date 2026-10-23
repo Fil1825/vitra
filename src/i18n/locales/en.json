@@ -189,7 +189,7 @@
     },
     "mini": {
       "title": "Mini Player",
-      "open": "Open Mini Player ({{shortcut}})",
+      "open": "Open Mini Player",
       "mode": "Mode",
       "sizeHint": "You can also drag its edges; each mode keeps its own size.",
       "opacityHint": "How much of the glass behind it shows; the artwork, text and buttons stay solid.",
@@ -633,5 +633,47 @@
     "save": "Save",
     "reset": "Reset",
     "done": "Done"
+  },
+  "shortcuts": {
+    "title": "Keyboard Shortcuts",
+    "hint": "Click a shortcut, then press the new keys. Esc cancels.",
+    "groups": {
+      "playback": "Playback",
+      "app": "Window and Navigation"
+    },
+    "actions": {
+      "play-pause": "Play / Pause",
+      "next": "Next Track",
+      "previous": "Previous Track",
+      "seek-forward": "Forward 5 Seconds",
+      "seek-back": "Back 5 Seconds",
+      "seek-forward-long": "Forward 15 Seconds",
+      "seek-back-long": "Back 15 Seconds",
+      "volume-up": "Volume Up",
+      "volume-down": "Volume Down",
+      "mute": "Mute",
+      "shuffle": "Shuffle",
+      "repeat": "Repeat (Off, All, One)",
+      "open-files": "Open Files",
+      "open-link": "Open a Link",
+      "search": "Search",
+      "back": "Back",
+      "forward": "Forward",
+      "sidebar": "Sidebar: Full, Icons, Hidden",
+      "queue": "Show or Hide the Queue",
+      "lyrics": "Show or Hide Lyrics",
+      "customize-layout": "Customize Layout",
+      "mini-player": "Mini Player",
+      "settings": "Settings"
+    },
+    "none": "None",
+    "record": "Press keys…",
+    "space": "Space",
+    "change": "Change the shortcut for {{action}}",
+    "remove": "Remove the shortcut",
+    "reset": "Back to Vitra’s shortcut",
+    "resetAll": "Reset All Shortcuts",
+    "reserved": "{{combo}} belongs to the system or to text editing",
+    "taken": "Taken from “{{actions}}”"
   }
 }

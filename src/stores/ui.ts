@@ -19,6 +19,7 @@ export interface ArtworkView {
 interface UiState {
   /** The search field (which only the full sidebar shows) should take the focus. */
   searchRequested: boolean;
+  settingsOpen: boolean;
   /** File whose tags are being edited. */
   tagEditorPath: string | null;
   lyricsEditor: LyricsEditorTarget | null;
@@ -29,6 +30,7 @@ interface UiState {
   renamingPlaylist: number | null;
   /** The link dialog is open, with this text in its field. */
   linkInput: string | null;
+  showSettings(open: boolean): void;
   /** The search field took the focus. */
   searchFocused(): void;
   editTags(path: string | null): void;
@@ -52,6 +54,10 @@ export const useUi = create<UiState>((set) => ({
   coverDrop: null,
   renamingPlaylist: null,
   linkInput: null,
+  settingsOpen: false,
+  showSettings(settingsOpen) {
+    set({ settingsOpen });
+  },
   searchFocused() {
     set({ searchRequested: false });
   },

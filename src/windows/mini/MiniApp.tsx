@@ -14,8 +14,6 @@ import { useCallback, useEffect, useState, type CSSProperties, type PointerEvent
 import { useTranslation } from 'react-i18next';
 
 import { useAppearanceController } from '../../app/useAppearanceController.ts';
-import { useMiniPlayerShortcut } from '../../app/useMiniPlayerShortcut.ts';
-import { usePlayerShortcuts } from '../../app/usePlayerShortcuts.ts';
 import { Glass } from '../../components/Glass/index.ts';
 import { IconButton } from '../../components/ui/IconButton.tsx';
 import { Slider } from '../../components/ui/Slider.tsx';
@@ -29,6 +27,7 @@ import { showContextMenu } from '../../lib/menu.ts';
 import { mini } from '../../lib/mini.ts';
 import { artworkUrl, player } from '../../lib/player.ts';
 import { hasNext } from '../../lib/queue.ts';
+import { useShortcuts } from '../../shortcuts/useShortcuts.ts';
 import { useAppearance } from '../../stores/appearance.ts';
 import { useMediaQuery } from '../../lib/useMediaQuery.ts';
 import { useLyrics } from '../../stores/lyrics.ts';
@@ -57,8 +56,7 @@ function useInteractive(): boolean {
  */
 export function MiniApp() {
   useAppearanceController();
-  usePlayerShortcuts();
-  useMiniPlayerShortcut();
+  useShortcuts('mini');
   const { t } = useTranslation();
   const allSettings = useSettings((s) => s.settings);
   const settings = allSettings.miniPlayer;

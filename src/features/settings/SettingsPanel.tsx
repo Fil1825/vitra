@@ -21,6 +21,7 @@ import { DownloadSettings } from './DownloadSettings.tsx';
 import { LibrarySettings } from './LibrarySettings.tsx';
 import { LyricsSettings } from './LyricsSettings.tsx';
 import { MiniPlayerSettings } from './MiniPlayerSettings.tsx';
+import { ShortcutSettings } from './ShortcutSettings.tsx';
 import styles from './SettingsPanel.module.css';
 import { ThemePicker } from './ThemePicker.tsx';
 
@@ -201,6 +202,11 @@ export function SettingsPanel({ onClose }: { onClose(): void }) {
                 onChange={(powerSaving) => setAppearance({ powerSaving })}
               />
             </Row>
+          </section>
+
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>{t('shortcuts.title')}</h3>
+            <ShortcutSettings />
           </section>
 
           <section className={styles.section}>

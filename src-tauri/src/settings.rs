@@ -21,6 +21,7 @@ use crate::library::LibraryService;
 use crate::lyrics::LyricsService;
 use crate::mini::{MiniPlayer, Mode, SizePreset};
 use crate::player::Player;
+use crate::shortcuts::{self, Shortcuts};
 use crate::window;
 
 /// Emitted to every window with the new [`Settings`] after a change.
@@ -47,6 +48,9 @@ pub struct Settings {
     /// Layouts saved under a name.
     #[serde(deserialize_with = "or_default")]
     pub layout_presets: Vec<LayoutPreset>,
+    /// Keyboard shortcuts the user changed (see `shortcuts.rs`).
+    #[serde(deserialize_with = "or_default")]
+    pub shortcuts: Shortcuts,
 }
 
 impl Settings {
@@ -347,6 +351,7 @@ impl Settings {
             downloads.folder.clear();
         }
         self.layout_presets = sanitize_presets(std::mem::take(&mut self.layout_presets));
+        self.shortcuts = shortcuts::sanitize(std::mem::take(&mut self.shortcuts));
         let scale = &mut self.lyrics.font_scale;
         *scale = if scale.is_finite() && *scale > 0.0 {
             scale.clamp(*FONT_SCALES.start(), *FONT_SCALES.end())
@@ -552,6 +557,10 @@ mod tests {
                 name: "Focus".into(),
                 layout: Layout::default(),
             }],
+            shortcuts: Shortcuts::from([
+                ("mute".to_owned(), None),
+                ("play-pause".to_owned(), Some("KeyK".to_owned())),
+            ]),
         };
 
         store_in(tmp.path()).set(settings.clone()).unwrap();
@@ -617,7 +626,8 @@ mod tests {
                     "weights": {},
                     "sidebar": "expanded"
                 },
-                "layoutPresets": []
+                "layoutPresets": [],
+                "shortcuts": {}
             })
         );
     }
@@ -800,5 +810,28 @@ mod tests {
         let settings = store_in(tmp.path()).get();
         assert_eq!(settings.layout, Layout::default());
         assert!(settings.layout_presets.is_empty());
+    }
+
+    #[test]
+    fn broken_shortcuts_are_dropped() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("settings.json"),
+            r#"{ "shortcuts": { "mute": 5, "next": "Mod+KeyN" } }"#,
+        )
+        .unwrap();
+        // A value of the wrong type spoils the whole map for serde: none of it is used.
+        assert!(store_in(tmp.path()).get().shortcuts.is_empty());
+        let store = store_in(tmp.path());
+        let mut settings = store.get();
+        settings.shortcuts = Shortcuts::from([
+            ("next".to_owned(), Some("Mod+KeyN".to_owned())),
+            ("Bad Id".to_owned(), None),
+        ]);
+        let saved = store.set(settings).unwrap();
+        assert_eq!(
+            saved.shortcuts,
+            Shortcuts::from([("next".to_owned(), Some("Mod+KeyN".to_owned()))])
+        );
     }
 }

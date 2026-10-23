@@ -1,6 +1,6 @@
 import { AnimatePresence, MotionConfig } from 'motion/react';
 import { Link2, Music, Palette } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ArtworkViewer } from '../components/ArtworkViewer/ArtworkViewer.tsx';
@@ -18,6 +18,7 @@ import type { CoverTarget } from '../lib/library.ts';
 import { playPaths } from '../lib/openFiles.ts';
 import { artworkUrl } from '../lib/player.ts';
 import { isThemeFile, themeAssetUrl } from '../lib/themes.ts';
+import { useShortcuts } from '../shortcuts/useShortcuts.ts';
 import { useAppearance } from '../stores/appearance.ts';
 import { usePlayer } from '../stores/player.ts';
 import { useThemeEditor } from '../stores/themeEditor.ts';
@@ -27,22 +28,20 @@ import { useAppearanceController } from './useAppearanceController.ts';
 import { useFileDrop } from './useFileDrop.ts';
 import { useLevelMeter } from './useLevelMeter.ts';
 import { useLinkInput } from './useLinkInput.ts';
-import { useMiniPlayerShortcut } from './useMiniPlayerShortcut.ts';
-import { usePlayerShortcuts } from './usePlayerShortcuts.ts';
 
 export function App() {
   useAppearanceController();
-  usePlayerShortcuts();
+  useShortcuts('main');
   useLinkInput();
   useLevelMeter();
-  useMiniPlayerShortcut();
   const { t } = useTranslation();
   const motionEnabled = useAppearance((s) => s.effects.motion);
   const useArtwork = useAppearance((s) => s.theme.background.useArtwork);
   const themeId = useAppearance((s) => s.theme.id);
   const themePicture = useAppearance((s) => s.theme.background.image);
   const artwork = usePlayer((s) => s.state.track?.artwork ?? null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsOpen = useUi((s) => s.settingsOpen);
+  const showSettings = useUi((s) => s.showSettings);
   const themeDraft = useThemeEditor((s) => s.draft);
   const tagEditorPath = useUi((s) => s.tagEditorPath);
   const editTags = useUi((s) => s.editTags);
@@ -73,18 +72,13 @@ export function App() {
   const shownArtwork = useArtwork ? artwork : null;
 
   useEffect(() => {
+    // Escape closes Settings; a component that used it (a menu, a field) has said so.
     const onKey = (event: KeyboardEvent) => {
-      // Cmd+, / Ctrl+, is the conventional settings shortcut; rebinding comes in stage 7.
-      if (event.key === ',' && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        setSettingsOpen((open) => !open);
-      } else if (event.key === 'Escape') {
-        setSettingsOpen(false);
-      }
+      if (event.key === 'Escape' && !event.defaultPrevented) showSettings(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [showSettings]);
 
   return (
     <MotionConfig reducedMotion={motionEnabled ? 'never' : 'always'}>
@@ -99,10 +93,10 @@ export function App() {
           }
         }
       />
-      <Workspace onOpenSettings={() => setSettingsOpen(true)} />
+      <Workspace onOpenSettings={() => showSettings(true)} />
       {/* The theme editor takes Settings' place; Settings come back when it closes. */}
       <AnimatePresence>
-        {settingsOpen && !themeDraft && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
+        {settingsOpen && !themeDraft && <SettingsPanel onClose={() => showSettings(false)} />}
       </AnimatePresence>
       <AnimatePresence>{themeDraft && <ThemeEditor draft={themeDraft} />}</AnimatePresence>
       {tagEditorPath && (

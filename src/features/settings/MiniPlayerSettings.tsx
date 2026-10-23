@@ -6,6 +6,7 @@ import { Slider } from '../../components/ui/Slider.tsx';
 import { Switch } from '../../components/ui/Switch.tsx';
 import { MINI_MODES, MINI_SIZES, mini } from '../../lib/mini.ts';
 import { MINI_OPACITY_MIN, type MiniPlayerSettings as Values } from '../../lib/settings.ts';
+import { useShortcutLabel, withShortcut } from '../../shortcuts/useShortcuts.ts';
 import { useEnvironment } from '../../stores/environment.ts';
 import { useSettings } from '../../stores/settings.ts';
 import styles from './SettingsPanel.module.css';
@@ -17,6 +18,7 @@ export function MiniPlayerSettings() {
   const update = useSettings((s) => s.update);
   const platform = useEnvironment((s) => s.platform);
   const mac = platform === 'macos';
+  const miniShortcut = useShortcutLabel('mini-player');
   const set = (change: Partial<Values>) =>
     void update((current) => ({ ...current, miniPlayer: { ...current.miniPlayer, ...change } }));
 
@@ -44,7 +46,7 @@ export function MiniPlayerSettings() {
           onClick={() => void mini.show().catch((err: unknown) => console.error(err))}
         >
           <PictureInPicture2 size={15} aria-hidden="true" />
-          {t('settings.mini.open', { shortcut: mac ? '⌥⌘M' : 'Ctrl+Alt+M' })}
+          {withShortcut(t('settings.mini.open'), miniShortcut)}
         </button>
       </div>
 

@@ -23,7 +23,7 @@ import { Glass } from '../components/Glass/index.ts';
 import { IconButton } from '../components/ui/IconButton.tsx';
 import { Slider } from '../components/ui/Slider.tsx';
 import { isShown } from '../layout/model.ts';
-import { setModuleShown, toggleModule, useLayout } from '../layout/state.ts';
+import { toggleModule, useLayout } from '../layout/state.ts';
 import { formatTime } from '../lib/format.ts';
 import { library } from '../lib/library.ts';
 import { mini } from '../lib/mini.ts';
@@ -31,9 +31,9 @@ import { artworkUrl, player } from '../lib/player.ts';
 import { hasNext, nextRepeat, queue } from '../lib/queue.ts';
 import { ArtistLinks, LibraryLink } from '../features/library/TrackLinks.tsx';
 import { useCurrentLibraryTrack } from '../features/library/useCurrentTrack.ts';
-import { setLyricsVisible } from '../features/lyrics/actions.ts';
+import { toggleLyrics } from '../features/lyrics/actions.ts';
+import { useShortcutLabel, withShortcut } from '../shortcuts/useShortcuts.ts';
 import { albumRoute, useNavigation } from '../stores/navigation.ts';
-import { useEnvironment } from '../stores/environment.ts';
 import { useLivePosition, usePlayer } from '../stores/player.ts';
 import { useQueue } from '../stores/queue.ts';
 import { useSettings } from '../stores/settings.ts';
@@ -73,7 +73,7 @@ export function ControlBar({ className }: { className?: string }) {
   const position = useLivePosition();
   const [scrub, setScrub] = useState<number | null>(null);
   const [volume, setVolume] = useState<number | null>(null);
-  const shortcutHint = useEnvironment((s) => s.platform === 'macos') ? '⌥⌘M' : 'Ctrl+Alt+M';
+  const miniShortcut = useShortcutLabel('mini-player');
 
   const { track, duration } = state;
   // Seeking needs an open file; a link can take a while to open (yt-dlp asks the site first).
@@ -265,15 +265,7 @@ export function ControlBar({ className }: { className?: string }) {
           )}
           aria-pressed={lyricsOpen}
           className={lyricsOpen ? styles.on : undefined}
-          onClick={() => {
-            // Hidden lyrics come back in their panel, wherever they were hidden.
-            if (!lyricsVisible) {
-              setLyricsVisible(true);
-              setModuleShown('lyrics', true);
-            } else {
-              toggleModule('lyrics');
-            }
-          }}
+          onClick={toggleLyrics}
         >
           <MicVocal size={17} />
         </IconButton>
@@ -286,7 +278,7 @@ export function ControlBar({ className }: { className?: string }) {
           <ListMusic size={17} />
         </IconButton>
         <IconButton
-          label={`${t('mini.open')} (${shortcutHint})`}
+          label={withShortcut(t('mini.open'), miniShortcut)}
           onClick={() => mini.show().catch(report)}
         >
           <PictureInPicture2 size={17} />

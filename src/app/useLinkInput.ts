@@ -12,21 +12,14 @@ function isEditable(target: EventTarget | null): boolean {
 }
 
 /**
- * Ways to open a link: Cmd/Ctrl+U opens the link dialog; pasting a link anywhere outside a
- * text field opens it with that link. (Dropped links come through `useFileDrop`: Tauri keeps
- * drops from the page.)
+ * Pasting a link anywhere outside a text field opens the link dialog with it. (Its shortcut,
+ * ⌘U / Ctrl+U by default, is the `open-link` action; dropped links come through
+ * `useFileDrop`: Tauri keeps drops from the page.)
  */
 export function useLinkInput(): void {
   useEffect(() => {
     const open = (input: string) => useUi.getState().openLink(input);
 
-    const onKey = (event: KeyboardEvent) => {
-      const command = event.metaKey || event.ctrlKey;
-      if (command && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'u') {
-        event.preventDefault();
-        open('');
-      }
-    };
     // WebKit enables Paste outside text fields only when `beforepaste` is cancelled.
     const onBeforePaste = (event: Event) => {
       if (!isEditable(event.target)) {
@@ -44,11 +37,9 @@ export function useLinkInput(): void {
       }
     };
 
-    window.addEventListener('keydown', onKey);
     document.addEventListener('beforepaste', onBeforePaste);
     document.addEventListener('paste', onPaste);
     return () => {
-      window.removeEventListener('keydown', onKey);
       document.removeEventListener('beforepaste', onBeforePaste);
       document.removeEventListener('paste', onPaste);
     };
