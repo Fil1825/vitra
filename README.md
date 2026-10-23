@@ -52,6 +52,14 @@ making a backup copy), a `.lrc` file, or Vitra's library only. Lyrics can also b
 [LRCLIB](https://lrclib.net) — off by default; turning it on sends the song's title, artist,
 album and length there.
 
+## Mini player
+
+**⌥⌘M** (Ctrl+Alt+M) or the last button of the control bar swaps the main window for a small
+glass player that stays on top: compact (artwork, controls, progress), a slim bar, or just the
+playing line of the lyrics. Drag it anywhere (it snaps to the screen's edges) or by its edges
+to resize it; right-click for its mode, size, background opacity, always on top and
+click-through (hold ⌥ / Alt over it to use it then). Settings → Mini Player has the rest.
+
 ## Look
 
 The window's background comes from the playing song's cover: blurred, slowly breathing and

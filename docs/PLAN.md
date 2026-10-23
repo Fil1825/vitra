@@ -204,6 +204,15 @@ and an explicit list of checks that can only be done on a Mac.
 - Settings: always on top / normal, opacity, size, snap to screen edges, remember position,
   optional click-through. Uses the current theme and `<Glass>`.
 - **Mac-only checks**: always-on-top over full-screen apps, click-through.
+- Done (PR #7), with the owner's choices: click-through is left by holding ⌥ (Alt) over the
+  mini player; opening it hides the main window (a setting); size presets plus dragging, a
+  size per mode; the opacity fades only the background. Also: ⌥⌘M switches windows, it
+  reopens at launch if it was open, "over full-screen apps" on macOS drops the Dock icon
+  while it is the only window (macOS allows nothing else). The tray entry and a global
+  hotkey come with stage 8.
+- **Mac** for stage 6: on top over other apps and Spaces, over full-screen apps with the
+  option, click-through with ⌥, the rounded vibrancy, its shadow and fading, dragging and
+  resizing the borderless window, snapping at the menu bar and Dock.
 
 ## Stage 7 — Customization
 

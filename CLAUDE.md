@@ -21,8 +21,8 @@ the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
 | 2   | Engine: mpv IPC, transport controls, artwork backdrop  | in review (PR #3) |
 | 3   | Library & queue: scan, SQLite, views, search, session  | in review (PR #4) |
 | 4   | Links: yt-dlp playback, playlists, downloads           | in review (PR #5) |
-| 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | in review (PR #6) |
-| 6   | Mini player                                            | not started       |
+| 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | accepted (PR #6)  |
+| 6   | Mini player                                            | in review (PR #7) |
 | 7   | Customization: theme editor, `.vitratheme`, layout     | not started       |
 | 8   | Sound & system: EQ, crossfade, media keys, tray        | not started       |
 | 9   | Integrations, i18n, CI builds, README, first release   | not started       |
@@ -87,7 +87,7 @@ sudo apt-get install -y llvm
 ```
 Cargo.toml              Cargo workspace (members: src-tauri, later crates/*)
 package.json            frontend + scripts; Tauri CLI is a devDependency
-index.html              main window entry (mini player gets mini.html in stage 6)
+index.html, mini.html   window entries: main window, mini player
 src/                    React + TypeScript frontend
   main.tsx              boot: backend bridge → settings, environment, player, queue, library,
                         downloads, lyrics stores → i18n → render
@@ -102,7 +102,8 @@ src/                    React + TypeScript frontend
                         queue/ (QueuePanel), tags/ (TagEditor, files and links; album.ts:
                         which album a title + artist means), links/ (LinkDialog,
                         DownloadsView, download groups), lyrics/ (LyricsView, LyricsPanel, LyricsEditor +
-                        SyncPane, tap-sync model sync.ts), settings/
+                        SyncPane, tap-sync model sync.ts, Karaoke + clock.ts shared with the
+                        mini player), settings/
   stores/               zustand stores: settings (mirror of Rust), environment, appearance,
                         player, queue, library (scan status), downloads, lyrics, navigation
                         (routes), ui (sidebar mode, side panel, dialogs, artwork viewer)
@@ -110,12 +111,16 @@ src/                    React + TypeScript frontend
   i18n/                 i18next setup, locales/en.json + ru.json (typed keys)
   lib/                  IPC wrappers, event bus + backend bridge, hooks, pure helpers
   styles/global.css     base document styles
-  (planned) windows/mini/
+  windows/mini/         the mini player window: boot (main.tsx), MiniApp (three modes),
+                        context menu (menu.ts)
 src-tauri/              Tauri app crate (`vitra`, lib `vitra_lib`)
   src/lib.rs            builder, plugins, setup, command registration
   src/settings.rs       Settings struct, JSON persistence, get/set commands
   src/window.rs         window creation from config, vibrancy / Mica / Acrylic
   src/error.rs          AppError (serializes to a message for the frontend)
+  src/mini/             mini player window: show/hide and the main window, sizes per mode,
+                        snapping, saved position (geometry.rs, pure), click-through with ⌥
+                        (passthrough.rs), macOS / Windows specifics (platform.rs), commands
   src/sidecar.rs        locating mpv / yt-dlp / ffmpeg / ffprobe / deno
   src/player/           mpv supervisor, queue mirroring and commands (mod.rs, commands.rs),
                         PlayerState reducer (state.rs), play queue (queue.rs, pure),
@@ -453,6 +458,38 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
     UI: `HeroCover` on album/artist/playlist pages (button on hover, context menu, an image
     file dropped on it: `useFileDrop` finds the `[data-cover-drop]` element under Tauri's
     drop position), plus entries in the album, artist and playlist menus. The sidebar shows a playlist's chosen cover in place of its icon.
+29. **Mini player** (`src-tauri/src/mini`, `mini.html`, `src/windows/mini`, settings
+    `miniPlayer`):
+    - A borderless, transparent, `skipTaskbar` window labelled `mini` (`tauri.conf.json`,
+      `create: false`, own capability `capabilities/mini.json`), created on first use and then
+      only shown and hidden. Its page boots the settings, environment, player, queue and lyrics
+      stores and the theme like the main window; it adds nothing to Rust's state.
+    - Opening it hides the main window (`hideMainWindow`); expand, ⌥⌘M (`mini_toggle`),
+      closing it or the Dock icon (`RunEvent::Reopen`) bring the main window back. Closing
+      the main window while the mini player shows keeps the app running in it; otherwise the
+      hidden mini window is destroyed so the app quits as before. `mini-player.json` (config
+      dir, not the settings: moving shouldn't notify every window) keeps `open` (reopen at
+      launch), the position and each mode's size.
+    - Sizes: a base size per mode × the preset (0.8 / 1 / 1.3), min/max per mode, dragged
+      sizes remembered per mode; a preset change forgets them. The page sizes everything in
+      `em` of a font that follows the window height, so any size works. A new window reports
+      its old size for a moment: positions are computed from the size just set.
+    - Moves and resizes settle (250 ms, mouse button up where the platform tells) before
+      snapping to the work area's edges (16 pt), saving, or pulling a grown window back on
+      screen (`geometry::snap`, `fit_inside`, `reachable`).
+    - Backdrop per window (`window::Backdrop`): rounded (`mini::RADIUS`, the page's
+      `--glass-radius` matches) and faded by `opacity`: macOS sets the vibrancy view's alpha
+      (found by window-vibrancy's view tag; Liquid Glass hosts the page, so a faded backdrop
+      is always vibrancy), Windows drops Acrylic below 100% and the page's tint fades,
+      Linux windows are opaque.
+    - Always on top: `set_always_on_top` + all workspaces, and on macOS
+      `FullScreenAuxiliary`. Over other apps' full-screen spaces only accessory apps are
+      allowed, so `overFullScreen` switches the activation policy to `Accessory` while the
+      mini player is the only window (`update_activation_policy`).
+    - Click-through: `set_ignore_cursor_events`, except while ⌥/Alt is held over it: a loop
+      (80 ms, only while it is on and shown) reads the pointer and `NSEvent.modifierFlags` /
+      `GetAsyncKeyState` and emits `mini://interactive` (bus `mini:interactive`, an accent
+      ring). Linux can't read the key: turned off in Settings there.
 
 ## Conventions
 
@@ -502,6 +539,9 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
   reads the macOS drag pasteboard (`public.url`, legacy `NSURLPboardType`, plain text).
   Windows and Linux report nothing for links; paste works there. Don't turn off
   `dragDropEnabled`: file and folder drops need its real paths.
+- Under Xvfb there is no window manager: `startDragging` does nothing and keyboard focus may
+  not be on a window (click before typing shortcuts). Move windows with `xdotool
+windowmove` to test snapping; `xwininfo -root -tree` lists the mini window.
 - Tauri types drop positions as `PhysicalPosition`, but only Windows reports physical pixels
   (WebView2, `ScreenToClient`); macOS (`draggingLocation`, points) and Linux (GTK widget
   coordinates) report logical ones. `useFileDrop.dropPoint` divides by `devicePixelRatio`
