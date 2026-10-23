@@ -1,0 +1,22 @@
+{
+  "_type": "video",
+  "id": "album000001",
+  "title": "Northern Lights",
+  "track": "Northern Lights",
+  "artists": ["Aurora Collective", "Glass Harbor"],
+  "creators": ["Aurora Collective", "Glass Harbor"],
+  "album": "Polar Lights",
+  "release_year": 2021,
+  "uploader": "Aurora Collective - Topic",
+  "channel": "Aurora Collective - Topic",
+  "upload_date": "20210305",
+  "duration": 201,
+  "thumbnail": "https://i.ytimg.com/vi/album000001/maxresdefault.jpg",
+  "webpage_url": "https://www.youtube.com/watch?v=album000001",
+  "original_url": "https://www.youtube.com/watch?v=album000001",
+  "playlist_index": 1,
+  "extractor": "youtube",
+  "extractor_key": "Youtube",
+  "is_live": false,
+  "live_status": "not_live"
+}

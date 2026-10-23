@@ -3,16 +3,23 @@
 /// The default template: "Artist - Title".
 pub const DEFAULT_TEMPLATE: &str = "{artist} - {title}";
 
+/// The default template for tracks of an album: a folder per artist and album.
+pub const DEFAULT_ALBUM_TEMPLATE: &str = "{album_artist}/{album}/{track} {title}";
+
 /// Longest file stem, in bytes: well below every file system's limit, with room for the
 /// extension and a " (2)" suffix.
 const MAX_STEM: usize = 150;
 
-/// Values the placeholders `{artist}`, `{title}`, `{album}` and `{year}` stand for.
+/// Values the placeholders `{artist}`, `{title}`, `{album}`, `{album_artist}`, `{track}`
+/// (two digits) and `{year}` stand for.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FileNameFields<'a> {
     pub artist: Option<&'a str>,
     pub title: Option<&'a str>,
     pub album: Option<&'a str>,
+    /// Falls back to `artist`.
+    pub album_artist: Option<&'a str>,
+    pub track: Option<u32>,
     pub year: Option<u16>,
 }
 
@@ -30,6 +37,14 @@ fn parse(template: &str, fields: &FileNameFields<'_>) -> (Vec<String>, Vec<Strin
             "artist" => Some(fields.artist.unwrap_or("").to_owned()),
             "title" => Some(fields.title.unwrap_or("").to_owned()),
             "album" => Some(fields.album.unwrap_or("").to_owned()),
+            "album_artist" => Some(
+                fields
+                    .album_artist
+                    .or(fields.artist)
+                    .unwrap_or("")
+                    .to_owned(),
+            ),
+            "track" => Some(fields.track.map(|n| format!("{n:02}")).unwrap_or_default()),
             "year" => Some(fields.year.map(|y| y.to_string()).unwrap_or_default()),
             _ => None,
         };
@@ -137,6 +152,25 @@ pub fn file_stem(template: &str, fields: &FileNameFields<'_>) -> String {
     }
 }
 
+/// Where a download goes, relative to the download folder: the folders a template's `/`
+/// separates (each rendered and made safe on its own; empty ones are left out) and the file
+/// name without extension.
+pub fn relative_path(template: &str, fields: &FileNameFields<'_>) -> (Vec<String>, String) {
+    let template = if template.trim().is_empty() {
+        DEFAULT_TEMPLATE
+    } else {
+        template
+    };
+    let mut segments: Vec<&str> = template.split(['/', '\\']).collect();
+    let name = segments.pop().unwrap_or_default();
+    let folders = segments
+        .into_iter()
+        .map(|segment| sanitize_file_name(&render(segment, fields)))
+        .filter(|folder| !folder.is_empty())
+        .collect();
+    (folders, file_stem(name, fields))
+}
+
 /// `stem`, or the first of `stem (2)`, `stem (3)`, ... that `taken` says is free, so a
 /// download never overwrites a file (or another download's name).
 pub fn unique_stem(stem: &str, taken: impl Fn(&str) -> bool) -> String {
@@ -159,7 +193,48 @@ mod tests {
             title,
             album: Some("Album"),
             year: Some(1999),
+            ..FileNameFields::default()
         }
+    }
+
+    #[test]
+    fn album_tracks_get_folders_and_numbers() {
+        let track = FileNameFields {
+            artist: Some("VILLIAN, madk1d"),
+            title: Some("Song: Part 2"),
+            album: Some("Night/Day"),
+            album_artist: Some("VILLIAN"),
+            track: Some(3),
+            year: Some(2024),
+        };
+        assert_eq!(
+            relative_path(DEFAULT_ALBUM_TEMPLATE, &track),
+            (
+                vec!["VILLIAN".to_owned(), "Night-Day".to_owned()],
+                "03 Song_ Part 2".to_owned()
+            )
+        );
+        // Missing values drop their folder; the album artist falls back to the artist.
+        let loose = FileNameFields {
+            album_artist: None,
+            album: None,
+            ..track
+        };
+        assert_eq!(
+            relative_path(DEFAULT_ALBUM_TEMPLATE, &loose),
+            (
+                vec!["VILLIAN, madk1d".to_owned()],
+                "03 Song_ Part 2".to_owned()
+            )
+        );
+        assert_eq!(
+            relative_path("{artist} - {title}", &track),
+            (Vec::new(), "VILLIAN, madk1d - Song_ Part 2".to_owned())
+        );
+        assert_eq!(
+            relative_path("{year}\\{title}", &track),
+            (vec!["2024".to_owned()], "Song_ Part 2".to_owned())
+        );
     }
 
     #[test]

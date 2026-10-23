@@ -325,6 +325,21 @@ impl LibraryService {
         Ok(tracks.into_iter().map(entry_from_track).collect())
     }
 
+    /// Changes how artist credits are split and splits the library again, in the background.
+    pub fn set_artist_splitting(&self, splitting: library::ArtistSplitting) {
+        let service = self.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            match service.with(|db| db.set_artist_splitting(&splitting)) {
+                Ok(true) => {
+                    service.changed(Change::Tracks);
+                    service.changed(Change::Playlists);
+                }
+                Ok(false) => {}
+                Err(err) => log::warn!("cannot split artists again: {err}"),
+            }
+        });
+    }
+
     /// Counts a play of a library track (in the background).
     pub fn record_play(&self, track_id: i64) {
         let service = self.clone();

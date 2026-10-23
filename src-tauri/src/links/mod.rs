@@ -7,13 +7,13 @@
 mod commands;
 mod downloads;
 
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use library::{Playlist, RemoteTrack, Track};
-use links::{LinkKind, LinkPlaylist, LinkTrack, Resolved, YtDlp};
+use links::{LinkAlbum, LinkKind, LinkPlaylist, LinkTrack, Resolved, YtDlp};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
@@ -24,7 +24,7 @@ use crate::settings::SettingsStore;
 use crate::sidecar::{self, Sidecar, SidecarSource};
 
 pub use commands::*;
-pub use downloads::Downloads;
+pub use downloads::{Downloads, GroupKind, GroupSpec};
 
 /// Resolutions and thumbnails kept for links seen recently.
 const RECENT: usize = 32;
@@ -50,7 +50,11 @@ pub struct PreviewTrack {
     pub url: String,
     pub title: String,
     pub artist: Option<String>,
+    /// The artists when the site lists several.
+    pub artists: Vec<String>,
     pub album: Option<String>,
+    /// The track's number on its album.
+    pub track_number: Option<u32>,
     pub duration: Option<f64>,
     pub live: bool,
     /// Served at `artwork://localhost/<id>`.
@@ -78,7 +82,57 @@ pub enum LinkPreview {
         tracks: Vec<PreviewTrack>,
         /// The playlist this link was imported as before.
         playlist_id: Option<i64>,
+        /// Set when the playlist is an album: the dialog shows it as one.
+        album: Option<AlbumPreview>,
     },
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AlbumPreview {
+    pub title: String,
+    pub artist: Option<String>,
+    pub year: Option<u16>,
+    /// Tracks on the album, unavailable ones included.
+    pub count: Option<u32>,
+    /// The library album, once its tracks are in the library.
+    pub album_id: Option<i64>,
+}
+
+/// Where an album's entries go when their full metadata comes in: the album, and each
+/// entry's number by its id (or URL).
+#[derive(Debug, Clone)]
+struct Placement {
+    album: LinkAlbum,
+    numbers: HashMap<String, u32>,
+}
+
+impl Placement {
+    fn of(playlist: &LinkPlaylist) -> Option<Self> {
+        let album = playlist.album.clone()?;
+        let numbers = playlist
+            .tracks
+            .iter()
+            .filter_map(|track| Some((entry_key(track), track.track_number?)))
+            .collect();
+        Some(Self { album, numbers })
+    }
+
+    fn place(&self, track: &mut LinkTrack) {
+        let number = self
+            .numbers
+            .get(&entry_key(track))
+            .copied()
+            .or(track.track_number);
+        if let Some(number) = number {
+            links::place_in_album(track, &self.album, number);
+        }
+    }
+}
+
+/// What identifies a playlist entry across its listing and its own page.
+fn entry_key(track: &LinkTrack) -> String {
+    track.id.clone().unwrap_or_else(|| track.url.clone())
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -136,7 +190,10 @@ fn remote(track: &LinkTrack, complete: bool) -> RemoteTrack {
         url: track.url.clone(),
         title: track.title.clone(),
         artist: track.artist.clone(),
+        artists: track.artists.clone(),
         album: track.album.clone(),
+        album_artist: track.album_artist.clone(),
+        track_number: track.track_number,
         year: track.year,
         duration: track.duration,
         complete,
@@ -208,6 +265,11 @@ impl LinkService {
                 .locate(Sidecar::Ffmpeg)
                 .and_then(|found| found.path.parent().map(Path::to_path_buf)),
             deno: paths.locate(Sidecar::Deno).map(|found| found.path),
+            cookies_from_browser: self
+                .0
+                .app
+                .try_state::<SettingsStore>()
+                .and_then(|settings| settings.get().downloads.cookies_browser()),
         })
     }
 
@@ -268,18 +330,50 @@ impl LinkService {
                     .run(move |db| db.playlist_by_source(&url))
                     .await?
                     .map(|p| p.id);
+                let shown: Vec<LinkTrack> = playlist
+                    .tracks
+                    .iter()
+                    .take(PREVIEW_TRACKS)
+                    .cloned()
+                    .collect();
+                // An album's tracks may be in the library (or downloaded) already.
+                let known: Vec<Option<Track>> = if playlist.album.is_some() {
+                    let urls: Vec<String> = shown.iter().map(|t| t.url.clone()).collect();
+                    library
+                        .run(move |db| {
+                            urls.iter()
+                                .map(|url| db.track_by_source(url))
+                                .collect::<library::Result<_>>()
+                        })
+                        .await?
+                } else {
+                    vec![None; shown.len()]
+                };
                 let mut tracks = Vec::new();
-                for track in playlist.tracks.iter().take(PREVIEW_TRACKS) {
-                    tracks.push(self.preview_track(track, None).await);
+                for (track, known) in shown.iter().zip(&known) {
+                    tracks.push(self.preview_track(track, known.as_ref()).await);
                 }
+                let album = playlist.album.as_ref().map(|album| AlbumPreview {
+                    title: album.title.clone(),
+                    artist: album.artist.clone(),
+                    year: album.year,
+                    count: album.count,
+                    album_id: known.iter().flatten().find_map(|t| t.album_id),
+                });
+                let artwork = if album.is_some() {
+                    self.album_artwork_id(&playlist).await
+                } else {
+                    self.artwork_id(&playlist.url).await
+                };
                 LinkPreview::Playlist {
-                    artwork: self.artwork_id(&playlist.url).await,
+                    artwork,
                     url: playlist.url,
-                    title: playlist.title,
+                    title: album.as_ref().map_or(playlist.title, |a| a.title.clone()),
                     uploader: playlist.uploader,
                     count: playlist.tracks.len(),
                     tracks,
                     playlist_id,
+                    album,
                 }
             }
         })
@@ -290,7 +384,9 @@ impl LinkService {
             url: track.url.clone(),
             title: track.title.clone(),
             artist: track.artist.clone(),
+            artists: track.artists.clone(),
             album: track.album.clone(),
+            track_number: track.track_number,
             duration: track.duration,
             live: track.live,
             artwork: self.artwork_id(&track.url).await,
@@ -299,9 +395,41 @@ impl LinkService {
         }
     }
 
+    /// An album's cover: the playlist's thumbnail, else its first track's, cut square (see
+    /// [`media::square_cover`]). Remembered, so every track of a download gets the same one.
+    pub async fn album_cover(&self, playlist: &LinkPlaylist) -> Option<Arc<Vec<u8>>> {
+        let key = format!("{}#album", playlist.url);
+        if let Some(cover) = self.thumbnail(&key) {
+            return Some(cover);
+        }
+        let source = self.thumbnail(&playlist.url).or_else(|| {
+            playlist
+                .tracks
+                .iter()
+                .find_map(|track| self.thumbnail(&track.url))
+        })?;
+        let square = tauri::async_runtime::spawn_blocking(move || media::square_cover(&source))
+            .await
+            .ok()?
+            .inspect_err(|err| log::info!("cannot read an album cover: {err}"))
+            .ok()?;
+        let square = Arc::new(square);
+        remember(&self.0.thumbnails, &key, Arc::clone(&square));
+        Some(square)
+    }
+
+    async fn album_artwork_id(&self, playlist: &LinkPlaylist) -> Option<String> {
+        let bytes = self.album_cover(playlist).await?;
+        self.prepared_artwork(bytes).await
+    }
+
     /// Puts a link's thumbnail into the player's artwork store for the dialog to show.
     async fn artwork_id(&self, url: &str) -> Option<String> {
         let bytes = self.thumbnail(url)?;
+        self.prepared_artwork(bytes).await
+    }
+
+    async fn prepared_artwork(&self, bytes: Arc<Vec<u8>>) -> Option<String> {
         let player = self.player()?;
         let prepared = tauri::async_runtime::spawn_blocking(move || {
             media::prepare_artwork(media::Artwork {
@@ -324,6 +452,31 @@ impl LinkService {
         self.resolve(url).await?;
         recall(&self.0.resolved, url)
             .ok_or_else(|| AppError::NotFound(format!("cannot resolve {url}")))
+    }
+
+    /// Adds an album's tracks to the library as one album with its cover, and fills in their
+    /// metadata in the background.
+    async fn store_album(&self, playlist: &LinkPlaylist) -> Result<Vec<Track>, AppError> {
+        let library = self.library()?;
+        let tracks: Vec<RemoteTrack> = playlist.tracks.iter().map(|t| remote(t, false)).collect();
+        let cover = self.album_cover(playlist).await;
+        let covers = library.covers_dir().to_path_buf();
+        let stored = library
+            .run(move |db| {
+                let stored = db.add_remote_tracks(&tracks)?;
+                let albums: HashSet<i64> = stored.iter().filter_map(|t| t.album_id).collect();
+                if let Some(cover) = cover {
+                    for album in &albums {
+                        db.set_album_artwork(*album, &cover, &covers)?;
+                    }
+                }
+                let ids = stored.iter().map(|t| t.id).collect();
+                db.tracks(&library::TrackFilter::Ids(ids))
+            })
+            .await?;
+        library.changed(Change::Tracks);
+        self.enrich(playlist.url.clone(), Placement::of(playlist));
+        Ok(stored)
     }
 
     /// Adds link tracks to the library with their thumbnails as covers.
@@ -362,6 +515,12 @@ impl LinkService {
                 .map(entry_from_track)
                 .collect(),
             Resolved::Track(track) => vec![link_entry(&track)],
+            Resolved::Playlist(playlist) if playlist.album.is_some() => self
+                .store_album(&playlist)
+                .await?
+                .into_iter()
+                .map(entry_from_track)
+                .collect(),
             Resolved::Playlist(playlist) => {
                 let (_, tracks) = self.import_playlist(playlist).await?;
                 tracks.into_iter().map(entry_from_track).collect()
@@ -397,26 +556,28 @@ impl LinkService {
             .await?;
         library.changed(Change::Tracks);
         library.changed(Change::Playlists);
-        self.enrich(playlist.url);
+        self.enrich(playlist.url, None);
         Ok(imported)
     }
 
     /// Fills in the entries of an imported playlist (a listing has little more than titles)
     /// with their full metadata and thumbnails, in the background.
-    fn enrich(&self, url: String) {
+    fn enrich(&self, url: String, placement: Option<Placement>) {
         if !lock(&self.0.enriching).insert(url.clone()) {
             return;
         }
         let service = self.clone();
         tauri::async_runtime::spawn(async move {
-            if let Err(err) = service.run_enrich(&url).await {
+            if let Err(err) = service.run_enrich(&url, placement.as_ref()).await {
                 log::warn!("cannot fill in the playlist {url}: {err}");
             }
             lock(&service.0.enriching).remove(&url);
         });
     }
 
-    async fn run_enrich(&self, url: &str) -> Result<(), AppError> {
+    /// Album entries are filed under their album and numbered; their thumbnails stay out of
+    /// the library, which shows the album's cover for them.
+    async fn run_enrich(&self, url: &str, placement: Option<&Placement>) -> Result<(), AppError> {
         let ytdlp = self.ytdlp()?;
         let library = self.library()?;
         let (sender, mut receiver) = tokio::sync::mpsc::unbounded_channel();
@@ -431,11 +592,16 @@ impl LinkService {
         });
         let mut last_refresh = Instant::now();
         let mut pending: Vec<Track> = Vec::new();
-        while let Some((track, thumbnail)) = receiver.recv().await {
+        while let Some((mut track, thumbnail)) = receiver.recv().await {
             if let Some(thumbnail) = thumbnail {
                 remember(&self.0.thumbnails, &track.url, Arc::new(thumbnail));
             }
-            let stored = self.store_quietly(&library, remote(&track, true)).await?;
+            if let Some(placement) = placement {
+                placement.place(&mut track);
+            }
+            let stored = self
+                .store_quietly(&library, remote(&track, true), placement.is_none())
+                .await?;
             pending.extend(stored);
             if last_refresh.elapsed() >= ENRICH_REFRESH {
                 last_refresh = Instant::now();
@@ -452,8 +618,9 @@ impl LinkService {
         &self,
         library: &LibraryService,
         track: RemoteTrack,
+        own_cover: bool,
     ) -> Result<Option<Track>, AppError> {
-        let thumbnail = self.thumbnail(&track.url);
+        let thumbnail = self.thumbnail(&track.url).filter(|_| own_cover);
         let covers = library.covers_dir().to_path_buf();
         library
             .run(move |db| {
@@ -479,11 +646,46 @@ impl LinkService {
         }
     }
 
-    /// Library tracks for links (added if needed), for downloading.
-    pub async fn tracks_for_download(&self, url: &str) -> Result<Vec<Track>, AppError> {
+    /// Library tracks for links (added if needed), for downloading, and the album or playlist
+    /// they are downloaded as.
+    pub async fn tracks_for_download(
+        &self,
+        url: &str,
+    ) -> Result<(Vec<Track>, Option<GroupSpec>), AppError> {
         match self.resolved(url).await? {
-            Resolved::Track(track) => self.store_tracks(vec![remote(&track, true)]).await,
-            Resolved::Playlist(playlist) => Ok(self.import_playlist(playlist).await?.1),
+            Resolved::Track(track) => {
+                Ok((self.store_tracks(vec![remote(&track, true)]).await?, None))
+            }
+            Resolved::Playlist(playlist) => {
+                let (tracks, kind) = match &playlist.album {
+                    Some(_) => (self.store_album(&playlist).await?, GroupKind::Album),
+                    None => (
+                        self.import_playlist(playlist.clone()).await?.1,
+                        GroupKind::Playlist,
+                    ),
+                };
+                let cover = match kind {
+                    GroupKind::Album => self.album_cover(&playlist).await,
+                    GroupKind::Playlist => None,
+                };
+                let album = playlist.album.clone();
+                let group = GroupSpec {
+                    url: playlist.url.clone(),
+                    kind,
+                    title: album
+                        .as_ref()
+                        .map_or_else(|| playlist.title.clone(), |a| a.title.clone()),
+                    artist: album
+                        .as_ref()
+                        .and_then(|a| a.artist.clone())
+                        .or(playlist.uploader.clone()),
+                    cover_id: tracks.iter().find_map(|t| t.cover.clone()),
+                    album,
+                    cover,
+                    first_track: playlist.tracks.first().map(|t| t.url.clone()),
+                };
+                Ok((tracks, Some(group)))
+            }
         }
     }
 
@@ -636,6 +838,52 @@ mod tests {
     }
 
     #[test]
+    fn album_entries_are_placed_by_their_listing_numbers() {
+        let listed = |id: &str, n: u32| LinkTrack {
+            url: format!("https://y/{id}"),
+            id: Some(id.into()),
+            title: id.into(),
+            track_number: Some(n),
+            ..LinkTrack::default()
+        };
+        let playlist = LinkPlaylist {
+            url: "https://y/list".into(),
+            id: None,
+            title: "Album - X".into(),
+            uploader: None,
+            tracks: vec![listed("a", 1), listed("c", 3)],
+            album: Some(LinkAlbum {
+                title: "X".into(),
+                artist: Some("Band".into()),
+                year: None,
+                count: Some(3),
+            }),
+        };
+        let placement = Placement::of(&playlist).unwrap();
+        // The page of the third track, with the page's own (different) album name.
+        let mut page = LinkTrack {
+            url: "https://y/c".into(),
+            id: Some("c".into()),
+            album: Some("X (Deluxe)".into()),
+            year: Some(2020),
+            ..LinkTrack::default()
+        };
+        placement.place(&mut page);
+        assert_eq!(page.track_number, Some(3));
+        assert_eq!(page.album.as_deref(), Some("X"));
+        assert_eq!(page.album_artist.as_deref(), Some("Band"));
+        assert_eq!(page.year, Some(2020));
+        // An ordinary playlist has no placement.
+        assert!(
+            Placement::of(&LinkPlaylist {
+                album: None,
+                ..playlist
+            })
+            .is_none()
+        );
+    }
+
+    #[test]
     fn link_tracks_become_library_tracks_and_entries() {
         let track = LinkTrack {
             url: "https://y/1".into(),
@@ -646,6 +894,7 @@ mod tests {
         };
         let stored = remote(&track, false);
         assert_eq!(stored.url, "https://y/1");
+        assert!(stored.artists.is_empty());
         assert!(!stored.complete);
         let entry = link_entry(&track);
         assert_eq!(entry.path, "https://y/1");

@@ -1,0 +1,52 @@
+{
+  "_type": "playlist",
+  "id": "OLAK5uy_vitra00000000000000000000000000000",
+  "title": "Album - Polar Lights",
+  "webpage_url": "https://www.youtube.com/playlist?list=OLAK5uy_vitra00000000000000000000000000000",
+  "original_url": "https://music.youtube.com/playlist?list=OLAK5uy_vitra00000000000000000000000000000",
+  "extractor": "youtube:tab",
+  "extractor_key": "YoutubeTab",
+  "playlist_count": 4,
+  "entries": [
+    {
+      "_type": "url",
+      "ie_key": "Youtube",
+      "id": "album000001",
+      "url": "https://www.youtube.com/watch?v=album000001",
+      "title": "Northern Lights",
+      "duration": 201,
+      "channel": "Aurora Collective - Topic",
+      "uploader": "Aurora Collective - Topic"
+    },
+    {
+      "_type": "url",
+      "ie_key": "Youtube",
+      "id": "album000002",
+      "url": "https://www.youtube.com/watch?v=album000002",
+      "title": "Ice Fields",
+      "duration": 187,
+      "channel": "Aurora Collective - Topic",
+      "uploader": "Aurora Collective - Topic"
+    },
+    {
+      "_type": "url",
+      "ie_key": "Youtube",
+      "id": "private0000",
+      "url": "https://www.youtube.com/watch?v=private0000",
+      "title": "[Private video]",
+      "duration": null,
+      "channel": null,
+      "uploader": null
+    },
+    {
+      "_type": "url",
+      "ie_key": "Youtube",
+      "id": "album000004",
+      "url": "https://www.youtube.com/watch?v=album000004",
+      "title": "Solar Wind",
+      "duration": 242,
+      "channel": "Aurora Collective - Topic",
+      "uploader": "Aurora Collective - Topic"
+    }
+  ]
+}

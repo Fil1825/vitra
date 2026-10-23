@@ -30,7 +30,7 @@ fn ytdlp() -> Option<YtDlp> {
     Some(YtDlp {
         binary: binary.into(),
         ffmpeg,
-        deno: None,
+        ..YtDlp::default()
     })
 }
 

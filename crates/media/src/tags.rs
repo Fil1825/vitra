@@ -9,7 +9,7 @@ use lofty::config::WriteOptions;
 use lofty::picture::{MimeType, Picture, PictureType};
 use lofty::prelude::*;
 use lofty::tag::items::Timestamp;
-use lofty::tag::{Tag, TagType};
+use lofty::tag::{ItemValue, Tag, TagItem, TagType};
 use serde::Deserialize;
 
 use crate::MediaError;
@@ -19,10 +19,16 @@ use crate::MediaError;
 #[serde(rename_all = "camelCase")]
 pub struct TagValues {
     pub title: String,
+    /// Several artists are separated by ";" and written as separate values (see
+    /// [`ARTIST_SEPARATOR`]).
     pub artist: String,
     pub album: String,
     pub album_artist: String,
     pub year: Option<u16>,
+    /// Track number and total; `None` leaves them as they are. Not in the tag editor;
+    /// album downloads number their tracks.
+    #[serde(skip)]
+    pub track: Option<(u32, Option<u32>)>,
     /// Unsynced lyrics; `None` leaves them as they are. Not edited in the tag editor (the
     /// lyrics editor comes in stage 5); downloads write the lyrics saved in the app.
     #[serde(skip)]
@@ -36,6 +42,51 @@ pub enum CoverChange {
     Remove,
     /// JPEG or PNG bytes.
     Replace(Vec<u8>),
+}
+
+/// Separates artists in [`TagValues::artist`].
+pub const ARTIST_SEPARATOR: char = ';';
+
+/// The artists in an artist field ("A; B").
+pub fn artist_list(value: &str) -> Vec<&str> {
+    value
+        .split(ARTIST_SEPARATOR)
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .collect()
+}
+
+/// Writes the artists as separate values where the format has them (Vorbis comments, ID3v2.4
+/// `TPE1` with null separators). MP4's `©ART` takes one text in practice (Apple Music shows
+/// only the first value), so there it holds "A, B" and the list goes to the `ARTISTS` atom,
+/// as MusicBrainz Picard does.
+fn set_artists(tag: &mut Tag, value: &str) {
+    let names = artist_list(value);
+    tag.remove_key(ItemKey::TrackArtist);
+    tag.remove_key(ItemKey::TrackArtists);
+    match names.as_slice() {
+        [] => {}
+        [name] => {
+            tag.insert_text(ItemKey::TrackArtist, (*name).to_owned());
+        }
+        names if tag.tag_type() == TagType::Mp4Ilst => {
+            tag.insert_text(ItemKey::TrackArtist, names.join(", "));
+            for name in names {
+                tag.push(TagItem::new(
+                    ItemKey::TrackArtists,
+                    ItemValue::Text((*name).to_owned()),
+                ));
+            }
+        }
+        names => {
+            for name in names {
+                tag.push(TagItem::new(
+                    ItemKey::TrackArtist,
+                    ItemValue::Text((*name).to_owned()),
+                ));
+            }
+        }
+    }
 }
 
 /// The hidden sibling the new tags are written to before it replaces the original.
@@ -108,9 +159,16 @@ fn edit_tag(
 pub fn write_tags(path: &Path, values: &TagValues, cover: &CoverChange) -> Result<(), MediaError> {
     edit_tag(path, values.lyrics.is_some(), |tag| {
         set_text(tag, ItemKey::TrackTitle, &values.title);
-        set_text(tag, ItemKey::TrackArtist, &values.artist);
+        set_artists(tag, &values.artist);
         set_text(tag, ItemKey::AlbumTitle, &values.album);
         set_text(tag, ItemKey::AlbumArtist, &values.album_artist);
+        if let Some((number, total)) = values.track {
+            tag.set_track(number);
+            match total {
+                Some(total) => tag.set_track_total(total),
+                None => tag.remove_track_total(),
+            }
+        }
         if let Some(lyrics) = &values.lyrics {
             set_text(tag, lyrics_key(tag), lyrics);
         }
@@ -194,8 +252,49 @@ mod tests {
             album: "Album".into(),
             album_artist: String::new(),
             year: Some(1999),
-            lyrics: None,
+            ..TagValues::default()
         }
+    }
+
+    #[test]
+    fn writes_several_artists_as_separate_values() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in ["tagged.flac", "tagged.mp3", "tagged.opus", "tagged.m4a"] {
+            let path = copy_fixture(dir.path(), name);
+            let several = TagValues {
+                artist: "VILLIAN; madk1d ;".into(),
+                album_artist: "VILLIAN".into(),
+                track: Some((3, Some(12))),
+                ..values()
+            };
+            write_tags(&path, &several, &CoverChange::Keep).unwrap();
+            let m = read_track(&path).unwrap().metadata;
+            assert_eq!(m.artists, ["VILLIAN", "madk1d"], "{name}");
+            assert_eq!(
+                m.artist.as_deref(),
+                Some(if name.ends_with(".m4a") {
+                    "VILLIAN, madk1d"
+                } else {
+                    "VILLIAN"
+                }),
+                "{name}"
+            );
+            assert_eq!(m.track_number, Some(3), "{name}");
+            assert_eq!(m.album_artist.as_deref(), Some("VILLIAN"), "{name}");
+
+            // Back to one artist: no list left behind.
+            write_tags(&path, &values(), &CoverChange::Keep).unwrap();
+            let m = read_track(&path).unwrap().metadata;
+            assert!(m.artists.is_empty(), "{name}");
+            assert_eq!(m.artist.as_deref(), Some("Artist"), "{name}");
+            assert_eq!(m.track_number, Some(3), "{name}: kept when not given");
+        }
+    }
+
+    #[test]
+    fn splits_artist_fields() {
+        assert_eq!(artist_list(" A ;B;; "), ["A", "B"]);
+        assert!(artist_list("").is_empty());
     }
 
     fn lyrics_of(path: &Path) -> Option<String> {

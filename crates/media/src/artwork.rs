@@ -109,6 +109,28 @@ pub fn cover_thumbnail(bytes: &[u8], max: u32) -> Result<Vec<u8>, MediaError> {
     encode_jpeg(&image, 85)
 }
 
+/// A square JPEG or PNG cover (what every tag format takes) from a thumbnail: its centre, as
+/// wide as it is high. YouTube shows album art inside 16:9 thumbnails, with bars at the
+/// sides; this cuts them off. A square (within 2 %) JPEG or PNG comes back as it is.
+pub fn square_cover(bytes: &[u8]) -> Result<Vec<u8>, MediaError> {
+    let decoded = image::load_from_memory(bytes)?;
+    let (width, height) = decoded.dimensions();
+    let side = width.min(height);
+    let square = side > 0 && width.max(height) - side <= side / 50;
+    let taggable = matches!(
+        image::guess_format(bytes),
+        Ok(image::ImageFormat::Jpeg | image::ImageFormat::Png)
+    );
+    if square && taggable {
+        return Ok(bytes.to_vec());
+    }
+    if square || side == 0 {
+        return encode_jpeg(&decoded, 92);
+    }
+    let cropped = decoded.crop_imm((width - side) / 2, (height - side) / 2, side, side);
+    encode_jpeg(&cropped, 92)
+}
+
 fn encode_jpeg(image: &DynamicImage, quality: u8) -> Result<Vec<u8>, MediaError> {
     let mut out = Cursor::new(Vec::new());
     JpegEncoder::new_with_quality(&mut out, quality).encode_image(&image.to_rgb8())?;
@@ -118,6 +140,45 @@ fn encode_jpeg(image: &DynamicImage, quality: u8) -> Result<Vec<u8>, MediaError>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn png(width: u32, height: u32) -> Vec<u8> {
+        let mut out = Cursor::new(Vec::new());
+        image::RgbImage::from_fn(width, height, |x, _| {
+            // Black bars at the sides of a 16:9 frame, the "cover" in the middle.
+            if x < (width - height) / 2 || x >= (width + height) / 2 {
+                image::Rgb([0, 0, 0])
+            } else {
+                image::Rgb([200, 40, 40])
+            }
+        })
+        .write_to(&mut out, image::ImageFormat::Png)
+        .unwrap();
+        out.into_inner()
+    }
+
+    #[test]
+    fn cuts_wide_thumbnails_to_the_square_cover() {
+        let square = square_cover(&png(160, 90)).unwrap();
+        let decoded = image::load_from_memory(&square).unwrap();
+        assert_eq!(decoded.dimensions(), (90, 90));
+        // No bar left at the edges.
+        let edge = decoded.to_rgb8().get_pixel(0, 45).0;
+        assert!(edge[0] > 150, "{edge:?}");
+        let already = png(100, 100);
+        assert_eq!(square_cover(&already).unwrap(), already);
+        // Other formats become JPEG.
+        let mut webp = Cursor::new(Vec::new());
+        image::load_from_memory(&already)
+            .unwrap()
+            .write_to(&mut webp, image::ImageFormat::WebP)
+            .unwrap();
+        let converted = square_cover(webp.get_ref()).unwrap();
+        assert_eq!(
+            image::guess_format(&converted).unwrap(),
+            image::ImageFormat::Jpeg
+        );
+        assert!(square_cover(b"not an image").is_err());
+    }
     use crate::palette::Rgb;
     use image::{ImageFormat, Rgb as Pixel, RgbImage};
 

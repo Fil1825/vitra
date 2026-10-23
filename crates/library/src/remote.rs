@@ -7,6 +7,7 @@ use std::path::Path;
 use media::TrackMetadata;
 use rusqlite::{OptionalExtension, Transaction, params};
 
+use crate::artists::{ArtistSplitting, splitting};
 use crate::model::{Playlist, RemoteTrack, ScannedTrack, Track};
 use crate::playlists::{PLAYLIST_SELECT, playlist_from_row, write_items};
 use crate::scan::{cache_cover, mtime, read_metadata};
@@ -15,7 +16,12 @@ use crate::{Error, Library, Result, now};
 
 /// Stores a link as a track (or updates it); returns its id. A track already downloaded
 /// from the link is returned as it is: its file's tags are what count now.
-fn store_remote(tx: &Transaction<'_>, track: &RemoteTrack, at: i64) -> Result<i64> {
+fn store_remote(
+    tx: &Transaction<'_>,
+    track: &RemoteTrack,
+    at: i64,
+    splitting: &ArtistSplitting,
+) -> Result<i64> {
     // A downloaded copy comes first: playing a link the library has locally plays the file.
     let known: Option<(i64, String)> = tx
         .query_row(
@@ -36,13 +42,16 @@ fn store_remote(tx: &Transaction<'_>, track: &RemoteTrack, at: i64) -> Result<i6
         metadata: TrackMetadata {
             title: Some(track.title.clone()),
             artist: track.artist.clone(),
+            artists: track.artists.clone(),
             album: track.album.clone(),
+            album_artist: track.album_artist.clone(),
+            track_number: track.track_number,
             year: track.year,
             duration: track.duration,
             ..TrackMetadata::default()
         },
     };
-    let id = upsert_track(tx, None, &scanned, at)?;
+    let id = upsert_track(tx, None, &scanned, at, splitting)?;
     tx.execute(
         "UPDATE tracks SET source_url = ?2 WHERE id = ?1",
         params![id, track.url],
@@ -83,9 +92,10 @@ impl Library {
     pub fn add_remote_tracks(&mut self, tracks: &[RemoteTrack]) -> Result<Vec<Track>> {
         let tx = self.conn.transaction()?;
         let at = now();
+        let splitting = splitting(&tx)?;
         let ids = tracks
             .iter()
-            .map(|track| store_remote(&tx, track, at))
+            .map(|track| store_remote(&tx, track, at, &splitting))
             .collect::<Result<Vec<_>>>()?;
         prune(&tx)?;
         tx.commit()?;
@@ -126,6 +136,33 @@ impl Library {
         Ok(Some(cover))
     }
 
+    /// Caches `image` as an album's cover unless the album has one; returns the cover id.
+    pub fn set_album_artwork(
+        &self,
+        album_id: i64,
+        image: &[u8],
+        covers_dir: &Path,
+    ) -> Result<Option<String>> {
+        let current: Option<String> = self
+            .conn
+            .query_row("SELECT cover FROM albums WHERE id = ?", [album_id], |row| {
+                row.get(0)
+            })
+            .optional()?
+            .flatten();
+        if current.is_some() {
+            return Ok(current);
+        }
+        let Some(cover) = cache_cover(image, covers_dir) else {
+            return Ok(None);
+        };
+        self.conn.execute(
+            "UPDATE albums SET cover = ?2 WHERE id = ?1",
+            params![album_id, cover],
+        )?;
+        Ok(Some(cover))
+    }
+
     /// Imports a web playlist: its entries become tracks and fill a playlist. Importing the
     /// same link again updates that playlist's entries to the current listing and keeps its
     /// (possibly renamed) name.
@@ -157,9 +194,10 @@ impl Library {
                 tx.last_insert_rowid()
             }
         };
+        let splitting = splitting(&tx)?;
         let ids = tracks
             .iter()
-            .map(|track| store_remote(&tx, track, at))
+            .map(|track| store_remote(&tx, track, at, &splitting))
             .collect::<Result<Vec<_>>>()?;
         write_items(&tx, playlist_id, &ids)?;
         prune(&tx)?;
@@ -225,6 +263,7 @@ impl Library {
             )?;
         }
         // Updates the row by its new path, so it keeps its id and date added.
+        let splitting = splitting(&tx)?;
         let stored = upsert_track(
             &tx,
             folder_id,
@@ -235,6 +274,7 @@ impl Library {
                 metadata,
             },
             now(),
+            &splitting,
         )?;
         let new_album: Option<i64> = tx.query_row(
             "SELECT album_id FROM tracks WHERE id = ?",
@@ -498,6 +538,62 @@ mod tests {
         assert!(covers.join(format!("{cover}.jpg")).is_file());
         library.remove_single_tracks(&[track.id]).unwrap();
         assert_eq!(library.remove_unused_covers(&covers).unwrap(), 1);
+    }
+
+    #[test]
+    fn album_links_make_one_album_with_its_cover() {
+        let tmp = tempfile::tempdir().unwrap();
+        let covers = tmp.path().join("covers");
+        let mut library = Library::open_in_memory().unwrap();
+        let track = |n: u32, artists: &[&str]| RemoteTrack {
+            url: format!("https://y/{n}"),
+            title: format!("Track {n}"),
+            artist: Some(artists.join(", ")),
+            artists: artists.iter().map(|a| (*a).to_owned()).collect(),
+            album: Some("Polar Lights".into()),
+            album_artist: Some("Aurora Collective".into()),
+            track_number: Some(n),
+            duration: Some(100.0),
+            complete: false,
+            ..RemoteTrack::default()
+        };
+        let stored = library
+            .add_remote_tracks(&[
+                track(1, &["Aurora Collective"]),
+                track(2, &["Glass Harbor", "Aurora Collective"]),
+            ])
+            .unwrap();
+        let album_id = stored[0].album_id.unwrap();
+        assert_eq!(stored[1].album_id, Some(album_id), "one album, not singles");
+        assert_eq!(stored[1].track_number, Some(2));
+        let album = library.album(album_id).unwrap().unwrap();
+        assert_eq!(album.artist.as_deref(), Some("Aurora Collective"));
+        let cover = library
+            .set_album_artwork(album_id, &artwork(), &covers)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            library.album(album_id).unwrap().unwrap().cover.as_deref(),
+            Some(cover.as_str())
+        );
+        // The tracks show it (they have no covers of their own).
+        assert_eq!(
+            library.track(stored[1].id).unwrap().unwrap().cover,
+            Some(cover)
+        );
+        let glass = library
+            .artists()
+            .unwrap()
+            .into_iter()
+            .find(|a| a.name == "Glass Harbor")
+            .unwrap();
+        assert!(
+            library
+                .tracks(&TrackFilter::Artist(glass.id))
+                .unwrap()
+                .len()
+                == 1
+        );
     }
 
     #[test]

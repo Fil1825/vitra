@@ -4,6 +4,7 @@
 //! All methods are synchronous; the app calls them from blocking tasks. SQLite runs in WAL
 //! mode, so a scan writing through one connection doesn't block queries on another.
 
+mod artists;
 mod folders;
 mod lyrics;
 mod model;
@@ -21,6 +22,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::Connection;
 
+pub use artists::{ArtistSplitting, BUILTIN_EXCEPTIONS, split_artists};
 pub use lyrics::{SOURCE_ONLINE, SOURCE_USER, SavedLyrics};
 pub use model::*;
 pub use scan::{ScanPhase, ScanProgress, ScanSummary, cover_id, is_audio_file};
@@ -66,7 +68,9 @@ impl Library {
         conn.pragma_update(None, "foreign_keys", true)?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
         schema::migrate(&mut conn)?;
-        Ok(Self { conn })
+        let mut library = Self { conn };
+        library.resplit_if_pending()?;
+        Ok(library)
     }
 
     pub fn schema_version(&self) -> Result<i64> {
@@ -124,6 +128,58 @@ mod tests {
         assert_eq!(library.schema_version().unwrap(), schema::version());
         let track = library.track_by_path("/m/a.mp3").unwrap().unwrap();
         assert_eq!((track.title.as_str(), track.source_url), ("A", None));
+    }
+
+    #[test]
+    fn migration_4_splits_stored_credits_into_artists() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("library.db");
+        {
+            let conn = Connection::open(&path).unwrap();
+            for sql in &schema::MIGRATIONS[..3] {
+                conn.execute_batch(sql).unwrap();
+            }
+            conn.pragma_update(None, "user_version", 3).unwrap();
+            // A link stored by stage 4 with yt-dlp's artists joined into one name, on an
+            // album filed under that joined name.
+            conn.execute_batch(
+                "INSERT INTO artists (id, name) VALUES (1, 'VILLIAN, madk1d'), (2, 'madk1d');
+                 INSERT INTO albums (id, title, artist_id, cover) VALUES (1, 'Night', 1, 'c0ffee');
+                 INSERT INTO tracks (id, path, title, artist_id, album_id, added_at, source_url)
+                     VALUES (1, 'https://y/1', 'Duo', 1, 1, 1, 'https://y/1'),
+                            (2, 'https://y/2', 'Solo', 2, NULL, 1, 'https://y/2');
+                 INSERT INTO track_search (rowid, title, artist) VALUES
+                     (1, 'Duo', 'VILLIAN, madk1d'), (2, 'Solo', 'madk1d');",
+            )
+            .unwrap();
+        }
+        let library = Library::open(&path).unwrap();
+        assert_eq!(library.schema_version().unwrap(), schema::version());
+        let names: Vec<String> = library
+            .artists()
+            .unwrap()
+            .into_iter()
+            .map(|a| a.name)
+            .collect();
+        assert_eq!(names, ["madk1d", "VILLIAN"]);
+        let duo = library.track(1).unwrap().unwrap();
+        assert_eq!(duo.artist.as_deref(), Some("VILLIAN, madk1d"));
+        let album = library.album(duo.album_id.unwrap()).unwrap().unwrap();
+        assert_eq!(
+            (
+                album.title.as_str(),
+                album.artist.as_deref(),
+                album.cover.as_deref()
+            ),
+            ("Night", Some("VILLIAN"), Some("c0ffee"))
+        );
+        let madk1d = library.artists().unwrap().remove(0);
+        assert_eq!(madk1d.track_count, 2);
+        assert_eq!(library.search("villian", 10).unwrap().artists.len(), 1);
+        drop(library);
+        // Only once.
+        let library = Library::open(&path).unwrap();
+        assert_eq!(library.artists().unwrap().len(), 2);
     }
 
     #[test]

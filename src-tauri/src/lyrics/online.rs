@@ -16,6 +16,13 @@ const USER_AGENT: &str = concat!(
     " (https://github.com/Fil1825/vitra)"
 );
 const TIMEOUT: Duration = Duration::from_secs(20);
+/// Pauses before asking again after a busy answer (503, 429) or a dropped connection.
+const RETRY_DELAYS: [Duration; 2] = [Duration::from_millis(1500), Duration::from_secs(4)];
+
+/// LRCLIB is busy or overloaded, not saying there are no lyrics: worth asking again.
+fn busy(status: u16) -> bool {
+    status == 429 || status >= 500
+}
 
 /// What a lookup came back with.
 #[derive(Debug, Clone, PartialEq)]
@@ -61,6 +68,26 @@ async fn fetch(url: &str) -> Result<(u16, String), AppError> {
     Ok((status, body.to_owned()))
 }
 
+/// [`fetch`], asked again after a pause when LRCLIB is busy or the connection fails. What
+/// still fails is an error, so it is never remembered as "no lyrics".
+async fn fetch_patiently(url: &str) -> Result<(u16, String), AppError> {
+    let mut delays = RETRY_DELAYS.iter();
+    loop {
+        let result = fetch(url).await;
+        let again = match &result {
+            Ok((status, _)) => busy(*status),
+            Err(_) => true,
+        };
+        match delays.next() {
+            Some(delay) if again => {
+                log::info!("LRCLIB is busy; asking again in {delay:?}");
+                tokio::time::sleep(*delay).await;
+            }
+            _ => return result,
+        }
+    }
+}
+
 fn answer(record: &Record) -> Answer {
     match record.text() {
         Some(text) => Answer::Found(text.to_owned()),
@@ -72,7 +99,7 @@ fn answer(record: &Record) -> Answer {
 /// Asks LRCLIB for a track's lyrics: the exact lookup first, then a search.
 pub async fn look_up(query: &Query) -> Result<Answer, AppError> {
     if let Some(url) = query.get_url() {
-        let (status, body) = fetch(&url).await?;
+        let (status, body) = fetch_patiently(&url).await?;
         match status {
             200 => {
                 if let Some(record) = lrclib::parse_record(&body) {
@@ -90,10 +117,25 @@ pub async fn look_up(query: &Query) -> Result<Answer, AppError> {
     let Some(url) = query.search_url() else {
         return Ok(Answer::NotFound);
     };
-    let (status, body) = fetch(&url).await?;
+    let (status, body) = fetch_patiently(&url).await?;
     if status != 200 {
         return Err(AppError::Lyrics(format!("LRCLIB answered {status}")));
     }
     let records = lrclib::parse_search(&body);
     Ok(query.best(&records).map_or(Answer::NotFound, answer))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_busy_answers_are_asked_again() {
+        assert!(busy(503));
+        assert!(busy(502));
+        assert!(busy(429));
+        assert!(!busy(200));
+        assert!(!busy(404));
+        assert!(!busy(400));
+    }
 }

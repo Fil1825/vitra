@@ -65,6 +65,14 @@ pub fn run() {
 
             let data_dir = app.path().app_data_dir()?;
             let library = LibraryService::start(app.handle().clone(), &data_dir)?;
+            // The settings file is the source of truth; the library keeps a copy for its
+            // scanner.
+            let splitting = app
+                .state::<settings::SettingsStore>()
+                .get()
+                .library
+                .artist_splitting;
+            library.set_artist_splitting(splitting);
             app.manage(library);
             app.manage(lyrics::LyricsService::new(app.handle().clone(), &data_dir));
             let links = links::LinkService::new(app.handle().clone())?;
@@ -144,6 +152,8 @@ pub fn run() {
             links::downloads_add,
             links::downloads_cancel,
             links::downloads_retry,
+            links::downloads_cancel_group,
+            links::downloads_retry_group,
             links::downloads_clear,
             links::downloads_folder,
             links::ytdlp_info,

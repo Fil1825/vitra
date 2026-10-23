@@ -1219,6 +1219,7 @@ impl Player {
                 .await
                 .map_err(mpv_error)?;
         }
+        self.set_ytdl_options(client).await;
         let current = lock(&self.0.queue).current().cloned();
         let waiting = self.0.load_waiting.load(Ordering::Relaxed);
         if let (Status::Playing | Status::Paused | Status::Loading, Some(item), false) =
@@ -1228,6 +1229,49 @@ impl Player {
             self.load_with(client, &item).await?;
         }
         Ok(())
+    }
+
+    /// What mpv's yt-dlp hook passes on to yt-dlp: our JavaScript runtime and, when the user
+    /// chose one, the browser to take cookies from (age-restricted videos). The hook reads
+    /// them for every link it opens, so a change applies to the next one.
+    async fn set_ytdl_options(&self, client: &Client) {
+        let paths = sidecar::search_paths(&self.0.app);
+        let mut options = serde_json::Map::new();
+        if let Some(deno) = paths.locate(Sidecar::Deno) {
+            options.insert(
+                "js-runtimes".into(),
+                json!(format!("deno:{}", deno.path.display())),
+            );
+        }
+        let browser = self
+            .0
+            .app
+            .try_state::<SettingsStore>()
+            .and_then(|settings| settings.get().downloads.cookies_browser());
+        if let Some(browser) = browser {
+            options.insert("cookies-from-browser".into(), json!(browser));
+        }
+        let set = command(
+            client,
+            vec![
+                json!("set_property"),
+                json!("ytdl-raw-options"),
+                Value::Object(options),
+            ],
+        )
+        .await;
+        if let Err(err) = set {
+            log::warn!("cannot pass options to mpv's yt-dlp hook: {err}");
+        }
+    }
+
+    /// The link settings (cookies) changed.
+    pub fn links_settings_changed(&self) {
+        let Ok(client) = self.client() else {
+            return;
+        };
+        let player = self.clone();
+        tauri::async_runtime::spawn(async move { player.set_ytdl_options(&client).await });
     }
 
     fn fail(&self, error: PlayerError) {

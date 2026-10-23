@@ -27,14 +27,53 @@ const VERSION_TIMEOUT: Duration = Duration::from_secs(120);
 const ERROR_LINES: usize = 20;
 const IMAGE_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp"];
 
+/// Browsers yt-dlp can take cookies from (`--cookies-from-browser`).
+pub const COOKIE_BROWSERS: &[&str] = &[
+    "safari", "chrome", "firefox", "edge", "brave", "chromium", "opera", "vivaldi",
+];
+
 /// A yt-dlp installation and the helpers it uses.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct YtDlp {
     pub binary: PathBuf,
     /// For converting audio and embedding covers.
     pub ffmpeg: Option<PathBuf>,
     /// The JavaScript runtime YouTube needs (since 2025.11).
     pub deno: Option<PathBuf>,
+    /// Signs requests in as the user of this browser (one of [`COOKIE_BROWSERS`]), for
+    /// age-restricted videos.
+    pub cookies_from_browser: Option<String>,
+}
+
+/// What a failed run means, from its stderr: errors with a remedy get their own kind.
+fn failure(stderr: &str) -> LinkError {
+    let message = error_message(stderr);
+    let lower = message.to_lowercase();
+    let cookie_store = lower.contains("cookie");
+    if cookie_store
+        && (lower.contains("operation not permitted")
+            || lower.contains("permission denied")
+            || lower.contains("could not find")
+            || lower.contains("could not copy")
+            || lower.contains("failed to decrypt")
+            || lower.contains("unsupported browser"))
+    {
+        LinkError::Cookies(message)
+    } else if lower.contains("confirm your age")
+        || lower.contains("age-restricted")
+        || lower.contains("age restricted")
+        || lower.contains("inappropriate for some users")
+    {
+        LinkError::AgeRestricted
+    } else if lower.contains("not a bot")
+        || lower.contains("sign in to confirm")
+        || lower.contains("members-only")
+        || lower.contains("join this channel")
+    {
+        LinkError::SignInRequired
+    } else {
+        LinkError::Failed(message)
+    }
 }
 
 /// The last `ERROR:` line yt-dlp printed, or its last line at all.
@@ -107,6 +146,13 @@ impl YtDlp {
         // The user's own yt-dlp config (output templates, formats) must not change what
         // Vitra gets back.
         command.arg("--ignore-config").arg("--no-warnings");
+        if let Some(browser) = self
+            .cookies_from_browser
+            .as_deref()
+            .filter(|b| COOKIE_BROWSERS.contains(b))
+        {
+            command.arg("--cookies-from-browser").arg(browser);
+        }
         if let Some(deno) = &self.deno {
             let mut runtime = OsString::from("deno:");
             runtime.push(deno);
@@ -142,9 +188,7 @@ impl YtDlp {
         if output.status.success() {
             Ok(output)
         } else {
-            Err(LinkError::Failed(error_message(&String::from_utf8_lossy(
-                &output.stderr,
-            ))))
+            Err(failure(&String::from_utf8_lossy(&output.stderr)))
         }
     }
 
@@ -235,7 +279,7 @@ impl YtDlp {
         let _ = std::fs::remove_dir_all(&dir);
         let stderr = stderr_task.await.unwrap_or_default();
         if count == 0 && !status.success() {
-            return Err(LinkError::Failed(error_message(&stderr)));
+            return Err(failure(&stderr));
         }
         Ok(count)
     }
@@ -297,9 +341,7 @@ impl YtDlp {
         let status = child.wait().await?;
         match file {
             Some(path) if status.success() => Ok(path),
-            _ => Err(LinkError::Failed(error_message(
-                &errors.into_iter().collect::<Vec<_>>().join("\n"),
-            ))),
+            _ => Err(failure(&errors.into_iter().collect::<Vec<_>>().join("\n"))),
         }
     }
 
@@ -333,6 +375,24 @@ mod tests {
     }
 
     #[test]
+    fn errors_with_a_remedy_get_their_own_kind() {
+        let age = "ERROR: [youtube] abc: Sign in to confirm your age. This video may be \
+                   inappropriate for some users. Use --cookies-from-browser or --cookies";
+        assert!(matches!(failure(age), LinkError::AgeRestricted));
+        let bot = "ERROR: [youtube] abc: Sign in to confirm you’re not a bot.";
+        assert!(matches!(failure(bot), LinkError::SignInRequired));
+        let safari = "ERROR: [Errno 1] Operation not permitted: \
+            '/Users/me/Library/Containers/com.apple.Safari/Data/Library/Cookies/Cookies.binarycookies'";
+        assert!(matches!(failure(safari), LinkError::Cookies(_)));
+        let chrome = "ERROR: could not find chrome cookies database in \"/home/me/.config\"";
+        assert!(matches!(failure(chrome), LinkError::Cookies(_)));
+        assert!(matches!(
+            failure("ERROR: [youtube] abc: Video unavailable"),
+            LinkError::Failed(message) if message == "[youtube] abc: Video unavailable"
+        ));
+    }
+
+    #[test]
     fn finds_thumbnails_by_id() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("abc.webp"), b"webp").unwrap();
@@ -350,8 +410,7 @@ mod tests {
     async fn a_missing_binary_is_reported_as_such() {
         let ytdlp = YtDlp {
             binary: PathBuf::from("/nonexistent/yt-dlp"),
-            ffmpeg: None,
-            deno: None,
+            ..YtDlp::default()
         };
         assert!(matches!(
             ytdlp.version().await,

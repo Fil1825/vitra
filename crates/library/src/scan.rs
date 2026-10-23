@@ -471,6 +471,7 @@ impl Library {
             return Ok(());
         }
         let tx = self.conn.transaction()?;
+        let splitting = crate::artists::splitting(&tx)?;
         for (track, known) in batch.drain(..) {
             if known {
                 summary.updated += 1;
@@ -495,7 +496,7 @@ impl Library {
                 }
             }
             let added_at = dated.map_or(scan_time, |now| track.mtime.clamp(0, now));
-            let id = upsert_track(&tx, Some(folder_id), &track, added_at)?;
+            let id = upsert_track(&tx, Some(folder_id), &track, added_at, &splitting)?;
             let album: Option<i64> = tx
                 .query_row("SELECT album_id FROM tracks WHERE id = ?", [id], |row| {
                     row.get(0)
@@ -602,6 +603,7 @@ impl Library {
 
         let tx = self.conn.transaction()?;
         let at = now();
+        let splitting = crate::artists::splitting(&tx)?;
         for (job, metadata) in jobs.iter().zip(read) {
             let track = ScannedTrack {
                 path: job.key.clone(),
@@ -609,7 +611,7 @@ impl Library {
                 mtime: job.mtime,
                 metadata: metadata.unwrap_or_default(),
             };
-            let id = upsert_track(&tx, job.folder_id, &track, at)?;
+            let id = upsert_track(&tx, job.folder_id, &track, at, &splitting)?;
             let album: Option<i64> =
                 tx.query_row("SELECT album_id FROM tracks WHERE id = ?", [id], |row| {
                     row.get(0)

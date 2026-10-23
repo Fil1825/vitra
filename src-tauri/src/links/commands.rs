@@ -39,8 +39,8 @@ pub async fn link_download(
     downloads: State<'_, Downloads>,
     url: String,
 ) -> Result<usize, AppError> {
-    let tracks = links.tracks_for_download(&url).await?;
-    Ok(downloads.add(tracks))
+    let (tracks, group) = links.tracks_for_download(&url).await?;
+    Ok(downloads.add(tracks, group))
 }
 
 #[tauri::command]
@@ -58,7 +58,7 @@ pub async fn downloads_add(
     let tracks = library
         .run(move |db| db.tracks(&TrackFilter::Ids(track_ids)))
         .await?;
-    Ok(downloads.add(tracks))
+    Ok(downloads.add(tracks, None))
 }
 
 #[tauri::command]
@@ -69,6 +69,18 @@ pub fn downloads_cancel(downloads: State<'_, Downloads>, id: u64) {
 #[tauri::command]
 pub fn downloads_retry(downloads: State<'_, Downloads>, id: u64) {
     downloads.retry(id);
+}
+
+/// Cancels every unfinished download of an album or playlist.
+#[tauri::command]
+pub fn downloads_cancel_group(downloads: State<'_, Downloads>, group: u64) {
+    downloads.cancel_group(group);
+}
+
+/// Retries every failed or cancelled download of an album or playlist.
+#[tauri::command]
+pub fn downloads_retry_group(downloads: State<'_, Downloads>, group: u64) {
+    downloads.retry_group(group);
 }
 
 #[tauri::command]

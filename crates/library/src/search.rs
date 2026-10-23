@@ -64,28 +64,15 @@ impl Library {
             ));
         }
 
-        // The `artist` column holds the track artist and `album_artist` the album's artist,
-        // so each column maps back to a different artist id.
-        let mut artist_ids =
-            self.matching_ids("t.artist_id", &format!("{{artist}} : ({query})"), "")?;
-        for id in self.matching_ids(
-            "al.artist_id",
-            &format!("{{album_artist}} : ({query})"),
-            "JOIN albums al ON al.id = t.album_id",
-        )? {
-            if !artist_ids.contains(&id) {
-                artist_ids.push(id);
-            }
-        }
-        artist_ids.truncate(GROUP_LIMIT);
-        let mut artists = Vec::with_capacity(artist_ids.len());
-        for id in artist_ids {
-            artists.extend(self.conn.query_row(
-                &format!("{ARTIST_SELECT} WHERE ar.id = ?"),
-                [id],
-                artist_from_row,
-            ));
-        }
+        // Artists by their own names, so a track by "A, B" doesn't bring up A when B is
+        // searched for.
+        let mut statement = self.conn.prepare(&format!(
+            "{ARTIST_SELECT} JOIN artist_search ON artist_search.rowid = ar.id
+             WHERE artist_search MATCH ?1 ORDER BY artist_search.rank LIMIT ?2"
+        ))?;
+        let artists = statement
+            .query_map(params![query, GROUP_LIMIT as i64], artist_from_row)?
+            .collect::<rusqlite::Result<_>>()?;
 
         Ok(SearchResults {
             tracks,

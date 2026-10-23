@@ -1,7 +1,7 @@
 //! Rows returned to the UI. Field names serialize as camelCase for the frontend.
 
 use media::TrackMetadata;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -12,14 +12,26 @@ pub struct Folder {
     pub track_count: i64,
 }
 
+/// One of a track's artists.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArtistRef {
+    pub id: i64,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Track {
     pub id: i64,
     pub path: String,
     pub title: String,
+    /// The artists' names, joined for display ("A, B").
     pub artist: Option<String>,
+    /// The main (first) artist.
     pub artist_id: Option<i64>,
+    /// Every artist in credit order, the main one first.
+    pub artists: Vec<ArtistRef>,
     pub album: Option<String>,
     pub album_id: Option<i64>,
     pub album_artist: Option<String>,
@@ -114,8 +126,14 @@ pub struct ScannedTrack {
 pub struct RemoteTrack {
     pub url: String,
     pub title: String,
+    /// The credit as one text; split like a file's (see [`crate::ArtistSplitting`]) unless
+    /// `artists` lists them.
     pub artist: Option<String>,
+    /// The artists as the site lists them, when it does.
+    pub artists: Vec<String>,
     pub album: Option<String>,
+    pub album_artist: Option<String>,
+    pub track_number: Option<u32>,
     pub year: Option<u16>,
     pub duration: Option<f64>,
     /// Described from the track's own page, not from a playlist listing: its values replace
@@ -128,7 +146,10 @@ pub struct RemoteTrack {
 pub enum TrackFilter {
     All,
     Album(i64),
+    /// The artist's own tracks: those they lead or whose album is theirs.
     Artist(i64),
+    /// Tracks the artist only features on.
+    ArtistAppearances(i64),
     Favorites,
     /// Newest first.
     RecentlyAdded {
