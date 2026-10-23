@@ -124,7 +124,15 @@ impl Library {
     /// Corrects a streamed link's details (it has no file to tag). They stay when yt-dlp
     /// describes the link again; a download writes them into the file. The album moves the
     /// track: an existing album's title and album artist put it there, others make a new one.
-    pub fn edit_link(&mut self, url: &str, edit: &LinkEdit) -> Result<Track> {
+    /// The track then shows its album's cover; an album without one gets the link's
+    /// thumbnail, cut square: `thumbnail` if given (the full image), else the cached copy.
+    pub fn edit_link(
+        &mut self,
+        url: &str,
+        edit: &LinkEdit,
+        thumbnail: Option<&[u8]>,
+        covers_dir: &Path,
+    ) -> Result<Track> {
         let current = self
             .track_by_path(url)?
             .filter(|track| track.source_url.as_deref() == Some(url))
@@ -161,8 +169,70 @@ impl Library {
         )?;
         prune(&tx)?;
         tx.commit()?;
+        let track = self
+            .track(id)?
+            .ok_or_else(|| Error::Invalid(format!("no streamed link {url}")))?;
+        let own: Option<String> =
+            self.conn
+                .query_row("SELECT cover FROM tracks WHERE id = ?", [id], |row| {
+                    row.get(0)
+                })?;
+        let (Some(album_id), Some(own)) = (track.album_id, own) else {
+            return Ok(track);
+        };
+        if self.album_artwork(album_id)?.is_some() {
+            return Ok(track);
+        }
+        let image = match thumbnail {
+            Some(image) => image.to_vec(),
+            None => match fs::read(covers_dir.join(format!("{own}.jpg"))) {
+                Ok(image) => image,
+                Err(err) => {
+                    log::info!("cannot read the cover {own}: {err}");
+                    return Ok(track);
+                }
+            },
+        };
+        self.cover_bare_album(album_id, &image, covers_dir)?;
+        Ok(self.track(id)?.unwrap_or(track))
+    }
+
+    /// Whether the user corrected the streamed link `url` ([`Self::edit_link`]).
+    pub fn link_edited(&self, url: &str) -> Result<bool> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT edited FROM tracks WHERE path = ?1 AND source_url = ?1",
+                [url],
+                |row| row.get(0),
+            )
+            .optional()?
+            .unwrap_or(false))
+    }
+
+    /// Gives a corrected link the details of its page back: `track` describes it afresh, in
+    /// full. From then on yt-dlp's descriptions update it again.
+    pub fn restore_link(&mut self, track: &RemoteTrack) -> Result<Track> {
+        if !track.complete {
+            return Err(Error::Invalid(format!(
+                "a listing can't restore {}",
+                track.url
+            )));
+        }
+        let tx = self.conn.transaction()?;
+        let found = tx.execute(
+            "UPDATE tracks SET edited = 0 WHERE path = ?1 AND source_url = ?1",
+            [&track.url],
+        )?;
+        if found == 0 {
+            return Err(Error::Invalid(format!("no streamed link {}", track.url)));
+        }
+        let splitting = splitting(&tx)?;
+        let id = store_remote(&tx, track, now(), &splitting)?;
+        prune(&tx)?;
+        tx.commit()?;
         self.track(id)?
-            .ok_or_else(|| Error::Invalid(format!("no streamed link {url}")))
+            .ok_or_else(|| Error::Invalid(format!("no streamed link {}", track.url)))
     }
 
     /// Caches `image` as the track's own cover; returns the cover id (`None` if the image
@@ -583,6 +653,60 @@ mod tests {
         assert_eq!(library.tracks(&TrackFilter::All).unwrap().len(), 1);
     }
 
+    /// A link moved into one of the user's albums and downloaded: the file carries the site's
+    /// thumbnail, which must not replace the album's own cover.
+    #[test]
+    fn a_download_doesnt_replace_its_albums_cover() {
+        let tmp = tempfile::tempdir().unwrap();
+        let album = tmp.path().join("Music/Fixtures");
+        let covers = tmp.path().join("covers");
+        fs::create_dir_all(&album).unwrap();
+        // The album's own file has no embedded art; the folder has a cover.png.
+        let own = album.join("01 One.flac");
+        fs::copy(fixture("tagged.flac"), &own).unwrap();
+        let values = media::TagValues {
+            title: "One".into(),
+            artist: "Vitra Test".into(),
+            album: "Fixtures".into(),
+            album_artist: "Various".into(),
+            track: Some((1, None)),
+            ..media::TagValues::default()
+        };
+        media::write_tags(&own, &values, &media::CoverChange::Remove).unwrap();
+        fs::write(album.join("cover.png"), image(64, 64, [20, 90, 200])).unwrap();
+
+        let mut library = Library::open_in_memory().unwrap();
+        let folder = library
+            .add_folder(tmp.path().join("Music").to_str().unwrap())
+            .unwrap();
+        library
+            .scan_folder(folder.id, &covers, &Default::default(), &mut |_| {})
+            .unwrap();
+        let scanned = library
+            .track_by_path(own.to_str().unwrap())
+            .unwrap()
+            .unwrap();
+        let album_id = scanned.album_id.unwrap();
+        let cover = library.album(album_id).unwrap().unwrap().cover;
+        assert!(cover.is_some());
+
+        // The download (same album, track 3, the fixture's own art) lands elsewhere.
+        let stream = library
+            .add_remote_tracks(&[link("https://y/song", "Song", true)])
+            .unwrap()
+            .remove(0);
+        let file = tmp.path().join("Aurora.flac");
+        fs::copy(fixture("tagged.flac"), &file).unwrap();
+        let local = library.attach_download(stream.id, &file, &covers).unwrap();
+        assert_eq!(local.album_id, Some(album_id));
+        assert_eq!(library.album(album_id).unwrap().unwrap().cover, cover);
+        // The album's own files come first.
+        assert_eq!(
+            library.album_paths(album_id).unwrap()[0],
+            own.to_str().unwrap()
+        );
+    }
+
     #[test]
     fn a_download_found_by_a_scan_first_is_merged() {
         let tmp = tempfile::tempdir().unwrap();
@@ -834,6 +958,8 @@ mod tests {
                     album_artist: None,
                     year: Some(2020),
                 },
+                None,
+                tmp.path(),
             )
             .unwrap();
         assert_eq!(edited.id, stored.id);
@@ -873,6 +999,8 @@ mod tests {
                     album: Some("Singles".into()),
                     ..LinkEdit::default()
                 },
+                None,
+                tmp.path(),
             )
             .unwrap();
         assert_ne!(moved.album_id, existing.album_id);
@@ -883,9 +1011,171 @@ mod tests {
 
         // Files are the tag editor's.
         assert!(matches!(
-            library.edit_link("/music/song.flac", &LinkEdit::default()),
+            library.edit_link("/music/song.flac", &LinkEdit::default(), None, tmp.path()),
             Err(Error::Invalid(_))
         ));
+    }
+
+    #[test]
+    fn a_corrected_link_takes_its_pages_details_back() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut library = Library::open_in_memory().unwrap();
+        let upload = RemoteTrack {
+            url: "https://y/v1".into(),
+            title: "Real Artist - Song (Official Video)".into(),
+            artist: Some("Reupload Channel".into()),
+            complete: true,
+            ..RemoteTrack::default()
+        };
+        let stored = library
+            .add_remote_tracks(std::slice::from_ref(&upload))
+            .unwrap()
+            .remove(0);
+        assert!(!library.link_edited(&upload.url).unwrap());
+        let edit = LinkEdit {
+            title: "Song".into(),
+            artists: vec!["Real Artist".into()],
+            album: Some("Real Album".into()),
+            ..LinkEdit::default()
+        };
+        library
+            .edit_link(&upload.url, &edit, None, tmp.path())
+            .unwrap();
+        assert!(library.link_edited(&upload.url).unwrap());
+
+        // The page as it is now.
+        let page = RemoteTrack {
+            title: "Real Artist - Song (Official Video) [HD]".into(),
+            ..upload.clone()
+        };
+        let restored = library.restore_link(&page).unwrap();
+        assert_eq!(restored.id, stored.id);
+        assert_eq!(restored.title, page.title);
+        assert_eq!(restored.artist.as_deref(), Some("Reupload Channel"));
+        assert_eq!(restored.album, None);
+        assert!(!library.link_edited(&upload.url).unwrap());
+        // The album made for the correction went with it.
+        assert!(library.albums(crate::AlbumSort::Artist).unwrap().is_empty());
+        // And yt-dlp updates it again.
+        let later = RemoteTrack {
+            title: "Song (Remastered)".into(),
+            ..upload.clone()
+        };
+        library.add_remote_tracks(&[later]).unwrap();
+        assert_eq!(
+            library.track(stored.id).unwrap().unwrap().title,
+            "Song (Remastered)"
+        );
+
+        // A listing isn't a description, and files aren't links.
+        let listing = RemoteTrack {
+            complete: false,
+            ..upload.clone()
+        };
+        assert!(library.restore_link(&listing).is_err());
+        let file = RemoteTrack {
+            url: "/music/song.flac".into(),
+            ..upload
+        };
+        assert!(matches!(
+            library.restore_link(&file),
+            Err(Error::Invalid(_))
+        ));
+    }
+
+    fn image(width: u32, height: u32, rgb: [u8; 3]) -> Vec<u8> {
+        let mut out = std::io::Cursor::new(Vec::new());
+        image::RgbImage::from_pixel(width, height, image::Rgb(rgb))
+            .write_to(&mut out, image::ImageFormat::Png)
+            .unwrap();
+        out.into_inner()
+    }
+
+    #[test]
+    fn a_link_put_into_an_album_shows_the_album_cover() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut library = Library::open_in_memory().unwrap();
+        let upload = library
+            .add_remote_tracks(&[link("https://y/v1", "Song (Official Video)", true)])
+            .unwrap()
+            .remove(0);
+        let thumbnail = library
+            .set_track_artwork(upload.id, &image(160, 90, [200, 40, 90]), tmp.path())
+            .unwrap()
+            .unwrap();
+        let other = library
+            .add_remote_tracks(&[RemoteTrack {
+                url: "https://y/v2".into(),
+                title: "Other".into(),
+                artist: Some("Artist".into()),
+                album: Some("Album".into()),
+                complete: true,
+                ..RemoteTrack::default()
+            }])
+            .unwrap()
+            .remove(0);
+        let album_id = other.album_id.unwrap();
+        let album_cover = library
+            .set_album_artwork(album_id, &image(64, 64, [20, 90, 200]), tmp.path())
+            .unwrap()
+            .unwrap();
+        let into = |album: &str| LinkEdit {
+            title: "Song".into(),
+            artists: vec!["Artist".into()],
+            album: Some(album.into()),
+            ..LinkEdit::default()
+        };
+
+        // An album with a cover: the track shows it, not its 16:9 thumbnail.
+        let moved = library
+            .edit_link("https://y/v1", &into("Album"), None, tmp.path())
+            .unwrap();
+        assert_eq!(moved.album_id, Some(album_id));
+        assert_eq!(moved.cover.as_deref(), Some(album_cover.as_str()));
+
+        // A new album gets the thumbnail, cut square, and the track shows that.
+        let alone = library
+            .edit_link("https://y/v1", &into("Singles"), None, tmp.path())
+            .unwrap();
+        let square = alone.cover.unwrap();
+        assert_ne!(square, thumbnail);
+        let album = library.album(alone.album_id.unwrap()).unwrap().unwrap();
+        assert_eq!(album.cover.as_deref(), Some(square.as_str()));
+        let (width, height) =
+            image::image_dimensions(tmp.path().join(format!("{square}.jpg"))).unwrap();
+        assert_eq!(width, height);
+
+        // The full thumbnail, when the app still has it, gives a sharper one.
+        let sharp = library
+            .edit_link(
+                "https://y/v1",
+                &into("Big"),
+                Some(&image(1280, 720, [200, 40, 90])),
+                tmp.path(),
+            )
+            .unwrap();
+        let cover = sharp.cover.unwrap();
+        let size = image::image_dimensions(tmp.path().join(format!("{cover}.jpg"))).unwrap();
+        assert_eq!(size, (crate::scan::COVER_SIZE, crate::scan::COVER_SIZE));
+
+        // Without an album the thumbnail shows again; a link nobody corrected keeps its own.
+        let bare = library
+            .edit_link(
+                "https://y/v1",
+                &LinkEdit {
+                    title: "Song".into(),
+                    ..LinkEdit::default()
+                },
+                None,
+                tmp.path(),
+            )
+            .unwrap();
+        assert_eq!(bare.cover.as_deref(), Some(thumbnail.as_str()));
+        library
+            .set_track_artwork(other.id, &image(160, 90, [90, 200, 40]), tmp.path())
+            .unwrap();
+        let own = library.track(other.id).unwrap().unwrap().cover.unwrap();
+        assert_ne!(own, album_cover);
     }
 
     #[test]

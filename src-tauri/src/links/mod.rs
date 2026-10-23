@@ -286,7 +286,22 @@ impl LinkService {
     /// streams are taken as they are (mpv reads their tags while playing).
     pub async fn resolve(&self, input: &str) -> Result<LinkPreview, AppError> {
         let link = links::parse_link(input)?;
-        let resolved = match link.kind {
+        let resolved = self.describe(&link).await?;
+        let key = match &resolved {
+            Resolved::Track(track) => track.url.clone(),
+            Resolved::Playlist(playlist) => playlist.url.clone(),
+        };
+        remember(&self.0.resolved, &key, resolved.clone());
+        // The pasted form may differ from the canonical one yt-dlp reports.
+        if key != link.url {
+            remember(&self.0.resolved, &link.url, resolved.clone());
+        }
+        self.preview(resolved).await
+    }
+
+    /// What a link is now, with its thumbnail remembered.
+    async fn describe(&self, link: &links::Link) -> Result<Resolved, AppError> {
+        Ok(match link.kind {
             LinkKind::Audio | LinkKind::Stream => Resolved::Track(LinkTrack {
                 title: links::link_title(&link.url),
                 live: link.kind == LinkKind::Stream,
@@ -305,17 +320,33 @@ impl LinkService {
                 }
                 resolved
             }
+        })
+    }
+
+    /// Takes a corrected link's details from its page again (`Library::restore_link`).
+    pub async fn restore(&self, url: &str) -> Result<Track, AppError> {
+        let link = links::parse_link(url)?;
+        let Resolved::Track(mut track) = self.describe(&link).await? else {
+            return Err(AppError::NotFound(format!("{url} is not a single track")));
         };
-        let key = match &resolved {
-            Resolved::Track(track) => track.url.clone(),
-            Resolved::Playlist(playlist) => playlist.url.clone(),
-        };
-        remember(&self.0.resolved, &key, resolved.clone());
-        // The pasted form may differ from the canonical one yt-dlp reports.
-        if key != link.url {
-            remember(&self.0.resolved, &link.url, resolved.clone());
-        }
-        self.preview(resolved).await
+        let thumbnail = self.thumbnail(&track.url);
+        // Kept under the URL the library has, whatever form yt-dlp reports now.
+        url.clone_into(&mut track.url);
+        let description = remote(&track, true);
+        let library = self.library()?;
+        let covers = library.covers_dir().to_path_buf();
+        let restored = library
+            .run(move |db| {
+                let restored = db.restore_link(&description)?;
+                let Some(image) = thumbnail else {
+                    return Ok(restored);
+                };
+                db.set_track_artwork(restored.id, &image, &covers)?;
+                Ok(db.track(restored.id)?.unwrap_or(restored))
+            })
+            .await?;
+        self.tracks_updated(&library, vec![restored.clone()]);
+        Ok(restored)
     }
 
     async fn preview(&self, resolved: Resolved) -> Result<LinkPreview, AppError> {

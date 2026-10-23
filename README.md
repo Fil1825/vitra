@@ -29,8 +29,9 @@ lets yt-dlp use the sign-in of a browser on this computer.
 
 Re-uploads often credit the channel instead of the artist and add "(Official Video)" to the
 title: **Edit Tags…** on a link corrects its title, artists and album (or moves it into an
-album you already have). The corrections stay in Vitra's library, survive opening the link
-again, and go into the file's tags when you download it.
+album you already have, which then lends it its cover). The corrections stay in Vitra's
+library, survive opening the link again, and go into the file's tags when you download it.
+**Restore Site Details** in the same window takes the site's details back.
 
 ## Library
 

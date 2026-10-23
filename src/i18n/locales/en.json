@@ -290,14 +290,19 @@
     "linkHint": "This is a link, not a file: your changes stay in Vitra's library, and what the site says about the track later won't replace them. Downloading it writes them into the file.",
     "artistHint": "Several artists: separate them with “;”.",
     "albumExisting": "Moves into the album “{{album}}” by {{artist}}.",
-    "albumNew": "Makes a new album, “{{album}}”."
+    "albumNew": "Makes a new album, “{{album}}”.",
+    "restore": "Restore Site Details",
+    "restoring": "Asking the site…",
+    "restoreConfirm": "Drop your corrections and take the title, artists and album from the link's page again?",
+    "restoreFailed": "Couldn't get the details: {{message}}"
   },
   "dialog": {
     "cancel": "Cancel",
     "remove": "Remove",
     "delete": "Delete",
     "save": "Save",
-    "discard": "Discard"
+    "discard": "Discard",
+    "restore": "Restore"
   },
   "links": {
     "title": "Open Link",

@@ -28,6 +28,12 @@ pub async fn link_play(
     links.play(&url, mode).await
 }
 
+/// Gives a corrected link the details of its page back.
+#[tauri::command]
+pub async fn link_restore(links: State<'_, LinkService>, url: String) -> Result<(), AppError> {
+    links.restore(&url).await.map(drop)
+}
+
 #[tauri::command]
 pub async fn link_import(links: State<'_, LinkService>, url: String) -> Result<Playlist, AppError> {
     links.import(&url).await

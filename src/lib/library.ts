@@ -148,6 +148,8 @@ export interface TagForm {
   writable: boolean;
   /** A streamed link: no file, so Vitra's library keeps the changes (no cover here). */
   link: boolean;
+  /** A link the user corrected: its page's details can be restored (`links.restore`). */
+  edited: boolean;
 }
 
 export interface TagValues {

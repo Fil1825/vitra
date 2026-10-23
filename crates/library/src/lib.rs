@@ -209,7 +209,10 @@ mod tests {
             ..LinkEdit::default()
         };
         assert_eq!(
-            library.edit_link("https://y/1", &edit).unwrap().title,
+            library
+                .edit_link("https://y/1", &edit, None, tmp.path())
+                .unwrap()
+                .title,
             "Song"
         );
     }

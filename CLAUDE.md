@@ -276,7 +276,9 @@ themes/                 (stage 7) example themes
       an unreadable folder or a cancelled scan, and date a folder's first scan by file mtime.
     - Album covers: 512 px JPEGs named by the FNV-1a hash of the source image, cached in
       `<app data>/covers`, garbage-collected after scans. Albums sharing a cover share the id,
-      so each write goes through its own temporary file (`<id>.<pid>-<n>.part`).
+      so each write goes through its own temporary file (`<id>.<pid>-<n>.part`). They come
+      from the album's own files (embedded art in the first three, else the folder's
+      `cover.jpg` & co.) and only then from downloaded links, whose art is a site's thumbnail.
     - Single tracks: files opened or dropped outside library folders join the library with
       `folder_id = NULL` (setting `library.addOpenedFiles`, on by default; done in the
       background after playback starts, then the queue entries get their track ids). Adding a
@@ -323,7 +325,8 @@ artist_id, position)`; `tracks.artist_id` stays the first (main) one, and an alb
       thumbnail, which otherwise lands in the working folder), and resolve/enrich run with
       that folder as their working directory.
     - A link is a library track whose path is its page URL (`tracks.source_url`, migration 2);
-      its thumbnail is the track's own cover (`tracks.cover`, shown before the album's).
+      its thumbnail is the track's own cover (`tracks.cover`, shown before the album's
+      unless the user corrected the link into an album).
       Listings (`complete: false`) never overwrite what a full description stored. Links
       join the library when played if `library.addOpenedFiles` is on; always when imported
       or downloaded.
@@ -344,6 +347,12 @@ artist_id, position)`; `tracks.artist_id` stays the first (main) one, and an alb
       enrichment, album placement). The link dialog and playback take a known link's
       library details; downloads take the track's album values before the group's. A
       downloaded link is a file: the editor writes its tags.
+    - A corrected link in an album shows the album's cover, not its thumbnail (the
+      `track_cover!` SQL rule in `tracks.rs`; the player's `link_thumbnail` follows it); an
+      album without a cover gets the link's thumbnail cut square (the full one if
+      `LinkService` still has it, else the cached copy). "Restore Site Details" in the
+      editor (`TagForm.edited`, `link_restore` → `LinkService::restore`): yt-dlp describes
+      the link afresh and `Library::restore_link` clears `edited` and stores that.
     - An album's listing often has no thumbnail: then the first entry thumbnail enrichment
       brings covers it (`Library::store_enriched` → `cover_bare_album`). Opening an album
       page whose album still has no cover (`library_album`) looks for one in the background

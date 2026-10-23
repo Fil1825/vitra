@@ -1,10 +1,11 @@
-import { ImagePlus, Trash2, X } from 'lucide-react';
+import { ImagePlus, RotateCcw, Trash2, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Glass } from '../../components/Glass/index.ts';
 import { IconButton } from '../../components/ui/IconButton.tsx';
+import { confirm } from '../../lib/confirm.ts';
 import {
   library,
   tags,
@@ -13,8 +14,10 @@ import {
   type TagForm,
   type TagValues,
 } from '../../lib/library.ts';
+import { links } from '../../lib/links.ts';
 import { pickImage } from '../../lib/openFiles.ts';
 import { artworkUrl } from '../../lib/player.ts';
+import { linkError } from '../links/errors.ts';
 import styles from './TagEditor.module.css';
 import { albumTarget } from './album.ts';
 import { parseYear } from './year.ts';
@@ -33,6 +36,7 @@ export function TagEditor({ path, onClose }: { path: string; onClose(): void }) 
   const [cover, setCover] = useState<CoverEdit>({ kind: 'keep' });
   const [preview, setPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -77,7 +81,8 @@ export function TagEditor({ path, onClose }: { path: string; onClose(): void }) 
   }, [onClose]);
 
   const year = fields ? parseYear(fields.year) : null;
-  const canSave = form?.writable === true && fields !== null && year !== undefined && !saving;
+  const busy = saving || restoring;
+  const canSave = form?.writable === true && fields !== null && year !== undefined && !busy;
 
   const chooseCover = async () => {
     const image = await pickImage();
@@ -105,6 +110,22 @@ export function TagEditor({ path, onClose }: { path: string; onClose(): void }) 
     } catch (err) {
       setError(t('tags.saveFailed', { message: String(err) }));
       setSaving(false);
+    }
+  };
+
+  // yt-dlp reads the page again; the editor closes once the library has its details.
+  const restore = async () => {
+    if (!(await confirm(t('tags.restoreConfirm'), 'restore'))) {
+      return;
+    }
+    setRestoring(true);
+    setError(null);
+    try {
+      await links.restore(path);
+      onClose();
+    } catch (err) {
+      setError(t('tags.restoreFailed', { message: linkError(err, t) }));
+      setRestoring(false);
     }
   };
 
@@ -204,7 +225,7 @@ export function TagEditor({ path, onClose }: { path: string; onClose(): void }) 
                   <input
                     className={styles.input}
                     value={fields?.[name] ?? ''}
-                    disabled={!form?.writable || saving}
+                    disabled={!form?.writable || busy}
                     inputMode={name === 'year' ? 'numeric' : undefined}
                     aria-invalid={name === 'year' && year === undefined}
                     list={name === 'album' ? 'tag-editor-albums' : undefined}
@@ -247,6 +268,17 @@ export function TagEditor({ path, onClose }: { path: string; onClose(): void }) 
             </div>
 
             <footer className={styles.footer}>
+              {link && form?.edited && (
+                <button
+                  type="button"
+                  className={`${styles.secondary} ${styles.restore}`}
+                  disabled={busy}
+                  onClick={() => void restore()}
+                >
+                  <RotateCcw size={14} aria-hidden="true" />
+                  {restoring ? t('tags.restoring') : t('tags.restore')}
+                </button>
+              )}
               <button type="button" className={styles.secondary} onClick={onClose}>
                 {t('tags.cancel')}
               </button>

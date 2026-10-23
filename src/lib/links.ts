@@ -136,6 +136,8 @@ export const links = {
   resolve: (input: string) => call<LinkPreview>('link_resolve', { input }),
   play: (url: string, mode: PlayMode) => call('link_play', { url, mode }),
   import: (url: string) => call<{ id: number; name: string }>('link_import', { url }),
+  /** Drops the user's corrections of a library link and reads its page again. */
+  restore: (url: string) => call('link_restore', { url }),
   /** Downloads a link (each entry, for a playlist); resolves with how many were queued. */
   download: (url: string) => call<number>('link_download', { url }),
   /** Whether Vitra can read the browser's cookies (only Safari's can be checked). */

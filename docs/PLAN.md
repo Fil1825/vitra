@@ -179,7 +179,11 @@ and an explicit list of checks that can only be done on a Mac.
     opening the link again, refreshing its playlist or album never overwrite them; an
     album name moves the track into that album or makes a new one; the link dialog and
     playback show them; downloads write them into the file. A downloaded link edits its
-    file's tags as before.
+    file's tags as before. A corrected link in an album shows the album's cover (an album
+    without one takes the link's thumbnail, cut square), and "Restore Site Details" asks
+    yt-dlp again and drops the corrections.
+  - Fix: a downloaded link no longer replaces its album's cover with the site's thumbnail
+    embedded in the file; the album's own files (and their folder's cover) come first.
   - A live backdrop everywhere: the blurred cover (blurred once in Rust, so nothing moving
     has a CSS filter) breathes and its copies drift over each other with the theme's
     blobs, and with "Background moves with the music" (on by default) it swells softly with the

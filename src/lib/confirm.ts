@@ -5,7 +5,7 @@ import { i18n } from '../i18n/index.ts';
 /** A native yes/no warning with translated buttons (the system's default is English). */
 export function confirm(
   message: string,
-  action: 'remove' | 'delete' | 'save' | 'discard',
+  action: 'remove' | 'delete' | 'save' | 'discard' | 'restore',
 ): Promise<boolean> {
   return ask(message, {
     kind: 'warning',

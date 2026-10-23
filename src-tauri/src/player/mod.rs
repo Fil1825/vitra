@@ -1051,24 +1051,46 @@ impl Player {
             .flatten()
     }
 
-    /// A link's thumbnail: from a recent resolution, else the library's cached cover.
+    /// A link's artwork: its album's cover if the user put it in an album, else its thumbnail
+    /// from a recent resolution (full size), else the library's cached cover.
     async fn link_thumbnail(&self, url: &str) -> Option<Vec<u8>> {
-        if let Some(links) = self.0.app.try_state::<LinkService>()
-            && let Some(bytes) = links.thumbnail(url)
-        {
-            return Some(bytes.as_ref().clone());
+        let recent = self
+            .0
+            .app
+            .try_state::<LinkService>()
+            .and_then(|links| links.thumbnail(url));
+        let stored = match self.library() {
+            Some(library) => {
+                let url = url.to_owned();
+                let covers = library.covers_dir().to_path_buf();
+                let wanted = recent.is_none();
+                library
+                    .run(move |db| {
+                        let Some(track) = db.track_by_path(&url)? else {
+                            return Ok(None);
+                        };
+                        // The library gives a corrected link in an album its album's cover.
+                        let albums = track.album_id.is_some() && db.link_edited(&url)?;
+                        if !albums && !wanted {
+                            return Ok(None);
+                        }
+                        let read = |id: String| std::fs::read(covers.join(format!("{id}.jpg")));
+                        Ok(track
+                            .cover
+                            .and_then(|id| read(id).ok())
+                            .map(|bytes| (bytes, albums)))
+                    })
+                    .await
+                    .ok()
+                    .flatten()
+            }
+            None => None,
+        };
+        match (stored, recent) {
+            (Some((bytes, true)), _) => Some(bytes),
+            (_, Some(recent)) => Some(recent.as_ref().clone()),
+            (stored, None) => stored.map(|(bytes, _)| bytes),
         }
-        let library = self.library()?;
-        let url = url.to_owned();
-        let covers = library.covers_dir().to_path_buf();
-        library
-            .run(move |db| {
-                let cover = db.track_by_path(&url)?.and_then(|track| track.cover);
-                Ok(cover.and_then(|id| std::fs::read(covers.join(format!("{id}.jpg"))).ok()))
-            })
-            .await
-            .ok()
-            .flatten()
     }
 
     /// Internet radio names the song playing in its stream metadata (`icy-title`, usually

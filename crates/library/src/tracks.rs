@@ -10,16 +10,40 @@ use crate::model::{Album, Artist, ArtistRef, HistoryEntry, ScannedTrack, Track, 
 use crate::search::fold;
 use crate::{Library, Result, now};
 
+/// A track's cover, for track `$t` on album `$al`: the one the user chose for the album, then
+/// the album's for a link the user put there, then the track's own (a link's thumbnail),
+/// then the album's.
+macro_rules! track_cover {
+    ($t:literal, $al:literal) => {
+        concat!(
+            "COALESCE(",
+            $al,
+            ".custom_cover, CASE WHEN ",
+            $t,
+            ".edited THEN ",
+            $al,
+            ".cover END, ",
+            $t,
+            ".cover, ",
+            $al,
+            ".cover)"
+        )
+    };
+}
+
 /// Columns of [`Track`], in [`track_from_row`] order. Joins `artists ar` (the main artist,
 /// for sorting) and `albums al`; the artists come as a JSON array of `[id, name]`.
-pub(crate) const TRACK_COLUMNS: &str = "t.id, t.path, t.title,
+pub(crate) const TRACK_COLUMNS: &str = concat!(
+    "t.id, t.path, t.title,
     (SELECT json_group_array(json_array(x.id, x.name) ORDER BY ta.position)
         FROM track_artists ta JOIN artists x ON x.id = ta.artist_id WHERE ta.track_id = t.id),
     t.artist_id, al.title,
     t.album_id, t.album_artist, t.genre, t.year, t.track_number, t.disc_number, t.duration,
     t.format, t.sample_rate, t.bit_depth, t.bitrate, t.favorite, t.play_count,
-    t.last_played_at, t.added_at, COALESCE(al.custom_cover, t.cover, al.cover), t.folder_id,
-    t.source_url";
+    t.last_played_at, t.added_at, ",
+    track_cover!("t", "al"),
+    ", t.folder_id, t.source_url"
+);
 
 pub(crate) const TRACK_FROM: &str = "tracks t
     LEFT JOIN artists ar ON ar.id = t.artist_id
@@ -107,7 +131,8 @@ pub(crate) fn album_from_row(row: &Row<'_>) -> rusqlite::Result<Album> {
 /// Counts every track the artist is on (theirs, features, and their albums'); the picture
 /// is the one the user chose, else one of their albums' covers, else a cover of a track
 /// they lead, else of any.
-pub(crate) const ARTIST_SELECT: &str = "SELECT ar.id, ar.name,
+pub(crate) const ARTIST_SELECT: &str = concat!(
+    "SELECT ar.id, ar.name,
         (SELECT COUNT(*) FROM albums WHERE artist_id = ar.id),
         (SELECT COUNT(*) FROM (
             SELECT track_id FROM track_artists WHERE artist_id = ar.id
@@ -118,13 +143,17 @@ pub(crate) const ARTIST_SELECT: &str = "SELECT ar.id, ar.name,
             (SELECT COALESCE(custom_cover, cover) FROM albums
                 WHERE artist_id = ar.id AND COALESCE(custom_cover, cover) IS NOT NULL
                 ORDER BY year DESC LIMIT 1),
-            (SELECT COALESCE(a.custom_cover, t.cover, a.cover) FROM track_artists ta
+            (SELECT ",
+    track_cover!("t", "a"),
+    " FROM track_artists ta
                 JOIN tracks t ON t.id = ta.track_id LEFT JOIN albums a ON a.id = t.album_id
-                WHERE ta.artist_id = ar.id
-                    AND COALESCE(a.custom_cover, t.cover, a.cover) IS NOT NULL
+                WHERE ta.artist_id = ar.id AND ",
+    track_cover!("t", "a"),
+    " IS NOT NULL
                 ORDER BY ta.position, t.added_at DESC LIMIT 1)),
         ar.cover IS NOT NULL
-    FROM artists ar";
+    FROM artists ar"
+);
 
 pub(crate) fn artist_from_row(row: &Row<'_>) -> rusqlite::Result<Artist> {
     Ok(Artist {
@@ -541,14 +570,26 @@ impl Library {
         Ok(ids)
     }
 
-    /// Paths of an album's tracks in album order, files only (no links).
+    /// Paths of an album's tracks in album order, files only (no streams): the album's own
+    /// files, then downloaded links (whose art is a site's thumbnail).
     pub fn album_paths(&self, album_id: i64) -> Result<Vec<String>> {
+        Ok(self
+            .album_files(album_id)?
+            .into_iter()
+            .map(|(path, _)| path)
+            .collect())
+    }
+
+    /// [`Self::album_paths`], each marked whether it is a downloaded link.
+    pub(crate) fn album_files(&self, album_id: i64) -> Result<Vec<(String, bool)>> {
         let mut statement = self.conn.prepare(
-            "SELECT path FROM tracks WHERE album_id = ? AND path IS NOT source_url
-             ORDER BY disc_number, track_number, title COLLATE NOCASE",
+            "SELECT path, source_url IS NOT NULL FROM tracks
+             WHERE album_id = ? AND path IS NOT source_url
+             ORDER BY source_url IS NOT NULL, disc_number IS NULL, disc_number,
+                 track_number IS NULL, track_number, title COLLATE NOCASE",
         )?;
         let paths = statement
-            .query_map([album_id], |row| row.get(0))?
+            .query_map([album_id], |row| Ok((row.get(0)?, row.get(1)?)))?
             .collect::<rusqlite::Result<_>>()?;
         Ok(paths)
     }

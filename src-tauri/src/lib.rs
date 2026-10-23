@@ -150,6 +150,7 @@ pub fn run() {
             links::link_resolve,
             links::link_play,
             links::link_import,
+            links::link_restore,
             links::link_download,
             links::downloads_list,
             links::downloads_add,

@@ -29,7 +29,7 @@ pub const AUDIO_EXTENSIONS: &[&str] = &[
 ];
 
 /// Longer side of cached album covers: sharp in a grid tile on a 2x display.
-const COVER_SIZE: u32 = 512;
+pub(crate) const COVER_SIZE: u32 = 512;
 /// Tracks written per transaction: big enough to be fast, small enough that the UI sees
 /// the library fill up during a long first scan.
 const BATCH: usize = 250;
@@ -666,9 +666,15 @@ impl Library {
         // Albums may have been pruned since they were touched.
         let mut albums = Vec::with_capacity(album_ids.len());
         for &id in album_ids {
-            let paths = self.album_paths(id)?;
-            if !paths.is_empty() {
-                albums.push((id, paths));
+            let (downloads, files): (Vec<_>, Vec<_>) = self
+                .album_files(id)?
+                .into_iter()
+                .partition(|(_, downloaded)| *downloaded);
+            let paths = |list: Vec<(String, bool)>| -> Vec<String> {
+                list.into_iter().map(|(path, _)| path).collect()
+            };
+            if !files.is_empty() || !downloads.is_empty() {
+                albums.push((id, (paths(files), paths(downloads))));
             }
         }
         let total = albums.len();
@@ -678,7 +684,12 @@ impl Library {
         parallel(
             &albums,
             cancel,
-            |(_, paths)| find_cover(paths).and_then(|bytes| cache_cover(&bytes, covers_dir)),
+            // A downloaded link's art is a site's thumbnail: the album's own files come first.
+            |(_, (files, downloads))| {
+                find_cover(files)
+                    .or_else(|| find_cover(downloads))
+                    .and_then(|bytes| cache_cover(&bytes, covers_dir))
+            },
             |index, cover| {
                 covers.insert(albums[index].0, cover);
                 done += 1;

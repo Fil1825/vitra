@@ -11,6 +11,7 @@ use tauri::State;
 
 use super::{Change, LibraryService, ScanStatus};
 use crate::error::AppError;
+use crate::links::LinkService;
 use crate::player::Player;
 
 /// Which tracks a view lists.
@@ -359,6 +360,8 @@ pub struct TagForm {
     pub writable: bool,
     /// A streamed link: no file, so the library keeps the corrections (no cover here).
     pub link: bool,
+    /// A link the user corrected: its page's details can be restored.
+    pub edited: bool,
 }
 
 /// The path of a streamed link, if `path` is one.
@@ -376,10 +379,11 @@ pub async fn tags_load(
 ) -> Result<TagForm, AppError> {
     if let Some(url) = link_url(&path) {
         let key = url.clone();
-        let track = library
-            .run(move |db| db.track_by_path(&key))
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("{url} is not in the library")))?;
+        let (track, edited) = library
+            .run(move |db| Ok((db.track_by_path(&key)?, db.link_edited(&key)?)))
+            .await?;
+        let track =
+            track.ok_or_else(|| AppError::NotFound(format!("{url} is not in the library")))?;
         // Several artists are edited as "A; B", like a file's.
         let artist = if track.artists.len() > 1 {
             track
@@ -400,6 +404,7 @@ pub async fn tags_load(
             cover: None,
             writable: true,
             link: true,
+            edited,
         });
     }
     let read = tauri::async_runtime::spawn_blocking(move || {
@@ -424,6 +429,7 @@ pub async fn tags_load(
                 cover: None,
                 writable: false,
                 link: false,
+                edited: false,
             });
         }
     };
@@ -436,6 +442,7 @@ pub async fn tags_load(
         cover: cover.map(|art| player.artwork().insert(art)),
         writable: true,
         link: false,
+        edited: false,
     })
 }
 
@@ -558,6 +565,7 @@ pub enum CoverEdit {
 pub async fn tags_save(
     library: State<'_, LibraryService>,
     player: State<'_, Player>,
+    links: State<'_, LinkService>,
     path: PathBuf,
     values: TagValues,
     cover: CoverEdit,
@@ -576,7 +584,19 @@ pub async fn tags_save(
             album_artist: non_empty(&values.album_artist),
             year: values.year,
         };
-        let track = library.run(move |db| db.edit_link(&url, &edit)).await?;
+        let covers = library.covers_dir().to_path_buf();
+        // The full thumbnail, if the link was seen lately, makes a sharper album cover.
+        let thumbnail = links.thumbnail(&url);
+        let track = library
+            .run(move |db| {
+                db.edit_link(
+                    &url,
+                    &edit,
+                    thumbnail.as_deref().map(Vec::as_slice),
+                    &covers,
+                )
+            })
+            .await?;
         library.changed(Change::Tracks);
         library.changed(Change::Playlists);
         player.library_tracks_updated(&[track]);
