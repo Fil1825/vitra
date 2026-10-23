@@ -242,9 +242,10 @@ and an explicit list of checks that can only be done on a Mac.
   Touch Bar, headphone buttons) must control Vitra. Today nothing shows there: mpv runs with
   `--media-controls=no` and `--input-media-keys=no` (key decision 5), on purpose, because
   the queue is Vitra's, not mpv's. Vitra publishes `MPNowPlayingInfoCenter` and handles
-  `MPRemoteCommandCenter` itself (through `souvlaki`, or `objc2-media-player` directly) from Rust's player state (title, artists, album, artwork
-  from the artwork store, duration, position and rate, updated on seeks and pauses rather
-  than every tick); mpv's own controls stay off so two sources never fight. It must keep
+  `MPRemoteCommandCenter` itself (through `souvlaki`, or `objc2-media-player` directly)
+  from Rust's player state (title, artists, album, artwork from the artwork store,
+  duration, position and rate, updated on seeks and pauses rather than every tick); mpv's
+  own controls stay off so two sources never fight. It must keep
   working while the mini player is the only window (accessory activation policy) and for
   streamed links.
 - Tray / menu-bar icon (`assets/brand/mono.svg`, a template image on macOS) with basic
