@@ -172,6 +172,11 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     r"
     ALTER TABLE tracks ADD COLUMN edited INTEGER NOT NULL DEFAULT 0;
     ",
+    // 7: the page an album came from (an album link), so its library page can read the
+    // listing again and number tracks stored before a listing placed them.
+    r"
+    ALTER TABLE albums ADD COLUMN source_url TEXT;
+    ",
 ];
 
 /// Brings the database up to the latest schema.
