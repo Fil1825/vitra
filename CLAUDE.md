@@ -25,7 +25,8 @@ the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
 | 6   | Mini player                                            | in review (PR #7) |
 | 7   | Customization: theme editor, `.vitratheme`, layout     | not started       |
 | 8   | Sound & system: EQ, crossfade, media keys, tray        | not started       |
-| 9   | Integrations, i18n, CI builds, README, first release   | not started       |
+| 9   | My Wave: mood analysis, endless mood-based queue       | not started       |
+| 10  | Integrations, i18n, CI builds, README, first release   | not started       |
 
 ## Commands
 
@@ -177,7 +178,7 @@ themes/                 (stage 7) example themes
    - macOS/Linux: one end of a socket pair is mpv's stdin (`--input-ipc-client=fd://0`); mpv
      quits when that connection closes, so it can't outlive the app even after a crash or
      `kill -9`. Windows: a named pipe (`--input-ipc-server`); a hard crash there can still leave
-     an orphan until a Job Object is added (stage 9).
+     an orphan until a Job Object is added (stage 10).
    - Flags (`player::mpv_args`): `--no-config` (ignores the user's mpv.conf and the bundle's
      pseudo-GUI config), `--load-scripts=no`, `--idle`, `--no-video`, `--no-terminal`,
      `--input-media-keys=no` (media keys/Now Playing are ours), `--ytdl-format=bestaudio/best`,
@@ -256,8 +257,9 @@ themes/                 (stage 7) example themes
     from it (`z.toJSONSchema`) and a test fails if the committed file is stale.
 13. **LRC / enhanced LRC parsing and serialization in Rust** (one implementation shared by tag
     reading, `.lrc` files, FTS indexing and saving from the editor).
-14. **i18n from stage 1** (i18next, en + ru) so strings are never hard-coded; stage 9 completes
-    and reviews translations. (The spec lists i18n in stage 9; doing it early avoids a rewrite.)
+14. **i18n from stage 1** (i18next, en + ru) so strings are never hard-coded; the release stage
+    (10) completes and reviews translations. (The spec lists i18n in its stage 9; doing it early
+    avoids a rewrite.)
 15. **Windows are created in Rust** from their `tauri.conf.json` entry (`"create": false`) so
     transparency can differ per platform: Linux windows are opaque (no vibrancy to show, and a
     transparent window renders black without a compositor).
@@ -344,7 +346,10 @@ artist_id, position)`; `tracks.artist_id` stays the first (main) one, and an alb
       their number) and stored as one library album with one square cover
       (`media::square_cover`, `Library::set_album_artwork`); album tracks get no covers of
       their own. Enrichment keeps the placement (`Placement`), so `yt-dlp -j` can't move a
-      track to another album.
+      track to another album. Tracks the library had before (played or downloaded on their
+      own) are placed too (`remote::place_known`): a listing files a stream into the album
+      with its number, and numbers a downloaded file whose tags name the same album; edited
+      links stay as they are. Opening the album link again repairs older rows.
     - Corrections: the tag editor edits a streamed link's title, artists, album, album artist
       and year in the library (`Library::edit_link`, `TagForm.link`); the album is found by
       title + album artist (or made), like a file's. `tracks.edited` (migration 6) makes
@@ -434,6 +439,10 @@ artist_id, position)`; `tracks.artist_id` stays the first (main) one, and an alb
     - The view: the playing line a third of the way down, smooth scroll and per-line blur
       only with motion on, scrolling by hand pauses following for 3 s. Tap-sync captures
       Space/Backspace/arrows before the player's shortcuts while the edited track plays.
+    - `lyrics.visible` (a setting, so every window follows) hides them in Now Playing, the
+      side panel (the panel stays "open" in `ui.sidePanel` and comes back with them) and the
+      mini player's lyrics mode. The lyrics toolbar and the mini player hide them; the
+      control bar's microphone brings them back in the panel.
 24. **Context menus** are native (`@tauri-apps/api/menu`, `lib/menu.ts`); the WebView's own
     menu is suppressed outside text fields. Reordering uses a small pointer-based hook
     (`lib/reorder.ts`) because HTML5 drag and drop clashes with the window's file drop.
@@ -472,8 +481,12 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
       launch), the position and each mode's size.
     - Sizes: a base size per mode × the preset (0.8 / 1 / 1.3), min/max per mode, dragged
       sizes remembered per mode; a preset change forgets them. The page sizes everything in
-      `em` of a font that follows the window height, so any size works. A new window reports
-      its old size for a moment: positions are computed from the size just set.
+      `em` of a font that follows the window height (`100vh / --_rows`), or its width when
+      the window is narrow for that (`100vw / --_cols`), so the text always has room. The
+      compact artwork is `min(100vh − padding, 40vw)`; below an aspect of 11:5 the progress
+      bar moves under it (`useMediaQuery`, re-rendered rather than a grid, see Gotchas).
+      A new window reports its old size for a moment: positions are computed from the
+      size just set.
     - Moves and resizes settle (250 ms, mouse button up where the platform tells) before
       snapping to the work area's edges (16 pt), saving, or pulling a grown window back on
       screen (`geometry::snap`, `fit_inside`, `reachable`).
@@ -541,7 +554,13 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
   `dragDropEnabled`: file and folder drops need its real paths.
 - Under Xvfb there is no window manager: `startDragging` does nothing and keyboard focus may
   not be on a window (click before typing shortcuts). Move windows with `xdotool
-windowmove` to test snapping; `xwininfo -root -tree` lists the mini window.
+windowmove` to test snapping, resize with `xdotool windowsize` to test layouts at every
+  size; `xwininfo -root -tree` lists the mini window.
+- WebKit layout traps (seen in the mini player): a percentage height of a flex item in a
+  window-sized container didn't resolve on macOS, so an image took its own size (use `vh`
+  / `vw`); a grid item spanning several rows spreads its height over them even next to
+  `fr` rows, and an `auto` row whose item has `overflow: hidden` can collapse to nothing.
+  Nested flex boxes are the safe choice.
 - Tauri types drop positions as `PhysicalPosition`, but only Windows reports physical pixels
   (WebView2, `ScreenToClient`); macOS (`draggingLocation`, points) and Linux (GTK widget
   coordinates) report logical ones. `useFileDrop.dropPoint` divides by `devicePixelRatio`

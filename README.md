@@ -50,7 +50,8 @@ a line to jump to it; text size and a sync offset are adjustable while it plays.
 lyrics, syncs them as you tap Space at each line, and saves them into the file's tags (after
 making a backup copy), a `.lrc` file, or Vitra's library only. Lyrics can also be looked up on
 [LRCLIB](https://lrclib.net) — off by default; turning it on sends the song's title, artist,
-album and length there.
+album and length there. Don't want them? The crossed-out eye in the lyrics view hides lyrics
+everywhere until the microphone in the control bar brings them back.
 
 ## Mini player
 

@@ -213,6 +213,9 @@ and an explicit list of checks that can only be done on a Mac.
 - **Mac** for stage 6: on top over other apps and Spaces, over full-screen apps with the
   option, click-through with ⌥, the rounded vibrancy, its shadow and fading, dragging and
   resizing the borderless window, snapping at the menu bar and Dock.
+- Review round: the compact layout keeps the text its room at every size (it broke on
+  macOS), lyrics can be hidden everywhere (`lyrics.visible`), and an album link numbers
+  tracks the library had before.
 
 ## Stage 7 — Customization
 
@@ -232,10 +235,132 @@ and an explicit list of checks that can only be done on a Mac.
 - 10-band EQ with presets and custom presets (`lavfi` `equalizer` chain, updated live).
 - ReplayGain (track/album), volume normalization (`dynaudnorm`/`loudnorm`), crossfade.
 - Media keys and Now Playing via `souvlaki` (macOS, Windows SMTC, Linux MPRIS).
-- Tray / menu-bar icon (`assets/brand/mono.svg`, a template image on macOS) with basic controls; global hotkeys (`tauri-plugin-global-shortcut`).
-- **Mac-only checks**: media keys, Now Playing widget, menu-bar icon.
+  **Required, not optional**: on macOS the system Now Playing widget (Control Center, the
+  lock screen, the menu-bar item of AirPods / headphones) must show the playing track with
+  its artwork, position and play/pause/next/previous/seek, and the media keys (F7–F9, the
+  Touch Bar, headphone buttons) must control Vitra. Today nothing shows there: mpv runs with
+  `--media-controls=no` and `--input-media-keys=no` (key decision 5), on purpose, because
+  the queue is Vitra's, not mpv's. Vitra publishes `MPNowPlayingInfoCenter` and handles
+  `MPRemoteCommandCenter` itself from Rust's player state (title, artists, album, artwork
+  from the artwork store, duration, position and rate, updated on seeks and pauses rather
+  than every tick); mpv's own controls stay off so two sources never fight. It must keep
+  working while the mini player is the only window (accessory activation policy) and for
+  streamed links.
+- Tray / menu-bar icon (`assets/brand/mono.svg`, a template image on macOS) with basic
+  controls and the mini player; global hotkeys (`tauri-plugin-global-shortcut`).
+- **Mac-only checks**: the Now Playing widget in Control Center and on the lock screen
+  (track, artwork, progress, the buttons, scrubbing), media keys and headphone buttons with
+  the app in the background, both while only the mini player is open, menu-bar icon.
 
-## Stage 9 — Release
+## Stage 9 — My Wave
+
+An endless stream picked by mood, like Yandex Music's "Моя волна", from the library and,
+when that runs out, from YouTube Music. Added by the owner after stage 6; not in the
+original spec. Each part is its own commit (or a few), testable on its own.
+
+### 9.1 Sound analysis (`crates/mood`)
+
+- One FFmpeg run per track decodes it to mono at 22 050 Hz and prints per-window values
+  with FFmpeg's own filters: `astats` (RMS level) and `aspectralstats` (spectral centroid and
+  spectral flux). No new native dependency and no FFT of our own; the Rust side only reads
+  numbers (`ametadata=print`) and does the statistics. Files are analyzed in three 30 s
+  slices (around 20 %, 50 % and 80 % of the track) rather than whole, which keeps a track
+  to a second or two of CPU.
+- Features: **energy** (mean RMS) and its **spread** (how much the loudness moves),
+  **tempo** (BPM from the autocorrelation of the spectral flux, i.e. the onset strength,
+  folded into 70–180 with a confidence), **brightness** (mean spectral centroid). Optional,
+  last: a **mode / "sadness"** estimate (major vs minor from a chroma profile; FFmpeg has
+  no filter for that, so it needs raw PCM and a small pure-Rust FFT such as `rustfft`, a
+  new dependency to justify in its PR).
+- The mood vector is those features normalized against the library's own distribution
+  (percentiles), so "energetic" means energetic for this library. A `version` number:
+  improving the algorithm re-analyzes everything once.
+- Pure parsing and statistics are unit-tested on recorded FFmpeg output and on generated
+  tones and click tracks (known BPM, known loudness); one opt-in test runs a real FFmpeg.
+
+### 9.2 Background analysis and storage
+
+- Migration 7: `track_features` (track id, version, source `file` / `stream` / `live`, the
+  file's size and mtime when analyzed, energy, spread, BPM + confidence, brightness,
+  valence, analyzed at). A file is analyzed again only when its size or mtime (or the
+  version) changes; tracks that fail are remembered so they aren't retried every launch.
+- A worker thread analyzes one track at a time at low priority: FFmpeg with `-threads 1`,
+  under `nice -n 15` on macOS / Linux (and the background QoS class on macOS) and
+  `IDLE_PRIORITY_CLASS` on Windows. It pauses while a scan runs and with power saving on,
+  and starts with the tracks most likely to be needed (recently played and favorites).
+- Settings → My Wave: progress ("1 234 of 5 678 analyzed"), pause/resume, analyze links
+  on/off; `wave://progress` events. Quitting stops FFmpeg at once.
+
+### 9.3 Links without downloading
+
+- From the stream: yt-dlp gives the audio URL and its HTTP headers (`-f bestaudio -J`);
+  FFmpeg reads 60–90 s from the middle (`-ss` before `-i`, so only that range is
+  fetched). Slowly, so YouTube doesn't block us: one link at a time with a randomized pause
+  of tens of seconds between them, the cookies setting honored, and a long back-off after a
+  403 / 429 / sign-in error (the existing `ytdlp::failure` classes).
+- While listening: the `@vitralevel` chain that already runs for the backdrop pulse
+  (`player/level.rs`) gets `aspectralstats` too, and the playing link's values are
+  accumulated into a `live` analysis when enough of it has played (no extra traffic).
+- The next 2–3 tracks of a wave are analyzed ahead of the background queue, so a pick
+  never waits on the network.
+- Offline (yt-dlp can't reach the site), the wave uses files and links that are already
+  analyzed; nothing else is a candidate.
+
+### 9.4 The wave (pure, in `crates/mood`)
+
+- State: the **course** (a target point in mood space), the wave's history, likes and
+  dislikes, a seeded RNG (deterministic tests).
+- Each pick scores every analyzed candidate: closeness to the course (weighted per feature)
+  plus artist / genre / year affinity with the wave so far, plus history (what is usually
+  played after what: transitions from the play history), favorites and likes add, skips
+  (in waves and outside them, decaying with time) and recently played tracks subtract.
+- The next track is a weighted random choice among the best few (softmax with a
+  temperature), never the same artist twice in a row and never a track already in this
+  wave. The course drifts a little toward each track that is listened to and gets a small
+  random walk, so the wave doesn't get stuck in one corner.
+- Modes set the starting course: **Energetic** (high energy, tempo, brightness), **Calm**
+  (low energy and tempo, little spread), **Sad** (slow, dark, minor where known), **Like
+  the current track** (the playing track's vector). "Не нравится" skips and pushes the
+  course away from that track; "Нравится" adds it to favorites and holds the course near
+  it for a while.
+- Tested with a synthetic library: modes pick the right region, no artist repeats, dislikes
+  steer away, likes hold, the drift is bounded, 10 000 tracks pick in well under 10 ms.
+
+### 9.5 Playback and UI
+
+- The queue knows it is a wave (`QueueSource::Wave`): Rust keeps 2–3 tracks ahead (so
+  gapless and preloading work as now) and tops it up as tracks play; playing something
+  else ends the wave. Skips and likes reach the wave state; the session restores a wave.
+- "Моя волна" button in the library (sidebar entry and the library header) and in Now
+  Playing, with the mode chooser; during a wave, "Нравится" / "Не нравится" in Now Playing,
+  the control bar and the mini player; the queue panel shows the wave's upcoming picks.
+- Settings section as in 9.2; en + ru strings.
+
+### 9.6 When the library runs out
+
+- When a mode has too few good candidates (a small library, or everything was played
+  recently), similar tracks come from the YouTube Music radio of a seed track:
+  `https://music.youtube.com/watch?v=<id>&list=RDAMVM<id>` through `yt-dlp --flat-playlist`
+  (the seed is the current link, else the first result of `ytsearch1:"<artist> <title>"`).
+- Those entries are analyzed (9.3) before they can be picked, play as links (joining the
+  library under `library.addOpenedFiles`), and are rate-limited like everything else that
+  talks to YouTube.
+
+### Mac checks for stage 9
+
+- Background analysis of the real library (FLAC, ALAC, MP3, M4A): playback never stutters,
+  Activity Monitor shows FFmpeg at low priority with a small energy impact, also on
+  battery; quitting during analysis leaves no FFmpeg behind; tracks in iCloud-offloaded
+  folders are skipped rather than downloaded.
+- Progress in Settings, pause/resume, re-analysis after a file's tags or audio change.
+- Links analyzed over the real network (with Safari cookies if set), no blocks after an
+  hour of waves; with Wi-Fi off the wave keeps playing analyzed tracks only.
+- The modes feel right on the owner's music; "Нравится" / "Не нравится"; no artist twice
+  in a row; the YouTube Music fallback with a small library.
+- The wave from the Now Playing widget and media keys (next) after stage 8, and from the
+  mini player.
+
+## Stage 10 — Release
 
 - Discord Rich Presence, Last.fm scrobbling (both optional).
 - Complete en/ru translations.
@@ -255,12 +380,12 @@ and an explicit list of checks that can only be done on a Mac.
 | Risk                                                                                       | Plan                                                                                                                                          |
 | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | mpv has no native crossfade                                                                | Crossfade with a second mpv instance and volume ramps (stage 8); gapless stays native. Crossfade and gapless are alternatives per transition. |
-| Shipping `mpv.app` (dylibs) inside the bundle complicates signing/notarization             | Sign nested binaries in the release workflow (stage 9). Unsigned local builds work.                                                           |
+| Shipping `mpv.app` (dylibs) inside the bundle complicates signing/notarization             | Sign nested binaries in the release workflow (stage 10). Unsigned local builds work.                                                          |
 | YouTube changes break yt-dlp                                                               | Updatable yt-dlp in app data + "Update yt-dlp" button; Deno for EJS challenges.                                                               |
 | Installer size: static FFmpeg+ffprobe ≈ 330 MB (Win/Linux), Deno ≈ 100 MB, mpv ≈ 60–100 MB | See open question 1.                                                                                                                          |
 | `backdrop-filter` with SVG filters only works in Chromium                                  | Feature detection + blur/highlight fallback (WebKit on macOS/Linux).                                                                          |
 | Transparent windows on Linux need a compositor                                             | Detect and fall back to an opaque theme background.                                                                                           |
-| A hard crash on Windows can orphan mpv (no fd-passing IPC there)                           | Assign mpv to a Job Object with kill-on-close (stage 9); macOS/Linux already tie mpv's life to the IPC socket.                                |
+| A hard crash on Windows can orphan mpv (no fd-passing IPC there)                           | Assign mpv to a Job Object with kill-on-close (stage 10); macOS/Linux already tie mpv's life to the IPC socket.                               |
 | A huge queue (tens of thousands of items) is sent whole on every change                    | Fine for normal libraries (≈ 2 MB at 10 000 items); send diffs or pages if it shows up in profiles.                                           |
 | Linux inotify watch limits on very large libraries                                         | Watching degrades to manual rescans (logged); raise `fs.inotify.max_user_watches` if needed.                                                  |
 | No GUI in the cloud environment                                                            | Logic in testable crates/modules; UI verified by the owner on macOS following PR instructions.                                                |
