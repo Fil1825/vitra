@@ -18,9 +18,10 @@ import { useTranslation } from 'react-i18next';
 import { Glass } from '../components/Glass/index.ts';
 import { IconButton } from '../components/ui/IconButton.tsx';
 import { createPlaylist, report } from '../features/library/actions.ts';
+import { coverMenu } from '../features/library/covers.ts';
 import { usePlaylists } from '../features/library/usePlaylists.ts';
 import { confirm } from '../lib/confirm.ts';
-import { playlists } from '../lib/library.ts';
+import { coverUrl, playlists } from '../lib/library.ts';
 import { isActive } from '../lib/links.ts';
 import { showContextMenu } from '../lib/menu.ts';
 import { useDownloads } from '../stores/downloads.ts';
@@ -136,6 +137,7 @@ function NavItem({
   icon: Icon,
   rail,
   monogram,
+  image,
   badge,
   onContextMenu,
 }: {
@@ -146,6 +148,8 @@ function NavItem({
   rail: boolean;
   /** In the rail, show the label's first letter instead of the icon. */
   monogram?: boolean;
+  /** A cover (one the user chose) shown instead of the icon. */
+  image?: string | null;
   /** A count shown at the end (e.g. running downloads); a dot in the rail. */
   badge?: number;
   onContextMenu?(event: MouseEvent): void;
@@ -167,7 +171,9 @@ function NavItem({
         onClick={() => go(route)}
         onContextMenu={onContextMenu}
       >
-        {rail && monogram ? (
+        {image ? (
+          <img className={styles.thumb} src={coverUrl(image)} alt="" draggable={false} />
+        ) : rail && monogram ? (
           <Monogram name={label} />
         ) : (
           <Icon size={16} className={styles.icon} aria-hidden="true" />
@@ -231,7 +237,7 @@ export function Sidebar({
     { route: { view: 'favorites' }, label: t('nav.favorites'), icon: Heart },
   ];
 
-  const playlistMenu = (id: number, name: string) => (event: MouseEvent) => {
+  const playlistMenu = (id: number, name: string, custom: boolean) => (event: MouseEvent) => {
     event.preventDefault();
     showContextMenu([
       {
@@ -241,6 +247,7 @@ export function Sidebar({
           renamePlaylist(id);
         },
       },
+      ...coverMenu({ kind: 'playlist', id }, custom),
       {
         label: t('library.deletePlaylist'),
         action: () => {
@@ -307,7 +314,8 @@ export function Sidebar({
               icon={ListMusic}
               rail={rail}
               monogram
-              onContextMenu={playlistMenu(playlist.id, playlist.name)}
+              image={playlist.customCover ? playlist.cover : null}
+              onContextMenu={playlistMenu(playlist.id, playlist.name, playlist.customCover)}
             />
           ))}
           {rail && (

@@ -27,12 +27,77 @@
   gap: var(--vitra-space-6);
 }
 
+/* The big cover with its "change" button; a drop target for image files. */
+.heroCoverBox {
+  position: relative;
+  border-radius: var(--vitra-radius-sm);
+}
+
+.heroCoverBox[data-shape='round'] {
+  border-radius: 50%;
+}
+
+.heroCoverBox[data-dropping] {
+  outline: 3px solid var(--vitra-color-accent);
+  outline-offset: 4px;
+}
+
 .heroCoverButton {
+  display: block;
+  width: 100%;
   padding: 0;
   border: 0;
   border-radius: var(--vitra-radius-md);
   background: transparent;
   cursor: zoom-in;
+}
+
+.coverEdit {
+  position: absolute;
+  right: var(--vitra-space-2);
+  bottom: var(--vitra-space-2);
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--vitra-color-background) 72%, transparent);
+  color: var(--vitra-color-text);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--vitra-color-background) 45%, transparent);
+  opacity: 0;
+  transform: scale(0.9);
+  cursor: pointer;
+  transition:
+    opacity var(--vitra-motion-duration) var(--vitra-motion-easing),
+    transform var(--vitra-motion-duration) var(--vitra-motion-easing);
+}
+
+/* Inside the circle of an artist's picture. */
+.heroCoverBox[data-shape='round'] .coverEdit {
+  right: 10%;
+  bottom: 10%;
+}
+
+/* Shown on hover, and while the keyboard is on the cover or the button (not after a click). */
+.heroCoverBox:hover .coverEdit,
+.heroCoverButton:focus-visible + .coverEdit,
+.coverEdit:focus-visible {
+  opacity: 1;
+  transform: none;
+}
+
+.coverEdit:hover {
+  background: var(--vitra-color-accent);
+  color: var(--vitra-color-accent-contrast);
+}
+
+@media (hover: none) {
+  .coverEdit {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .heroCover {

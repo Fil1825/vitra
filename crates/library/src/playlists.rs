@@ -3,8 +3,16 @@ use rusqlite::{OptionalExtension, Transaction, params};
 use crate::model::Playlist;
 use crate::{Error, Library, Result, now};
 
+/// The cover is the one the user chose, else the first one among the playlist's tracks.
 pub(crate) const PLAYLIST_SELECT: &str = "SELECT p.id, p.name, COUNT(t.id),
-        COALESCE(SUM(t.duration), 0), p.created_at, p.updated_at, p.source_url
+        COALESCE(SUM(t.duration), 0), p.created_at, p.updated_at, p.source_url,
+        COALESCE(p.cover, (
+            SELECT COALESCE(a.custom_cover, c.cover, a.cover) FROM playlist_items ci
+                JOIN tracks c ON c.id = ci.track_id LEFT JOIN albums a ON a.id = c.album_id
+                WHERE ci.playlist_id = p.id
+                    AND COALESCE(a.custom_cover, c.cover, a.cover) IS NOT NULL
+                ORDER BY ci.position LIMIT 1)),
+        p.cover IS NOT NULL
     FROM playlists p
     LEFT JOIN playlist_items pi ON pi.playlist_id = p.id
     LEFT JOIN tracks t ON t.id = pi.track_id";
@@ -18,6 +26,8 @@ pub(crate) fn playlist_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Pla
         created_at: row.get(4)?,
         updated_at: row.get(5)?,
         source_url: row.get(6)?,
+        cover: row.get(7)?,
+        custom_cover: row.get(8)?,
     })
 }
 

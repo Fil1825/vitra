@@ -65,6 +65,8 @@ interface UiState {
   tagEditorPath: string | null;
   lyricsEditor: LyricsEditorTarget | null;
   artworkView: ArtworkView | null;
+  /** The cover an image file is dragged over (its `data-cover-drop` key). */
+  coverDrop: string | null;
   /** Playlist whose name is being edited (e.g. right after creating it). */
   renamingPlaylist: number | null;
   /** The link dialog is open, with this text in its field. */
@@ -93,6 +95,7 @@ export const useUi = create<UiState>((set, get) => ({
   tagEditorPath: null,
   lyricsEditor: null,
   artworkView: null,
+  coverDrop: null,
   renamingPlaylist: null,
   linkInput: null,
   setSidebar(sidebar) {

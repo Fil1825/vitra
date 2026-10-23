@@ -5,7 +5,7 @@ import { useLibraryData } from '../../lib/useLibraryData.ts';
 import { useNavigation } from '../../stores/navigation.ts';
 import { useUi } from '../../stores/ui.ts';
 import { EmptyState, LoadError, PlayButtons } from './common.tsx';
-import { Cover } from './Cover.tsx';
+import { HeroCover } from './HeroCover.tsx';
 import styles from './Library.module.css';
 import { useListSummary } from './summary.ts';
 import type { Column } from './sort.ts';
@@ -34,20 +34,17 @@ export function AlbumView({ id }: { id: number }) {
     <div className={styles.view}>
       {album.error !== undefined && <LoadError error={album.error} />}
       <header className={styles.hero}>
-        {data?.cover ? (
-          <button
-            type="button"
-            className={styles.heroCoverButton}
-            aria-label={t('artwork.view')}
-            onClick={() =>
-              viewArtwork({ source: { kind: 'album', id }, preview: coverUrl(data.cover ?? '') })
-            }
-          >
-            <Cover id={data.cover} className={styles.heroCover} />
-          </button>
-        ) : (
-          <Cover id={null} className={styles.heroCover} />
-        )}
+        <HeroCover
+          target={{ kind: 'album', id }}
+          cover={data?.cover ?? null}
+          custom={data?.customCover ?? false}
+          onView={() =>
+            viewArtwork({
+              source: { kind: 'album', id },
+              preview: data?.cover ? coverUrl(data.cover) : null,
+            })
+          }
+        />
         <div className={styles.heroText}>
           <span className={styles.kind}>{t('library.album')}</span>
           <h2 className={styles.heroTitle}>{data?.title}</h2>

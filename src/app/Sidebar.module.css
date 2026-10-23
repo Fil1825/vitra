@@ -189,6 +189,15 @@
   background: color-mix(in srgb, var(--vitra-color-text) 12%, transparent);
 }
 
+.thumb {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: -2px;
+  border-radius: var(--vitra-radius-sm);
+  object-fit: cover;
+}
+
 .monogram {
   display: grid;
   flex: none;

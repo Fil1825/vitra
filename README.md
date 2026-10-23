@@ -32,7 +32,8 @@ lets yt-dlp use the sign-in of a browser on this computer.
 Vitra watches the folders you add and groups their songs by album and artist. Songs with
 several artists (several `ARTIST` values, `ARTISTS`, or a credit like "A feat. B") are listed
 under each of them; Settings → Library sets how credits are split and which names contain a
-comma ("Tyler, The Creator").
+comma ("Tyler, The Creator"). Albums, artists and playlists can have a cover of your choice:
+use the button on the cover, right-click, or drop an image file on it (files aren't changed).
 
 ## Lyrics
 

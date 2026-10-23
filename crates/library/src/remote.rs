@@ -143,13 +143,7 @@ impl Library {
         image: &[u8],
         covers_dir: &Path,
     ) -> Result<Option<String>> {
-        let current: Option<String> = self
-            .conn
-            .query_row("SELECT cover FROM albums WHERE id = ?", [album_id], |row| {
-                row.get(0)
-            })
-            .optional()?
-            .flatten();
+        let current = self.album_artwork(album_id)?;
         if current.is_some() {
             return Ok(current);
         }
@@ -161,6 +155,94 @@ impl Library {
             params![album_id, cover],
         )?;
         Ok(Some(cover))
+    }
+
+    /// An album's automatic cover (not the one the user chose).
+    fn album_artwork(&self, album_id: i64) -> Result<Option<String>> {
+        Ok(self
+            .conn
+            .query_row("SELECT cover FROM albums WHERE id = ?", [album_id], |row| {
+                row.get(0)
+            })
+            .optional()?
+            .flatten())
+    }
+
+    /// Gives an album without a cover one made from a thumbnail of one of its tracks: its
+    /// middle, cut square (YouTube's are 16:9 with the art in the middle). An album with a
+    /// cover keeps it. Returns the album's cover id.
+    pub fn cover_bare_album(
+        &self,
+        album_id: i64,
+        thumbnail: &[u8],
+        covers_dir: &Path,
+    ) -> Result<Option<String>> {
+        let current = self.album_artwork(album_id)?;
+        if current.is_some() {
+            return Ok(current);
+        }
+        match media::square_cover(thumbnail) {
+            Ok(square) => self.set_album_artwork(album_id, &square, covers_dir),
+            Err(err) => {
+                log::info!("cannot make an album cover of a thumbnail: {err}");
+                Ok(None)
+            }
+        }
+    }
+
+    /// Stores a link that enrichment described in full, with its thumbnail. A playlist entry
+    /// gets the thumbnail as its own cover. An album entry gets none (its album's shows), but
+    /// the first thumbnail covers the album if it has no cover yet: an album's listing often
+    /// comes without a picture of its own.
+    pub fn store_enriched(
+        &mut self,
+        track: &RemoteTrack,
+        thumbnail: Option<&[u8]>,
+        album_entry: bool,
+        covers_dir: &Path,
+    ) -> Result<Option<Track>> {
+        let Some(stored) = self.add_remote_tracks(std::slice::from_ref(track))?.pop() else {
+            return Ok(None);
+        };
+        // A downloaded track has its cover in the file.
+        let streamed = stored.source_url.as_deref() == Some(stored.path.as_str());
+        if let Some(image) = thumbnail.filter(|_| streamed) {
+            match (album_entry, stored.album_id) {
+                (true, Some(album_id)) => {
+                    self.cover_bare_album(album_id, image, covers_dir)?;
+                }
+                (true, None) => {}
+                (false, _) => {
+                    self.set_track_artwork(stored.id, image, covers_dir)?;
+                }
+            }
+        }
+        self.track(stored.id)
+    }
+
+    /// The links of an album that has no cover (automatic or chosen), in album order: where
+    /// to look for one. Empty for any other album.
+    pub fn bare_link_album(&self, album_id: i64) -> Result<Vec<String>> {
+        let bare: bool = self
+            .conn
+            .query_row(
+                "SELECT cover IS NULL AND custom_cover IS NULL FROM albums WHERE id = ?",
+                [album_id],
+                |row| row.get(0),
+            )
+            .optional()?
+            .unwrap_or(false);
+        if !bare {
+            return Ok(Vec::new());
+        }
+        let mut statement = self.conn.prepare(
+            "SELECT path FROM tracks WHERE album_id = ? AND path IS source_url
+             ORDER BY disc_number, track_number, title COLLATE NOCASE",
+        )?;
+        let links = statement
+            .query_map([album_id], |row| row.get(0))?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(links)
     }
 
     /// Imports a web playlist: its entries become tracks and fill a playlist. Importing the
@@ -594,6 +676,73 @@ mod tests {
                 .len()
                 == 1
         );
+    }
+
+    /// An album link whose listing had no thumbnail: its entries' come with enrichment.
+    #[test]
+    fn an_album_without_a_cover_gets_one_from_its_first_described_entry() {
+        let tmp = tempfile::tempdir().unwrap();
+        let covers = tmp.path().join("covers");
+        let mut library = Library::open_in_memory().unwrap();
+        let entry = |n: u32, complete: bool| RemoteTrack {
+            url: format!("https://y/{n}"),
+            title: format!("Track {n}"),
+            artist: Some("Sqwore".into()),
+            album: Some("Summer".into()),
+            album_artist: Some("Sqwore".into()),
+            track_number: Some(n),
+            complete,
+            ..RemoteTrack::default()
+        };
+        // Stored from the listing, without a cover.
+        let listed = library
+            .add_remote_tracks(&[entry(1, false), entry(2, false)])
+            .unwrap();
+        let album_id = listed[0].album_id.unwrap();
+        assert_eq!(library.album(album_id).unwrap().unwrap().cover, None);
+        assert_eq!(
+            library.bare_link_album(album_id).unwrap(),
+            ["https://y/1", "https://y/2"]
+        );
+
+        // Enrichment: the first thumbnail covers the album, the tracks get none of their own.
+        let first = library
+            .store_enriched(&entry(1, true), Some(&artwork()), true, &covers)
+            .unwrap()
+            .unwrap();
+        let cover = library.album(album_id).unwrap().unwrap().cover.unwrap();
+        assert_eq!(first.cover.as_deref(), Some(cover.as_str()));
+        let own: Option<String> = library
+            .conn
+            .query_row("SELECT cover FROM tracks WHERE id = ?", [first.id], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(own, None);
+        // Later thumbnails don't replace it.
+        library
+            .store_enriched(&entry(2, true), Some(b"not an image"), true, &covers)
+            .unwrap();
+        assert_eq!(
+            library.album(album_id).unwrap().unwrap().cover,
+            Some(cover.clone())
+        );
+        assert!(library.bare_link_album(album_id).unwrap().is_empty());
+        // It is on disk, and in use.
+        assert!(covers.join(format!("{cover}.jpg")).is_file());
+        assert_eq!(library.remove_unused_covers(&covers).unwrap(), 0);
+
+        // A playlist entry keeps its thumbnail as its own cover.
+        let single = library
+            .store_enriched(
+                &link("https://y/9", "Nine", true),
+                Some(&artwork()),
+                false,
+                &covers,
+            )
+            .unwrap()
+            .unwrap();
+        assert!(single.cover.is_some());
     }
 
     #[test]

@@ -159,6 +159,14 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     UPDATE tracks SET file_mtime = 0 WHERE folder_id IS NOT NULL;
     INSERT OR REPLACE INTO session (key, value) VALUES ('artists.resplitPending', 'true');
     ",
+    // 5: covers the user chose. They are shown before automatic ones and nothing automatic
+    // writes them: scans and links set `albums.cover`, never `albums.custom_cover`. Artists
+    // and playlists have no stored automatic cover (theirs comes from their tracks).
+    r"
+    ALTER TABLE albums ADD COLUMN custom_cover TEXT;
+    ALTER TABLE artists ADD COLUMN cover TEXT;
+    ALTER TABLE playlists ADD COLUMN cover TEXT;
+    ",
 ];
 
 /// Brings the database up to the latest schema.

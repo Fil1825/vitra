@@ -5,6 +5,7 @@ import { library, type Album, type Artist } from '../../lib/library.ts';
 import { showContextMenu } from '../../lib/menu.ts';
 import { useNavigation } from '../../stores/navigation.ts';
 import { albumMenu, playTracks, report } from './actions.ts';
+import { coverMenu } from './covers.ts';
 import styles from './AlbumGrid.module.css';
 import { Cover } from './Cover.tsx';
 import { usePlaylists } from './usePlaylists.ts';
@@ -74,7 +75,16 @@ export function ArtistGrid({ artists }: { artists: Artist[] }) {
   return (
     <ul className={styles.grid}>
       {artists.map((artist) => (
-        <li key={artist.id} className={`${styles.tile} ${styles.artist}`}>
+        <li
+          key={artist.id}
+          className={`${styles.tile} ${styles.artist}`}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            showContextMenu(coverMenu({ kind: 'artist', id: artist.id }, artist.customCover)).catch(
+              report('Showing a menu'),
+            );
+          }}
+        >
           <button
             type="button"
             className={styles.open}

@@ -158,6 +158,8 @@ struct Inner {
     thumbnails: Mutex<VecDeque<(String, Arc<Vec<u8>>)>>,
     /// Playlists whose entries are being filled in.
     enriching: Mutex<HashSet<String>>,
+    /// Albums looked for a cover this session (see [`LinkService::cover_album_later`]).
+    covering: Mutex<HashSet<i64>>,
     updating: tokio::sync::Mutex<()>,
 }
 
@@ -225,6 +227,7 @@ impl LinkService {
             resolved: Mutex::new(VecDeque::new()),
             thumbnails: Mutex::new(VecDeque::new()),
             enriching: Mutex::new(HashSet::new()),
+            covering: Mutex::new(HashSet::new()),
             updating: tokio::sync::Mutex::new(()),
         })))
     }
@@ -575,8 +578,9 @@ impl LinkService {
         });
     }
 
-    /// Album entries are filed under their album and numbered; their thumbnails stay out of
-    /// the library, which shows the album's cover for them.
+    /// Album entries are filed under their album and numbered; their thumbnails aren't their
+    /// own covers (the album's shows for them), but the first one covers an album that has
+    /// none yet.
     async fn run_enrich(&self, url: &str, placement: Option<&Placement>) -> Result<(), AppError> {
         let ytdlp = self.ytdlp()?;
         let library = self.library()?;
@@ -600,7 +604,7 @@ impl LinkService {
                 placement.place(&mut track);
             }
             let stored = self
-                .store_quietly(&library, remote(&track, true), placement.is_none())
+                .store_quietly(&library, remote(&track, true), placement.is_some())
                 .await?;
             pending.extend(stored);
             if last_refresh.elapsed() >= ENRICH_REFRESH {
@@ -613,26 +617,72 @@ impl LinkService {
         Ok(())
     }
 
-    /// Like [`Self::store_tracks`] without telling the views (enrichment batches that).
+    /// Like [`Self::store_tracks`] without telling the views (enrichment batches that). An
+    /// album entry's thumbnail covers its album if that has no cover yet (see
+    /// [`library::Library::store_enriched`]).
     async fn store_quietly(
         &self,
         library: &LibraryService,
         track: RemoteTrack,
-        own_cover: bool,
+        album_entry: bool,
     ) -> Result<Option<Track>, AppError> {
-        let thumbnail = self.thumbnail(&track.url).filter(|_| own_cover);
+        let thumbnail = self.thumbnail(&track.url);
         let covers = library.covers_dir().to_path_buf();
         library
             .run(move |db| {
-                let Some(stored) = db.add_remote_tracks(&[track])?.pop() else {
-                    return Ok(None);
-                };
-                if let Some(image) = thumbnail.filter(|_| links::is_remote(&stored.path)) {
-                    db.set_track_artwork(stored.id, &image, &covers)?;
-                }
-                db.track(stored.id)
+                db.store_enriched(
+                    &track,
+                    thumbnail.as_deref().map(Vec::as_slice),
+                    album_entry,
+                    &covers,
+                )
             })
             .await
+    }
+
+    /// Looks for a cover for a link album that has none, in the background: one stored
+    /// before entries' thumbnails covered albums, or whose listing and entries came without
+    /// one. A thumbnail seen recently is used, else the first entry's is asked of yt-dlp.
+    /// Tried once per album and session; the views reload if it worked.
+    pub fn cover_album_later(&self, album_id: i64) {
+        if !lock(&self.0.covering).insert(album_id) {
+            return;
+        }
+        let service = self.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(err) = service.cover_album(album_id).await {
+                log::info!("cannot find a cover for album {album_id}: {err}");
+            }
+        });
+    }
+
+    async fn cover_album(&self, album_id: i64) -> Result<(), AppError> {
+        let library = self.library()?;
+        let links = library.run(move |db| db.bare_link_album(album_id)).await?;
+        let Some(first) = links.first() else {
+            return Ok(());
+        };
+        let thumbnail = match links.iter().find_map(|url| self.thumbnail(url)) {
+            Some(thumbnail) => thumbnail,
+            None => {
+                let (_, thumbnail) = self.ytdlp()?.resolve(first, &self.0.scratch).await?;
+                let Some(thumbnail) = thumbnail else {
+                    return Ok(());
+                };
+                let thumbnail = Arc::new(thumbnail);
+                remember(&self.0.thumbnails, first, Arc::clone(&thumbnail));
+                thumbnail
+            }
+        };
+        let covers = library.covers_dir().to_path_buf();
+        let cover = library
+            .run(move |db| db.cover_bare_album(album_id, &thumbnail, &covers))
+            .await?;
+        if cover.is_some() {
+            library.changed(Change::Tracks);
+            library.changed(Change::Playlists);
+        }
+        Ok(())
     }
 
     fn tracks_updated(&self, library: &LibraryService, tracks: Vec<Track>) {
@@ -642,7 +692,7 @@ impl LinkService {
         library.changed(Change::Tracks);
         library.changed(Change::Playlists);
         if let Some(player) = self.player() {
-            player.remote_tracks_updated(&tracks);
+            player.library_tracks_updated(&tracks);
         }
     }
 

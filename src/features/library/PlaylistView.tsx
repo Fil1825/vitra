@@ -12,7 +12,8 @@ import { useNavigation } from '../../stores/navigation.ts';
 import { useUi } from '../../stores/ui.ts';
 import { copyText, downloadTracks, report } from './actions.ts';
 import { EmptyState, LoadError, PlayButtons } from './common.tsx';
-import { Cover } from './Cover.tsx';
+import { coverMenu } from './covers.ts';
+import { HeroCover } from './HeroCover.tsx';
 import styles from './Library.module.css';
 import { useListSummary } from './summary.ts';
 import { TrackTable } from './TrackTable.tsx';
@@ -36,7 +37,6 @@ export function PlaylistView({ id }: { id: number }) {
   }
   const data = playlist.data;
   const list = tracks.data ?? [];
-  const cover = list.find((track) => track.cover !== null)?.cover ?? null;
 
   const remove = async () => {
     if (!data) {
@@ -56,7 +56,11 @@ export function PlaylistView({ id }: { id: number }) {
     <div className={styles.view}>
       {playlist.error !== undefined && <LoadError error={playlist.error} />}
       <header className={styles.hero}>
-        <Cover id={cover} className={styles.heroCover} />
+        <HeroCover
+          target={{ kind: 'playlist', id }}
+          cover={data?.cover ?? null}
+          custom={data?.customCover ?? false}
+        />
         <div className={styles.heroText}>
           <span className={styles.kind}>{t('library.playlist')}</span>
           {renaming && data ? (
@@ -84,6 +88,7 @@ export function PlaylistView({ id }: { id: number }) {
                 const streamed = list.filter((track) => isRemotePath(track.path));
                 const entries: MenuEntry[] = [
                   { label: t('library.renamePlaylist'), action: () => renamePlaylist(id) },
+                  ...coverMenu({ kind: 'playlist', id }, data?.customCover ?? false),
                   { label: t('library.deletePlaylist'), action: () => void remove() },
                 ];
                 if (streamed.length > 0 || sourceUrl !== null) {

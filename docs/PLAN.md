@@ -154,6 +154,14 @@ and an explicit list of checks that can only be done on a Mac.
   - Readable errors for age-restricted and sign-in-only videos, and a "cookies from a browser"
     setting (`--cookies-from-browser`, also passed to mpv's hook). LRCLIB is asked again
     (after 1.5 s and 4 s) when it answers 429/5xx; such answers are never cached as misses.
+- Second round before stage 6:
+  - Fix: an album added from a link kept no cover when its listing had no thumbnail. The
+    first entry thumbnail that enrichment brings now covers it, and opening the album's
+    page looks for a cover for albums stored without one (once per session).
+  - Covers the user chooses for albums, artists and playlists (migration 5): a button on
+    the page's cover, the context menus, or an image file dropped on the cover; "Reset"
+    goes back to the automatic one. They come first everywhere (grids, search, sidebar,
+    track rows, queue, Now Playing) and stay in Vitra's library (not written to tags).
 - **Mac** for that round: the traffic lights over the sidebar's icon strip and next to the
   title bar with the sidebar hidden, cookies from Safari (needs Full Disk Access) and Chrome
   (Keychain prompt), how Apple Music / Finder show downloaded files with several artists,

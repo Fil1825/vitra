@@ -244,7 +244,11 @@
     "removeLinkConfirm": "Remove “{{title}}” from the library? Its play count and playlist entries are lost.",
     "removeLinksConfirm_one": "Remove {{count}} link from the library? Play counts and playlist entries are lost.",
     "removeLinksConfirm_other": "Remove {{count}} links from the library? Play counts and playlist entries are lost.",
-    "editLyrics": "Edit Lyrics…"
+    "editLyrics": "Edit Lyrics…",
+    "changeCover": "Change Cover…",
+    "resetCover": "Reset Cover",
+    "coverImages": "Images",
+    "coverFailed": "Couldn't change the cover: {{error}}"
   },
   "queue": {
     "title": "Queue",

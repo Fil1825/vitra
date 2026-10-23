@@ -1865,6 +1865,7 @@ dependencies = [
 name = "library"
 version = "0.1.0"
 dependencies = [
+ "image",
  "log",
  "lyrics",
  "media",

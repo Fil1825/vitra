@@ -18,7 +18,8 @@ pub(crate) const TRACK_COLUMNS: &str = "t.id, t.path, t.title,
     t.artist_id, al.title,
     t.album_id, t.album_artist, t.genre, t.year, t.track_number, t.disc_number, t.duration,
     t.format, t.sample_rate, t.bit_depth, t.bitrate, t.favorite, t.play_count,
-    t.last_played_at, t.added_at, COALESCE(t.cover, al.cover), t.folder_id, t.source_url";
+    t.last_played_at, t.added_at, COALESCE(al.custom_cover, t.cover, al.cover), t.folder_id,
+    t.source_url";
 
 pub(crate) const TRACK_FROM: &str = "tracks t
     LEFT JOIN artists ar ON ar.id = t.artist_id
@@ -77,10 +78,11 @@ pub(crate) fn track_from_row(row: &Row<'_>) -> rusqlite::Result<Track> {
     })
 }
 
-/// An album without a cover of its own (only links in it) shows one of its tracks' covers.
+/// The user's cover comes first; an album without a cover of its own (only links in it)
+/// shows one of its tracks' covers.
 pub(crate) const ALBUM_SELECT: &str = "SELECT al.id, al.title, ar.name, al.artist_id, al.year,
-        COALESCE(al.cover, MAX(t.cover)), COUNT(t.id), COALESCE(SUM(t.duration), 0),
-        MAX(t.added_at)
+        COALESCE(al.custom_cover, al.cover, MAX(t.cover)), al.custom_cover IS NOT NULL,
+        COUNT(t.id), COALESCE(SUM(t.duration), 0), MAX(t.added_at)
     FROM albums al
     LEFT JOIN artists ar ON ar.id = al.artist_id
     JOIN tracks t ON t.album_id = al.id";
@@ -93,14 +95,16 @@ pub(crate) fn album_from_row(row: &Row<'_>) -> rusqlite::Result<Album> {
         artist_id: row.get(3)?,
         year: row.get(4)?,
         cover: row.get(5)?,
-        track_count: row.get(6)?,
-        duration: row.get(7)?,
-        added_at: row.get(8)?,
+        custom_cover: row.get(6)?,
+        track_count: row.get(7)?,
+        duration: row.get(8)?,
+        added_at: row.get(9)?,
     })
 }
 
 /// Counts every track the artist is on (theirs, features, and their albums'); the picture
-/// is one of their albums' covers, else a cover of a track they lead, else of any.
+/// is the one the user chose, else one of their albums' covers, else a cover of a track
+/// they lead, else of any.
 pub(crate) const ARTIST_SELECT: &str = "SELECT ar.id, ar.name,
         (SELECT COUNT(*) FROM albums WHERE artist_id = ar.id),
         (SELECT COUNT(*) FROM (
@@ -108,12 +112,16 @@ pub(crate) const ARTIST_SELECT: &str = "SELECT ar.id, ar.name,
             UNION SELECT t.id FROM albums a JOIN tracks t ON t.album_id = a.id
                 WHERE a.artist_id = ar.id)),
         COALESCE(
-            (SELECT cover FROM albums WHERE artist_id = ar.id AND cover IS NOT NULL
+            ar.cover,
+            (SELECT COALESCE(custom_cover, cover) FROM albums
+                WHERE artist_id = ar.id AND COALESCE(custom_cover, cover) IS NOT NULL
                 ORDER BY year DESC LIMIT 1),
-            (SELECT COALESCE(t.cover, a.cover) FROM track_artists ta
+            (SELECT COALESCE(a.custom_cover, t.cover, a.cover) FROM track_artists ta
                 JOIN tracks t ON t.id = ta.track_id LEFT JOIN albums a ON a.id = t.album_id
-                WHERE ta.artist_id = ar.id AND COALESCE(t.cover, a.cover) IS NOT NULL
-                ORDER BY ta.position, t.added_at DESC LIMIT 1))
+                WHERE ta.artist_id = ar.id
+                    AND COALESCE(a.custom_cover, t.cover, a.cover) IS NOT NULL
+                ORDER BY ta.position, t.added_at DESC LIMIT 1)),
+        ar.cover IS NOT NULL
     FROM artists ar";
 
 pub(crate) fn artist_from_row(row: &Row<'_>) -> rusqlite::Result<Artist> {
@@ -123,6 +131,7 @@ pub(crate) fn artist_from_row(row: &Row<'_>) -> rusqlite::Result<Artist> {
         album_count: row.get(2)?,
         track_count: row.get(3)?,
         cover: row.get(4)?,
+        custom_cover: row.get(5)?,
     })
 }
 
@@ -519,6 +528,9 @@ impl Library {
     pub fn cover_ids(&self) -> Result<HashSet<String>> {
         let mut statement = self.conn.prepare(
             "SELECT cover FROM albums WHERE cover IS NOT NULL
+             UNION SELECT custom_cover FROM albums WHERE custom_cover IS NOT NULL
+             UNION SELECT cover FROM artists WHERE cover IS NOT NULL
+             UNION SELECT cover FROM playlists WHERE cover IS NOT NULL
              UNION SELECT cover FROM tracks WHERE cover IS NOT NULL",
         )?;
         let ids = statement

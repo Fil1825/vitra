@@ -4,7 +4,7 @@ import { library } from '../../lib/library.ts';
 import { useLibraryData } from '../../lib/useLibraryData.ts';
 import { AlbumGrid } from './AlbumGrid.tsx';
 import { EmptyState, LoadError, PlayButtons } from './common.tsx';
-import { Cover } from './Cover.tsx';
+import { HeroCover } from './HeroCover.tsx';
 import styles from './Library.module.css';
 import { TrackTable } from './TrackTable.tsx';
 
@@ -31,7 +31,12 @@ export function ArtistView({ id }: { id: number }) {
     <div className={styles.view}>
       {artist.error !== undefined && <LoadError error={artist.error} />}
       <header className={styles.hero}>
-        <Cover id={data?.cover ?? null} shape="round" className={styles.heroCover} />
+        <HeroCover
+          target={{ kind: 'artist', id }}
+          cover={data?.cover ?? null}
+          custom={data?.customCover ?? false}
+          shape="round"
+        />
         <div className={styles.heroText}>
           <span className={styles.kind}>{t('library.artist')}</span>
           <h2 className={styles.heroTitle}>{data?.name}</h2>

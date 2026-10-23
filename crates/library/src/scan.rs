@@ -300,17 +300,28 @@ const STALE_PART: Duration = Duration::from_secs(600);
 
 /// Writes the cover thumbnail if it isn't cached yet; returns its id.
 pub(crate) fn cache_cover(bytes: &[u8], covers_dir: &Path) -> Option<String> {
+    let thumbnail = || {
+        media::cover_thumbnail(bytes, COVER_SIZE)
+            .inspect_err(|err| log::info!("cannot decode a cover: {err}"))
+            .ok()
+    };
+    write_cover(cover_id(bytes), covers_dir, thumbnail)
+}
+
+/// Writes the image under `id` in the covers folder unless it is there; `image` makes it.
+pub(crate) fn write_cover(
+    id: String,
+    covers_dir: &Path,
+    image: impl FnOnce() -> Option<Vec<u8>>,
+) -> Option<String> {
     // Albums sharing a cover get the same id and may be cached by two threads at once, so
     // each write uses its own temporary file.
     static NEXT_PART: AtomicU64 = AtomicU64::new(0);
-    let id = cover_id(bytes);
     let target = covers_dir.join(format!("{id}.jpg"));
     if target.is_file() {
         return Some(id);
     }
-    let thumbnail = media::cover_thumbnail(bytes, COVER_SIZE)
-        .inspect_err(|err| log::info!("cannot decode a cover: {err}"))
-        .ok()?;
+    let thumbnail = image()?;
     // Written under a temporary name first, so a half-written file is never served.
     let part = NEXT_PART.fetch_add(1, Ordering::Relaxed);
     let partial = covers_dir.join(format!("{id}.{}-{part}.part", std::process::id()));
@@ -856,6 +867,42 @@ mod tests {
         }
         let track = s.library.tracks(&TrackFilter::All).unwrap();
         assert!(track.iter().any(|t| t.cover.is_some()));
+    }
+
+    #[test]
+    fn rescanning_keeps_the_cover_the_user_chose() {
+        let mut s = setup();
+        s.scan();
+        let album = s.library.albums(AlbumSort::Artist).unwrap().remove(0);
+        let automatic = album.cover.clone().unwrap();
+        let art = media::read_track(&fixtures().join("tagged.mp3"))
+            .unwrap()
+            .embedded_artwork
+            .unwrap();
+        let custom = s
+            .library
+            .set_custom_cover(
+                crate::CoverTarget::Album(album.id),
+                Some(&art.bytes),
+                &s.covers,
+            )
+            .unwrap()
+            .unwrap();
+        // Every file read again, and the covers looked for again.
+        s.library
+            .conn
+            .execute("UPDATE tracks SET file_mtime = 0", [])
+            .unwrap();
+        s.scan();
+        let after = s.library.album(album.id).unwrap().unwrap();
+        assert_eq!(after.cover.as_deref(), Some(custom.as_str()));
+        assert!(after.custom_cover);
+        assert!(s.covers.join(format!("{custom}.jpg")).is_file());
+        s.library
+            .set_custom_cover(crate::CoverTarget::Album(album.id), None, &s.covers)
+            .unwrap();
+        let reset = s.library.album(album.id).unwrap().unwrap();
+        assert_eq!(reset.cover, Some(automatic));
     }
 
     #[test]

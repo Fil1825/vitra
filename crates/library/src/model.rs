@@ -66,7 +66,10 @@ pub struct Album {
     pub artist: Option<String>,
     pub artist_id: Option<i64>,
     pub year: Option<i64>,
+    /// The cover the user chose, else the automatic one.
     pub cover: Option<String>,
+    /// `cover` is one the user chose.
+    pub custom_cover: bool,
     pub track_count: i64,
     pub duration: f64,
     pub added_at: i64,
@@ -79,8 +82,11 @@ pub struct Artist {
     pub name: String,
     pub album_count: i64,
     pub track_count: i64,
-    /// A cover to illustrate the artist (from one of their albums).
+    /// The picture the user chose, else a cover to illustrate the artist (from one of their
+    /// albums).
     pub cover: Option<String>,
+    /// `cover` is one the user chose.
+    pub custom_cover: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -94,6 +100,10 @@ pub struct Playlist {
     pub updated_at: i64,
     /// The web playlist it was imported from.
     pub source_url: Option<String>,
+    /// The cover the user chose, else the first one among its tracks.
+    pub cover: Option<String>,
+    /// `cover` is one the user chose.
+    pub custom_cover: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

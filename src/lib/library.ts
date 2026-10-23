@@ -36,7 +36,8 @@ export interface LibraryTrack {
   lastPlayedAt: number | null;
   /** Unix seconds. */
   addedAt: number;
-  /** Cover id: the track's own (a link's thumbnail), else its album's. */
+  /** Cover id: the one the user chose for its album, else the track's own (a link's
+   * thumbnail), else its album's. */
   cover: string | null;
   /** The library folder the file is in; `null` for a single file or a link. */
   folderId: number | null;
@@ -50,7 +51,10 @@ export interface Album {
   artist: string | null;
   artistId: number | null;
   year: number | null;
+  /** The cover the user chose, else the automatic one. */
   cover: string | null;
+  /** `cover` is one the user chose. */
+  customCover: boolean;
   trackCount: number;
   duration: number;
   addedAt: number;
@@ -61,7 +65,10 @@ export interface Artist {
   name: string;
   albumCount: number;
   trackCount: number;
+  /** The picture the user chose, else one of their albums' covers. */
   cover: string | null;
+  /** `cover` is one the user chose. */
+  customCover: boolean;
 }
 
 export interface Playlist {
@@ -73,7 +80,15 @@ export interface Playlist {
   updatedAt: number;
   /** The web playlist it was imported from. */
   sourceUrl: string | null;
+  /** The cover the user chose, else the first among its tracks. */
+  cover: string | null;
+  /** `cover` is one the user chose. */
+  customCover: boolean;
 }
+
+/** What a cover the user chooses is for. */
+export type CoverTarget =
+  { kind: 'album'; id: number } | { kind: 'artist'; id: number } | { kind: 'playlist'; id: number };
 
 export interface Folder {
   id: number;
@@ -200,6 +215,14 @@ export const playlists = {
 
 /** Whose artwork the full-screen viewer shows. */
 export type ArtworkSource = { kind: 'track'; path: string } | { kind: 'album'; id: number };
+
+export const covers = {
+  /** Sets the cover the user chose from an image file; resolves with its cover id. */
+  set: (target: CoverTarget, path: string) =>
+    call<string | null>('library_set_cover', { target, path }),
+  /** Goes back to the automatic cover. */
+  reset: (target: CoverTarget) => call<string | null>('library_set_cover', { target, path: null }),
+};
 
 export const artwork = {
   /** Artwork in its original size; resolves with its artwork id, or `null` if there is none. */

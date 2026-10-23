@@ -94,7 +94,8 @@ src/                    React + TypeScript frontend
   components/           shared UI: Glass/ (glass surface, layer budget, refraction), Backdrop/,
                         ArtworkViewer/ (full-screen artwork), ui/ (IconButton,
                         SegmentedControl, Switch, Slider)
-  features/<feature>/   feature UI: library/ (views, TrackTable, AlbumGrid, actions + menus),
+  features/<feature>/   feature UI: library/ (views, TrackTable, AlbumGrid, actions + menus,
+                        HeroCover + covers.ts: covers the user chooses),
                         queue/ (QueuePanel), tags/ (TagEditor), links/ (LinkDialog,
                         DownloadsView, download groups), lyrics/ (LyricsView, LyricsPanel, LyricsEditor +
                         SyncPane, tap-sync model sync.ts), settings/
@@ -132,7 +133,8 @@ crates/                 pure-Rust crates testable without WebKit
   library/              SQLite library: schema + migrations, tracks/albums/artists, FTS5
                         search, playlists, history, session, incremental folder scanner,
                         links as tracks (remote.rs), saved lyrics + offsets (lyrics.rs),
-                        several artists per track and credit splitting (artists.rs)
+                        several artists per track and credit splitting (artists.rs),
+                        covers the user chose (covers.rs)
   lyrics/               LRC / enhanced LRC parser and writer, SYLT conversion, .lrc files
                         and their encodings, LRCLIB URLs and result matching (pure)
   links/                URL classification, yt-dlp -J parsing (albums included), file name
@@ -312,6 +314,11 @@ artist_id, position)`; `tracks.artist_id` stays the first (main) one, and an alb
       (`media::square_cover`, `Library::set_album_artwork`); album tracks get no covers of
       their own. Enrichment keeps the placement (`Placement`), so `yt-dlp -j` can't move a
       track to another album.
+    - An album's listing often has no thumbnail: then the first entry thumbnail enrichment
+      brings covers it (`Library::store_enriched` → `cover_bare_album`). Opening an album
+      page whose album still has no cover (`library_album`) looks for one in the background
+      once per session (`LinkService::cover_album_later`: a recent thumbnail, else the first
+      entry's from `yt-dlp`), which also repairs albums stored before this existed.
     - Errors: `ytdlp::failure` turns yt-dlp's stderr into `AgeRestricted`, `SignInRequired`
       or `Cookies`; the UI shows translated text for them (`features/links/errors.ts`).
       `downloads.cookiesFromBrowser` (safari/chrome/firefox/…, `COOKIE_BROWSERS`) adds
@@ -385,6 +392,18 @@ artist_id, position)`; `tracks.artist_id` stays the first (main) one, and an alb
 27. **Full-screen artwork** (`components/ArtworkViewer`): shows the cached image at once,
     then the original from `artwork_original` (track path or album id; links use their
     thumbnail or album cover), served unscaled by `ArtworkStore::insert_original`.
+28. **Covers the user chooses** (migration 5, `library/covers.rs`, `features/library/
+covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart from the
+    automatic `albums.cover` that scans and links write, so nothing automatic replaces them.
+    Every query puts them first (`COALESCE(custom, automatic)`, plus a `customCover` flag
+    for "Reset"); tracks of such an album show it too (rows, queue, Now Playing: the player
+    reads it before the file's artwork). Images (jpg/png/webp, ≤ 50 MB) are cut square and
+    kept up to 1200 px as JPEG in `covers/` under an id salted with "custom:" (never the
+    512 px copy of the same image). Only the library keeps them; tags are the tag editor's.
+    UI: `HeroCover` on album/artist/playlist pages (button on hover, context menu, an image
+    file dropped on it: `useFileDrop` finds the `[data-cover-drop]` element under Tauri's
+    drop position, which is in physical pixels), plus entries in the album, artist and
+    playlist menus. The sidebar shows a playlist's chosen cover in place of its icon.
 
 ## Conventions
 

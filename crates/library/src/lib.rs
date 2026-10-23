@@ -5,6 +5,7 @@
 //! mode, so a scan writing through one connection doesn't block queries on another.
 
 mod artists;
+mod covers;
 mod folders;
 mod lyrics;
 mod model;
@@ -23,6 +24,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use rusqlite::Connection;
 
 pub use artists::{ArtistSplitting, BUILTIN_EXCEPTIONS, split_artists};
+pub use covers::CoverTarget;
 pub use lyrics::{SOURCE_ONLINE, SOURCE_USER, SavedLyrics};
 pub use model::*;
 pub use scan::{ScanPhase, ScanProgress, ScanSummary, cover_id, is_audio_file};
@@ -180,6 +182,49 @@ mod tests {
         // Only once.
         let library = Library::open(&path).unwrap();
         assert_eq!(library.artists().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn migration_5_adds_custom_covers_and_keeps_the_automatic_ones() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("library.db");
+        {
+            let conn = Connection::open(&path).unwrap();
+            for sql in &schema::MIGRATIONS[..4] {
+                conn.execute_batch(sql).unwrap();
+            }
+            conn.pragma_update(None, "user_version", 4).unwrap();
+            conn.execute_batch(
+                "DELETE FROM session;
+                 INSERT INTO artists (id, name) VALUES (1, 'Sqwore');
+                 INSERT INTO albums (id, title, artist_id, cover) VALUES (1, 'Summer', 1, 'c0ffee');
+                 INSERT INTO tracks (id, path, title, artist_id, album_id, added_at)
+                     VALUES (1, '/m/1.flac', 'One', 1, 1, 1);
+                 INSERT INTO track_artists (track_id, artist_id, position) VALUES (1, 1, 0);
+                 INSERT INTO playlists (id, name, created_at, updated_at) VALUES (1, 'Mix', 1, 1);
+                 INSERT INTO playlist_items (playlist_id, position, track_id) VALUES (1, 0, 1);",
+            )
+            .unwrap();
+        }
+        let library = Library::open(&path).unwrap();
+        assert_eq!(library.schema_version().unwrap(), schema::version());
+        let album = library.album(1).unwrap().unwrap();
+        assert_eq!(album.cover.as_deref(), Some("c0ffee"));
+        assert!(!album.custom_cover);
+        let artist = library.artist(1).unwrap().unwrap();
+        assert_eq!(
+            (artist.cover.as_deref(), artist.custom_cover),
+            (Some("c0ffee"), false)
+        );
+        let playlist = library.playlist(1).unwrap().unwrap();
+        assert_eq!(
+            (playlist.cover.as_deref(), playlist.custom_cover),
+            (Some("c0ffee"), false)
+        );
+        assert_eq!(
+            library.track(1).unwrap().unwrap().cover.as_deref(),
+            Some("c0ffee")
+        );
     }
 
     #[test]

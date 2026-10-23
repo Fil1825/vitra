@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { ArtworkViewer } from '../components/ArtworkViewer/ArtworkViewer.tsx';
 import { Backdrop } from '../components/Backdrop/Backdrop.tsx';
 import { Glass } from '../components/Glass/index.ts';
+import { setCover } from '../features/library/covers.ts';
 import { LibraryView } from '../features/library/LibraryView.tsx';
 import { LinkDialog } from '../features/links/LinkDialog.tsx';
 import { LyricsEditor } from '../features/lyrics/LyricsEditor.tsx';
@@ -13,6 +14,7 @@ import { LyricsPanel } from '../features/lyrics/LyricsPanel.tsx';
 import { QueuePanel } from '../features/queue/QueuePanel.tsx';
 import { SettingsPanel } from '../features/settings/SettingsPanel.tsx';
 import { TagEditor } from '../features/tags/TagEditor.tsx';
+import type { CoverTarget } from '../lib/library.ts';
 import { playPaths } from '../lib/openFiles.ts';
 import { artworkUrl } from '../lib/player.ts';
 import { useAppearance } from '../stores/appearance.ts';
@@ -57,6 +59,7 @@ export function App() {
       playPaths(paths).catch((err: unknown) => console.error('Playing dropped files failed', err));
     }, []),
     useCallback((url: string) => useUi.getState().openLink(url), []),
+    useCallback((target: CoverTarget, path: string) => setCover(target, path), []),
   );
   const shownArtwork = useArtwork ? artwork : null;
 
@@ -102,7 +105,8 @@ export function App() {
       )}
       {linkInput !== null && <LinkDialog key={linkInput} initial={linkInput} onClose={closeLink} />}
       {artworkView && <ArtworkViewer view={artworkView} onClose={closeArtwork} />}
-      {dropping && (
+      {/* A cover being dropped on shows it itself. */}
+      {(dropping === 'files' || dropping === 'link') && (
         <div className={styles.dropZone}>
           <Glass className={styles.dropCard} priority={6}>
             {dropping === 'link' ? (

@@ -2,7 +2,9 @@
 
 use std::path::PathBuf;
 
-use library::{Album, AlbumSort, Artist, Folder, HistoryEntry, Playlist, SearchResults, Track};
+use library::{
+    Album, AlbumSort, Artist, CoverTarget, Folder, HistoryEntry, Playlist, SearchResults, Track,
+};
 use media::{CoverChange, TagValues};
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -128,12 +130,59 @@ pub async fn library_albums(
     library.run(move |db| db.albums(sort)).await
 }
 
+/// An album; one of links without a cover gets one looked for in the background.
 #[tauri::command]
 pub async fn library_album(
     library: State<'_, LibraryService>,
+    links: State<'_, crate::links::LinkService>,
     id: i64,
 ) -> Result<Option<Album>, AppError> {
-    library.run(move |db| db.album(id)).await
+    let album = library.run(move |db| db.album(id)).await?;
+    if album.as_ref().is_some_and(|album| album.cover.is_none()) {
+        links.cover_album_later(id);
+    }
+    Ok(album)
+}
+
+/// Image files bigger than this aren't covers.
+const MAX_COVER_FILE: u64 = 50 * 1024 * 1024;
+
+/// Sets the cover the user chose for an album, artist or playlist from an image file, or
+/// with no file goes back to the automatic one. Only the library keeps it: files' tags are
+/// the tag editor's business.
+#[tauri::command]
+pub async fn library_set_cover(
+    library: State<'_, LibraryService>,
+    player: State<'_, Player>,
+    target: CoverTarget,
+    path: Option<PathBuf>,
+) -> Result<Option<String>, AppError> {
+    let service = library.inner().clone();
+    let covers = service.covers_dir().to_path_buf();
+    let (cover, album_tracks) = service
+        .run(move |db| {
+            let image = match path {
+                Some(path) => {
+                    if std::fs::metadata(&path)?.len() > MAX_COVER_FILE {
+                        return Err(library::Error::Invalid("the image is too big".into()));
+                    }
+                    Some(std::fs::read(path)?)
+                }
+                None => None,
+            };
+            let cover = db.set_custom_cover(target, image.as_deref(), &covers)?;
+            let album_tracks = match target {
+                CoverTarget::Album(id) => db.tracks(&library::TrackFilter::Album(id))?,
+                CoverTarget::Artist(_) | CoverTarget::Playlist(_) => Vec::new(),
+            };
+            Ok((cover, album_tracks))
+        })
+        .await?;
+    service.changed(Change::Tracks);
+    service.changed(Change::Playlists);
+    // Queue entries and the playing track show an album's cover.
+    player.library_tracks_updated(&album_tracks);
+    Ok(cover)
 }
 
 #[tauri::command]
@@ -396,13 +445,34 @@ pub async fn artwork_original(
         _ => None,
     };
     let artwork = tauri::async_runtime::spawn_blocking(move || -> Result<_, AppError> {
+        let cached = |id: String| {
+            let bytes = std::fs::read(covers.join(format!("{id}.jpg"))).ok()?;
+            Some(media::Artwork {
+                bytes,
+                mime: Some("image/jpeg".into()),
+            })
+        };
+        // The cover the user chose for the album comes first.
+        let custom = match &source {
+            ArtworkSource::Track { path } => {
+                let key = path.clone();
+                library.with(|db| db.custom_album_cover(&key))?
+            }
+            ArtworkSource::Album { id } => {
+                let id = *id;
+                library.with(|db| db.custom_cover_of_album(id))?
+            }
+        };
+        if let Some(artwork) = custom.and_then(cached) {
+            return Ok(Some(artwork));
+        }
         if let Some(bytes) = thumbnail {
             return Ok(Some(media::Artwork {
                 bytes: bytes.as_ref().clone(),
                 mime: None,
             }));
         }
-        let (paths, cached) = match source {
+        let (paths, cover) = match source {
             ArtworkSource::Track { path } => {
                 let key = path.clone();
                 let track = library.with(|db| db.track_by_path(&key))?;
@@ -427,13 +497,7 @@ pub async fn artwork_original(
             return Ok(Some(artwork));
         }
         // Links and albums of links only have the library's cached copy.
-        Ok(cached.and_then(|id| {
-            let bytes = std::fs::read(covers.join(format!("{id}.jpg"))).ok()?;
-            Some(media::Artwork {
-                bytes,
-                mime: Some("image/jpeg".into()),
-            })
-        }))
+        Ok(cover.and_then(cached))
     })
     .await??;
     Ok(artwork.map(|artwork| player.artwork().insert_original(artwork)))

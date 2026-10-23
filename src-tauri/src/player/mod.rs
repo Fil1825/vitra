@@ -320,9 +320,10 @@ impl Player {
         }
     }
 
-    /// Link tracks got more complete metadata or a cover (a playlist being filled in):
-    /// refresh their queue entries and, if one is playing, the current track.
-    pub fn remote_tracks_updated(&self, tracks: &[library::Track]) {
+    /// Library tracks got more complete metadata (a playlist of links being filled in) or a
+    /// cover (a link album's, one the user chose): refresh their queue entries and, if one
+    /// is playing, the current track.
+    pub fn library_tracks_updated(&self, tracks: &[library::Track]) {
         let queued = {
             let mut queue = lock(&self.0.queue);
             let mut changed = false;
@@ -914,28 +915,36 @@ impl Player {
     fn read_metadata(&self, id: u64, path: PathBuf) {
         let player = self.clone();
         tauri::async_runtime::spawn(async move {
+            // The cover the user chose for the album comes before the file's artwork.
+            let custom = player.custom_cover(&path.to_string_lossy()).await;
             let link = path.to_str().filter(|path| links::is_remote(path));
             let thumbnail = match link {
-                Some(url) => player.link_thumbnail(url).await,
-                None => None,
+                Some(url) if custom.is_none() => player.link_thumbnail(url).await,
+                _ => None,
             };
             let remote = link.is_some();
             let result = tauri::async_runtime::spawn_blocking(move || {
+                let custom = custom.map(|bytes| media::Artwork {
+                    bytes,
+                    mime: Some("image/jpeg".into()),
+                });
                 // A link has no file to read: its tags come with its queue entry, its
                 // artwork is its thumbnail.
                 if remote {
-                    let artwork = thumbnail.and_then(|bytes| {
-                        media::prepare_artwork(media::Artwork { bytes, mime: None })
-                            .inspect_err(|err| log::info!("thumbnail of a link: {err}"))
-                            .ok()
-                    });
+                    let artwork = custom
+                        .or_else(|| thumbnail.map(|bytes| media::Artwork { bytes, mime: None }))
+                        .and_then(|art| {
+                            media::prepare_artwork(art)
+                                .inspect_err(|err| log::info!("thumbnail of a link: {err}"))
+                                .ok()
+                        });
                     return (TrackMetadata::default(), artwork);
                 }
                 let info = media::read_track(&path)
                     .inspect_err(|err| log::info!("tags of {}: {err}", path.display()))
                     .unwrap_or_default();
-                let artwork = info
-                    .embedded_artwork
+                let artwork = custom
+                    .or(info.embedded_artwork)
                     .or_else(|| media::folder_artwork(&path))
                     .and_then(|art| {
                         media::prepare_artwork(art)
@@ -988,6 +997,21 @@ impl Player {
                 });
             }
         });
+    }
+
+    /// The cover the user chose for the album of the track at `path`.
+    async fn custom_cover(&self, path: &str) -> Option<Vec<u8>> {
+        let library = self.library()?;
+        let key = path.to_owned();
+        let covers = library.covers_dir().to_path_buf();
+        library
+            .run(move |db| {
+                let cover = db.custom_album_cover(&key)?;
+                Ok(cover.and_then(|id| std::fs::read(covers.join(format!("{id}.jpg"))).ok()))
+            })
+            .await
+            .ok()
+            .flatten()
     }
 
     /// A link's thumbnail: from a recent resolution, else the library's cached cover.

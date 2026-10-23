@@ -10,6 +10,7 @@ import {
   type Playlist,
 } from '../../lib/library.ts';
 import { downloads, isRemotePath } from '../../lib/links.ts';
+import { coverMenu } from './covers.ts';
 import type { MenuEntry } from '../../lib/menu.ts';
 import { pickFolder } from '../../lib/openFiles.ts';
 import { queue } from '../../lib/queue.ts';
@@ -254,6 +255,8 @@ export function albumMenu(album: Album, allPlaylists: Playlist[]): MenuEntry[] {
     },
     'separator',
     addToPlaylistMenu(() => albumTrackIds(album.id), allPlaylists),
+    'separator',
+    ...coverMenu({ kind: 'album', id: album.id }, album.customCover),
   ];
   const { artistId } = album;
   if (artistId !== null) {
