@@ -7,7 +7,11 @@ export interface PreviewTrack {
   url: string;
   title: string;
   artist: string | null;
+  /** The artists when the site lists several. */
+  artists: string[];
   album: string | null;
+  /** The track's number on its album. */
+  trackNumber: number | null;
   /** Seconds; `null` for live streams and unknown lengths. */
   duration: number | null;
   live: boolean;
@@ -32,7 +36,20 @@ export type LinkPreview =
       tracks: PreviewTrack[];
       /** The playlist this link was imported as before. */
       playlistId: number | null;
+      /** Set when the playlist is an album. */
+      album: AlbumPreview | null;
     };
+
+/** An album link (YouTube / YouTube Music album playlists and pages). */
+export interface AlbumPreview {
+  title: string;
+  artist: string | null;
+  year: number | null;
+  /** Tracks on the album, unavailable ones included. */
+  count: number | null;
+  /** The library album, once its tracks are in the library. */
+  albumId: number | null;
+}
 
 /** How a link joins the queue. */
 export type PlayMode = 'play' | 'next' | 'append';
@@ -46,6 +63,17 @@ export type DownloadStatus =
   | { state: 'failed'; error: string }
   | { state: 'cancelled' };
 
+/** An album or playlist downloaded together. */
+export interface DownloadGroup {
+  id: number;
+  kind: 'album' | 'playlist';
+  url: string;
+  title: string;
+  artist: string | null;
+  /** Library cover id. */
+  cover: string | null;
+}
+
 export interface DownloadJob {
   id: number;
   trackId: number;
@@ -54,6 +82,8 @@ export interface DownloadJob {
   artist: string | null;
   album: string | null;
   status: DownloadStatus;
+  /** The album or playlist it is downloaded with. */
+  group: DownloadGroup | null;
 }
 
 export type AudioFormat = 'original' | 'mp3' | 'flac';
@@ -116,6 +146,10 @@ export const downloads = {
   add: (trackIds: number[]) => call<number>('downloads_add', { trackIds }),
   cancel: (id: number) => call('downloads_cancel', { id }),
   retry: (id: number) => call('downloads_retry', { id }),
+  /** Cancels every unfinished download of an album or playlist. */
+  cancelGroup: (group: number) => call('downloads_cancel_group', { group }),
+  /** Retries every failed or cancelled download of an album or playlist. */
+  retryGroup: (group: number) => call('downloads_retry_group', { group }),
   clear: () => call('downloads_clear'),
   /** Where downloads go with the current settings. */
   folder: () => call<string>('downloads_folder'),

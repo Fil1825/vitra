@@ -249,3 +249,9 @@
     transform: rotate(360deg);
   }
 }
+
+.textArea {
+  min-height: 64px;
+  resize: vertical;
+  line-height: 1.4;
+}

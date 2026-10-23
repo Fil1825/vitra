@@ -1,4 +1,4 @@
-import { Download, Play, RotateCcw, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, Play, RotateCcw, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -8,6 +8,9 @@ import { useDownloads } from '../../stores/downloads.ts';
 import { useSettings } from '../../stores/settings.ts';
 import { playTracks, report } from '../library/actions.ts';
 import { EmptyState, PageHeader } from '../library/common.tsx';
+import { Cover } from '../library/Cover.tsx';
+import { knownLinkError } from './errors.ts';
+import { groupDownloads, type DownloadItem } from './groups.ts';
 import libraryStyles from '../library/Library.module.css';
 import styles from './DownloadsView.module.css';
 
@@ -26,11 +29,108 @@ function useStatusText(): (job: DownloadJob) => string {
       case 'done':
         return t('downloads.done');
       case 'failed':
-        return t('downloads.failed', { message: status.error });
+        return knownLinkError(status.error, t) ?? t('downloads.failed', { message: status.error });
       case 'cancelled':
         return t('downloads.cancelled');
     }
   };
+}
+
+function ProgressBar({ label, progress }: { label: string; progress: number | null }) {
+  return (
+    <div
+      className={styles.bar}
+      role="progressbar"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={progress === null ? undefined : Math.round(progress * 100)}
+    >
+      <div
+        className={progress === null ? styles.indeterminate : styles.fill}
+        style={progress === null ? undefined : { transform: `scaleX(${progress})` }}
+      />
+    </div>
+  );
+}
+
+/** An album or playlist: its overall progress, and its tracks on demand. */
+function GroupRow({ item }: { item: Extract<DownloadItem, { kind: 'group' }> }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const { group, jobs, progress, done, failed, active } = item;
+  const finished = !active && failed === 0;
+  return (
+    <li className={styles.group}>
+      <div
+        className={styles.job}
+        data-state={finished ? 'done' : active ? 'downloading' : 'failed'}
+      >
+        <Cover id={group.cover} className={styles.cover} />
+        <div className={styles.text}>
+          <span className={styles.title}>{group.title}</span>
+          <span className={styles.artist}>{group.artist}</span>
+          <span className={styles.status}>
+            {[
+              t('downloads.albumProgress', { done, total: jobs.length }),
+              failed > 0 && t('downloads.failedCount', { count: failed }),
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </span>
+          {active && <ProgressBar label={group.title} progress={progress} />}
+        </div>
+        <div className={styles.buttons}>
+          {done > 0 && !active && (
+            <IconButton
+              label={t('library.play')}
+              onClick={() =>
+                playTracks(
+                  jobs.filter((job) => job.status.state === 'done').map((job) => job.trackId),
+                )
+              }
+            >
+              <Play size={15} />
+            </IconButton>
+          )}
+          {failed > 0 && (
+            <IconButton
+              label={t('downloads.retryAll')}
+              onClick={() =>
+                downloads.retryGroup(group.id).catch(report('Retrying an album download'))
+              }
+            >
+              <RotateCcw size={15} />
+            </IconButton>
+          )}
+          {active && (
+            <IconButton
+              label={t('downloads.cancelAll')}
+              onClick={() =>
+                downloads.cancelGroup(group.id).catch(report('Cancelling an album download'))
+              }
+            >
+              <X size={15} />
+            </IconButton>
+          )}
+          <IconButton
+            label={t(open ? 'downloads.hideTracks' : 'downloads.showTracks')}
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+          >
+            {open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+          </IconButton>
+        </div>
+      </div>
+      {open && (
+        <ul className={styles.members}>
+          {jobs.map((job) => (
+            <JobRow key={job.id} job={job} />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
 }
 
 function JobRow({ job }: { job: DownloadJob }) {
@@ -51,21 +151,7 @@ function JobRow({ job }: { job: DownloadJob }) {
         >
           {statusText(job)}
         </span>
-        {isActive(status) && (
-          <div
-            className={styles.bar}
-            role="progressbar"
-            aria-label={job.title}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={progress === null ? undefined : Math.round(progress * 100)}
-          >
-            <div
-              className={progress === null ? styles.indeterminate : styles.fill}
-              style={progress === null ? undefined : { transform: `scaleX(${progress})` }}
-            />
-          </div>
-        )}
+        {isActive(status) && <ProgressBar label={job.title} progress={progress} />}
       </div>
       <div className={styles.buttons}>
         {status.state === 'done' && (
@@ -128,9 +214,13 @@ export function DownloadsView() {
         />
       ) : (
         <ul className={styles.list}>
-          {jobs.map((job) => (
-            <JobRow key={job.id} job={job} />
-          ))}
+          {groupDownloads(jobs).map((item) =>
+            item.kind === 'job' ? (
+              <JobRow key={item.job.id} job={item.job} />
+            ) : (
+              <GroupRow key={`group-${item.group.id}`} item={item} />
+            ),
+          )}
         </ul>
       )}
     </div>

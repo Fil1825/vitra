@@ -2,12 +2,22 @@ import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core';
 
 // Mirrors crates/library/src/model.rs and src-tauri/src/library.
 
+/** One of a track's artists. */
+export interface ArtistRef {
+  id: number;
+  name: string;
+}
+
 export interface LibraryTrack {
   id: number;
   path: string;
   title: string;
+  /** The artists' names joined for display ("A, B"). */
   artist: string | null;
+  /** The main (first) artist. */
   artistId: number | null;
+  /** Every artist in credit order, the main one first. */
+  artists: ArtistRef[];
   album: string | null;
   albumId: number | null;
   albumArtist: string | null;
@@ -101,6 +111,8 @@ export type TrackQuery =
   | { kind: 'all' }
   | { kind: 'album'; id: number }
   | { kind: 'artist'; id: number }
+  /** Tracks the artist only features on. */
+  | { kind: 'artistAppearances'; id: number }
   | { kind: 'favorites' }
   | { kind: 'recent'; limit: number }
   | { kind: 'playlist'; id: number }
@@ -184,6 +196,14 @@ export const playlists = {
     call('playlist_add', { id, trackIds, index: index ?? null }),
   removeItems: (id: number, indices: number[]) => call('playlist_remove', { id, indices }),
   move: (id: number, from: number, to: number) => call('playlist_move', { id, from, to }),
+};
+
+/** Whose artwork the full-screen viewer shows. */
+export type ArtworkSource = { kind: 'track'; path: string } | { kind: 'album'; id: number };
+
+export const artwork = {
+  /** Artwork in its original size; resolves with its artwork id, or `null` if there is none. */
+  original: (source: ArtworkSource) => call<string | null>('artwork_original', { source }),
 };
 
 export const tags = {

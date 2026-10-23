@@ -16,12 +16,26 @@ use crate::player::Player;
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum TrackQuery {
     All,
-    Album { id: i64 },
-    Artist { id: i64 },
+    Album {
+        id: i64,
+    },
+    Artist {
+        id: i64,
+    },
+    /// Tracks the artist only features on.
+    ArtistAppearances {
+        id: i64,
+    },
     Favorites,
-    Recent { limit: i64 },
-    Playlist { id: i64 },
-    Search { query: String },
+    Recent {
+        limit: i64,
+    },
+    Playlist {
+        id: i64,
+    },
+    Search {
+        query: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -92,6 +106,7 @@ pub async fn library_tracks(
                 TrackQuery::All => db.tracks(&F::All),
                 TrackQuery::Album { id } => db.tracks(&F::Album(id)),
                 TrackQuery::Artist { id } => db.tracks(&F::Artist(id)),
+                TrackQuery::ArtistAppearances { id } => db.tracks(&F::ArtistAppearances(id)),
                 TrackQuery::Favorites => db.tracks(&F::Favorites),
                 TrackQuery::Recent { limit } => db.tracks(&F::RecentlyAdded { limit }),
                 TrackQuery::Playlist { id } => db.tracks(&F::Playlist(id)),
@@ -341,6 +356,87 @@ pub async fn artwork_preview(player: State<'_, Player>, path: PathBuf) -> Result
     })
     .await??;
     Ok(player.artwork().insert(prepared))
+}
+
+/// Whose artwork to show full size.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum ArtworkSource {
+    /// A file or link: its embedded cover, the cover next to it, or a link's thumbnail.
+    Track {
+        path: String,
+    },
+    Album {
+        id: i64,
+    },
+}
+
+/// The largest image of a file: embedded, else a cover file next to it.
+fn file_artwork(path: &std::path::Path) -> Option<media::Artwork> {
+    media::read_track(path)
+        .ok()
+        .and_then(|info| info.embedded_artwork)
+        .or_else(|| media::folder_artwork(path))
+}
+
+/// Artwork in its original size (the player's copies are downscaled), for the full-screen
+/// viewer; returns its artwork id, or `None` when there is none.
+#[tauri::command]
+pub async fn artwork_original(
+    library: State<'_, LibraryService>,
+    links: State<'_, crate::links::LinkService>,
+    player: State<'_, Player>,
+    source: ArtworkSource,
+) -> Result<Option<String>, AppError> {
+    let library = library.inner().clone();
+    let covers = library.covers_dir().to_path_buf();
+    // A link's thumbnail, if one was seen recently.
+    let thumbnail = match &source {
+        ArtworkSource::Track { path } if links::is_remote(path) => links.thumbnail(path),
+        _ => None,
+    };
+    let artwork = tauri::async_runtime::spawn_blocking(move || -> Result<_, AppError> {
+        if let Some(bytes) = thumbnail {
+            return Ok(Some(media::Artwork {
+                bytes: bytes.as_ref().clone(),
+                mime: None,
+            }));
+        }
+        let (paths, cached) = match source {
+            ArtworkSource::Track { path } => {
+                let key = path.clone();
+                let track = library.with(|db| db.track_by_path(&key))?;
+                let paths = if links::is_remote(&path) {
+                    Vec::new()
+                } else {
+                    vec![path]
+                };
+                (paths, track.and_then(|t| t.cover))
+            }
+            ArtworkSource::Album { id } => {
+                let paths = library.with(|db| db.album_paths(id))?;
+                let cover = library.with(|db| db.album(id))?.and_then(|a| a.cover);
+                (paths, cover)
+            }
+        };
+        if let Some(artwork) = paths
+            .iter()
+            .take(3)
+            .find_map(|path| file_artwork(std::path::Path::new(path)))
+        {
+            return Ok(Some(artwork));
+        }
+        // Links and albums of links only have the library's cached copy.
+        Ok(cached.and_then(|id| {
+            let bytes = std::fs::read(covers.join(format!("{id}.jpg"))).ok()?;
+            Some(media::Artwork {
+                bytes,
+                mime: Some("image/jpeg".into()),
+            })
+        }))
+    })
+    .await??;
+    Ok(artwork.map(|artwork| player.artwork().insert_original(artwork)))
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -15,12 +15,17 @@ export function ArtistView({ id }: { id: number }) {
   const tracks = useLibraryData(`artist-tracks:${id}`, () =>
     library.tracks({ kind: 'artist', id }),
   );
+  const appearances = useLibraryData(`artist-appearances:${id}`, () =>
+    library.tracks({ kind: 'artistAppearances', id }),
+  );
 
   if (artist.data === null) {
     return <EmptyState title={t('library.nothingHere')} />;
   }
   const data = artist.data;
   const list = tracks.data ?? [];
+  const features = appearances.data ?? [];
+  const everything = [...list, ...features];
 
   return (
     <div className={styles.view}>
@@ -34,13 +39,13 @@ export function ArtistView({ id }: { id: number }) {
             <p className={styles.heroMeta}>
               {[
                 data.albumCount > 0 && t('library.albumCount', { count: data.albumCount }),
-                t('library.songCount', { count: list.length || data.trackCount }),
+                t('library.songCount', { count: everything.length || data.trackCount }),
               ]
                 .filter(Boolean)
                 .join(', ')}
             </p>
           )}
-          <PlayButtons ids={list.map((track) => track.id)} />
+          <PlayButtons ids={everything.map((track) => track.id)} />
         </div>
       </header>
       {(albums.data?.length ?? 0) > 0 && (
@@ -55,6 +60,17 @@ export function ArtistView({ id }: { id: number }) {
           <TrackTable
             tracks={list}
             columns={['title', 'album', 'time', 'favorite']}
+            covers
+            sortable
+          />
+        </section>
+      )}
+      {features.length > 0 && (
+        <section className={styles.section}>
+          <h3 className={styles.sectionTitle}>{t('library.appearsOn')}</h3>
+          <TrackTable
+            tracks={features}
+            columns={['title', 'artist', 'album', 'time', 'favorite']}
             covers
             sortable
           />

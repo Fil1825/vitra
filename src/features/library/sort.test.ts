@@ -10,6 +10,7 @@ function track(id: number, title: string, extra: Partial<LibraryTrack> = {}): Li
     title,
     artist: null,
     artistId: null,
+    artists: [],
     album: null,
     albumId: null,
     albumArtist: null,

@@ -23,9 +23,17 @@ export interface AppearanceSettings {
   artworkAccent: boolean;
 }
 
+/** How a credit like "A feat. B" or "A, B" is split into artists. */
+export interface ArtistSplitting {
+  enabled: boolean;
+  /** Names with a separator in them that are one artist ("Tyler, The Creator" is built in). */
+  exceptions: string[];
+}
+
 export interface LibrarySettings {
   /** Files opened or dropped outside the library folders join the library as single tracks. */
   addOpenedFiles: boolean;
+  artistSplitting: ArtistSplitting;
 }
 
 export interface DownloadSettings {
@@ -34,9 +42,25 @@ export interface DownloadSettings {
   format: AudioFormat;
   /** kbit/s, for MP3. */
   mp3Bitrate: number;
-  /** File name template with `{artist}`, `{title}`, `{album}`, `{year}`. */
+  /** File name template with `{artist}`, `{title}`, `{album}`, `{year}`; `/` makes folders. */
   template: string;
+  /** The template for album tracks; also `{album_artist}` and `{track}`. */
+  albumTemplate: string;
+  /** Browser whose cookies yt-dlp uses (age-restricted videos); empty for none. */
+  cookiesFromBrowser: string;
 }
+
+/** Browsers yt-dlp can take cookies from (mirrors `links::COOKIE_BROWSERS`). */
+export const COOKIE_BROWSERS = [
+  'safari',
+  'chrome',
+  'firefox',
+  'edge',
+  'brave',
+  'chromium',
+  'opera',
+  'vivaldi',
+] as const;
 
 export interface LyricsSettings {
   /** Look lyrics up on LRCLIB when a track has none. */
@@ -69,8 +93,15 @@ export const DEFAULT_SETTINGS: Settings = {
     windowMaterial: 'vibrancy',
     artworkAccent: true,
   },
-  library: { addOpenedFiles: true },
-  downloads: { folder: '', format: 'original', mp3Bitrate: 320, template: '{artist} - {title}' },
+  library: { addOpenedFiles: true, artistSplitting: { enabled: true, exceptions: [] } },
+  downloads: {
+    folder: '',
+    format: 'original',
+    mp3Bitrate: 320,
+    template: '{artist} - {title}',
+    albumTemplate: '{album_artist}/{album}/{track} {title}',
+    cookiesFromBrowser: '',
+  },
   lyrics: { online: false, fontScale: 1, showTranslation: true },
 };
 

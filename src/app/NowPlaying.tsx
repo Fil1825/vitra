@@ -3,13 +3,14 @@ import { useTranslation } from 'react-i18next';
 
 import symbolUrl from '../../assets/brand/symbol.svg';
 import { Glass } from '../components/Glass/index.ts';
-import { LibraryLink } from '../features/library/TrackLinks.tsx';
+import { ArtistLinks, LibraryLink } from '../features/library/TrackLinks.tsx';
 import { useCurrentLibraryTrack } from '../features/library/useCurrentTrack.ts';
 import { isRemotePath } from '../lib/links.ts';
 import { pickAndPlay } from '../lib/openFiles.ts';
 import { artworkUrl, type PlayerError, type TrackMetadata } from '../lib/player.ts';
-import { albumRoute, artistRoute } from '../stores/navigation.ts';
+import { albumRoute } from '../stores/navigation.ts';
 import { usePlayer } from '../stores/player.ts';
+import { useUi } from '../stores/ui.ts';
 import styles from './NowPlaying.module.css';
 
 /** "FLAC · 44.1 kHz · 24-bit" — whatever is known. */
@@ -49,6 +50,7 @@ export function NowPlaying() {
   const { t } = useTranslation();
   const { track, error, status } = usePlayer((s) => s.state);
   const libraryTrack = useCurrentLibraryTrack();
+  const viewArtwork = useUi((s) => s.viewArtwork);
 
   if (!track) {
     return (
@@ -72,24 +74,34 @@ export function NowPlaying() {
   return (
     <section className={styles.track} aria-label={t('nowPlaying.label')}>
       {error && <ErrorBanner error={error} />}
-      <div className={styles.cover}>
-        {track.artwork ? (
+      {track.artwork ? (
+        <button
+          type="button"
+          className={`${styles.cover} ${styles.coverButton}`}
+          aria-label={t('artwork.view')}
+          onClick={() => {
+            const preview = track.artwork && artworkUrl(track.artwork.id);
+            viewArtwork({ source: { kind: 'track', path: track.path }, preview });
+          }}
+        >
           <img
             key={track.artwork.id}
             className={styles.coverImage}
             src={artworkUrl(track.artwork.id)}
             alt=""
           />
-        ) : (
+        </button>
+      ) : (
+        <div className={styles.cover}>
           <img className={styles.coverPlaceholder} src={symbolUrl} alt="" />
-        )}
-      </div>
+        </div>
+      )}
       <h2 className={styles.title}>
         <LibraryLink to={albumRoute(libraryTrack?.albumId)}>{track.title}</LibraryLink>
       </h2>
       {(artist || metadata.album) && (
         <p className={styles.byline}>
-          {artist && <LibraryLink to={artistRoute(libraryTrack?.artistId)}>{artist}</LibraryLink>}
+          {artist && <ArtistLinks artists={libraryTrack?.artists} fallback={artist} />}
           {artist && metadata.album && ' — '}
           {metadata.album && (
             <LibraryLink to={albumRoute(libraryTrack?.albumId)}>{metadata.album}</LibraryLink>

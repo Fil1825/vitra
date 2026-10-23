@@ -144,6 +144,7 @@ pub fn run() {
             library::tags_load,
             library::tags_save,
             library::artwork_preview,
+            library::artwork_original,
             links::link_resolve,
             links::link_play,
             links::link_import,

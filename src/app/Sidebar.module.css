@@ -161,3 +161,55 @@
   font-variant-numeric: tabular-nums;
   line-height: 16px;
 }
+
+/* The rail: icons only, centered, with the labels as tooltips. */
+.sidebar[data-mode='rail'] .scroll {
+  scrollbar-width: none;
+}
+
+.sidebar[data-mode='rail'] .scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.sidebar[data-mode='rail'] .item {
+  position: relative;
+  justify-content: center;
+  padding: var(--vitra-space-2) 0;
+}
+
+.railSearch {
+  flex: none;
+  margin-bottom: var(--vitra-space-1);
+}
+
+.divider {
+  height: 1px;
+  margin: var(--vitra-space-2) var(--vitra-space-2);
+  border: 0;
+  background: color-mix(in srgb, var(--vitra-color-text) 12%, transparent);
+}
+
+.monogram {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--vitra-radius-sm);
+  background: color-mix(in srgb, var(--vitra-color-accent) 22%, transparent);
+  color: var(--vitra-color-text);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* A running download in the rail: a dot on the icon's corner instead of the count. */
+.sidebar[data-mode='rail'] .badge {
+  position: absolute;
+  top: 5px;
+  left: calc(50% + 5px);
+  width: 8px;
+  height: 8px;
+  margin: 0;
+  padding: 0;
+}

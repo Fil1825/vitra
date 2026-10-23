@@ -199,7 +199,16 @@ export function trackMenu(
         action: () => go({ view: 'album', id: albumId }),
       });
     }
-    if (artistId !== null) {
+    const { artists } = single;
+    if (artists.length > 1) {
+      entries.push({
+        label: i18n.t('library.goToArtist'),
+        items: artists.map((artist) => ({
+          label: artist.name,
+          action: () => go({ view: 'artist', id: artist.id }),
+        })),
+      });
+    } else if (artistId !== null) {
       entries.push({
         label: i18n.t('library.goToArtist'),
         action: () => go({ view: 'artist', id: artistId }),

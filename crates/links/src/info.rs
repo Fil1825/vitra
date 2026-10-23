@@ -404,10 +404,22 @@ mod tests {
     }
 
     fn playlist(name: &str) -> LinkPlaylist {
-        match parse_info(&fixture(name), "https://example.com/list").unwrap() {
+        playlist_from(&fixture(name), "https://example.com/list")
+    }
+
+    fn playlist_from(json: &str, requested: &str) -> LinkPlaylist {
+        match parse_info(json, requested).unwrap() {
             Resolved::Playlist(playlist) => playlist,
             other => panic!("expected a playlist, got {other:?}"),
         }
+    }
+
+    /// A fixture that `scripts/record-ytdlp-fixtures.sh` records, if it has been run.
+    fn recorded(name: &str) -> Option<String> {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures")
+            .join(name);
+        std::fs::read_to_string(path).ok()
     }
 
     #[test]
@@ -548,10 +560,21 @@ mod tests {
         assert!(!is_album_link("https://www.youtube.com/watch?v=x"));
     }
 
-    // Written so that a real recording (scripts/record-ytdlp-fixtures.sh) passes too.
     #[test]
     fn a_youtube_album_is_an_album_with_numbered_tracks() {
-        let list = playlist("youtube-album.json");
+        check_album(&playlist("youtube-album.json"));
+        if let Some(json) = recorded("youtube-album-recorded.json") {
+            check_album(&playlist_from(&json, "https://example.com/list"));
+        }
+        if let Some(json) = recorded("youtube-album-page-recorded.json") {
+            check_album(&playlist_from(
+                &json,
+                "https://music.youtube.com/browse/MPREb_recorded",
+            ));
+        }
+    }
+
+    fn check_album(list: &LinkPlaylist) {
         let album = list.album.as_ref().expect("an album");
         assert!(!album.title.is_empty());
         assert!(!album.title.starts_with("Album - "), "{}", album.title);
@@ -599,6 +622,17 @@ mod tests {
         );
         // An ordinary playlist isn't.
         assert_eq!(playlist("youtube-playlist.json").album, None);
+    }
+
+    #[test]
+    fn a_recorded_album_track_lists_its_artists() {
+        let Some(json) = recorded("youtube-album-entry-recorded.json") else {
+            return;
+        };
+        let track = parse_entry(&json.replace('\n', " ")).unwrap().unwrap();
+        assert!(!track.artists.is_empty(), "{track:?}");
+        assert_eq!(track.artist, Some(track.artists.join(", ")));
+        assert!(track.album.is_some(), "{track:?}");
     }
 
     #[test]

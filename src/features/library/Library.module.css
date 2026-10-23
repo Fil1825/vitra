@@ -27,6 +27,14 @@
   gap: var(--vitra-space-6);
 }
 
+.heroCoverButton {
+  padding: 0;
+  border: 0;
+  border-radius: var(--vitra-radius-md);
+  background: transparent;
+  cursor: zoom-in;
+}
+
 .heroCover {
   box-shadow: 0 18px 44px color-mix(in srgb, var(--vitra-color-background) 50%, transparent);
 }

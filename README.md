@@ -22,6 +22,18 @@ library (original audio, MP3 or FLAC, with cover and tags) and keeps its play co
 and playlist entries. Sites change often; Settings → Downloads → yt-dlp → **Update** gets the
 latest yt-dlp.
 
+Album links (YouTube Music albums, `OLAK5uy_…` playlists, Bandcamp albums) open as an album:
+**Listen**, or **Download Album** into `Artist/Album/01 Title` with the album's tags and cover.
+For age-restricted or sign-in-only videos, Settings → Downloads → **Cookies from browser**
+lets yt-dlp use the sign-in of a browser on this computer.
+
+## Library
+
+Vitra watches the folders you add and groups their songs by album and artist. Songs with
+several artists (several `ARTIST` values, `ARTISTS`, or a credit like "A feat. B") are listed
+under each of them; Settings → Library sets how credits are split and which names contain a
+comma ("Tyler, The Creator").
+
 ## Lyrics
 
 Vitra shows the lyrics in a song's tags (synced `SYLT`/LRC or plain) or in a `.lrc` file next

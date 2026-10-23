@@ -24,9 +24,9 @@ import { formatTime } from '../lib/format.ts';
 import { library } from '../lib/library.ts';
 import { artworkUrl, player } from '../lib/player.ts';
 import { hasNext, nextRepeat, queue } from '../lib/queue.ts';
-import { LibraryLink } from '../features/library/TrackLinks.tsx';
+import { ArtistLinks, LibraryLink } from '../features/library/TrackLinks.tsx';
 import { useCurrentLibraryTrack } from '../features/library/useCurrentTrack.ts';
-import { albumRoute, artistRoute, useNavigation } from '../stores/navigation.ts';
+import { albumRoute, useNavigation } from '../stores/navigation.ts';
 import { useLivePosition, usePlayer } from '../stores/player.ts';
 import { useQueue } from '../stores/queue.ts';
 import { useUi } from '../stores/ui.ts';
@@ -56,6 +56,7 @@ export function ControlBar({ className }: { className?: string }) {
   const queueState = useQueue((s) => s.queue);
   const sidePanel = useUi((s) => s.sidePanel);
   const togglePanel = useUi((s) => s.togglePanel);
+  const viewArtwork = useUi((s) => s.viewArtwork);
   const queueOpen = sidePanel === 'queue';
   const lyricsOpen = sidePanel === 'lyrics';
   const go = useNavigation((s) => s.go);
@@ -88,18 +89,32 @@ export function ControlBar({ className }: { className?: string }) {
       priority={3}
     >
       <div className={styles.track}>
-        <button
-          type="button"
-          className={styles.artworkButton}
-          aria-label={t('nav.nowPlaying')}
-          onClick={() => go({ view: 'nowPlaying' })}
-        >
-          {track?.artwork ? (
+        {track?.artwork ? (
+          <button
+            type="button"
+            className={styles.artworkButton}
+            aria-label={t('artwork.view')}
+            title={t('artwork.view')}
+            onClick={() =>
+              track.artwork &&
+              viewArtwork({
+                source: { kind: 'track', path: track.path },
+                preview: artworkUrl(track.artwork.id),
+              })
+            }
+          >
             <img className={styles.artwork} src={artworkUrl(track.artwork.id)} alt="" />
-          ) : (
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={styles.artworkButton}
+            aria-label={t('nav.nowPlaying')}
+            onClick={() => go({ view: 'nowPlaying' })}
+          >
             <div className={styles.artwork} aria-hidden="true" />
-          )}
-        </button>
+          </button>
+        )}
         <div className={styles.trackText}>
           <LibraryLink to={albumRoute(libraryTrack?.albumId)} className={styles.trackTitle}>
             {track?.title ?? t('player.notPlaying')}
@@ -107,9 +122,7 @@ export function ControlBar({ className }: { className?: string }) {
           {subtitle && (
             <span className={styles.trackSubtitle}>
               {track?.metadata.artist ? (
-                <LibraryLink to={artistRoute(libraryTrack?.artistId)}>
-                  {track.metadata.artist}
-                </LibraryLink>
+                <ArtistLinks artists={libraryTrack?.artists} fallback={track.metadata.artist} />
               ) : null}
               {track?.metadata.artist && track.metadata.album ? ' — ' : null}
               {track?.metadata.album ? (

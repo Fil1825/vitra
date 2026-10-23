@@ -15,7 +15,13 @@
     "clearSearch": "Clear search",
     "back": "Back",
     "forward": "Forward",
-    "downloads": "Downloads"
+    "downloads": "Downloads",
+    "sidebar": "Sidebar",
+    "sidebarNext": {
+      "expanded": "Show sidebar",
+      "rail": "Show icons only",
+      "hidden": "Hide sidebar"
+    }
   },
   "nowPlaying": {
     "label": "Now Playing",
@@ -132,7 +138,11 @@
       "watchHint": "Folders are watched: new, changed and deleted files show up by themselves.",
       "insideFolder": "This folder is already in your library as part of “{{folder}}”.",
       "addOpenedFiles": "Add opened files to the library",
-      "addOpenedFilesHint": "Files you open or drop join the library as single songs, with favorites, history and playlists. A folder added later takes them in."
+      "addOpenedFilesHint": "Files you open or drop join the library as single songs, with favorites, history and playlists. A folder added later takes them in.",
+      "splitArtists": "Split artists",
+      "splitArtistsHint": "Credits like \"A feat. B\", \"A, B\", \"A & B\" or \"A x B\" become separate artists. Tags with several artist values are always taken as they are.",
+      "exceptions": "Names not to split",
+      "exceptionsHint": "One per line. Well-known names such as \"Tyler, The Creator\" and \"Simon & Garfunkel\" are kept whole anyway."
     },
     "downloads": {
       "title": "Downloads",
@@ -150,14 +160,19 @@
       },
       "bitrate": "MP3 bitrate, kbit/s",
       "template": "File name",
-      "templateHint": "Use {artist}, {title}, {album} and {year}; a missing value takes its separator with it.",
+      "templateHint": "Use {artist}, {title}, {album} and {year}; an empty value goes with its separator. / makes folders.",
       "update": "Update",
       "updating": "Updating…",
       "updated": "Updated to {{version}}",
       "updateFailed": "Couldn’t update: {{message}}",
       "ytDlpVersion": "Version {{version}}. Sites change often; update when links stop working.",
       "ytDlpMissing": "yt-dlp wasn’t found, so links can’t be played or downloaded.",
-      "ffmpegMissing": "FFmpeg wasn’t found: downloads need it."
+      "ffmpegMissing": "FFmpeg wasn’t found: downloads need it.",
+      "albumTemplate": "Album tracks",
+      "albumTemplateHint": "Also {album_artist} and {track} (two digits); / makes folders: {album_artist}/{album}/{track} {title}.",
+      "cookies": "Cookies from browser",
+      "cookiesHint": "For age-restricted and sign-in-only videos: yt-dlp acts as you, signed in to the site in this browser. Cookies are read on your computer and only sent to the site they belong to. On macOS, Safari's need Full Disk Access for Vitra; Chrome asks for Keychain access.",
+      "cookiesNone": "Off"
     },
     "lyrics": {
       "title": "Lyrics",
@@ -297,8 +312,14 @@
       "ytDlpMissing": "yt-dlp wasn’t found. It plays links from YouTube, SoundCloud and other sites.",
       "timeout": "The site didn’t answer in time. Try again later.",
       "unsupported": "This site isn’t supported.",
-      "failed": "Couldn’t open the link: {{message}}"
-    }
+      "failed": "Couldn’t open the link: {{message}}",
+      "ageRestricted": "This video is age-restricted. To play it, sign in to the site in your browser and choose that browser in Settings → Downloads → Cookies from browser.",
+      "signIn": "The site asks to sign in. Sign in to it in your browser and choose that browser in Settings → Downloads → Cookies from browser.",
+      "cookies": "Couldn't read the browser's cookies. Check that the browser is installed and you are signed in; on macOS, Safari's cookies need Full Disk Access for Vitra (System Settings → Privacy & Security)."
+    },
+    "listen": "Listen",
+    "downloadAlbum": "Download Album",
+    "openAlbum": "Show Album"
   },
   "downloads": {
     "title": "Downloads",
@@ -314,7 +335,14 @@
     "failed": "Failed: {{message}}",
     "cancelled": "Cancelled",
     "retry": "Retry",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "albumProgress": "{{done}} of {{total}}",
+    "cancelAll": "Cancel All",
+    "retryAll": "Retry Failed",
+    "failedCount_one": "{{count}} failed",
+    "failedCount_other": "{{count}} failed",
+    "showTracks": "Show tracks",
+    "hideTracks": "Hide tracks"
   },
   "lyrics": {
     "title": "Lyrics",
@@ -371,5 +399,10 @@
       "break": "verse break",
       "end": "End"
     }
+  },
+  "artwork": {
+    "view": "Show artwork",
+    "close": "Close",
+    "missing": "No artwork"
   }
 }

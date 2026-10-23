@@ -18,6 +18,7 @@ import { scrollRowIntoView, useVirtualRange } from '../../lib/virtual.ts';
 import { usePlayer } from '../../stores/player.ts';
 import { playTracks, report, setFavorite, trackMenu } from './actions.ts';
 import { Cover } from './Cover.tsx';
+import { ArtistLinks } from './TrackLinks.tsx';
 import { sortTracks, type Column, type Sort } from './sort.ts';
 import styles from './TrackTable.module.css';
 import { usePlaylists } from './usePlaylists.ts';
@@ -235,7 +236,7 @@ export function TrackTable({
       case 'artist':
         return (
           <span key={column} className={`${styles.text} ${styles.secondary}`}>
-            {track.artist ?? ''}
+            <ArtistLinks artists={track.artists} fallback={track.artist} inRow />
           </span>
         );
       case 'album':

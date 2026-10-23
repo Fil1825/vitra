@@ -134,6 +134,30 @@ and an explicit list of checks that can only be done on a Mac.
   after 30 days; "Search LRCLIB" on demand even with online lookups off. Not done here:
   writing `SYLT` frames, word-level tap-sync (lines only; word timings from files are kept and
   move with their line).
+- Round before stage 6 (owner's requests after the Mac review):
+  - **Several artists per track** (`track_artists`, migration 4): lists from tags (several
+    `ARTIST` values, `ARTISTS`, ID3v2.4 `TPE1` with `\0`) and from yt-dlp (`artists` /
+    `creators`) are taken as they are; a single credit is split on feat./ft./&/,/x/; with
+    an exception list ("Tyler, The Creator", user additions) and a setting to turn it off
+    (changing it re-splits the library). An album belongs to its first artist; an artist's
+    page lists the albums and an "Appears On" section; each artist in a track row is a link.
+    Downloads write the artists as separate values (MP4: `©ART` "A, B" plus `ARTISTS`).
+  - **YouTube / YouTube Music albums** (`OLAK5uy_…` playlists, `browse/MPREb…` pages): the
+    link dialog shows the album (cover, artist, year, numbered tracks) with Listen and
+    Download Album; the library gets one album with one cover; downloads go to
+    `{album_artist}/{album}/{track} {title}` (a setting) with album, album artist, track
+    number/total, year and the album cover in every file, grouped in the downloads view
+    (overall progress, cancel/retry all). Playlists keep importing, plus "Download All".
+  - Full-screen artwork (Now Playing, album page, control bar) at the original resolution.
+  - Sidebar: expanded / icons only / hidden (button in the title bar, ⌥⌘S / Ctrl+Alt+S),
+    remembered per window.
+  - Readable errors for age-restricted and sign-in-only videos, and a "cookies from a browser"
+    setting (`--cookies-from-browser`, also passed to mpv's hook). LRCLIB is asked again
+    (after 1.5 s and 4 s) when it answers 429/5xx; such answers are never cached as misses.
+- **Mac** for that round: the traffic lights over the sidebar's icon strip and next to the
+  title bar with the sidebar hidden, cookies from Safari (needs Full Disk Access) and Chrome
+  (Keychain prompt), how Apple Music / Finder show downloaded files with several artists,
+  real album links and `scripts/record-ytdlp-fixtures.sh` (records album fixtures too).
 - **Mac**: how the view looks and scrolls (blur, karaoke fill, smooth scrolling in WebKit),
   Space in the sync view not pausing playback, saving into tags of an M4A (`©lyr`) and an MP3
   (`USLT`) and reading them back in Apple Music / Finder, the native save/import/export

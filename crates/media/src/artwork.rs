@@ -46,6 +46,13 @@ pub fn folder_artwork(track: &Path) -> Option<Artwork> {
     })
 }
 
+/// The MIME type of encoded image bytes, if they are an image.
+pub fn image_mime(bytes: &[u8]) -> Option<String> {
+    image::guess_format(bytes)
+        .ok()
+        .map(|format| format.to_mime_type().to_owned())
+}
+
 /// Artwork ready for the UI.
 #[derive(Debug, Clone)]
 pub struct PreparedArtwork {

@@ -75,7 +75,10 @@ sudo apt-get install -y llvm
 - Node's `fetch` ignores `HTTPS_PROXY` unless `NODE_USE_ENV_PROXY=1`; `fetch-sidecars`
   re-launches itself with it when a proxy is configured.
 - Toolchain at stage 0: Rust 1.97, Node 22.22, npm 10.9, Tauri CLI 2.12 (npm devDependency,
-  use `npx tauri`, not `cargo tauri`).
+  use `npx tauri`, not `cargo tauri`). CI uses the latest stable Rust (1.99 at stage 5), whose
+  clippy may add lints: `rustup update stable` before `check:rust`.
+- The session's disk allowance fills up with `target/` (debug, incremental, cross-check
+  targets): `cargo clean` when "no space left on device" appears.
 
 ## Repository layout
 
@@ -89,14 +92,15 @@ src/                    React + TypeScript frontend
   app/                  shell layout (TitleBar, Sidebar, NowPlaying, ControlBar) and
                         useAppearanceController (theme vars, effect flags, window theme, language)
   components/           shared UI: Glass/ (glass surface, layer budget, refraction), Backdrop/,
-                        ui/ (IconButton, SegmentedControl, Switch, Slider)
+                        ArtworkViewer/ (full-screen artwork), ui/ (IconButton,
+                        SegmentedControl, Switch, Slider)
   features/<feature>/   feature UI: library/ (views, TrackTable, AlbumGrid, actions + menus),
                         queue/ (QueuePanel), tags/ (TagEditor), links/ (LinkDialog,
-                        DownloadsView), lyrics/ (LyricsView, LyricsPanel, LyricsEditor +
+                        DownloadsView, download groups), lyrics/ (LyricsView, LyricsPanel, LyricsEditor +
                         SyncPane, tap-sync model sync.ts), settings/
   stores/               zustand stores: settings (mirror of Rust), environment, appearance,
                         player, queue, library (scan status), downloads, lyrics, navigation
-                        (routes), ui (side panel, dialogs)
+                        (routes), ui (sidebar mode, side panel, dialogs, artwork viewer)
   theme/                zod schema, built-in themes (builtin/*.json), tokens → CSS vars, effects
   i18n/                 i18next setup, locales/en.json + ru.json (typed keys)
   lib/                  IPC wrappers, event bus + backend bridge, hooks, pure helpers
@@ -122,18 +126,22 @@ src-tauri/              Tauri app crate (`vitra`, lib `vitra_lib`)
   sidecars/<triple>/    fetched binaries (git-ignored)
 crates/                 pure-Rust crates testable without WebKit
   mpv-ipc/              async mpv JSON IPC client + spawning mpv (in-memory fake + opt-in real-mpv tests)
-  media/                lofty tags (read + write, lyrics incl. SYLT / SYNCEDLYRICS),
-                        embedded/folder artwork, thumbnails, color palette (fixtures in tests/)
+  media/                lofty tags (read + write, lyrics incl. SYLT / SYNCEDLYRICS, several
+                        artists), embedded/folder artwork, thumbnails, square album covers,
+                        color palette (fixtures in tests/)
   library/              SQLite library: schema + migrations, tracks/albums/artists, FTS5
                         search, playlists, history, session, incremental folder scanner,
-                        links as tracks (remote.rs), saved lyrics + offsets (lyrics.rs)
+                        links as tracks (remote.rs), saved lyrics + offsets (lyrics.rs),
+                        several artists per track and credit splitting (artists.rs)
   lyrics/               LRC / enhanced LRC parser and writer, SYLT conversion, .lrc files
                         and their encodings, LRCLIB URLs and result matching (pure)
-  links/                URL classification, yt-dlp -J parsing, file name templates, progress
-                        lines, download state machine, YtDlp runner (fixtures + opt-in real
-                        tests in tests/)
+  links/                URL classification, yt-dlp -J parsing (albums included), file name
+                        and folder templates, progress lines, download state machine,
+                        YtDlp runner and error classes (fixtures + opt-in real tests in
+                        tests/)
 scripts/
   fetch-sidecars.mjs    downloader (I/O)
+  record-ytdlp-fixtures.sh  real yt-dlp recordings for crates/links (needs YouTube)
   sidecars/plan.mjs     what to download per target (pure, unit-tested)
 assets/brand/           logo, app icon source, mono tray icon, palette (see its README)
 docs/                   PLAN.md; later THEMES.md, theme.schema.json
@@ -261,6 +269,20 @@ themes/                 (stage 7) example themes
       and for queries (migration 3 refolded existing rows).
     - Events: `library://changed` (`tracks` | `playlists` | `folders`) and `library://scan`;
       views reload through `useLibraryData`, which coalesces bursts.
+    - Several artists (`library/artists.rs`, migration 4): `track_artists(track_id,
+artist_id, position)`; `tracks.artist_id` stays the first (main) one, and an album
+      belongs to its album artist or the first track artist. Lists from tags (several
+      `ARTIST`, `ARTISTS`, `TPE1` with `\0`) or yt-dlp (`artists`/`creators`) are used as
+      they are; a single credit is split on `feat.`/`ft.`/`featuring`/`, `/`&`/`x`/`×`/`; `
+      unless a whole name is an exception (`BUILTIN_EXCEPTIONS` + `library.artistSplitting`).
+      The split credit is kept in `tracks.artist_credit` so changing the setting re-splits
+      without rereading files (`set_artist_splitting`); migration 4 also re-reads folder
+      tracks (`file_mtime = 0`) and re-splits once (`artists.resplitPending`). The scanner's
+      connection reads the setting from the `session` table (`artistSplitting`). Artists are
+      searched through their own FTS table (`artist_search`). An artist's page: their albums,
+      then "Appears On" (`TrackFilter::ArtistAppearances`).
+    - Tags are written with each artist as a separate value; MP4 has no multi-value `©ART`
+      in common players, so it gets "A, B" plus `----:com.apple.iTunes:ARTISTS` items.
 21. **Queue** (`player/queue.rs`, pure): items in play order with unique `uid`s, `current`,
     shuffle (current item first, the original order kept to unshuffle), repeat off/all/one.
     Gapless: mpv's playlist holds the current item and `peek_next()` (`loadfile … append`,
@@ -282,6 +304,19 @@ themes/                 (stage 7) example themes
       or downloaded.
     - Imported playlists keep `playlists.source_url`; importing again replaces their entries
       and keeps the name. Entries are filled in afterwards by `yt-dlp -j` (one line each).
+    - Albums: a playlist whose id starts with `OLAK5uy_`, a `music.youtube.com/browse/MPREb…`
+      page or a Bandcamp album (`info::album_of`). The title loses YouTube's "Album - ", the
+      artist comes from `album_artists`, the uploader without " - Topic", or the tracks'
+      usual artist. Entries are numbered by their place in the listing (private videos keep
+      their number) and stored as one library album with one square cover
+      (`media::square_cover`, `Library::set_album_artwork`); album tracks get no covers of
+      their own. Enrichment keeps the placement (`Placement`), so `yt-dlp -j` can't move a
+      track to another album.
+    - Errors: `ytdlp::failure` turns yt-dlp's stderr into `AgeRestricted`, `SignInRequired`
+      or `Cookies`; the UI shows translated text for them (`features/links/errors.ts`).
+      `downloads.cookiesFromBrowser` (safari/chrome/firefox/…, `COOKIE_BROWSERS`) adds
+      `--cookies-from-browser` to every yt-dlp run and to mpv's hook (`ytdl-raw-options`
+      is set as a JSON map after each mpv start and when the setting changes).
     - mpv plays links through its own yt-dlp hook: `--script-opts-append=ytdl_hook-ytdl_path=`
       and `--ytdl-raw-options-append=js-runtimes=deno:` point it at our binaries. Radio
       playlists end in `end-file reason=redirect`, after which the next `start-file` is the
@@ -293,6 +328,13 @@ themes/                 (stage 7) example themes
       own title/artist/album/year and saved lyrics into the file and
       `Library::attach_download` swaps the stream's path for the file (same row; a row the
       watcher added first is merged in).
+    - Album downloads are a group (`downloads.rs`: `GroupInfo` on every job, cancel/retry
+      the group): files go to `downloads.albumTemplate` (`{album_artist}/{album}/{track}
+{title}`, `/` makes folders; `links::relative_path`), get album, album artist, track
+      number/total and year, and all get the same cover (the album's, else the first
+      track's thumbnail). Tags are re-read from the library when a job starts, so
+      enrichment that finished meanwhile is used. "Download All" on a playlist is a group
+      without album tags.
     - "Update yt-dlp": on macOS `links::release::install_zip_release` downloads the latest
       `yt-dlp_macos.zip` and `SHA2-256SUMS` with `curl`, checks the hash (`sha2`), unpacks
       with `ditto` and swaps the folder into `<app data>/sidecars/yt-dlp/` (a
@@ -320,7 +362,9 @@ themes/                 (stage 7) example themes
     - LRCLIB (setting `lyrics.online`, off by default): curl with a User-Agent naming Vitra,
       `/api/get` (title, artist, album, duration ±2 s) then `/api/search`, URLs percent-
       encoded to ASCII (Windows passes non-ASCII arguments in the ANSI code page). Results are
-      cached in the DB (`source = 'lrclib'`), misses in `lyrics_lookups` for 30 days.
+      cached in the DB (`source = 'lrclib'`), misses in `lyrics_lookups` for 30 days. 429 and
+      5xx answers (and curl failures) are retried after 1.5 s and 4 s and never cached as
+      misses (`online::fetch_patiently`).
     - The user's sync offset is per track (`tracks.lyrics_offset`, positive = later) or per
       session for files outside the library. `lyrics://changed` carries the whole state;
       `lyrics://line` fires when the playing line changes (for the mini player and plugins:
@@ -333,6 +377,14 @@ themes/                 (stage 7) example themes
     (`lib/reorder.ts`) because HTML5 drag and drop clashes with the window's file drop.
 25. License **GPL-3.0-or-later** (compatible with mpv). Bundle identifier
     `io.github.fil1825.vitra`. macOS minimum **14.0** (official mpv builds require it).
+26. **Sidebar** (`stores/ui.ts`): `expanded` / `rail` (icons, labels as tooltips, playlists as
+    monograms) / `hidden`, switched by the title bar button or ⌥⌘S / Ctrl+Alt+S (matched by
+    `event.code`, because Option changes `key` on macOS) and kept in `localStorage`. On
+    macOS the rail is 88 px so the traffic lights stay on it, and with no sidebar the title
+    bar leaves 84 px for them. ⌘F opens the full sidebar with the search field focused.
+27. **Full-screen artwork** (`components/ArtworkViewer`): shows the cached image at once,
+    then the original from `artwork_original` (track path or album id; links use their
+    thumbnail or album cover), served unscaled by `ArtworkStore::insert_original`.
 
 ## Conventions
 

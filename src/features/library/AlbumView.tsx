@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next';
 
-import { library } from '../../lib/library.ts';
+import { coverUrl, library } from '../../lib/library.ts';
 import { useLibraryData } from '../../lib/useLibraryData.ts';
 import { useNavigation } from '../../stores/navigation.ts';
+import { useUi } from '../../stores/ui.ts';
 import { EmptyState, LoadError, PlayButtons } from './common.tsx';
 import { Cover } from './Cover.tsx';
 import styles from './Library.module.css';
@@ -13,6 +14,7 @@ import { TrackTable } from './TrackTable.tsx';
 export function AlbumView({ id }: { id: number }) {
   const { t } = useTranslation();
   const go = useNavigation((s) => s.go);
+  const viewArtwork = useUi((s) => s.viewArtwork);
   const summary = useListSummary();
   const album = useLibraryData(`album:${id}`, () => library.album(id));
   const tracks = useLibraryData(`album-tracks:${id}`, () => library.tracks({ kind: 'album', id }));
@@ -32,7 +34,20 @@ export function AlbumView({ id }: { id: number }) {
     <div className={styles.view}>
       {album.error !== undefined && <LoadError error={album.error} />}
       <header className={styles.hero}>
-        <Cover id={data?.cover ?? null} className={styles.heroCover} />
+        {data?.cover ? (
+          <button
+            type="button"
+            className={styles.heroCoverButton}
+            aria-label={t('artwork.view')}
+            onClick={() =>
+              viewArtwork({ source: { kind: 'album', id }, preview: coverUrl(data.cover ?? '') })
+            }
+          >
+            <Cover id={data.cover} className={styles.heroCover} />
+          </button>
+        ) : (
+          <Cover id={null} className={styles.heroCover} />
+        )}
         <div className={styles.heroText}>
           <span className={styles.kind}>{t('library.album')}</span>
           <h2 className={styles.heroTitle}>{data?.title}</h2>

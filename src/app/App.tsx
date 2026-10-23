@@ -3,6 +3,7 @@ import { Link2, Music } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { ArtworkViewer } from '../components/ArtworkViewer/ArtworkViewer.tsx';
 import { Backdrop } from '../components/Backdrop/Backdrop.tsx';
 import { Glass } from '../components/Glass/index.ts';
 import { LibraryView } from '../features/library/LibraryView.tsx';
@@ -37,6 +38,7 @@ export function App() {
   const artwork = usePlayer((s) => s.state.track?.artwork ?? null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const sidePanel = useUi((s) => s.sidePanel);
+  const sidebar = useUi((s) => s.sidebar);
   const tagEditorPath = useUi((s) => s.tagEditorPath);
   const editTags = useUi((s) => s.editTags);
   const route = useNavigation((s) => s.route);
@@ -44,6 +46,9 @@ export function App() {
   const lyricsEditor = useUi((s) => s.lyricsEditor);
   const editLyrics = useUi((s) => s.editLyrics);
   const closeLyricsEditor = useCallback(() => editLyrics(null), [editLyrics]);
+  const artworkView = useUi((s) => s.artworkView);
+  const viewArtwork = useUi((s) => s.viewArtwork);
+  const closeArtwork = useCallback(() => viewArtwork(null), [viewArtwork]);
   const linkInput = useUi((s) => s.linkInput);
   const openLink = useUi((s) => s.openLink);
   const closeLink = useCallback(() => openLink(null), [openLink]);
@@ -75,8 +80,8 @@ export function App() {
         colors={shownArtwork?.palette?.colors}
         artworkUrl={shownArtwork ? artworkUrl(shownArtwork.id, 'thumb') : undefined}
       />
-      <div className={styles.shell} data-panel={sidePanel ?? undefined}>
-        <Sidebar className={styles.sidebar} />
+      <div className={styles.shell} data-panel={sidePanel ?? undefined} data-sidebar={sidebar}>
+        {sidebar !== 'hidden' && <Sidebar className={styles.sidebar} mode={sidebar} />}
         <TitleBar className={styles.header} onOpenSettings={() => setSettingsOpen(true)} />
         {/* Keyed by route so each view starts at the top. */}
         <main key={JSON.stringify(route)} className={styles.main} data-scroll-container>
@@ -96,6 +101,7 @@ export function App() {
         <LyricsEditor key={lyricsEditor.path} target={lyricsEditor} onClose={closeLyricsEditor} />
       )}
       {linkInput !== null && <LinkDialog key={linkInput} initial={linkInput} onClose={closeLink} />}
+      {artworkView && <ArtworkViewer view={artworkView} onClose={closeArtwork} />}
       {dropping && (
         <div className={styles.dropZone}>
           <Glass className={styles.dropCard} priority={6}>

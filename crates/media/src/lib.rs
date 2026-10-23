@@ -8,7 +8,8 @@ mod palette;
 mod tags;
 
 pub use artwork::{
-    Artwork, PreparedArtwork, cover_thumbnail, folder_artwork, prepare_artwork, square_cover,
+    Artwork, PreparedArtwork, cover_thumbnail, folder_artwork, image_mime, prepare_artwork,
+    square_cover,
 };
 pub use lyrics::{TagLyrics, read_lyrics};
 pub use metadata::{TrackInfo, TrackMetadata, read_track};
