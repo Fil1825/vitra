@@ -16,6 +16,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::error::AppError;
+use crate::layout::{Layout, LayoutPreset, Module, sanitize_presets};
 use crate::library::LibraryService;
 use crate::lyrics::LyricsService;
 use crate::mini::{MiniPlayer, Mode, SizePreset};
@@ -40,6 +41,20 @@ pub struct Settings {
     pub lyrics: LyricsSettings,
     #[serde(deserialize_with = "or_default")]
     pub mini_player: MiniPlayerSettings,
+    /// The main window's modules and where they are (see `layout.rs`).
+    #[serde(deserialize_with = "or_default")]
+    pub layout: Layout,
+    /// Layouts saved under a name.
+    #[serde(deserialize_with = "or_default")]
+    pub layout_presets: Vec<LayoutPreset>,
+}
+
+impl Settings {
+    /// Whether mpv's audio chain needs the level filter: for the backdrop's pulse or for the
+    /// level meter on screen.
+    pub fn measures_level(&self) -> bool {
+        self.appearance.backdrop_pulse || self.layout.shows(Module::Level)
+    }
 }
 
 /// The mini player window.
@@ -331,6 +346,7 @@ impl Settings {
         if !Path::new(downloads.folder.trim()).is_absolute() {
             downloads.folder.clear();
         }
+        self.layout_presets = sanitize_presets(std::mem::take(&mut self.layout_presets));
         let scale = &mut self.lyrics.font_scale;
         *scale = if scale.is_finite() && *scale > 0.0 {
             scale.clamp(*FONT_SCALES.start(), *FONT_SCALES.end())
@@ -444,10 +460,10 @@ pub fn set_settings(
     {
         player.links_settings_changed();
     }
-    if saved.appearance.backdrop_pulse != previous.appearance.backdrop_pulse
+    if saved.measures_level() != previous.measures_level()
         && let Some(player) = app.try_state::<Player>()
     {
-        player.backdrop_pulse_changed();
+        player.level_filter_changed();
     }
     if saved.mini_player != previous.mini_player
         && let Some(mini) = app.try_state::<MiniPlayer>()
@@ -524,6 +540,18 @@ mod tests {
                 click_through: true,
                 hide_main_window: false,
             },
+            layout: serde_json::from_value(serde_json::json!({
+                "zones": { "right": ["sidebar"], "left": ["queue"], "top": ["controls"] },
+                "hidden": [],
+                "widths": { "left": 300, "right": 250 },
+                "weights": { "queue": 2 },
+                "sidebar": "rail"
+            }))
+            .unwrap(),
+            layout_presets: vec![LayoutPreset {
+                name: "Focus".into(),
+                layout: Layout::default(),
+            }],
         };
 
         store_in(tmp.path()).set(settings.clone()).unwrap();
@@ -576,7 +604,20 @@ mod tests {
                     "rememberPosition": true,
                     "clickThrough": false,
                     "hideMainWindow": true
-                }
+                },
+                "layout": {
+                    "zones": {
+                        "left": ["sidebar"],
+                        "right": ["queue", "lyrics", "artwork"],
+                        "top": [],
+                        "bottom": ["controls", "level"]
+                    },
+                    "hidden": ["queue", "lyrics", "artwork", "level"],
+                    "widths": { "left": 232.0, "right": 320.0 },
+                    "weights": {},
+                    "sidebar": "expanded"
+                },
+                "layoutPresets": []
             })
         );
     }
@@ -733,5 +774,31 @@ mod tests {
         assert_eq!(store_in(tmp.path()).get(), Settings::default());
         assert!(tmp.path().join("settings.json.bak").exists());
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn the_level_is_measured_for_the_pulse_or_the_meter() {
+        let mut settings = Settings::default();
+        assert!(settings.measures_level());
+        settings.appearance.backdrop_pulse = false;
+        assert!(!settings.measures_level());
+        settings
+            .layout
+            .hidden
+            .retain(|module| *module != Module::Level);
+        assert!(settings.measures_level());
+    }
+
+    #[test]
+    fn a_broken_layout_still_gives_every_module() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("settings.json"),
+            r#"{ "layout": { "zones": "nope" }, "layoutPresets": [{ "name": " ", "layout": {} }] }"#,
+        )
+        .unwrap();
+        let settings = store_in(tmp.path()).get();
+        assert_eq!(settings.layout, Layout::default());
+        assert!(settings.layout_presets.is_empty());
     }
 }

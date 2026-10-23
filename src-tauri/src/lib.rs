@@ -2,6 +2,7 @@
 
 mod drag;
 mod error;
+mod layout;
 mod library;
 mod links;
 mod lyrics;

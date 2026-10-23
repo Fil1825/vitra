@@ -21,6 +21,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "fetch-sidecars": "node scripts/fetch-sidecars.mjs",
+    "theme-schema": "node --experimental-strip-types scripts/theme-schema.ts",
     "check": "npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build",
     "check:rust": "cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace",
     "check:cross": "sh scripts/cross-check/run.sh",

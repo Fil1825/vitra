@@ -1,5 +1,6 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
+import { DEFAULT_LAYOUT, type Layout } from '../layout/model.ts';
 import type { AudioFormat } from './links.ts';
 import type { MiniMode, MiniSize } from './mini.ts';
 
@@ -93,6 +94,12 @@ export interface MiniPlayerSettings {
   hideMainWindow: boolean;
 }
 
+/** A layout saved under a name. */
+export interface LayoutPreset {
+  name: string;
+  layout: Layout;
+}
+
 export interface Settings {
   language: Language;
   appearance: AppearanceSettings;
@@ -100,6 +107,9 @@ export interface Settings {
   downloads: DownloadSettings;
   lyrics: LyricsSettings;
   miniPlayer: MiniPlayerSettings;
+  /** The main window's modules and where they are (normalized by the backend). */
+  layout: Layout;
+  layoutPresets: LayoutPreset[];
 }
 
 /** The range of the mini player's background opacity. */
@@ -141,6 +151,8 @@ export const DEFAULT_SETTINGS: Settings = {
     clickThrough: false,
     hideMainWindow: true,
   },
+  layout: DEFAULT_LAYOUT,
+  layoutPresets: [],
 };
 
 /** Tauri event carrying the new settings after any window changed them. */

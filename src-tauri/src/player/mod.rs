@@ -1384,24 +1384,25 @@ impl Player {
         }
     }
 
-    /// Whether the backdrop pulses with the music (the setting): the level filter is in
-    /// mpv's audio chain only then. Changing the chain can click, so it isn't touched for
-    /// a window being hidden; reading the level stops then instead ([`Self::set_level_meter`]).
-    fn backdrop_pulse(&self) -> bool {
+    /// Whether something shows the music's level: the backdrop's pulse (the setting) or the
+    /// level meter in the window's layout. The level filter is in mpv's audio chain only
+    /// then. Changing the chain can click, so it isn't touched for a window being hidden;
+    /// reading the level stops then instead ([`Self::set_level_meter`]).
+    fn measures_level(&self) -> bool {
         self.0
             .app
             .try_state::<SettingsStore>()
-            .is_some_and(|settings| settings.get().appearance.backdrop_pulse)
+            .is_some_and(|settings| settings.get().measures_level())
     }
 
-    /// Puts the level filter into mpv's audio chain if the setting is on; `replace` takes
-    /// out the one already there first (a fresh mpv has none).
+    /// Puts the level filter into mpv's audio chain if anything shows the level; `replace`
+    /// takes out the one already there first (a fresh mpv has none).
     async fn set_level_filter(&self, client: &Client, replace: bool) {
         if replace {
             let label = format!("@{}", level::FILTER_LABEL);
             let _ = command(client, vec![json!("af"), json!("remove"), json!(label)]).await;
         }
-        if self.backdrop_pulse()
+        if self.measures_level()
             && let Err(err) = command(
                 client,
                 vec![json!("af"), json!("add"), json!(level::filter())],
@@ -1412,8 +1413,8 @@ impl Player {
         }
     }
 
-    /// The backdrop-pulse setting changed.
-    pub fn backdrop_pulse_changed(&self) {
+    /// The backdrop pulse was switched, or the level meter shown or hidden.
+    pub fn level_filter_changed(&self) {
         let Ok(client) = self.client() else {
             return;
         };
