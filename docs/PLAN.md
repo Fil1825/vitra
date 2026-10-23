@@ -254,122 +254,14 @@ and an explicit list of checks that can only be done on a Mac.
   (track, artwork, progress, the buttons, scrubbing), media keys and headphone buttons with
   the app in the background, both while only the mini player is open, menu-bar icon.
 
-## Stage 9 — My Wave
-
-An endless stream picked by mood, like Yandex Music's "Моя волна", from the library and,
-when that runs out, from YouTube Music. Added by the owner after stage 6; not in the
-original spec. Each part is its own commit (or a few), testable on its own.
-
-### 9.1 Sound analysis (`crates/mood`)
-
-- One FFmpeg run per track decodes it to mono at 22 050 Hz and prints per-window values
-  with FFmpeg's own filters: `astats` (RMS level) and `aspectralstats` (spectral centroid and
-  spectral flux). No new native dependency and no FFT of our own; the Rust side only reads
-  numbers (`ametadata=print`) and does the statistics. Files are analyzed in three 30 s
-  slices (around 20 %, 50 % and 80 % of the track) rather than whole, which keeps a track
-  to a second or two of CPU.
-- Features: **energy** (mean RMS) and its **spread** (how much the loudness moves),
-  **tempo** (BPM from the autocorrelation of the spectral flux, i.e. the onset strength,
-  folded into 70–180 with a confidence), **brightness** (mean spectral centroid). Optional,
-  last: a **mode / "sadness"** estimate (major vs minor from a chroma profile; FFmpeg has
-  no filter for that, so it needs raw PCM and a small pure-Rust FFT such as `rustfft`, a
-  new dependency to justify in its PR).
-- The mood vector is those features normalized against the library's own distribution
-  (percentiles), so "energetic" means energetic for this library. A `version` number:
-  improving the algorithm re-analyzes everything once.
-- Pure parsing and statistics are unit-tested on recorded FFmpeg output and on generated
-  tones and click tracks (known BPM, known loudness); one opt-in test runs a real FFmpeg.
-
-### 9.2 Background analysis and storage
-
-- Migration 7: `track_features` (track id, version, source `file` / `stream` / `live`, the
-  file's size and mtime when analyzed, energy, spread, BPM + confidence, brightness,
-  valence, analyzed at). A file is analyzed again only when its size or mtime (or the
-  version) changes; tracks that fail are remembered so they aren't retried every launch.
-- A worker thread analyzes one track at a time at low priority: FFmpeg with `-threads 1`,
-  under `nice -n 15` on macOS / Linux (and the background QoS class on macOS) and
-  `IDLE_PRIORITY_CLASS` on Windows. It pauses while a scan runs and with power saving on,
-  and starts with the tracks most likely to be needed (recently played and favorites).
-- Settings → My Wave: progress ("1 234 of 5 678 analyzed"), pause/resume, analyze links
-  on/off; `wave://progress` events. Quitting stops FFmpeg at once.
-
-### 9.3 Links without downloading
-
-- From the stream: yt-dlp gives the audio URL and its HTTP headers (`-f bestaudio -J`);
-  FFmpeg reads 60–90 s from the middle (`-ss` before `-i`, so only that range is
-  fetched). Slowly, so YouTube doesn't block us: one link at a time with a randomized pause
-  of tens of seconds between them, the cookies setting honored, and a long back-off after a
-  403 / 429 / sign-in error (the existing `ytdlp::failure` classes).
-- While listening: the `@vitralevel` chain that already runs for the backdrop pulse
-  (`player/level.rs`) gets `aspectralstats` too, and the playing link's values are
-  accumulated into a `live` analysis when enough of it has played (no extra traffic).
-- The next 2–3 tracks of a wave are analyzed ahead of the background queue, so a pick
-  never waits on the network.
-- Offline (yt-dlp can't reach the site), the wave uses files and links that are already
-  analyzed; nothing else is a candidate.
-
-### 9.4 The wave (pure, in `crates/mood`)
-
-- State: the **course** (a target point in mood space), the wave's history, likes and
-  dislikes, a seeded RNG (deterministic tests).
-- Each pick scores every analyzed candidate: closeness to the course (weighted per feature)
-  plus artist / genre / year affinity with the wave so far, plus history (what is usually
-  played after what: transitions from the play history), favorites and likes add, skips
-  (in waves and outside them, decaying with time) and recently played tracks subtract.
-- The next track is a weighted random choice among the best few (softmax with a
-  temperature), never the same artist twice in a row and never a track already in this
-  wave. The course drifts a little toward each track that is listened to and gets a small
-  random walk, so the wave doesn't get stuck in one corner.
-- Modes set the starting course: **Energetic** (high energy, tempo, brightness), **Calm**
-  (low energy and tempo, little spread), **Sad** (slow, dark, minor where known), **Like
-  the current track** (the playing track's vector). "Не нравится" skips and pushes the
-  course away from that track; "Нравится" adds it to favorites and holds the course near
-  it for a while.
-- Tested with a synthetic library: modes pick the right region, no artist repeats, dislikes
-  steer away, likes hold, the drift is bounded, 10 000 tracks pick in well under 10 ms.
-
-### 9.5 Playback and UI
-
-- The queue knows it is a wave (`QueueSource::Wave`): Rust keeps 2–3 tracks ahead (so
-  gapless and preloading work as now) and tops it up as tracks play; playing something
-  else ends the wave. Skips and likes reach the wave state; the session restores a wave.
-- "Моя волна" button in the library (sidebar entry and the library header) and in Now
-  Playing, with the mode chooser; during a wave, "Нравится" / "Не нравится" in Now Playing,
-  the control bar and the mini player; the queue panel shows the wave's upcoming picks.
-- Settings section as in 9.2; en + ru strings.
-
-### 9.6 When the library runs out
-
-- When a mode has too few good candidates (a small library, or everything was played
-  recently), similar tracks come from the YouTube Music radio of a seed track:
-  `https://music.youtube.com/watch?v=<id>&list=RDAMVM<id>` through `yt-dlp --flat-playlist`
-  (the seed is the current link, else the first result of `ytsearch1:"<artist> <title>"`).
-- Those entries are analyzed (9.3) before they can be picked, play as links (joining the
-  library under `library.addOpenedFiles`), and are rate-limited like everything else that
-  talks to YouTube.
-
-### Mac checks for stage 9
-
-- Background analysis of the real library (FLAC, ALAC, MP3, M4A): playback never stutters,
-  Activity Monitor shows FFmpeg at low priority with a small energy impact, also on
-  battery; quitting during analysis leaves no FFmpeg behind; tracks in iCloud-offloaded
-  folders are skipped rather than downloaded.
-- Progress in Settings, pause/resume, re-analysis after a file's tags or audio change.
-- Links analyzed over the real network (with Safari cookies if set), no blocks after an
-  hour of waves; with Wi-Fi off the wave keeps playing analyzed tracks only.
-- The modes feel right on the owner's music; "Нравится" / "Не нравится"; no artist twice
-  in a row; the YouTube Music fallback with a small library.
-- The wave from the Now Playing widget and media keys (next) after stage 8, and from the
-  mini player.
-
-## Stage 10 — Playlist import from other services
+## Stage 9 — Playlist import from other services
 
 The owner's request (after stage 6): bring playlists over from Spotify, Yandex Music, VK
 Music, Apple Music and others, **as simply as possible for the user**: no accounts, keys
 or settings to set up first. Only the **list** comes over (titles, artists, album,
 duration, ISRC where given); the sound comes from the user's own files or plays as a YouTube
-Music link, like everything else in Vitra. Independent of stages 7–9, so it can move
-earlier.
+Music link, like everything else in Vitra. Before My Wave (stage 10), which
+reuses its YouTube Music search and matching when the library runs out.
 
 Chosen (owner, after stage 6): files and pasted text first, then public links, then the
 Music app's library on macOS. Not planned: the services' official APIs with the user's
@@ -448,7 +340,7 @@ One rule: **give Vitra the playlist in whatever form you have it, and it does th
 6. **UI**: Import Playlist… with the field, the file button and the Music tab; the
    playlist page's progress, "?" and "Find…"; en + ru strings.
 
-### Mac checks for stage 10
+### Mac checks for stage 9
 
 - Each way in with the owner's real playlists: a Spotify link and Liked Songs copied with
   ⌘A ⌘C, a Yandex link and «Мне нравится», a VK page copied as text, Music app
@@ -457,6 +349,115 @@ One rule: **give Vitra the playlist in whatever form you have it, and it does th
   wrong matches and picking another.
 - A few hundred tracks matched in the background without YouTube blocking us, while
   playback goes on.
+
+## Stage 10 — My Wave
+
+An endless stream picked by mood, like Yandex Music's "Моя волна", from the library and,
+when that runs out, from YouTube Music. Added by the owner after stage 6; not in the
+original spec. Each part is its own commit (or a few), testable on its own.
+
+### 10.1 Sound analysis (`crates/mood`)
+
+- One FFmpeg run per track decodes it to mono at 22 050 Hz and prints per-window values
+  with FFmpeg's own filters: `astats` (RMS level) and `aspectralstats` (spectral centroid and
+  spectral flux). No new native dependency and no FFT of our own; the Rust side only reads
+  numbers (`ametadata=print`) and does the statistics. Files are analyzed in three 30 s
+  slices (around 20 %, 50 % and 80 % of the track) rather than whole, which keeps a track
+  to a second or two of CPU.
+- Features: **energy** (mean RMS) and its **spread** (how much the loudness moves),
+  **tempo** (BPM from the autocorrelation of the spectral flux, i.e. the onset strength,
+  folded into 70–180 with a confidence), **brightness** (mean spectral centroid). Optional,
+  last: a **mode / "sadness"** estimate (major vs minor from a chroma profile; FFmpeg has
+  no filter for that, so it needs raw PCM and a small pure-Rust FFT such as `rustfft`, a
+  new dependency to justify in its PR).
+- The mood vector is those features normalized against the library's own distribution
+  (percentiles), so "energetic" means energetic for this library. A `version` number:
+  improving the algorithm re-analyzes everything once.
+- Pure parsing and statistics are unit-tested on recorded FFmpeg output and on generated
+  tones and click tracks (known BPM, known loudness); one opt-in test runs a real FFmpeg.
+
+### 10.2 Background analysis and storage
+
+- A migration: `track_features` (track id, version, source `file` / `stream` / `live`, the
+  file's size and mtime when analyzed, energy, spread, BPM + confidence, brightness,
+  valence, analyzed at). A file is analyzed again only when its size or mtime (or the
+  version) changes; tracks that fail are remembered so they aren't retried every launch.
+- A worker thread analyzes one track at a time at low priority: FFmpeg with `-threads 1`,
+  under `nice -n 15` on macOS / Linux (and the background QoS class on macOS) and
+  `IDLE_PRIORITY_CLASS` on Windows. It pauses while a scan runs and with power saving on,
+  and starts with the tracks most likely to be needed (recently played and favorites).
+- Settings → My Wave: progress ("1 234 of 5 678 analyzed"), pause/resume, analyze links
+  on/off; `wave://progress` events. Quitting stops FFmpeg at once.
+
+### 10.3 Links without downloading
+
+- From the stream: yt-dlp gives the audio URL and its HTTP headers (`-f bestaudio -J`);
+  FFmpeg reads 60–90 s from the middle (`-ss` before `-i`, so only that range is
+  fetched). Slowly, so YouTube doesn't block us: one link at a time with a randomized pause
+  of tens of seconds between them, the cookies setting honored, and a long back-off after a
+  403 / 429 / sign-in error (the existing `ytdlp::failure` classes).
+- While listening: the `@vitralevel` chain that already runs for the backdrop pulse
+  (`player/level.rs`) gets `aspectralstats` too, and the playing link's values are
+  accumulated into a `live` analysis when enough of it has played (no extra traffic).
+- The next 2–3 tracks of a wave are analyzed ahead of the background queue, so a pick
+  never waits on the network.
+- Offline (yt-dlp can't reach the site), the wave uses files and links that are already
+  analyzed; nothing else is a candidate.
+
+### 10.4 The wave (pure, in `crates/mood`)
+
+- State: the **course** (a target point in mood space), the wave's history, likes and
+  dislikes, a seeded RNG (deterministic tests).
+- Each pick scores every analyzed candidate: closeness to the course (weighted per feature)
+  plus artist / genre / year affinity with the wave so far, plus history (what is usually
+  played after what: transitions from the play history), favorites and likes add, skips
+  (in waves and outside them, decaying with time) and recently played tracks subtract.
+- The next track is a weighted random choice among the best few (softmax with a
+  temperature), never the same artist twice in a row and never a track already in this
+  wave. The course drifts a little toward each track that is listened to and gets a small
+  random walk, so the wave doesn't get stuck in one corner.
+- Modes set the starting course: **Energetic** (high energy, tempo, brightness), **Calm**
+  (low energy and tempo, little spread), **Sad** (slow, dark, minor where known), **Like
+  the current track** (the playing track's vector). "Не нравится" skips and pushes the
+  course away from that track; "Нравится" adds it to favorites and holds the course near
+  it for a while.
+- Tested with a synthetic library: modes pick the right region, no artist repeats, dislikes
+  steer away, likes hold, the drift is bounded, 10 000 tracks pick in well under 10 ms.
+
+### 10.5 Playback and UI
+
+- The queue knows it is a wave (`QueueSource::Wave`): Rust keeps 2–3 tracks ahead (so
+  gapless and preloading work as now) and tops it up as tracks play; playing something
+  else ends the wave. Skips and likes reach the wave state; the session restores a wave.
+- "Моя волна" button in the library (sidebar entry and the library header) and in Now
+  Playing, with the mode chooser; during a wave, "Нравится" / "Не нравится" in Now Playing,
+  the control bar and the mini player; the queue panel shows the wave's upcoming picks.
+- Settings section as in 10.2; en + ru strings.
+
+### 10.6 When the library runs out
+
+- When a mode has too few good candidates (a small library, or everything was played
+  recently), similar tracks come from the YouTube Music radio of a seed track:
+  `https://music.youtube.com/watch?v=<id>&list=RDAMVM<id>` through `yt-dlp --flat-playlist`
+  (the seed is the current link, else the track found by stage 9's YouTube Music search
+  and matching).
+- Those entries are analyzed (10.3) before they can be picked, play as links (joining the
+  library under `library.addOpenedFiles`), and are rate-limited like everything else that
+  talks to YouTube.
+
+### Mac checks for stage 10
+
+- Background analysis of the real library (FLAC, ALAC, MP3, M4A): playback never stutters,
+  Activity Monitor shows FFmpeg at low priority with a small energy impact, also on
+  battery; quitting during analysis leaves no FFmpeg behind; tracks in iCloud-offloaded
+  folders are skipped rather than downloaded.
+- Progress in Settings, pause/resume, re-analysis after a file's tags or audio change.
+- Links analyzed over the real network (with Safari cookies if set), no blocks after an
+  hour of waves; with Wi-Fi off the wave keeps playing analyzed tracks only.
+- The modes feel right on the owner's music; "Нравится" / "Не нравится"; no artist twice
+  in a row; the YouTube Music fallback with a small library.
+- The wave from the Now Playing widget and media keys (next) after stage 8, and from the
+  mini player.
 
 ## Stage 11 — Release
 

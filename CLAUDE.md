@@ -25,8 +25,8 @@ the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
 | 6   | Mini player                                            | in review (PR #7) |
 | 7   | Customization: theme editor, `.vitratheme`, layout     | not started       |
 | 8   | Sound & system: EQ, crossfade, media keys, tray        | not started       |
-| 9   | My Wave: mood analysis, endless mood-based queue       | not started       |
-| 10  | Playlist import: Spotify, Yandex, VK, Apple Music…     | not started       |
+| 9   | Playlist import: Spotify, Yandex, VK, Apple Music…     | not started       |
+| 10  | My Wave: mood analysis, endless mood-based queue       | not started       |
 | 11  | Integrations, i18n, CI builds, README, first release   | not started       |
 
 ## Commands
