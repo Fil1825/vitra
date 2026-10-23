@@ -29,6 +29,7 @@ import { useAppearanceController } from './useAppearanceController.ts';
 import { useFileDrop } from './useFileDrop.ts';
 import { useLevelMeter } from './useLevelMeter.ts';
 import { useLinkInput } from './useLinkInput.ts';
+import { useMiniPlayerShortcut } from './useMiniPlayerShortcut.ts';
 import { usePlayerShortcuts } from './usePlayerShortcuts.ts';
 
 export function App() {
@@ -36,6 +37,7 @@ export function App() {
   usePlayerShortcuts();
   useLinkInput();
   useLevelMeter();
+  useMiniPlayerShortcut();
   const { t } = useTranslation();
   const motionEnabled = useAppearance((s) => s.effects.motion);
   const useArtwork = useAppearance((s) => s.theme.background.useArtwork);

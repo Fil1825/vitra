@@ -19,6 +19,7 @@ import { Diagnostics } from './Diagnostics.tsx';
 import { DownloadSettings } from './DownloadSettings.tsx';
 import { LibrarySettings } from './LibrarySettings.tsx';
 import { LyricsSettings } from './LyricsSettings.tsx';
+import { MiniPlayerSettings } from './MiniPlayerSettings.tsx';
 import styles from './SettingsPanel.module.css';
 import { ThemePicker } from './ThemePicker.tsx';
 
@@ -95,6 +96,11 @@ export function SettingsPanel({ onClose }: { onClose(): void }) {
           <section className={styles.section}>
             <h3 className={styles.sectionTitle}>{t('settings.lyrics.title')}</h3>
             <LyricsSettings />
+          </section>
+
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>{t('settings.mini.title')}</h3>
+            <MiniPlayerSettings />
           </section>
 
           <section className={styles.section}>

@@ -5,6 +5,7 @@ import {
   LoaderCircle,
   MicVocal,
   Pause,
+  PictureInPicture2,
   Play,
   Repeat,
   Repeat1,
@@ -23,11 +24,13 @@ import { IconButton } from '../components/ui/IconButton.tsx';
 import { Slider } from '../components/ui/Slider.tsx';
 import { formatTime } from '../lib/format.ts';
 import { library } from '../lib/library.ts';
+import { mini } from '../lib/mini.ts';
 import { artworkUrl, player } from '../lib/player.ts';
 import { hasNext, nextRepeat, queue } from '../lib/queue.ts';
 import { ArtistLinks, LibraryLink } from '../features/library/TrackLinks.tsx';
 import { useCurrentLibraryTrack } from '../features/library/useCurrentTrack.ts';
 import { albumRoute, useNavigation } from '../stores/navigation.ts';
+import { useEnvironment } from '../stores/environment.ts';
 import { useLivePosition, usePlayer } from '../stores/player.ts';
 import { useQueue } from '../stores/queue.ts';
 import { useUi } from '../stores/ui.ts';
@@ -66,6 +69,7 @@ export function ControlBar({ className }: { className?: string }) {
   const position = useLivePosition();
   const [scrub, setScrub] = useState<number | null>(null);
   const [volume, setVolume] = useState<number | null>(null);
+  const shortcutHint = useEnvironment((s) => s.platform === 'macos') ? '⌥⌘M' : 'Ctrl+Alt+M';
 
   const { track, duration } = state;
   // Seeking needs an open file; a link can take a while to open (yt-dlp asks the site first).
@@ -262,6 +266,12 @@ export function ControlBar({ className }: { className?: string }) {
           onClick={() => togglePanel('queue')}
         >
           <ListMusic size={17} />
+        </IconButton>
+        <IconButton
+          label={`${t('mini.open')} (${shortcutHint})`}
+          onClick={() => mini.show().catch(report)}
+        >
+          <PictureInPicture2 size={17} />
         </IconButton>
       </div>
     </Glass>
