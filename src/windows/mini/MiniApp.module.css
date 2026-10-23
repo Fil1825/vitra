@@ -1,24 +1,29 @@
 /*
- * The mini player fills its window. Sizes are in `em` of a font that follows the window's
- * height (--_rows per mode), so the layout scales as the window is dragged bigger or smaller.
- * The glass tint fades with the opacity setting, like the system backdrop behind it.
+ * The mini player fills its window. Sizes are in `em` of a font that follows the window: its
+ * height (--_rows per mode) unless the window is narrow for that, then its width (--_cols),
+ * so the layout scales as the window is dragged and the text always keeps its room.
+ * Lengths come from the viewport (`vh`, `vw`), never percentages of the window's height,
+ * which WebKit doesn't always resolve. The glass tint fades with the opacity setting, like
+ * the system backdrop behind it.
  */
 .mini {
   --_rows: 8.6;
+  --_cols: 24;
   --glass-radius: 14px;
   --glass-blur: 0px;
   --glass-opacity: calc(var(--vitra-glass-opacity) * var(--mini-opacity, 1));
   --lyrics-lit: var(--vitra-color-text);
   --lyrics-dim: var(--vitra-color-text-tertiary);
 
-  position: fixed;
-  inset: 0;
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.75em;
+  width: 100%;
+  height: 100%;
   padding: 0.7em;
   overflow: hidden;
-  font-size: calc(100vh / var(--_rows));
+  font-size: min(calc(100vh / var(--_rows)), calc(100vw / var(--_cols)));
   line-height: 1.35;
   color: var(--vitra-color-text);
 }
@@ -35,6 +40,8 @@
 
 .mini[data-mode='slim'] {
   --_rows: 3.6;
+  --_cols: 24;
+  --_cover: min(calc(100vh - 0.7em), 3.2em);
 
   gap: 0.55em;
   padding: 0.35em 0.5em;
@@ -42,9 +49,24 @@
 
 .mini[data-mode='lyrics'] {
   --_rows: 7.6;
+  --_cols: 28;
+  --_lines: 2;
 
   justify-content: center;
   padding: 0.6em 1.4em;
+}
+
+/* A taller lyrics window shows more of a long line rather than larger type. */
+@media (max-aspect-ratio: 3 / 1) {
+  .mini[data-mode='lyrics'] {
+    --_lines: 3;
+  }
+}
+
+@media (max-aspect-ratio: 2 / 1) {
+  .mini[data-mode='lyrics'] {
+    --_lines: 4;
+  }
 }
 
 /* Click-through: nothing reacts to the pointer anyway, so no hover controls either. */
@@ -74,10 +96,10 @@
 
 .artwork {
   flex: none;
-  /* A definite height: an image would otherwise take its own width. */
-  width: auto;
-  height: 100%;
-  aspect-ratio: 1;
+  align-self: center;
+  /* Both sides set: an image would otherwise take its own size. */
+  width: var(--_cover);
+  height: var(--_cover);
   border-radius: 0.45em;
   object-fit: cover;
   background: color-mix(in srgb, var(--vitra-color-text) 10%, transparent);
@@ -88,11 +110,41 @@
   border-radius: 0.3em;
 }
 
-.body {
+/*
+ * Compact: the artwork as tall as the window allows (at most 40% of its width), the text and
+ * the progress beside it. A window too square for a useful progress bar there gets it under
+ * both, across the whole width (`data-narrow`), and a smaller artwork to make room.
+ */
+.compact {
+  --_cover: min(calc(100vh - 1.4em), 40vw);
+
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.75em;
+  min-width: 0;
+}
+
+.compact[data-narrow] {
+  --_cover: min(calc(100vh - 3.2em), 40vw);
+
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.5em;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  min-width: 0;
+}
+
+.text {
   display: flex;
   flex: 1;
   flex-direction: column;
-  justify-content: center;
   min-width: 0;
 }
 
@@ -135,7 +187,7 @@
   gap: 0.15em;
 }
 
-.body .transport {
+.text .transport {
   margin: 0.2em 0 0 -0.35em;
 }
 
@@ -238,7 +290,7 @@
   line-height: 1.2;
   letter-spacing: -0.01em;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: var(--_lines, 2);
 }
 
 .next {

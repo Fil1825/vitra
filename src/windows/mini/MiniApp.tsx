@@ -19,6 +19,7 @@ import { mini } from '../../lib/mini.ts';
 import { artworkUrl, player } from '../../lib/player.ts';
 import { hasNext } from '../../lib/queue.ts';
 import { useAppearance } from '../../stores/appearance.ts';
+import { useMediaQuery } from '../../lib/useMediaQuery.ts';
 import { useLyrics } from '../../stores/lyrics.ts';
 import { useLivePosition, usePlayer } from '../../stores/player.ts';
 import { useQueue } from '../../stores/queue.ts';
@@ -187,51 +188,79 @@ function useTrackText() {
   return { title: track?.title ?? t('player.notPlaying'), subtitle };
 }
 
-/** Artwork, title, controls and progress. */
+/** Narrower than this, the compact mode's progress bar goes under the artwork. */
+const NARROW = '(max-aspect-ratio: 11 / 5)';
+
+/**
+ * Artwork, title, controls and progress: beside the artwork, or across the whole width under
+ * it in a squarer window. Moved in the markup rather than by a grid, because WebKit spreads an
+ * item spanning several grid rows over them.
+ */
 function Compact() {
   const { t } = useTranslation();
   const { title, subtitle } = useTrackText();
   const state = usePlayer((s) => s.state);
   const position = useLivePosition(250);
   const [scrub, setScrub] = useState<number | null>(null);
+  const narrow = useMediaQuery(NARROW);
   const seekable =
     state.track !== null && (state.status === 'playing' || state.status === 'paused');
   const shown = scrub ?? position;
+
+  const progress = (
+    <div className={styles.progress}>
+      <span className={styles.time}>{formatTime(shown)}</span>
+      <Slider
+        className={styles.slider}
+        label={t('player.progress')}
+        value={shown}
+        max={state.duration ?? 0}
+        step={0.1}
+        disabled={!seekable || state.duration === null}
+        onChange={setScrub}
+        onCommit={(value) => {
+          player
+            .seek(value)
+            .catch(report('Seeking'))
+            .finally(() => setScrub(null));
+        }}
+      />
+      <span className={styles.time}>
+        {state.duration === null ? '' : `-${formatTime(Math.max(0, state.duration - shown))}`}
+      </span>
+    </div>
+  );
+  const text = (
+    <div className={styles.text}>
+      <span className={styles.title} title={title}>
+        {title}
+      </span>
+      <span className={styles.subtitle} title={subtitle}>
+        {subtitle}
+      </span>
+      <Transport />
+      {!narrow && progress}
+    </div>
+  );
+
   return (
-    <>
-      <Artwork />
-      <div className={styles.body}>
-        <span className={styles.title} title={title}>
-          {title}
-        </span>
-        <span className={styles.subtitle} title={subtitle}>
-          {subtitle}
-        </span>
-        <Transport />
-        <div className={styles.progress}>
-          <span className={styles.time}>{formatTime(shown)}</span>
-          <Slider
-            className={styles.slider}
-            label={t('player.progress')}
-            value={shown}
-            max={state.duration ?? 0}
-            step={0.1}
-            disabled={!seekable || state.duration === null}
-            onChange={setScrub}
-            onCommit={(value) => {
-              player
-                .seek(value)
-                .catch(report('Seeking'))
-                .finally(() => setScrub(null));
-            }}
-          />
-          <span className={styles.time}>
-            {state.duration === null ? '' : `-${formatTime(Math.max(0, state.duration - shown))}`}
-          </span>
-        </div>
-      </div>
+    <div className={styles.compact} data-narrow={narrow || undefined}>
+      {narrow ? (
+        <>
+          <div className={styles.head}>
+            <Artwork />
+            {text}
+          </div>
+          {progress}
+        </>
+      ) : (
+        <>
+          <Artwork />
+          {text}
+        </>
+      )}
       <WindowButtons />
-    </>
+    </div>
   );
 }
 
