@@ -242,7 +242,7 @@ and an explicit list of checks that can only be done on a Mac.
   Touch Bar, headphone buttons) must control Vitra. Today nothing shows there: mpv runs with
   `--media-controls=no` and `--input-media-keys=no` (key decision 5), on purpose, because
   the queue is Vitra's, not mpv's. Vitra publishes `MPNowPlayingInfoCenter` and handles
-  `MPRemoteCommandCenter` itself from Rust's player state (title, artists, album, artwork
+  `MPRemoteCommandCenter` itself (through `souvlaki`, or `objc2-media-player` directly) from Rust's player state (title, artists, album, artwork
   from the artwork store, duration, position and rate, updated on seeks and pauses rather
   than every tick); mpv's own controls stay off so two sources never fight. It must keep
   working while the mini player is the only window (accessory activation policy) and for
@@ -364,81 +364,98 @@ original spec. Each part is its own commit (or a few), testable on its own.
 ## Stage 10 — Playlist import from other services
 
 The owner's request (after stage 6): bring playlists over from Spotify, Yandex Music, VK
-Music, Apple Music and others. Only the **list** comes over (titles, artists, album,
+Music, Apple Music and others, **as simply as possible for the user**: no accounts, keys
+or settings to set up first. Only the **list** comes over (titles, artists, album,
 duration, ISRC where given); the sound comes from the user's own files or plays as a YouTube
-Music link, like everything else in Vitra. Which ways in (10.2) to build is **for the owner
-to choose** before the stage starts; 10.1 is needed by all of them. Independent of stages
-7–9, so it can move earlier.
+Music link, like everything else in Vitra. Independent of stages 7–9, so it can move
+earlier.
 
-### 10.1 Matching (needed by every option)
+Chosen (owner, after stage 6): files and pasted text first, then public links, then the
+Music app's library on macOS. Not planned: the services' official APIs with the user's
+account (Spotify's development mode allows 5 users per app since February 2026, so every
+user would have to register their own Client ID; VK has had no audio API for third parties
+since 2016), and link-mapping services such as song.link (they get every track).
 
-- Input: a playlist name (and cover) plus `ImportedTrack { title, artists, album, duration,
-isrc }` items; the matching is pure Rust in its own crate, unit-tested on messy real
-  titles ("Remastered 2011", "feat.", "(Live)", ё/е, transliteration).
-- The library first: the search fold (`search::fold`) of the title and main artist,
-  duration within ±3 s, the ISRC when the file's tags have one (`TSRC` / `ISRC`).
-- Otherwise YouTube Music: yt-dlp's `youtube:music:search_url` extractor
-  (`https://music.youtube.com/search?q=<artist> <title>#songs`) returns the label's audio
-  tracks rather than clips; candidates are scored by title, artist and duration, and the
-  best above a threshold becomes a link track. One search every few seconds, in the
-  background, with progress, so YouTube doesn't block us.
-- A review screen: found in the library / found on YouTube Music / not found, with "pick
-  another" for doubtful matches. The result is a Vitra playlist (files and links) that keeps
-  its `source_url`, so importing again updates it, as with YouTube playlists today.
+### How it works for the user
 
-### 10.2 Ways to get the list (options)
+One rule: **give Vitra the playlist in whatever form you have it, and it does the rest.**
 
-| Service       | Public link, no account                                    | With the user's account                                                 |
-| ------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Spotify       | embed page JSON (unofficial, may break)                    | Web API (OAuth PKCE): Feb 2026 dev mode = 5 users, Premium owner        |
-| Yandex Music  | yt-dlp `yandexmusic:*` (albums, playlists, artists)        | the same with the cookies setting ("Мне нравится", private lists)       |
-| VK Music      | nothing public                                             | no API since 2016; scraping with cookies only (fragile, against VK ToS) |
-| Apple Music   | page JSON `serialized-server-data` (unofficial)            | MusicKit API (paid developer account); on macOS the Music app library   |
-| Deezer        | public JSON API without a key (`api.deezer.com/playlist/`) | not needed for public playlists                                         |
-| YouTube Music | works already (stage 4)                                    | cookies setting (stage 4)                                               |
+- **Ways in, all leading to the same import:**
+  - paste (⌘V) or drag a playlist link into the window, as YouTube links work today;
+  - drop a playlist file on the window;
+  - **Import Playlist…** (the "+" next to Playlists in the sidebar): one big field that
+    takes a link or any copied text, a "Choose File…" button, and on macOS a **Music**
+    tab listing the Music app's playlists with checkboxes.
+- **No waiting and no review step.** The playlist appears in the sidebar at once, with
+  every track in order. Tracks found in the library play right away; the others are
+  looked up on YouTube Music in the background ("Found 48 of 60…" on the playlist's page)
+  and light up as they are found, while you listen. Confident matches are taken by
+  themselves; a doubtful one gets a small "?" with three alternatives to pick from (if you
+  care to); a track that isn't found stays grey with "Find…" (the search, filled in).
+- **Importing the same link again** updates the playlist and keeps your picks.
+- **Per service, what the user does:**
+  - **Spotify**: Share → Copy link to playlist, then paste. For a private playlist or
+    Liked Songs: in the Spotify app select all tracks (⌘A), copy (⌘C) and paste into
+    Vitra. Spotify copies them as track links, and Vitra reads each one.
+  - **Yandex Music**: Поделиться → Скопировать ссылку, then paste. «Мне нравится» and
+    private playlists work with the cookies setting (the browser you're signed in with);
+    without it Vitra says the playlist is closed and offers that one setting, or making
+    the playlist public.
+  - **Apple Music** (Mac): the **Music** tab of the import, tick the playlists, Import.
+    macOS asks once for access to Media & Apple Music. Someone else's public playlist:
+    paste its link.
+  - **VK Music**: open the playlist in the browser, select all (⌘A), copy (⌘C) and paste.
+    Vitra finds the tracks in the page's text. Or a file from an exporter.
+  - **Deezer, YouTube Music, SoundCloud, Bandcamp**: paste the link.
+  - **Anything else**: a CSV / M3U / text file from TuneMyMusic, Soundiiz, FreeYourMusic or
+    Exportify, or copied text.
 
-1. **Files and text, for every service** (no network, no accounts, nothing to break):
-   - CSV from exporters: Exportify (Spotify), TuneMyMusic / Soundiiz / FreeYourMusic (most
-     services, VK and Yandex included; free tiers with limits);
-   - M3U / M3U8, XSPF, and the Music app's **File → Library → Export Playlist…** (XML,
-     M3U or text);
-   - pasted text: one "Artist — Title" per line, or a list of track links (Spotify's
-     desktop app copies selected tracks as `open.spotify.com/track/…` links).
-2. **A public playlist link**, pasted like any link (the table's middle column). Yandex
-   Music needs no new code to read (yt-dlp), Deezer one HTTP request through curl, Spotify
-   and Apple Music a parser for a page's embedded JSON that can break whenever the site
-   changes. Some Yandex content needs a Russian IP.
-3. **Official APIs with the user's account** (the table's right column):
-   - Spotify (private playlists, Liked Songs): since February 2026 a development-mode app
-     allows 5 users and needs a Premium owner; more takes an extended quota, in practice
-     for companies. An open-source app would have each user register their own Client ID
-     (a guided setup in Settings): fine for enthusiasts, awkward for everyone else.
-   - Apple Music: MusicKit needs a developer token from a paid Apple Developer account (the
-     release stage needs one anyway, for notarization) plus a user token. On macOS there is
-     a simpler way: the Music app's own library through `iTunesLibrary.framework`
-     (read-only, local, includes Apple Music playlists added to the library; macOS asks for
-     "Media & Apple Music" access).
-   - Yandex Music has no public API; unofficial clients borrow the official app's OAuth
-     token (a grey zone): cookies through yt-dlp are the safer way. VK Music has had no
-     audio API for third parties since 2016: files and exporters only.
-4. **A link-mapping service** (song.link / Odesli API): a Spotify / Apple / Yandex / Deezer
-   track link to its YouTube Music link by ISRC, more exact than searching; rate-limited
-   (about 10 requests a minute without a key) and sends each track to a third party. Only
-   for doubtful matches, if at all.
+### What it is made of
 
-**Recommendation**: 10.1 with option 1 first (every service at once, and still works when
-something else breaks), then option 2 for Yandex Music, Deezer, Spotify and Apple Music, then
-the Music app library on macOS. A Spotify Client ID setup only if wanted after seeing its
-steps; VK through files and exporters only.
+- **yt-dlp** (already here): Yandex Music albums and old-style playlist links
+  (`/users/<login>/playlists/<n>`; it doesn't know the new `/playlists/<uuid>` share
+  links), YouTube Music search (`youtube:music:search_url`, the `#songs` results are the
+  labels' audio tracks, not clips), YouTube, SoundCloud, Bandcamp.
+- **curl** (already here, as for LRCLIB): the JSON that Spotify's embed pages
+  (`open.spotify.com/embed/…`) and Apple Music's pages (`serialized-server-data`) carry,
+  Yandex Music's new share links, Deezer's public API. These are unofficial for Spotify,
+  Apple and Yandex: each reader is small, tested on recorded pages, and fails with a clear
+  "this link can't be read right now, copy the tracks instead" message.
+- **objc2-itunes-library** (same objc2 family as the rest): the Music app's library on
+  macOS, read-only and local.
+- Files: `csv` and `quick-xml` (small, widely used; justified in the PR) for CSV, XSPF and
+  the Music app's XML export; M3U and text by hand.
+
+### Parts
+
+1. **Matching** (`crates/import`, pure): an imported track against the library (the search
+   fold of title and main artist, duration ±3 s, ISRC from `TSRC` / `ISRC` tags), then
+   against YouTube Music results (title / artist similarity, duration), with a confidence
+   score. "Remastered 2011", "feat.", "(Live)", ё/е and Latin/Cyrillic spellings are
+   tested on real titles.
+2. **The imported playlist**: a migration for entries that aren't tracks yet (title,
+   artists, duration, the match state and alternatives) beside the playlist's tracks; a
+   background matcher with progress (`import://progress`), one YouTube Music search every
+   few seconds; picks and "Find…" from the UI; importing the same source again updates it.
+3. **Files and text**: CSV (the exporters' column names), M3U / M3U8, XSPF, the Music app's
+   XML / text export, and the smart paste: one track per line ("Artist — Title",
+   "Title – Artist", a track link), or blocks copied from a page (title, artist, 3:45).
+4. **Links**: Spotify playlists, albums and tracks (embed JSON), Spotify track links in
+   bulk, Yandex Music (yt-dlp, plus the new share links), Apple Music pages, Deezer.
+5. **The Music app** (macOS): its playlists in the import sheet, with counts and artwork;
+   the "Media & Apple Music" usage description in `Info.plist`.
+6. **UI**: Import Playlist… with the field, the file button and the Music tab; the
+   playlist page's progress, "?" and "Find…"; en + ru strings.
 
 ### Mac checks for stage 10
 
-- Exports from Exportify / TuneMyMusic and the Music app import in the right order and with
-  the right names (Russian titles, ё).
-- Matching on the owner's real playlists: how many found in the library, on YouTube Music,
-  and wrongly; picking another match.
-- Reading the Music app library (the permission prompt; Apple Music playlists in it).
-- A few hundred tracks searched without YouTube blocking us.
+- Each way in with the owner's real playlists: a Spotify link and Liked Songs copied with
+  ⌘A ⌘C, a Yandex link and «Мне нравится», a VK page copied as text, Music app
+  playlists (the permission prompt), a TuneMyMusic / Exportify file.
+- Order, names (Russian titles, ё), how many found in the library and on YouTube Music,
+  wrong matches and picking another.
+- A few hundred tracks matched in the background without YouTube blocking us, while
+  playback goes on.
 
 ## Stage 11 — Release
 
