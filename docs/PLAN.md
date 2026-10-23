@@ -204,7 +204,7 @@ and an explicit list of checks that can only be done on a Mac.
 - Settings: always on top / normal, opacity, size, snap to screen edges, remember position,
   optional click-through. Uses the current theme and `<Glass>`.
 - **Mac-only checks**: always-on-top over full-screen apps, click-through.
-- Done (PR #7), with the owner's choices: click-through is left by holding ⌥ (Alt) over the
+- Done and accepted (PR #7), with the owner's choices: click-through is left by holding ⌥ (Alt) over the
   mini player; opening it hides the main window (a setting); size presets plus dragging, a
   size per mode; the opacity fades only the background. Also: ⌥⌘M switches windows, it
   reopens at launch if it was open, "over full-screen apps" on macOS drops the Dock icon
@@ -230,6 +230,10 @@ and an explicit list of checks that can only be done on a Mac.
   lyrics panel, big artwork, control bar, volume meter); presets, optionally part of a theme.
 - Rebindable in-app hotkeys.
 - Docs: `docs/THEMES.md`.
+- The owner's choices: the layout is **zones and panels** (left and right columns, top and
+  bottom bars around the main view; modules move between zones, columns resize), not a
+  free grid; the theme editor is a **panel over the window**, so the whole app is the
+  live preview.
 
 ## Stage 8 — Sound & system
 
