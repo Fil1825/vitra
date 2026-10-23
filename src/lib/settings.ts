@@ -72,6 +72,8 @@ export interface LyricsSettings {
   fontScale: number;
   /** Show a translation line under the original when the lyrics have one. */
   showTranslation: boolean;
+  /** Show lyrics at all (Now Playing, the side panel, the mini player's lyrics mode). */
+  visible: boolean;
 }
 
 export interface MiniPlayerSettings {
@@ -127,7 +129,7 @@ export const DEFAULT_SETTINGS: Settings = {
     albumTemplate: '{album_artist}/{album}/{track} {title}',
     cookiesFromBrowser: '',
   },
-  lyrics: { online: false, fontScale: 1, showTranslation: true },
+  lyrics: { online: false, fontScale: 1, showTranslation: true, visible: true },
   miniPlayer: {
     mode: 'compact',
     size: 'medium',

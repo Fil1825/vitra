@@ -63,7 +63,8 @@
     "showQueue": "Show queue",
     "hideQueue": "Hide queue",
     "showLyrics": "Show lyrics",
-    "hideLyrics": "Hide lyrics"
+    "openLyricsPanel": "Show lyrics panel",
+    "closeLyricsPanel": "Hide lyrics panel"
   },
   "settings": {
     "title": "Settings",
@@ -179,6 +180,8 @@
     },
     "lyrics": {
       "title": "Lyrics",
+      "visible": "Show Lyrics",
+      "visibleHint": "In Now Playing, the side panel and the mini player. The microphone button in the control bar brings them back.",
       "online": "Find lyrics online",
       "onlineHint": "When a song has no lyrics, look them up on LRCLIB (lrclib.net). The song’s title, artist, album and length are sent there.",
       "translation": "Show translations",
@@ -388,6 +391,7 @@
     "add": "Add Lyrics",
     "searchOnline": "Search LRCLIB",
     "edit": "Edit lyrics",
+    "hide": "Hide lyrics",
     "smaller": "Smaller text",
     "larger": "Larger text",
     "offset": "Sync offset",
@@ -458,8 +462,11 @@
     "opacity": "Background Opacity",
     "alwaysOnTop": "Always on Top",
     "clickThrough": "Click Through",
+    "showLyrics": "Show Lyrics",
     "noLyrics": "no lyrics",
     "lyricsLoading": "looking for lyrics…",
-    "lyricsNotSynced": "lyrics aren't synced"
+    "lyricsNotSynced": "lyrics aren't synced",
+    "hideLyrics": "Hide lyrics",
+    "lyricsHidden": "lyrics hidden"
   }
 }

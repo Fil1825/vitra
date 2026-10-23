@@ -1,5 +1,15 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { LoaderCircle, Maximize2, Pause, Play, SkipBack, SkipForward, X } from 'lucide-react';
+import {
+  EyeOff,
+  LoaderCircle,
+  Maximize2,
+  MicVocal,
+  Pause,
+  Play,
+  SkipBack,
+  SkipForward,
+  X,
+} from 'lucide-react';
 import { useCallback, useEffect, useState, type CSSProperties, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -10,6 +20,7 @@ import { Glass } from '../../components/Glass/index.ts';
 import { IconButton } from '../../components/ui/IconButton.tsx';
 import { Slider } from '../../components/ui/Slider.tsx';
 import { lyricsClock, useFrames } from '../../features/lyrics/clock.ts';
+import { setLyricsVisible } from '../../features/lyrics/actions.ts';
 import { Karaoke } from '../../features/lyrics/Karaoke.tsx';
 import { bus } from '../../lib/bus.ts';
 import { formatTime } from '../../lib/format.ts';
@@ -49,7 +60,8 @@ export function MiniApp() {
   usePlayerShortcuts();
   useMiniPlayerShortcut();
   const { t } = useTranslation();
-  const settings = useSettings((s) => s.settings.miniPlayer);
+  const allSettings = useSettings((s) => s.settings);
+  const settings = allSettings.miniPlayer;
   const update = useSettings((s) => s.update);
   const interactive = useInteractive();
   const artwork = usePlayer((s) => s.state.track?.artwork ?? null);
@@ -64,12 +76,13 @@ export function MiniApp() {
 
   const openMenu = () =>
     showContextMenu(
-      miniMenu(settings, t, {
+      miniMenu(allSettings, t, {
         change: (change) =>
           void update((current) => ({
             ...current,
             miniPlayer: { ...current.miniPlayer, ...change },
           })),
+        showLyrics: setLyricsVisible,
         expand: () => void mini.expand().catch(report('Expanding')),
         close: () => void mini.hide().catch(report('Closing the mini player')),
         quit: () => void mini.quit().catch(report('Quitting')),
@@ -295,6 +308,7 @@ function LyricsLine() {
   const hasTrack = usePlayer((s) => s.state.track !== null);
   const current = useLyrics((s) => s.current);
   const showTranslation = useSettings((s) => s.settings.lyrics.showTranslation);
+  const visible = useSettings((s) => s.settings.lyrics.visible);
   const { lyrics, offsetMs } = current;
   const synced = lyrics?.synced === true;
   const [index, setIndex] = useState<number | null>(null);
@@ -309,9 +323,10 @@ function LyricsLine() {
   let body;
   if (!hasTrack) {
     body = <p className={styles.lyric}>{t('player.notPlaying')}</p>;
-  } else if (!lyrics || !synced) {
-    const status =
-      current.status === 'loading' || current.status === 'searching'
+  } else if (!visible || !lyrics || !synced) {
+    const status = !visible
+      ? t('mini.lyricsHidden')
+      : current.status === 'loading' || current.status === 'searching'
         ? t('mini.lyricsLoading')
         : lyrics
           ? t('mini.lyricsNotSynced')
@@ -349,6 +364,13 @@ function LyricsLine() {
       <div className={styles.lyrics}>{body}</div>
       <div className={styles.lyricsControls}>
         <Transport />
+        <IconButton
+          className={`${styles.button} ${styles.lyricsToggle}`}
+          label={t(visible ? 'mini.hideLyrics' : 'player.showLyrics')}
+          onClick={() => setLyricsVisible(!visible)}
+        >
+          {visible ? <EyeOff size="0.95em" /> : <MicVocal size="0.95em" />}
+        </IconButton>
         <WindowButtons />
       </div>
     </>

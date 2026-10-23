@@ -20,6 +20,7 @@ import { artworkUrl } from '../lib/player.ts';
 import { useAppearance } from '../stores/appearance.ts';
 import { useNavigation } from '../stores/navigation.ts';
 import { usePlayer } from '../stores/player.ts';
+import { useSettings } from '../stores/settings.ts';
 import { useUi } from '../stores/ui.ts';
 import styles from './App.module.css';
 import { ControlBar } from './ControlBar.tsx';
@@ -43,7 +44,10 @@ export function App() {
   const useArtwork = useAppearance((s) => s.theme.background.useArtwork);
   const artwork = usePlayer((s) => s.state.track?.artwork ?? null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const sidePanel = useUi((s) => s.sidePanel);
+  // Hidden lyrics (from any window) take their panel along; it comes back with them.
+  const lyricsVisible = useSettings((s) => s.settings.lyrics.visible);
+  const openPanel = useUi((s) => s.sidePanel);
+  const sidePanel = openPanel === 'lyrics' && !lyricsVisible ? null : openPanel;
   const sidebar = useUi((s) => s.sidebar);
   const tagEditorPath = useUi((s) => s.tagEditorPath);
   const editTags = useUi((s) => s.editTags);

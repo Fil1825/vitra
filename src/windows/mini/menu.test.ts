@@ -14,9 +14,13 @@ const find = (entries: MenuEntry[], label: string): Item | undefined =>
 
 describe('miniMenu', () => {
   it('checks the current mode, size and opacity', () => {
-    const settings = { ...DEFAULT_SETTINGS.miniPlayer, mode: 'lyrics' as const, opacity: 0.6 };
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      miniPlayer: { ...DEFAULT_SETTINGS.miniPlayer, mode: 'lyrics' as const, opacity: 0.6 },
+    };
     const entries = miniMenu(settings, t, {
       change: vi.fn(),
+      showLyrics: vi.fn(),
       expand: vi.fn(),
       close: vi.fn(),
       quit: vi.fn(),
@@ -35,8 +39,10 @@ describe('miniMenu', () => {
 
   it('turns switches the other way and changes the mode', () => {
     const change = vi.fn();
-    const entries = miniMenu(DEFAULT_SETTINGS.miniPlayer, t, {
+    const showLyrics = vi.fn();
+    const entries = miniMenu(DEFAULT_SETTINGS, t, {
       change,
+      showLyrics,
       expand: vi.fn(),
       close: vi.fn(),
       quit: vi.fn(),
@@ -48,10 +54,12 @@ describe('miniMenu', () => {
     click('mini.alwaysOnTop');
     click('mini.clickThrough');
     click('mini.modes.slim');
+    click('mini.showLyrics');
     expect(change.mock.calls).toEqual([
       [{ alwaysOnTop: false }],
       [{ clickThrough: true }],
       [{ mode: 'slim' }],
     ]);
+    expect(showLyrics.mock.calls).toEqual([[false]]);
   });
 });

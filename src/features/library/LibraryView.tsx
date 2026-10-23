@@ -2,6 +2,7 @@ import { NowPlaying } from '../../app/NowPlaying.tsx';
 import { useLyrics } from '../../stores/lyrics.ts';
 import { useNavigation } from '../../stores/navigation.ts';
 import { usePlayer } from '../../stores/player.ts';
+import { useSettings } from '../../stores/settings.ts';
 import { useUi } from '../../stores/ui.ts';
 import { DownloadsView } from '../links/DownloadsView.tsx';
 import { LyricsView } from '../lyrics/LyricsView.tsx';
@@ -43,12 +44,16 @@ export function LibraryView() {
   }
 }
 
-/** The playing track, with its lyrics beside it when it has some (and the panel doesn't). */
+/**
+ * The playing track, with its lyrics beside it when it has some (and the panel doesn't show
+ * them, and they aren't hidden).
+ */
 function NowPlayingStage() {
   const trackId = usePlayer((s) => s.state.track?.id ?? null);
   const hasLyrics = useLyrics((s) => s.current.trackId === trackId && s.current.status === 'ready');
   const panelShowsLyrics = useUi((s) => s.sidePanel === 'lyrics');
-  const showLyrics = trackId !== null && hasLyrics && !panelShowsLyrics;
+  const visible = useSettings((s) => s.settings.lyrics.visible);
+  const showLyrics = trackId !== null && hasLyrics && visible && !panelShowsLyrics;
   return (
     <div className={styles.nowPlaying} data-lyrics={showLyrics || undefined}>
       <NowPlaying />

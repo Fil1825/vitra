@@ -1,6 +1,7 @@
 import {
   AArrowDown,
   AArrowUp,
+  EyeOff,
   Languages,
   LoaderCircle,
   MicVocal,
@@ -35,7 +36,7 @@ import { useAppearance } from '../../stores/appearance.ts';
 import { useLyrics } from '../../stores/lyrics.ts';
 import { usePlayer } from '../../stores/player.ts';
 import { useSettings } from '../../stores/settings.ts';
-import { openLyricsEditor } from './actions.ts';
+import { openLyricsEditor, setLyricsVisible } from './actions.ts';
 import { lyricsClock, useFrames } from './clock.ts';
 import { Karaoke } from './Karaoke.tsx';
 import styles from './LyricsView.module.css';
@@ -149,6 +150,9 @@ export function LyricsView({
           <Pencil size={15} />
         </IconButton>
       )}
+      <IconButton label={t('lyrics.hide')} onClick={() => setLyricsVisible(false)}>
+        <EyeOff size={15} />
+      </IconButton>
     </div>
   );
 

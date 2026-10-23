@@ -332,6 +332,14 @@
   transition: opacity var(--vitra-motion-duration) var(--vitra-motion-easing);
 }
 
+/* Out of the transport's way: it stays centered under the line. */
+.lyricsToggle {
+  position: absolute;
+  right: 0.6em;
+  bottom: 0.25em;
+  color: var(--vitra-color-text-secondary);
+}
+
 .mini:hover .lyricsControls,
 .lyricsControls:focus-within {
   opacity: 1;

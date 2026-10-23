@@ -2,13 +2,14 @@ import type { TFunction } from 'i18next';
 
 import type { MenuEntry } from '../../lib/menu.ts';
 import { MINI_MODES, MINI_SIZES } from '../../lib/mini.ts';
-import type { MiniPlayerSettings } from '../../lib/settings.ts';
+import type { MiniPlayerSettings, Settings } from '../../lib/settings.ts';
 
 /** Background opacities the menu offers (the settings have a slider). */
 export const MENU_OPACITIES = [1, 0.8, 0.6, 0.4] as const;
 
 export interface MiniMenuActions {
   change(change: Partial<MiniPlayerSettings>): void;
+  showLyrics(visible: boolean): void;
   expand(): void;
   close(): void;
   quit(): void;
@@ -16,7 +17,7 @@ export interface MiniMenuActions {
 
 /** The mini player's context menu: its mode and window settings, and ways out. */
 export function miniMenu(
-  settings: MiniPlayerSettings,
+  { miniPlayer: settings, lyrics }: Pick<Settings, 'miniPlayer' | 'lyrics'>,
   t: TFunction,
   actions: MiniMenuActions,
 ): MenuEntry[] {
@@ -53,6 +54,11 @@ export function miniMenu(
       label: t('mini.clickThrough'),
       checked: settings.clickThrough,
       action: () => actions.change({ clickThrough: !settings.clickThrough }),
+    },
+    {
+      label: t('mini.showLyrics'),
+      checked: lyrics.visible,
+      action: () => actions.showLyrics(!lyrics.visible),
     },
     'separator',
     { label: t('mini.expand'), action: actions.expand },

@@ -108,6 +108,10 @@ pub struct LyricsSettings {
     /// Show a translation line under the original when the lyrics have one.
     #[serde(deserialize_with = "or_true")]
     pub show_translation: bool,
+    /// Show lyrics at all: off hides them in Now Playing, the side panel and the mini
+    /// player's lyrics mode until they're asked for again.
+    #[serde(deserialize_with = "or_true")]
+    pub visible: bool,
 }
 
 impl Default for LyricsSettings {
@@ -116,6 +120,7 @@ impl Default for LyricsSettings {
             online: false,
             font_scale: 1.0,
             show_translation: true,
+            visible: true,
         }
     }
 }
@@ -506,6 +511,7 @@ mod tests {
                 online: true,
                 font_scale: 1.2,
                 show_translation: false,
+                visible: false,
             },
             mini_player: MiniPlayerSettings {
                 mode: Mode::Lyrics,
@@ -554,7 +560,12 @@ mod tests {
                     "albumTemplate": "{album_artist}/{album}/{track} {title}",
                     "cookiesFromBrowser": ""
                 },
-                "lyrics": { "online": false, "fontScale": 1.0, "showTranslation": true },
+                "lyrics": {
+                    "online": false,
+                    "fontScale": 1.0,
+                    "showTranslation": true,
+                    "visible": true
+                },
                 "miniPlayer": {
                     "mode": "compact",
                     "size": "medium",

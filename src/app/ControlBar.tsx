@@ -29,10 +29,12 @@ import { artworkUrl, player } from '../lib/player.ts';
 import { hasNext, nextRepeat, queue } from '../lib/queue.ts';
 import { ArtistLinks, LibraryLink } from '../features/library/TrackLinks.tsx';
 import { useCurrentLibraryTrack } from '../features/library/useCurrentTrack.ts';
+import { setLyricsVisible } from '../features/lyrics/actions.ts';
 import { albumRoute, useNavigation } from '../stores/navigation.ts';
 import { useEnvironment } from '../stores/environment.ts';
 import { useLivePosition, usePlayer } from '../stores/player.ts';
 import { useQueue } from '../stores/queue.ts';
+import { useSettings } from '../stores/settings.ts';
 import { useUi } from '../stores/ui.ts';
 import styles from './ControlBar.module.css';
 import { playerErrorText } from './playerError.ts';
@@ -62,8 +64,9 @@ export function ControlBar({ className }: { className?: string }) {
   const sidePanel = useUi((s) => s.sidePanel);
   const togglePanel = useUi((s) => s.togglePanel);
   const viewArtwork = useUi((s) => s.viewArtwork);
+  const lyricsVisible = useSettings((s) => s.settings.lyrics.visible);
   const queueOpen = sidePanel === 'queue';
-  const lyricsOpen = sidePanel === 'lyrics';
+  const lyricsOpen = lyricsVisible && sidePanel === 'lyrics';
   const go = useNavigation((s) => s.go);
   const libraryTrack = useCurrentLibraryTrack();
   const position = useLivePosition();
@@ -252,10 +255,26 @@ export function ControlBar({ className }: { className?: string }) {
           onCommit={() => setVolume(null)}
         />
         <IconButton
-          label={t(lyricsOpen ? 'player.hideLyrics' : 'player.showLyrics')}
+          label={t(
+            !lyricsVisible
+              ? 'player.showLyrics'
+              : lyricsOpen
+                ? 'player.closeLyricsPanel'
+                : 'player.openLyricsPanel',
+          )}
           aria-pressed={lyricsOpen}
           className={lyricsOpen ? styles.on : undefined}
-          onClick={() => togglePanel('lyrics')}
+          onClick={() => {
+            // Hidden lyrics come back in the panel, wherever they were hidden.
+            if (!lyricsVisible) {
+              setLyricsVisible(true);
+              if (sidePanel !== 'lyrics') {
+                togglePanel('lyrics');
+              }
+            } else {
+              togglePanel('lyrics');
+            }
+          }}
         >
           <MicVocal size={17} />
         </IconButton>
