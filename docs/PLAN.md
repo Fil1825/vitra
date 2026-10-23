@@ -215,7 +215,8 @@ and an explicit list of checks that can only be done on a Mac.
   resizing the borderless window, snapping at the menu bar and Dock.
 - Review round: the compact layout keeps the text its room at every size (it broke on
   macOS), lyrics can be hidden everywhere (`lyrics.visible`), and an album link numbers
-  tracks the library had before.
+  tracks the library had before; albums keep their link (migration 7), so an album's page
+  repairs that too.
 
 ## Stage 7 — Customization
 
@@ -360,7 +361,86 @@ original spec. Each part is its own commit (or a few), testable on its own.
 - The wave from the Now Playing widget and media keys (next) after stage 8, and from the
   mini player.
 
-## Stage 10 — Release
+## Stage 10 — Playlist import from other services
+
+The owner's request (after stage 6): bring playlists over from Spotify, Yandex Music, VK
+Music, Apple Music and others. Only the **list** comes over (titles, artists, album,
+duration, ISRC where given); the sound comes from the user's own files or plays as a YouTube
+Music link, like everything else in Vitra. Which ways in (10.2) to build is **for the owner
+to choose** before the stage starts; 10.1 is needed by all of them. Independent of stages
+7–9, so it can move earlier.
+
+### 10.1 Matching (needed by every option)
+
+- Input: a playlist name (and cover) plus `ImportedTrack { title, artists, album, duration,
+isrc }` items; the matching is pure Rust in its own crate, unit-tested on messy real
+  titles ("Remastered 2011", "feat.", "(Live)", ё/е, transliteration).
+- The library first: the search fold (`search::fold`) of the title and main artist,
+  duration within ±3 s, the ISRC when the file's tags have one (`TSRC` / `ISRC`).
+- Otherwise YouTube Music: yt-dlp's `youtube:music:search_url` extractor
+  (`https://music.youtube.com/search?q=<artist> <title>#songs`) returns the label's audio
+  tracks rather than clips; candidates are scored by title, artist and duration, and the
+  best above a threshold becomes a link track. One search every few seconds, in the
+  background, with progress, so YouTube doesn't block us.
+- A review screen: found in the library / found on YouTube Music / not found, with "pick
+  another" for doubtful matches. The result is a Vitra playlist (files and links) that keeps
+  its `source_url`, so importing again updates it, as with YouTube playlists today.
+
+### 10.2 Ways to get the list (options)
+
+| Service       | Public link, no account                                    | With the user's account                                                 |
+| ------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Spotify       | embed page JSON (unofficial, may break)                    | Web API (OAuth PKCE): Feb 2026 dev mode = 5 users, Premium owner        |
+| Yandex Music  | yt-dlp `yandexmusic:*` (albums, playlists, artists)        | the same with the cookies setting ("Мне нравится", private lists)       |
+| VK Music      | nothing public                                             | no API since 2016; scraping with cookies only (fragile, against VK ToS) |
+| Apple Music   | page JSON `serialized-server-data` (unofficial)            | MusicKit API (paid developer account); on macOS the Music app library   |
+| Deezer        | public JSON API without a key (`api.deezer.com/playlist/`) | not needed for public playlists                                         |
+| YouTube Music | works already (stage 4)                                    | cookies setting (stage 4)                                               |
+
+1. **Files and text, for every service** (no network, no accounts, nothing to break):
+   - CSV from exporters: Exportify (Spotify), TuneMyMusic / Soundiiz / FreeYourMusic (most
+     services, VK and Yandex included; free tiers with limits);
+   - M3U / M3U8, XSPF, and the Music app's **File → Library → Export Playlist…** (XML,
+     M3U or text);
+   - pasted text: one "Artist — Title" per line, or a list of track links (Spotify's
+     desktop app copies selected tracks as `open.spotify.com/track/…` links).
+2. **A public playlist link**, pasted like any link (the table's middle column). Yandex
+   Music needs no new code to read (yt-dlp), Deezer one HTTP request through curl, Spotify
+   and Apple Music a parser for a page's embedded JSON that can break whenever the site
+   changes. Some Yandex content needs a Russian IP.
+3. **Official APIs with the user's account** (the table's right column):
+   - Spotify (private playlists, Liked Songs): since February 2026 a development-mode app
+     allows 5 users and needs a Premium owner; more takes an extended quota, in practice
+     for companies. An open-source app would have each user register their own Client ID
+     (a guided setup in Settings): fine for enthusiasts, awkward for everyone else.
+   - Apple Music: MusicKit needs a developer token from a paid Apple Developer account (the
+     release stage needs one anyway, for notarization) plus a user token. On macOS there is
+     a simpler way: the Music app's own library through `iTunesLibrary.framework`
+     (read-only, local, includes Apple Music playlists added to the library; macOS asks for
+     "Media & Apple Music" access).
+   - Yandex Music has no public API; unofficial clients borrow the official app's OAuth
+     token (a grey zone): cookies through yt-dlp are the safer way. VK Music has had no
+     audio API for third parties since 2016: files and exporters only.
+4. **A link-mapping service** (song.link / Odesli API): a Spotify / Apple / Yandex / Deezer
+   track link to its YouTube Music link by ISRC, more exact than searching; rate-limited
+   (about 10 requests a minute without a key) and sends each track to a third party. Only
+   for doubtful matches, if at all.
+
+**Recommendation**: 10.1 with option 1 first (every service at once, and still works when
+something else breaks), then option 2 for Yandex Music, Deezer, Spotify and Apple Music, then
+the Music app library on macOS. A Spotify Client ID setup only if wanted after seeing its
+steps; VK through files and exporters only.
+
+### Mac checks for stage 10
+
+- Exports from Exportify / TuneMyMusic and the Music app import in the right order and with
+  the right names (Russian titles, ё).
+- Matching on the owner's real playlists: how many found in the library, on YouTube Music,
+  and wrongly; picking another match.
+- Reading the Music app library (the permission prompt; Apple Music playlists in it).
+- A few hundred tracks searched without YouTube blocking us.
+
+## Stage 11 — Release
 
 - Discord Rich Presence, Last.fm scrobbling (both optional).
 - Complete en/ru translations.
@@ -380,12 +460,12 @@ original spec. Each part is its own commit (or a few), testable on its own.
 | Risk                                                                                       | Plan                                                                                                                                          |
 | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | mpv has no native crossfade                                                                | Crossfade with a second mpv instance and volume ramps (stage 8); gapless stays native. Crossfade and gapless are alternatives per transition. |
-| Shipping `mpv.app` (dylibs) inside the bundle complicates signing/notarization             | Sign nested binaries in the release workflow (stage 10). Unsigned local builds work.                                                          |
+| Shipping `mpv.app` (dylibs) inside the bundle complicates signing/notarization             | Sign nested binaries in the release workflow (stage 11). Unsigned local builds work.                                                          |
 | YouTube changes break yt-dlp                                                               | Updatable yt-dlp in app data + "Update yt-dlp" button; Deno for EJS challenges.                                                               |
 | Installer size: static FFmpeg+ffprobe ≈ 330 MB (Win/Linux), Deno ≈ 100 MB, mpv ≈ 60–100 MB | See open question 1.                                                                                                                          |
 | `backdrop-filter` with SVG filters only works in Chromium                                  | Feature detection + blur/highlight fallback (WebKit on macOS/Linux).                                                                          |
 | Transparent windows on Linux need a compositor                                             | Detect and fall back to an opaque theme background.                                                                                           |
-| A hard crash on Windows can orphan mpv (no fd-passing IPC there)                           | Assign mpv to a Job Object with kill-on-close (stage 10); macOS/Linux already tie mpv's life to the IPC socket.                               |
+| A hard crash on Windows can orphan mpv (no fd-passing IPC there)                           | Assign mpv to a Job Object with kill-on-close (stage 11); macOS/Linux already tie mpv's life to the IPC socket.                               |
 | A huge queue (tens of thousands of items) is sent whole on every change                    | Fine for normal libraries (≈ 2 MB at 10 000 items); send diffs or pages if it shows up in profiles.                                           |
 | Linux inotify watch limits on very large libraries                                         | Watching degrades to manual rescans (logged); raise `fs.inotify.max_user_watches` if needed.                                                  |
 | No GUI in the cloud environment                                                            | Logic in testable crates/modules; UI verified by the owner on macOS following PR instructions.                                                |

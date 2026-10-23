@@ -26,7 +26,8 @@ the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
 | 7   | Customization: theme editor, `.vitratheme`, layout     | not started       |
 | 8   | Sound & system: EQ, crossfade, media keys, tray        | not started       |
 | 9   | My Wave: mood analysis, endless mood-based queue       | not started       |
-| 10  | Integrations, i18n, CI builds, README, first release   | not started       |
+| 10  | Playlist import: Spotify, Yandex, VK, Apple Music…     | options to choose |
+| 11  | Integrations, i18n, CI builds, README, first release   | not started       |
 
 ## Commands
 
@@ -178,7 +179,7 @@ themes/                 (stage 7) example themes
    - macOS/Linux: one end of a socket pair is mpv's stdin (`--input-ipc-client=fd://0`); mpv
      quits when that connection closes, so it can't outlive the app even after a crash or
      `kill -9`. Windows: a named pipe (`--input-ipc-server`); a hard crash there can still leave
-     an orphan until a Job Object is added (stage 10).
+     an orphan until a Job Object is added (stage 11).
    - Flags (`player::mpv_args`): `--no-config` (ignores the user's mpv.conf and the bundle's
      pseudo-GUI config), `--load-scripts=no`, `--idle`, `--no-video`, `--no-terminal`,
      `--input-media-keys=no` (media keys/Now Playing are ours), `--ytdl-format=bestaudio/best`,
@@ -258,7 +259,7 @@ themes/                 (stage 7) example themes
 13. **LRC / enhanced LRC parsing and serialization in Rust** (one implementation shared by tag
     reading, `.lrc` files, FTS indexing and saving from the editor).
 14. **i18n from stage 1** (i18next, en + ru) so strings are never hard-coded; the release stage
-    (10) completes and reviews translations. (The spec lists i18n in its stage 9; doing it early
+    (11) completes and reviews translations. (The spec lists i18n in its stage 9; doing it early
     avoids a rewrite.)
 15. **Windows are created in Rust** from their `tauri.conf.json` entry (`"create": false`) so
     transparency can differ per platform: Linux windows are opaque (no vibrancy to show, and a
@@ -349,7 +350,11 @@ artist_id, position)`; `tracks.artist_id` stays the first (main) one, and an alb
       track to another album. Tracks the library had before (played or downloaded on their
       own) are placed too (`remote::place_known`): a listing files a stream into the album
       with its number, and numbers a downloaded file whose tags name the same album; edited
-      links stay as they are. Opening the album link again repairs older rows.
+      links stay as they are. The album keeps its link (`albums.source_url`, migration 7):
+      opening the link (even just its preview) places the tracks the library has
+      (`Library::place_album_listing`, never adds new ones), and opening the album's page
+      re-reads the listing once per session when tracks lack numbers
+      (`LinkService::renumber_album_later`).
     - Corrections: the tag editor edits a streamed link's title, artists, album, album artist
       and year in the library (`Library::edit_link`, `TagForm.link`); the album is found by
       title + album artist (or made), like a file's. `tracks.edited` (migration 6) makes
