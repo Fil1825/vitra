@@ -16,6 +16,8 @@ import type { Theme } from '../theme/schema.ts';
 export interface VitraEvents {
   'settings:changed': Settings;
   'theme:changed': Theme;
+  /** A theme was installed, saved or removed (in any window). */
+  'themes:changed': null;
   'effects:changed': Effects;
   /** The native backdrop of this window changed (e.g. Liquid Glass was switched on). */
   'window:effects': WindowEffects;

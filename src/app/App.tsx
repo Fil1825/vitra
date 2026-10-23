@@ -1,5 +1,5 @@
 import { AnimatePresence, MotionConfig } from 'motion/react';
-import { Link2, Music } from 'lucide-react';
+import { Link2, Music, Palette } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -11,16 +11,20 @@ import { LibraryView } from '../features/library/LibraryView.tsx';
 import { LinkDialog } from '../features/links/LinkDialog.tsx';
 import { LyricsEditor } from '../features/lyrics/LyricsEditor.tsx';
 import { LyricsPanel } from '../features/lyrics/LyricsPanel.tsx';
+import { importThemeFile } from '../features/themes/actions.ts';
+import { ThemeEditor } from '../features/themes/ThemeEditor.tsx';
 import { QueuePanel } from '../features/queue/QueuePanel.tsx';
 import { SettingsPanel } from '../features/settings/SettingsPanel.tsx';
 import { TagEditor } from '../features/tags/TagEditor.tsx';
 import type { CoverTarget } from '../lib/library.ts';
 import { playPaths } from '../lib/openFiles.ts';
 import { artworkUrl } from '../lib/player.ts';
+import { isThemeFile, themeAssetUrl } from '../lib/themes.ts';
 import { useAppearance } from '../stores/appearance.ts';
 import { useNavigation } from '../stores/navigation.ts';
 import { usePlayer } from '../stores/player.ts';
 import { useSettings } from '../stores/settings.ts';
+import { useThemeEditor } from '../stores/themeEditor.ts';
 import { useUi } from '../stores/ui.ts';
 import styles from './App.module.css';
 import { ControlBar } from './ControlBar.tsx';
@@ -42,8 +46,11 @@ export function App() {
   const { t } = useTranslation();
   const motionEnabled = useAppearance((s) => s.effects.motion);
   const useArtwork = useAppearance((s) => s.theme.background.useArtwork);
+  const themeId = useAppearance((s) => s.theme.id);
+  const themePicture = useAppearance((s) => s.theme.background.image);
   const artwork = usePlayer((s) => s.state.track?.artwork ?? null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const themeDraft = useThemeEditor((s) => s.draft);
   // Hidden lyrics (from any window) take their panel along; it comes back with them.
   const lyricsVisible = useSettings((s) => s.settings.lyrics.visible);
   const openPanel = useUi((s) => s.sidePanel);
@@ -64,6 +71,13 @@ export function App() {
   const closeLink = useCallback(() => openLink(null), [openLink]);
   const dropping = useFileDrop(
     useCallback((paths: string[]) => {
+      const themes = paths.filter(isThemeFile);
+      if (themes.length > 0) {
+        void (async () => {
+          for (const path of themes) await importThemeFile(path);
+        })().catch((err: unknown) => console.error('Importing dropped themes failed', err));
+        return;
+      }
       playPaths(paths).catch((err: unknown) => console.error('Playing dropped files failed', err));
     }, []),
     useCallback((url: string) => useUi.getState().openLink(url), []),
@@ -90,6 +104,13 @@ export function App() {
       <Backdrop
         colors={shownArtwork?.palette?.colors}
         artworkUrl={shownArtwork ? artworkUrl(shownArtwork.id, 'thumb') : undefined}
+        picture={
+          themePicture && {
+            url: themeAssetUrl(themeId, themePicture.src.slice('assets/'.length)),
+            opacity: themePicture.opacity,
+            fit: themePicture.fit,
+          }
+        }
       />
       <div className={styles.shell} data-panel={sidePanel ?? undefined} data-sidebar={sidebar}>
         {sidebar !== 'hidden' && <Sidebar className={styles.sidebar} mode={sidebar} />}
@@ -102,9 +123,11 @@ export function App() {
         {sidePanel === 'lyrics' && <LyricsPanel className={styles.panel} />}
         <ControlBar className={styles.controls} />
       </div>
+      {/* The theme editor takes Settings' place; Settings come back when it closes. */}
       <AnimatePresence>
-        {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
+        {settingsOpen && !themeDraft && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
       </AnimatePresence>
+      <AnimatePresence>{themeDraft && <ThemeEditor draft={themeDraft} />}</AnimatePresence>
       {tagEditorPath && (
         <TagEditor key={tagEditorPath} path={tagEditorPath} onClose={closeTagEditor} />
       )}
@@ -114,15 +137,21 @@ export function App() {
       {linkInput !== null && <LinkDialog key={linkInput} initial={linkInput} onClose={closeLink} />}
       {artworkView && <ArtworkViewer view={artworkView} onClose={closeArtwork} />}
       {/* A cover being dropped on shows it itself. */}
-      {(dropping === 'files' || dropping === 'link') && (
+      {(dropping === 'files' || dropping === 'link' || dropping === 'theme') && (
         <div className={styles.dropZone}>
           <Glass className={styles.dropCard} priority={6}>
             {dropping === 'link' ? (
               <Link2 size={32} aria-hidden="true" />
+            ) : dropping === 'theme' ? (
+              <Palette size={32} aria-hidden="true" />
             ) : (
               <Music size={32} aria-hidden="true" />
             )}
-            {t(dropping === 'link' ? 'player.dropToOpenLink' : 'player.dropToPlay')}
+            {dropping === 'link'
+              ? t('player.dropToOpenLink')
+              : dropping === 'theme'
+                ? t('themes.dropToImport')
+                : t('player.dropToPlay')}
           </Glass>
         </div>
       )}

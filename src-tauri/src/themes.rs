@@ -196,6 +196,21 @@ pub async fn theme_save(
     changed(&app)
 }
 
+/// Makes theme `to` a copy of the installed theme `from` (CSS and assets included) with
+/// `json` as its `theme.json`.
+#[tauri::command]
+pub async fn theme_duplicate(
+    app: AppHandle,
+    store: State<'_, ThemeStore>,
+    from: String,
+    to: String,
+    json: String,
+) -> Result<(), AppError> {
+    let dir = store.dir().to_path_buf();
+    blocking(move || Ok(themes::duplicate(&dir, &from, &to, &json)?)).await?;
+    changed(&app)
+}
+
 /// Copies a picture or font into a theme; returns its path there (`assets/<name>`).
 #[tauri::command]
 pub async fn theme_add_asset(

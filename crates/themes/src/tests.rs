@@ -164,6 +164,12 @@ fn installed_themes_are_listed_saved_and_removed() {
     assert_eq!(listed[1].assets, ["Inter-Var.woff2", "bg.jpg"]);
     assert_eq!(listed[1].css.as_deref(), Some(":root { --x: 1px; }"));
 
+    duplicate(themes, "sunset", "sunset-copy", "{\"id\":\"sunset-copy\"}").unwrap();
+    let copy = read_installed(themes, "sunset-copy").unwrap();
+    assert_eq!(copy.assets, sample().assets);
+    assert_eq!(copy.theme, "{\"id\":\"sunset-copy\"}");
+    remove(themes, "sunset-copy").unwrap();
+
     save(themes, "sunset", THEME, None).unwrap();
     assert_eq!(list(themes)[1].css, None);
     remove(themes, "sunset").unwrap();

@@ -12,6 +12,7 @@ import { initLyrics } from './stores/lyrics.ts';
 import { initPlayer } from './stores/player.ts';
 import { initQueue } from './stores/queue.ts';
 import { initSettings, useSettings } from './stores/settings.ts';
+import { initThemes } from './stores/themes.ts';
 import './styles/global.css';
 
 async function boot(root: HTMLElement): Promise<void> {
@@ -26,6 +27,7 @@ async function boot(root: HTMLElement): Promise<void> {
     initLibrary(),
     initDownloads(),
     initLyrics(),
+    initThemes(),
   ]);
   await initI18n(resolveLocale(useSettings.getState().settings.language, navigator.languages));
 

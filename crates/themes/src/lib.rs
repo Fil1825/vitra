@@ -510,6 +510,14 @@ pub fn add_asset(themes: &Path, id: &str, source: &Path) -> Result<String> {
     Ok(format!("{ASSETS_DIR}/{name}"))
 }
 
+/// Installs a copy of the installed theme `from` as `to` with `theme` as its `theme.json`
+/// (its CSS and assets come along).
+pub fn duplicate(themes: &Path, from: &str, to: &str, theme: &str) -> Result<()> {
+    let mut package = read_installed(themes, from)?;
+    package.theme = theme.to_owned();
+    install(themes, to, &package)
+}
+
 /// Removes an installed theme.
 pub fn remove(themes: &Path, id: &str) -> Result<()> {
     match fs::remove_dir_all(theme_dir(themes, id)?) {

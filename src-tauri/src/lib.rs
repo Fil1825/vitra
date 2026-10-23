@@ -232,6 +232,7 @@ pub fn run() {
             themes::theme_install,
             themes::theme_discard,
             themes::theme_save,
+            themes::theme_duplicate,
             themes::theme_add_asset,
             themes::theme_export,
             themes::theme_remove,

@@ -4,15 +4,19 @@ import { useGlassBudget } from '../components/Glass/budget.ts';
 import { i18n, resolveLocale } from '../i18n/index.ts';
 import { bus } from '../lib/bus.ts';
 import { useMediaQuery } from '../lib/useMediaQuery.ts';
+import { themeAssetUrl } from '../lib/themes.ts';
 import { setWindowAppearance } from '../lib/window.ts';
 import { useAppearance } from '../stores/appearance.ts';
 import { useEnvironment } from '../stores/environment.ts';
 import { usePlayer } from '../stores/player.ts';
 import { useSettings } from '../stores/settings.ts';
+import { useThemeEditor } from '../stores/themeEditor.ts';
+import { useThemes } from '../stores/themes.ts';
 import { accentFor } from '../theme/accent.ts';
-import { applyTheme } from '../theme/apply.ts';
+import { applyTheme, applyThemeStyleSheet } from '../theme/apply.ts';
 import { resolveEffects } from '../theme/effects.ts';
 import { AUTO_THEME_ID, resolveTheme } from '../theme/themes.ts';
+import { themeStyleSheet, type UserTheme } from '../theme/user.ts';
 
 const onOff = (value: boolean) => (value ? 'on' : 'off');
 
@@ -29,9 +33,29 @@ export function useAppearanceController(): void {
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const reducedTransparency = useMediaQuery('(prefers-reduced-transparency: reduce)');
 
+  const userThemes = useThemes((s) => s.user);
+  const draft = useThemeEditor((s) => s.draft);
+  // A theme being edited shows instead of the chosen one, so the whole window is its preview.
+  const user: UserTheme | null = useMemo(
+    () =>
+      draft
+        ? { theme: draft.theme, css: draft.css, assets: draft.assets }
+        : (userThemes.find((t) => t.theme.id === appearance.theme) ?? null),
+    [draft, userThemes, appearance.theme],
+  );
   const theme = useMemo(
-    () => resolveTheme(appearance.theme, prefersDark),
-    [appearance.theme, prefersDark],
+    () =>
+      user?.theme ??
+      resolveTheme(
+        appearance.theme,
+        prefersDark,
+        userThemes.map((t) => t.theme),
+      ),
+    [user, appearance.theme, prefersDark, userThemes],
+  );
+  const styleSheet = useMemo(
+    () => (user ? themeStyleSheet(user, (name) => themeAssetUrl(user.theme.id, name)).css : ''),
+    [user],
   );
   const palette = usePlayer((s) => s.state.track?.artwork?.palette ?? null);
   const accent = useMemo(
@@ -52,6 +76,8 @@ export function useAppearanceController(): void {
     useAppearance.setState({ theme });
     bus.emit('theme:changed', theme);
   }, [theme]);
+
+  useLayoutEffect(() => applyThemeStyleSheet(styleSheet), [styleSheet]);
 
   // Runs after the theme effect, so it overrides (or restores) the theme's accent.
   useLayoutEffect(() => {
