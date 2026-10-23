@@ -20,13 +20,14 @@ import { IconButton } from '../components/ui/IconButton.tsx';
 import { createPlaylist, report } from '../features/library/actions.ts';
 import { coverMenu } from '../features/library/covers.ts';
 import { usePlaylists } from '../features/library/usePlaylists.ts';
+import { focusSearch, type SidebarMode } from '../layout/state.ts';
 import { confirm } from '../lib/confirm.ts';
 import { coverUrl, playlists } from '../lib/library.ts';
 import { isActive } from '../lib/links.ts';
 import { showContextMenu } from '../lib/menu.ts';
 import { useDownloads } from '../stores/downloads.ts';
 import { useNavigation, type Route } from '../stores/navigation.ts';
-import { useUi, type SidebarMode } from '../stores/ui.ts';
+import { useUi } from '../stores/ui.ts';
 import styles from './Sidebar.module.css';
 
 /** Typing pauses this long before the search runs. */
@@ -115,7 +116,7 @@ function SearchButton() {
       aria-label={t('nav.search')}
       title={t('nav.search')}
       aria-current={searching ? 'page' : undefined}
-      onClick={() => useUi.getState().focusSearch()}
+      onClick={focusSearch}
     >
       <Search size={16} className={styles.icon} aria-hidden="true" />
     </button>

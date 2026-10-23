@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 
 import { App } from './app/App.tsx';
 import { initI18n, resolveLocale } from './i18n/index.ts';
+import { adoptOldPanels } from './layout/state.ts';
 import { startBackendBridge } from './lib/bridge.ts';
 import { suppressWebViewMenu } from './lib/webview.ts';
 import { initDownloads } from './stores/downloads.ts';
@@ -29,6 +30,7 @@ async function boot(root: HTMLElement): Promise<void> {
     initLyrics(),
     initThemes(),
   ]);
+  adoptOldPanels();
   await initI18n(resolveLocale(useSettings.getState().settings.language, navigator.languages));
 
   createRoot(root).render(

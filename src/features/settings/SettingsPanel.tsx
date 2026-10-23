@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { LayoutDashboard, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 
@@ -6,6 +6,7 @@ import { Glass } from '../../components/Glass/index.ts';
 import { IconButton } from '../../components/ui/IconButton.tsx';
 import { SegmentedControl, type SegmentedOption } from '../../components/ui/SegmentedControl.tsx';
 import { Switch } from '../../components/ui/Switch.tsx';
+import { setCustomizing } from '../../layout/state.ts';
 import type {
   AppearanceSettings,
   Language,
@@ -109,6 +110,20 @@ export function SettingsPanel({ onClose }: { onClose(): void }) {
               value={settings.appearance.theme}
               onChange={(theme) => setAppearance({ theme })}
             />
+
+            <Row label={t('layout.title')} hint={t('layout.hint')}>
+              <button
+                type="button"
+                className={styles.textButton}
+                onClick={() => {
+                  onClose();
+                  setCustomizing(true);
+                }}
+              >
+                <LayoutDashboard size={14} aria-hidden="true" />
+                {t('layout.customizeButton')}
+              </button>
+            </Row>
 
             {/* Window materials are a macOS feature; elsewhere the backdrop is fixed. */}
             {platform === 'macos' && (

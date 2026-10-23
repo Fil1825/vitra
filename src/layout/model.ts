@@ -182,6 +182,11 @@ export function shownIn(layout: Layout, zone: Zone): ModuleId[] {
   return layout.zones[zone].filter((module) => isShown(layout, module));
 }
 
+/** A column width within its limits, in whole pixels. */
+export function clampWidth(width: number): number {
+  return clamp(Math.round(width), COLUMN_WIDTH);
+}
+
 export function setWidth(layout: Layout, column: Column, width: number): Layout {
   return {
     ...layout,
@@ -203,4 +208,24 @@ export function setWeight(layout: Layout, module: ModuleId, weight: number): Lay
 
 export function weightOf(layout: Layout, module: ModuleId): number {
   return layout.weights[module] ?? 1;
+}
+
+/**
+ * Moves a module to `zone`, just before `before` (or at the end of what the zone shows), and
+ * shows it: what a drag and drop does. A zone it doesn't fit leaves the layout as it was.
+ */
+export function placeModule(
+  layout: Layout,
+  module: ModuleId,
+  zone: Zone,
+  before: ModuleId | null,
+): Layout {
+  if (!FITS[module].includes(zone) || module === before) {
+    return layout;
+  }
+  const rest = layout.zones[zone].filter((m) => m !== module);
+  const at = before === null ? -1 : rest.indexOf(before);
+  // Without a target, after the last module that shows (hidden ones stay behind it).
+  const lastShown = rest.reduce((last, m, i) => (isShown(layout, m) ? i : last), -1);
+  return moveModule(layout, module, zone, at === -1 ? lastShown + 1 : at);
 }

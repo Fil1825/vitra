@@ -9,6 +9,7 @@ import {
   layoutSchema,
   moveModule,
   normalizeLayout,
+  placeModule,
   setShown,
   setWeight,
   setWidth,
@@ -98,5 +99,24 @@ describe('editing a layout', () => {
     expect(setWidth(DEFAULT_LAYOUT, 'right', 9000).widths.right).toBe(COLUMN_WIDTH.max);
     expect(setWeight(DEFAULT_LAYOUT, 'queue', 2).weights).toEqual({ queue: 2 });
     expect(setWeight(setWeight(DEFAULT_LAYOUT, 'queue', 2), 'queue', 1).weights).toEqual({});
+  });
+
+  it('places a dragged module before another, or after what a zone shows', () => {
+    const shown = setShown(setShown(DEFAULT_LAYOUT, 'queue', true), 'lyrics', true);
+    expect(placeModule(shown, 'lyrics', 'right', 'queue').zones.right).toEqual([
+      'lyrics',
+      'queue',
+      'artwork',
+    ]);
+    // `artwork` is hidden: the queue goes after the lyrics, before it.
+    expect(placeModule(shown, 'queue', 'right', null).zones.right).toEqual([
+      'lyrics',
+      'queue',
+      'artwork',
+    ]);
+    const moved = placeModule(DEFAULT_LAYOUT, 'artwork', 'left', null);
+    expect(moved.zones.left).toEqual(['sidebar', 'artwork']);
+    expect(isShown(moved, 'artwork')).toBe(true);
+    expect(placeModule(DEFAULT_LAYOUT, 'controls', 'right', null)).toBe(DEFAULT_LAYOUT);
   });
 });

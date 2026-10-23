@@ -2,6 +2,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FolderOpen,
+  LayoutDashboard,
   Link2,
   PanelLeftClose,
   PanelLeftOpen,
@@ -11,10 +12,20 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { IconButton } from '../components/ui/IconButton.tsx';
+import {
+  focusSearch,
+  nextSidebarMode,
+  setCustomizing,
+  setSidebarMode,
+  sidebarMode,
+  useCustomizing,
+  useLayout,
+} from '../layout/state.ts';
 import { pickAndPlay } from '../lib/openFiles.ts';
 import { useEnvironment } from '../stores/environment.ts';
 import { useNavigation } from '../stores/navigation.ts';
-import { nextSidebarMode, useUi } from '../stores/ui.ts';
+import { useSettings } from '../stores/settings.ts';
+import { useUi } from '../stores/ui.ts';
 import styles from './TitleBar.module.css';
 
 export interface TitleBarProps {
@@ -29,8 +40,8 @@ export function TitleBar({ className, onOpenSettings }: TitleBarProps) {
   const canGoForward = useNavigation((s) => s.forward.length > 0);
   const goBack = useNavigation((s) => s.goBack);
   const goForward = useNavigation((s) => s.goForward);
-  const sidebar = useUi((s) => s.sidebar);
-  const setSidebar = useUi((s) => s.setSidebar);
+  const sidebar = sidebarMode(useLayout());
+  const customizing = useCustomizing((s) => s.on);
   const mac = useEnvironment((s) => s.platform === 'macos');
   const nextSidebar = nextSidebarMode(sidebar);
 
@@ -40,13 +51,12 @@ export function TitleBar({ className, onOpenSettings }: TitleBarProps) {
       // Cmd+Option+S / Ctrl+Alt+S. Option changes `key` on macOS (ß), so match the key itself.
       if (command && event.altKey && !event.shiftKey && event.code === 'KeyS') {
         event.preventDefault();
-        const ui = useUi.getState();
-        ui.setSidebar(nextSidebarMode(ui.sidebar));
+        setSidebarMode(nextSidebarMode(sidebarMode(useSettings.getState().settings.layout)));
         return;
       }
       if (command && !event.altKey && event.key.toLowerCase() === 'f') {
         event.preventDefault();
-        useUi.getState().focusSearch();
+        focusSearch();
         return;
       }
       // Cmd+[ / Cmd+] (macOS) and Alt+←/→ (elsewhere), like a browser.
@@ -75,7 +85,7 @@ export function TitleBar({ className, onOpenSettings }: TitleBarProps) {
       <div className={styles.history}>
         <IconButton
           label={`${t(`nav.sidebarNext.${nextSidebar}`)} (${mac ? '⌥⌘S' : 'Ctrl+Alt+S'})`}
-          onClick={() => setSidebar(nextSidebar)}
+          onClick={() => setSidebarMode(nextSidebar)}
         >
           {sidebar === 'hidden' ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
         </IconButton>
@@ -97,6 +107,13 @@ export function TitleBar({ className, onOpenSettings }: TitleBarProps) {
         </IconButton>
         <IconButton label={t('links.openLink')} onClick={() => useUi.getState().openLink('')}>
           <Link2 size={18} />
+        </IconButton>
+        <IconButton
+          label={t('layout.customize')}
+          aria-pressed={customizing}
+          onClick={() => setCustomizing(!customizing)}
+        >
+          <LayoutDashboard size={18} />
         </IconButton>
         <IconButton label={t('settings.open')} onClick={onOpenSettings}>
           <Settings2 size={18} />

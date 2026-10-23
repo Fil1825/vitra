@@ -7,29 +7,22 @@ import { ArtworkViewer } from '../components/ArtworkViewer/ArtworkViewer.tsx';
 import { Backdrop } from '../components/Backdrop/Backdrop.tsx';
 import { Glass } from '../components/Glass/index.ts';
 import { setCover } from '../features/library/covers.ts';
-import { LibraryView } from '../features/library/LibraryView.tsx';
 import { LinkDialog } from '../features/links/LinkDialog.tsx';
 import { LyricsEditor } from '../features/lyrics/LyricsEditor.tsx';
-import { LyricsPanel } from '../features/lyrics/LyricsPanel.tsx';
 import { importThemeFile } from '../features/themes/actions.ts';
 import { ThemeEditor } from '../features/themes/ThemeEditor.tsx';
-import { QueuePanel } from '../features/queue/QueuePanel.tsx';
 import { SettingsPanel } from '../features/settings/SettingsPanel.tsx';
 import { TagEditor } from '../features/tags/TagEditor.tsx';
+import { Workspace } from '../layout/Workspace.tsx';
 import type { CoverTarget } from '../lib/library.ts';
 import { playPaths } from '../lib/openFiles.ts';
 import { artworkUrl } from '../lib/player.ts';
 import { isThemeFile, themeAssetUrl } from '../lib/themes.ts';
 import { useAppearance } from '../stores/appearance.ts';
-import { useNavigation } from '../stores/navigation.ts';
 import { usePlayer } from '../stores/player.ts';
-import { useSettings } from '../stores/settings.ts';
 import { useThemeEditor } from '../stores/themeEditor.ts';
 import { useUi } from '../stores/ui.ts';
 import styles from './App.module.css';
-import { ControlBar } from './ControlBar.tsx';
-import { Sidebar } from './Sidebar.tsx';
-import { TitleBar } from './TitleBar.tsx';
 import { useAppearanceController } from './useAppearanceController.ts';
 import { useFileDrop } from './useFileDrop.ts';
 import { useLevelMeter } from './useLevelMeter.ts';
@@ -51,14 +44,8 @@ export function App() {
   const artwork = usePlayer((s) => s.state.track?.artwork ?? null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const themeDraft = useThemeEditor((s) => s.draft);
-  // Hidden lyrics (from any window) take their panel along; it comes back with them.
-  const lyricsVisible = useSettings((s) => s.settings.lyrics.visible);
-  const openPanel = useUi((s) => s.sidePanel);
-  const sidePanel = openPanel === 'lyrics' && !lyricsVisible ? null : openPanel;
-  const sidebar = useUi((s) => s.sidebar);
   const tagEditorPath = useUi((s) => s.tagEditorPath);
   const editTags = useUi((s) => s.editTags);
-  const route = useNavigation((s) => s.route);
   const closeTagEditor = useCallback(() => editTags(null), [editTags]);
   const lyricsEditor = useUi((s) => s.lyricsEditor);
   const editLyrics = useUi((s) => s.editLyrics);
@@ -112,17 +99,7 @@ export function App() {
           }
         }
       />
-      <div className={styles.shell} data-panel={sidePanel ?? undefined} data-sidebar={sidebar}>
-        {sidebar !== 'hidden' && <Sidebar className={styles.sidebar} mode={sidebar} />}
-        <TitleBar className={styles.header} onOpenSettings={() => setSettingsOpen(true)} />
-        {/* Keyed by route so each view starts at the top. */}
-        <main key={JSON.stringify(route)} className={styles.main} data-scroll-container>
-          <LibraryView />
-        </main>
-        {sidePanel === 'queue' && <QueuePanel className={styles.panel} />}
-        {sidePanel === 'lyrics' && <LyricsPanel className={styles.panel} />}
-        <ControlBar className={styles.controls} />
-      </div>
+      <Workspace onOpenSettings={() => setSettingsOpen(true)} />
       {/* The theme editor takes Settings' place; Settings come back when it closes. */}
       <AnimatePresence>
         {settingsOpen && !themeDraft && <SettingsPanel onClose={() => setSettingsOpen(false)} />}

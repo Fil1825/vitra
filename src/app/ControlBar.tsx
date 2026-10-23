@@ -22,6 +22,8 @@ import { useTranslation } from 'react-i18next';
 import { Glass } from '../components/Glass/index.ts';
 import { IconButton } from '../components/ui/IconButton.tsx';
 import { Slider } from '../components/ui/Slider.tsx';
+import { isShown } from '../layout/model.ts';
+import { setModuleShown, toggleModule, useLayout } from '../layout/state.ts';
 import { formatTime } from '../lib/format.ts';
 import { library } from '../lib/library.ts';
 import { mini } from '../lib/mini.ts';
@@ -61,12 +63,11 @@ export function ControlBar({ className }: { className?: string }) {
   const { t } = useTranslation();
   const state = usePlayer((s) => s.state);
   const queueState = useQueue((s) => s.queue);
-  const sidePanel = useUi((s) => s.sidePanel);
-  const togglePanel = useUi((s) => s.togglePanel);
+  const layout = useLayout();
   const viewArtwork = useUi((s) => s.viewArtwork);
   const lyricsVisible = useSettings((s) => s.settings.lyrics.visible);
-  const queueOpen = sidePanel === 'queue';
-  const lyricsOpen = lyricsVisible && sidePanel === 'lyrics';
+  const queueOpen = isShown(layout, 'queue');
+  const lyricsOpen = lyricsVisible && isShown(layout, 'lyrics');
   const go = useNavigation((s) => s.go);
   const libraryTrack = useCurrentLibraryTrack();
   const position = useLivePosition();
@@ -265,14 +266,12 @@ export function ControlBar({ className }: { className?: string }) {
           aria-pressed={lyricsOpen}
           className={lyricsOpen ? styles.on : undefined}
           onClick={() => {
-            // Hidden lyrics come back in the panel, wherever they were hidden.
+            // Hidden lyrics come back in their panel, wherever they were hidden.
             if (!lyricsVisible) {
               setLyricsVisible(true);
-              if (sidePanel !== 'lyrics') {
-                togglePanel('lyrics');
-              }
+              setModuleShown('lyrics', true);
             } else {
-              togglePanel('lyrics');
+              toggleModule('lyrics');
             }
           }}
         >
@@ -282,7 +281,7 @@ export function ControlBar({ className }: { className?: string }) {
           label={t(queueOpen ? 'player.hideQueue' : 'player.showQueue')}
           aria-pressed={queueOpen}
           className={queueOpen ? styles.on : undefined}
-          onClick={() => togglePanel('queue')}
+          onClick={() => toggleModule('queue')}
         >
           <ListMusic size={17} />
         </IconButton>

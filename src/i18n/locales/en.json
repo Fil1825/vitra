@@ -588,5 +588,50 @@
     "cssRemoved": "Left out: {{list}}",
     "opacityOf": "{{name}} opacity",
     "hexOf": "{{name}} hex code"
+  },
+  "layout": {
+    "title": "Layout",
+    "hint": "Move panels between the window’s columns and bars, hide them, and keep layouts you like.",
+    "customizeButton": "Customize…",
+    "customize": "Customize Layout",
+    "modules": {
+      "sidebar": "Sidebar",
+      "queue": "Queue",
+      "lyrics": "Lyrics",
+      "artwork": "Artwork",
+      "controls": "Player Controls",
+      "level": "Level Meter"
+    },
+    "zones": {
+      "left": "Left Column",
+      "right": "Right Column",
+      "top": "Top Bar",
+      "bottom": "Bottom Bar"
+    },
+    "move": "Move",
+    "moveTo": {
+      "left": "To the Left Column",
+      "right": "To the Right Column",
+      "top": "To the Top Bar",
+      "bottom": "To the Bottom Bar"
+    },
+    "hide": "Hide",
+    "resize": "Resize",
+    "showHint": "Click to show, or drag it into place",
+    "allShown": "Every module is on screen",
+    "presetsButton": "Layouts",
+    "presets": {
+      "classic": "Classic",
+      "focus": "Just the Music",
+      "lyrics": "Lyrics Beside",
+      "artwork": "Artwork Under the Sidebar",
+      "topBar": "Controls on Top"
+    },
+    "savePreset": "Save This Layout…",
+    "deletePreset": "Delete a Layout",
+    "presetName": "Layout name",
+    "save": "Save",
+    "reset": "Reset",
+    "done": "Done"
   }
 }
