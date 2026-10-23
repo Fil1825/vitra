@@ -1,6 +1,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
 import type { AudioFormat } from './links.ts';
+import type { MiniMode, MiniSize } from './mini.ts';
 
 // Mirrors `Settings` in src-tauri/src/settings.rs, which owns and persists them.
 
@@ -73,13 +74,34 @@ export interface LyricsSettings {
   showTranslation: boolean;
 }
 
+export interface MiniPlayerSettings {
+  mode: MiniMode;
+  size: MiniSize;
+  alwaysOnTop: boolean;
+  /** macOS: above full-screen apps too (the Dock icon goes while it is the only window). */
+  overFullScreen: boolean;
+  /** Opacity of the glass background (0.2–1); artwork, text and buttons stay solid. */
+  opacity: number;
+  snapToEdges: boolean;
+  /** Opens where it was, at the size each mode had. */
+  rememberPosition: boolean;
+  /** Clicks go through; holding ⌥ (Alt) over it makes it usable. */
+  clickThrough: boolean;
+  /** Opening the mini player hides the main window. */
+  hideMainWindow: boolean;
+}
+
 export interface Settings {
   language: Language;
   appearance: AppearanceSettings;
   library: LibrarySettings;
   downloads: DownloadSettings;
   lyrics: LyricsSettings;
+  miniPlayer: MiniPlayerSettings;
 }
+
+/** The range of the mini player's background opacity. */
+export const MINI_OPACITY_MIN = 0.2;
 
 export const FONT_SCALE_MIN = 0.7;
 export const FONT_SCALE_MAX = 1.6;
@@ -106,6 +128,17 @@ export const DEFAULT_SETTINGS: Settings = {
     cookiesFromBrowser: '',
   },
   lyrics: { online: false, fontScale: 1, showTranslation: true },
+  miniPlayer: {
+    mode: 'compact',
+    size: 'medium',
+    alwaysOnTop: true,
+    overFullScreen: false,
+    opacity: 1,
+    snapToEdges: true,
+    rememberPosition: true,
+    clickThrough: false,
+    hideMainWindow: true,
+  },
 };
 
 /** Tauri event carrying the new settings after any window changed them. */

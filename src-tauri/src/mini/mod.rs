@@ -256,37 +256,32 @@ impl MiniPlayer {
 
     /// Sizes the window for its mode and puts it where it was (or near the bottom right).
     fn place(&self, window: &WebviewWindow, settings: &MiniPlayerSettings) -> Result<(), AppError> {
-        self.size_for_mode(window, settings)?;
-        let areas = work_areas(window);
+        let logical = self.size_for_mode(window, settings)?;
+        // From the size just set: a new window reports its old size for a moment.
+        let Some(monitor) = window.primary_monitor()?.or(window.current_monitor()?) else {
+            return Ok(());
+        };
+        let size = tauri::LogicalSize::new(logical.width, logical.height)
+            .to_physical::<u32>(monitor.scale_factor());
         let saved = lock(&self.0.saved).position;
-        let size = window.outer_size()?;
         let position = saved.filter(|&(x, y)| {
             settings.remember_position
-                && geometry::reachable(rect(PhysicalPosition::new(x, y), size), &areas)
+                && geometry::reachable(rect(PhysicalPosition::new(x, y), size), &work_areas(window))
         });
-        let (x, y) = match position {
-            Some(position) => position,
-            None => {
-                let area = window
-                    .primary_monitor()?
-                    .map(|monitor| work_area(&monitor))
-                    .or_else(|| areas.first().copied());
-                match area {
-                    Some(area) => geometry::default_position(size.width, size.height, area),
-                    None => return Ok(()),
-                }
-            }
-        };
+        let (x, y) = position.unwrap_or_else(|| {
+            geometry::default_position(size.width, size.height, work_area(&monitor))
+        });
         window.set_position(PhysicalPosition::new(x, y))?;
         Ok(())
     }
 
-    /// Limits and size of the current mode: the size it had, else the preset's.
+    /// Limits and size of the current mode: the size it had, else the preset's. Returns the
+    /// size set.
     fn size_for_mode(
         &self,
         window: &WebviewWindow,
         settings: &MiniPlayerSettings,
-    ) -> Result<(), AppError> {
+    ) -> Result<Size, AppError> {
         let mode = settings.mode;
         let (min, max) = mode.limits();
         // Lowering the minimum first lets a smaller mode's size through.
@@ -299,7 +294,7 @@ impl MiniPlayer {
             .map(|size| geometry::clamp_size(mode, size));
         let size = remembered.unwrap_or_else(|| geometry::preset_size(mode, settings.size));
         window.set_size(logical(size))?;
-        Ok(())
+        Ok(size)
     }
 
     /// Applies changed settings to an open window.

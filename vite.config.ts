@@ -25,6 +25,13 @@ export default defineConfig({
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
     // Assets load from disk inside the app, so the web-oriented 500 kB warning doesn't apply.
     chunkSizeWarningLimit: 1500,
+    // One HTML entry per window; shared code goes into common chunks.
+    rollupOptions: {
+      input: {
+        main: 'index.html',
+        mini: 'mini.html',
+      },
+    },
   },
   test: {
     include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.mjs'],

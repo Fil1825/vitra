@@ -26,7 +26,6 @@ import {
   lineAt,
   lineEnd,
   lyricsApi,
-  wordProgress,
   type Lyrics,
   type LyricsLine,
 } from '../../lib/lyrics.ts';
@@ -34,9 +33,11 @@ import { player } from '../../lib/player.ts';
 import { FONT_SCALE_MAX, FONT_SCALE_MIN } from '../../lib/settings.ts';
 import { useAppearance } from '../../stores/appearance.ts';
 import { useLyrics } from '../../stores/lyrics.ts';
-import { livePosition, usePlayer } from '../../stores/player.ts';
+import { usePlayer } from '../../stores/player.ts';
 import { useSettings } from '../../stores/settings.ts';
 import { openLyricsEditor } from './actions.ts';
+import { lyricsClock, useFrames } from './clock.ts';
+import { Karaoke } from './Karaoke.tsx';
 import styles from './LyricsView.module.css';
 
 const report = (what: string) => (err: unknown) => console.error(`${what} failed`, err);
@@ -45,31 +46,6 @@ const report = (what: string) => (err: unknown) => console.error(`${what} failed
 const BROWSE_MS = 3000;
 const OFFSET_STEP = 100;
 const SCALE_STEP = 0.1;
-
-/** The playing position in lyrics time (milliseconds), read fresh on every call. */
-function lyricsClock(offsetMs: number): number {
-  const { state, positionAt } = usePlayer.getState();
-  return livePosition(state, positionAt, performance.now()) * 1000 - offsetMs;
-}
-
-/** Calls `tick` every frame while playing, and on every player update while paused. */
-function useFrames(tick: () => void): void {
-  const playing = usePlayer((s) => s.state.status === 'playing');
-  useEffect(() => {
-    let frame = 0;
-    const loop = () => {
-      tick();
-      frame = requestAnimationFrame(loop);
-    };
-    if (playing) {
-      loop();
-      return () => cancelAnimationFrame(frame);
-    }
-    tick();
-    // Seeks while paused.
-    return usePlayer.subscribe(tick);
-  }, [playing, tick]);
-}
 
 /** The playing track's lyrics: synced ones follow playback, plain ones just scroll. */
 export function LyricsView({
@@ -342,7 +318,12 @@ function SyncedLyrics({
               onClick={() => seek(line)}
             >
               {index === active && line.words.length > 0 ? (
-                <Karaoke line={line} end={lineEnd(lyrics, index)} offsetMs={offsetMs} />
+                <Karaoke
+                  line={line}
+                  end={lineEnd(lyrics, index)}
+                  offsetMs={offsetMs}
+                  className={styles.text}
+                />
               ) : (
                 <span className={styles.text}>{line.text}</span>
               )}
@@ -370,42 +351,5 @@ function Gap({ index, active }: { index?: number; active: boolean }) {
       <span />
       <span />
     </div>
-  );
-}
-
-/** The playing line with word timings: sung words light up, the current one fills in. */
-function Karaoke({ line, end, offsetMs }: { line: LyricsLine; end: number; offsetMs: number }) {
-  const wordsRef = useRef<HTMLSpanElement>(null);
-
-  // Updated outside React: a re-render per frame for one line isn't worth it.
-  useFrames(
-    useCallback(() => {
-      const spans = wordsRef.current?.children;
-      if (!spans) {
-        return;
-      }
-      const { index, fraction } = wordProgress(line, end, lyricsClock(offsetMs));
-      for (let i = 0; i < spans.length; i++) {
-        const span = spans[i] as HTMLElement;
-        const state = i < index ? 'sung' : i === index ? 'singing' : 'upcoming';
-        if (span.dataset.state !== state) {
-          span.dataset.state = state;
-        }
-        if (i === index) {
-          // The soft edge of the fill runs from just before the word to just past it.
-          span.style.setProperty('--fill', `${(fraction * 116 - 16).toFixed(1)}%`);
-        }
-      }
-    }, [line, end, offsetMs]),
-  );
-
-  return (
-    <span ref={wordsRef} className={styles.text}>
-      {line.words.map((word, index) => (
-        <span key={index} className={styles.word} data-state="upcoming">
-          {word.text}
-        </span>
-      ))}
-    </span>
   );
 }

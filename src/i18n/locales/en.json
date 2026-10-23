@@ -183,6 +183,22 @@
       "onlineHint": "When a song has no lyrics, look them up on LRCLIB (lrclib.net). The song’s title, artist, album and length are sent there.",
       "translation": "Show translations",
       "translationHint": "Lyrics sometimes carry a translation under each line."
+    },
+    "mini": {
+      "title": "Mini Player",
+      "open": "Open Mini Player ({{shortcut}})",
+      "mode": "Mode",
+      "sizeHint": "You can also drag its edges; each mode keeps its own size.",
+      "opacityHint": "How much of the glass behind it shows; the artwork, text and buttons stay solid.",
+      "opacityLinux": "Linux windows aren't see-through, so this changes nothing here.",
+      "overFullScreen": "Over Full-Screen Apps",
+      "overFullScreenHint": "macOS only lets apps without a Dock icon float over another app's full screen, so Vitra's icon goes away while the mini player is its only window.",
+      "clickThroughHint": "Clicks go to the windows below. Hold {{key}} over the mini player to use it.",
+      "clickThroughLinux": "Clicks go to the windows below. To use the mini player again, switch this off here.",
+      "snapToEdges": "Snap to Screen Edges",
+      "rememberPosition": "Remember Position and Size",
+      "hideMainWindow": "Hide the Main Window",
+      "hideMainWindowHint": "Like Apple Music's MiniPlayer: the main window comes back when you close the mini player or click the Dock icon."
     }
   },
   "library": {
@@ -421,5 +437,29 @@
     "view": "Show artwork",
     "close": "Close",
     "missing": "No artwork"
+  },
+  "mini": {
+    "title": "Mini Player",
+    "open": "Mini Player",
+    "expand": "Show Vitra",
+    "close": "Close Mini Player",
+    "quit": "Quit Vitra",
+    "modes": {
+      "compact": "Compact",
+      "slim": "Slim Bar",
+      "lyrics": "Lyrics Only"
+    },
+    "size": "Size",
+    "sizes": {
+      "small": "Small",
+      "medium": "Medium",
+      "large": "Large"
+    },
+    "opacity": "Background Opacity",
+    "alwaysOnTop": "Always on Top",
+    "clickThrough": "Click Through",
+    "noLyrics": "no lyrics",
+    "lyricsLoading": "looking for lyrics…",
+    "lyricsNotSynced": "lyrics aren't synced"
   }
 }

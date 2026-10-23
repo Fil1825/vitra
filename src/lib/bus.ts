@@ -36,6 +36,8 @@ export interface VitraEvents {
   'lyrics:changed': CurrentLyrics;
   /** Another line of the lyrics started playing. */
   'lyrics:line': LineUpdate;
+  /** The mini player with click-through on takes clicks right now (⌥ / Alt held over it). */
+  'mini:interactive': boolean;
 }
 
 export type Handler<T> = (payload: T) => void;

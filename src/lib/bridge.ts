@@ -26,6 +26,7 @@ import {
   type PositionUpdate,
   type Track,
 } from './player.ts';
+import { MINI_INTERACTIVE_EVENT } from './mini.ts';
 import { QUEUE_CHANGED_EVENT, type QueueState } from './queue.ts';
 import { EFFECTS_CHANGED_EVENT, type WindowEffects } from './window.ts';
 
@@ -60,6 +61,9 @@ export async function startBackendBridge(): Promise<UnlistenFn> {
       bus.emit('lyrics:changed', event.payload),
     ),
     listen<LineUpdate>(LYRICS_LINE_EVENT, (event) => bus.emit('lyrics:line', event.payload)),
+    getCurrentWindow().listen<boolean>(MINI_INTERACTIVE_EVENT, (event) =>
+      bus.emit('mini:interactive', event.payload),
+    ),
   ]);
   return () => unlisten.forEach((fn) => fn());
 }
