@@ -29,6 +29,24 @@
           "x": 23,
           "y": 33
         }
+      },
+      {
+        "label": "mini",
+        "create": false,
+        "url": "mini.html",
+        "title": "Vitra Mini Player",
+        "width": 380,
+        "height": 124,
+        "visible": false,
+        "decorations": false,
+        "transparent": true,
+        "resizable": true,
+        "maximizable": false,
+        "minimizable": false,
+        "skipTaskbar": true,
+        "alwaysOnTop": true,
+        "shadow": true,
+        "acceptFirstMouse": true
       }
     ],
     "security": {

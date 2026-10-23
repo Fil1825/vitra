@@ -5,9 +5,10 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use serde::Serialize;
-use tauri::{App, AppHandle, Emitter, Manager, State, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow, WebviewWindowBuilder};
 
-use crate::settings::WindowMaterial;
+use crate::mini;
+use crate::settings::{SettingsStore, WindowMaterial};
 
 /// Emitted to a window with its new [`WindowEffects`] after the material changed.
 pub const EFFECTS_CHANGED: &str = "window://effects-changed";
@@ -29,7 +30,7 @@ pub enum Vibrancy {
 ///
 /// Windows are transparent so the system backdrop shows through, except on Linux: there is no
 /// vibrancy to show, and without a compositor a transparent window renders black.
-pub fn create_from_config(app: &App, label: &str) -> tauri::Result<WebviewWindow> {
+pub fn create_from_config(app: &AppHandle, label: &str) -> tauri::Result<WebviewWindow> {
     let mut config = app
         .config()
         .app
@@ -39,7 +40,40 @@ pub fn create_from_config(app: &App, label: &str) -> tauri::Result<WebviewWindow
         .cloned()
         .ok_or_else(|| tauri::Error::WindowNotFound)?;
     config.transparent = cfg!(not(target_os = "linux"));
-    WebviewWindowBuilder::from_config(app.handle(), &config)?.build()
+    WebviewWindowBuilder::from_config(app, &config)?.build()
+}
+
+/// What a window's system backdrop should be.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Backdrop {
+    pub material: WindowMaterial,
+    /// Corner radius (points) for a borderless window that draws its own rounded shape.
+    pub radius: f64,
+    /// Below 1 the backdrop fades while the page stays as it is (macOS); elsewhere the
+    /// window goes without one and the page tints itself.
+    pub alpha: f64,
+}
+
+impl Backdrop {
+    /// A normal window: square corners (the system rounds them), fully there.
+    pub fn plain(material: WindowMaterial) -> Self {
+        Self {
+            material,
+            radius: 0.0,
+            alpha: 1.0,
+        }
+    }
+
+    /// The backdrop the settings give the window labelled `label`.
+    pub fn for_window(app: &AppHandle, label: &str) -> Self {
+        let settings = app.state::<SettingsStore>().get();
+        let material = settings.appearance.window_material;
+        if label == mini::LABEL {
+            mini::backdrop(material, &settings.mini_player)
+        } else {
+            Self::plain(material)
+        }
+    }
 }
 
 /// Effects applied per window label, so the frontend can paint an opaque base where needed.
@@ -47,9 +81,9 @@ pub fn create_from_config(app: &App, label: &str) -> tauri::Result<WebviewWindow
 pub struct WindowEffectsState(Mutex<HashMap<String, Vibrancy>>);
 
 impl WindowEffectsState {
-    /// Applies the system backdrop for `material`; must run on the main thread (AppKit).
-    pub fn apply(&self, window: &WebviewWindow, material: WindowMaterial) {
-        let vibrancy = apply_backdrop(window, material);
+    /// Applies a system backdrop; must run on the main thread (AppKit).
+    pub fn apply(&self, window: &WebviewWindow, backdrop: Backdrop) {
+        let vibrancy = apply_backdrop(window, backdrop);
         log::info!("window '{}': backdrop {vibrancy:?}", window.label());
         self.0
             .lock()
@@ -66,7 +100,7 @@ impl WindowEffectsState {
             .unwrap_or(Vibrancy::None)
     }
 
-    fn effects(&self, label: &str) -> WindowEffects {
+    pub fn effects(&self, label: &str) -> WindowEffects {
         WindowEffects {
             platform: std::env::consts::OS,
             vibrancy: self.get(label),
@@ -75,19 +109,27 @@ impl WindowEffectsState {
     }
 }
 
-/// Re-applies the backdrop of every window after the material setting changed, then tells each
-/// window what it got (Liquid Glass falls back to vibrancy before macOS 26).
-pub fn reapply_all(app: &AppHandle, material: WindowMaterial) {
+/// Re-applies the backdrop of every window after the settings changed, then tells each window
+/// what it got (Liquid Glass falls back to vibrancy before macOS 26).
+pub fn reapply_all(app: &AppHandle) {
+    for label in app.webview_windows().into_keys() {
+        reapply(app, &label);
+    }
+}
+
+/// Re-applies one window's backdrop and tells it what it got.
+pub fn reapply(app: &AppHandle, label: &str) {
     let handle = app.clone();
+    let label = label.to_owned();
     // AppKit views may only be touched on the main thread; commands run on a worker thread.
     let result = app.run_on_main_thread(move || {
+        let Some(window) = handle.get_webview_window(&label) else {
+            return;
+        };
         let state = handle.state::<WindowEffectsState>();
-        for (label, window) in handle.webview_windows() {
-            state.apply(&window, material);
-            if let Err(err) = handle.emit_to(label.as_str(), EFFECTS_CHANGED, state.effects(&label))
-            {
-                log::warn!("cannot notify window '{label}' about its backdrop: {err}");
-            }
+        state.apply(&window, Backdrop::for_window(&handle, &label));
+        if let Err(err) = handle.emit_to(label.as_str(), EFFECTS_CHANGED, state.effects(&label)) {
+            log::warn!("cannot notify window '{label}' about its backdrop: {err}");
         }
     });
     if let Err(err) = result {
@@ -96,7 +138,7 @@ pub fn reapply_all(app: &AppHandle, material: WindowMaterial) {
 }
 
 #[cfg(target_os = "macos")]
-fn apply_backdrop(window: &WebviewWindow, material: WindowMaterial) -> Vibrancy {
+fn apply_backdrop(window: &WebviewWindow, backdrop: Backdrop) -> Vibrancy {
     use window_vibrancy::{
         LiquidGlassOptions, NSGlassEffectViewStyle, NSVisualEffectMaterial, NSVisualEffectState,
     };
@@ -109,8 +151,11 @@ fn apply_backdrop(window: &WebviewWindow, material: WindowMaterial) -> Vibrancy 
         log::debug!("clearing vibrancy: {err}");
     }
 
-    if material == WindowMaterial::LiquidGlass {
-        let options = LiquidGlassOptions::new(NSGlassEffectViewStyle::Regular);
+    // Liquid Glass moves the page into its own view, so fading it would fade the page too:
+    // a faded backdrop is always vibrancy.
+    if backdrop.material == WindowMaterial::LiquidGlass && backdrop.alpha >= 1.0 {
+        let options =
+            LiquidGlassOptions::new(NSGlassEffectViewStyle::Regular).radius(backdrop.radius);
         match window_vibrancy::apply_liquid_glass(window, options) {
             Ok(()) => return Vibrancy::LiquidGlass,
             Err(err) => log::warn!("Liquid Glass unavailable, using vibrancy: {err}"),
@@ -122,9 +167,12 @@ fn apply_backdrop(window: &WebviewWindow, material: WindowMaterial) -> Vibrancy 
         window,
         NSVisualEffectMaterial::UnderWindowBackground,
         Some(NSVisualEffectState::Active),
-        None,
+        (backdrop.radius > 0.0).then_some(backdrop.radius),
     ) {
-        Ok(()) => Vibrancy::Macos,
+        Ok(()) => {
+            mini::platform::set_backdrop_alpha(window, backdrop.alpha);
+            Vibrancy::Macos
+        }
         Err(err) => {
             log::warn!("macOS vibrancy unavailable: {err}");
             Vibrancy::None
@@ -133,9 +181,16 @@ fn apply_backdrop(window: &WebviewWindow, material: WindowMaterial) -> Vibrancy 
 }
 
 #[cfg(target_os = "windows")]
-fn apply_backdrop(window: &WebviewWindow, _material: WindowMaterial) -> Vibrancy {
-    // Mica needs Windows 11; Acrylic covers Windows 10. `None` follows the window theme.
-    if window_vibrancy::apply_mica(window, None).is_ok() {
+fn apply_backdrop(window: &WebviewWindow, backdrop: Backdrop) -> Vibrancy {
+    let _ = window_vibrancy::clear_mica(window);
+    let _ = window_vibrancy::clear_acrylic(window);
+    // Neither material fades: a see-through window goes without one, the page tints itself.
+    if backdrop.alpha < 1.0 {
+        return Vibrancy::None;
+    }
+    // Mica needs Windows 11 and a normal frame; Acrylic covers Windows 10 and borderless
+    // windows. `None` follows the window theme.
+    if backdrop.radius <= 0.0 && window_vibrancy::apply_mica(window, None).is_ok() {
         return Vibrancy::Mica;
     }
     match window_vibrancy::apply_acrylic(window, Some((18, 18, 18, 125))) {
@@ -148,7 +203,7 @@ fn apply_backdrop(window: &WebviewWindow, _material: WindowMaterial) -> Vibrancy
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-fn apply_backdrop(_window: &WebviewWindow, _material: WindowMaterial) -> Vibrancy {
+fn apply_backdrop(_window: &WebviewWindow, _backdrop: Backdrop) -> Vibrancy {
     Vibrancy::None
 }
 

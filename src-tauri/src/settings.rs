@@ -18,6 +18,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use crate::error::AppError;
 use crate::library::LibraryService;
 use crate::lyrics::LyricsService;
+use crate::mini::{MiniPlayer, Mode, SizePreset};
 use crate::player::Player;
 use crate::window;
 
@@ -37,7 +38,61 @@ pub struct Settings {
     pub downloads: DownloadSettings,
     #[serde(deserialize_with = "or_default")]
     pub lyrics: LyricsSettings,
+    #[serde(deserialize_with = "or_default")]
+    pub mini_player: MiniPlayerSettings,
 }
+
+/// The mini player window.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct MiniPlayerSettings {
+    #[serde(deserialize_with = "or_default")]
+    pub mode: Mode,
+    #[serde(deserialize_with = "or_default")]
+    pub size: SizePreset,
+    /// Stays above other windows.
+    #[serde(deserialize_with = "or_true")]
+    pub always_on_top: bool,
+    /// macOS: above full-screen apps too. macOS puts an app's windows into another app's
+    /// full-screen space only for apps without a Dock icon, so the icon goes away while only
+    /// the mini player is open.
+    #[serde(deserialize_with = "or_default")]
+    pub over_full_screen: bool,
+    /// How opaque the glass background is (0.2–1); artwork, text and buttons stay solid.
+    #[serde(deserialize_with = "or_default")]
+    pub opacity: f64,
+    /// Edges dropped near the screen's edges snap to them.
+    #[serde(deserialize_with = "or_true")]
+    pub snap_to_edges: bool,
+    /// Opens where it was, at the size each mode had.
+    #[serde(deserialize_with = "or_true")]
+    pub remember_position: bool,
+    /// Clicks go to the windows below; holding ⌥ (Alt) over it makes it usable.
+    #[serde(deserialize_with = "or_default")]
+    pub click_through: bool,
+    /// Opening the mini player hides the main window, as Apple Music's MiniPlayer does.
+    #[serde(deserialize_with = "or_true")]
+    pub hide_main_window: bool,
+}
+
+impl Default for MiniPlayerSettings {
+    fn default() -> Self {
+        Self {
+            mode: Mode::Compact,
+            size: SizePreset::Medium,
+            always_on_top: true,
+            over_full_screen: false,
+            opacity: 1.0,
+            snap_to_edges: true,
+            remember_position: true,
+            click_through: false,
+            hide_main_window: true,
+        }
+    }
+}
+
+/// The range of the mini player's background opacity: below it the glass is gone.
+pub const MINI_OPACITY: std::ops::RangeInclusive<f64> = 0.2..=1.0;
 
 /// The lyrics view and where lyrics come from.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -277,6 +332,12 @@ impl Settings {
         } else {
             1.0
         };
+        let opacity = &mut self.mini_player.opacity;
+        *opacity = if opacity.is_finite() && *opacity > 0.0 {
+            opacity.clamp(*MINI_OPACITY.start(), *MINI_OPACITY.end())
+        } else {
+            1.0
+        };
         self
     }
 }
@@ -366,7 +427,7 @@ pub fn set_settings(
     let previous = store.get();
     let saved = store.set(settings)?;
     if saved.appearance.window_material != previous.appearance.window_material {
-        window::reapply_all(&app, saved.appearance.window_material);
+        window::reapply_all(&app);
     }
     if saved.library.artist_splitting != previous.library.artist_splitting
         && let Some(library) = app.try_state::<LibraryService>()
@@ -382,6 +443,11 @@ pub fn set_settings(
         && let Some(player) = app.try_state::<Player>()
     {
         player.backdrop_pulse_changed();
+    }
+    if saved.mini_player != previous.mini_player
+        && let Some(mini) = app.try_state::<MiniPlayer>()
+    {
+        mini.settings_changed(&previous.mini_player, &saved.mini_player);
     }
     // Turning online lyrics on looks the playing track up right away.
     if saved.lyrics.online
@@ -441,6 +507,17 @@ mod tests {
                 font_scale: 1.2,
                 show_translation: false,
             },
+            mini_player: MiniPlayerSettings {
+                mode: Mode::Lyrics,
+                size: SizePreset::Large,
+                always_on_top: false,
+                over_full_screen: true,
+                opacity: 0.5,
+                snap_to_edges: false,
+                remember_position: false,
+                click_through: true,
+                hide_main_window: false,
+            },
         };
 
         store_in(tmp.path()).set(settings.clone()).unwrap();
@@ -477,7 +554,18 @@ mod tests {
                     "albumTemplate": "{album_artist}/{album}/{track} {title}",
                     "cookiesFromBrowser": ""
                 },
-                "lyrics": { "online": false, "fontScale": 1.0, "showTranslation": true }
+                "lyrics": { "online": false, "fontScale": 1.0, "showTranslation": true },
+                "miniPlayer": {
+                    "mode": "compact",
+                    "size": "medium",
+                    "alwaysOnTop": true,
+                    "overFullScreen": false,
+                    "opacity": 1.0,
+                    "snapToEdges": true,
+                    "rememberPosition": true,
+                    "clickThrough": false,
+                    "hideMainWindow": true
+                }
             })
         );
     }
@@ -567,6 +655,35 @@ mod tests {
             serde_json::from_str(r#"{ "downloads": { "cookiesFromBrowser": "netscape; rm" } }"#)
                 .unwrap();
         assert_eq!(odd.sanitized().downloads.cookies_browser(), None);
+    }
+
+    #[test]
+    fn mini_player_settings_fall_back_and_stay_in_range() {
+        let read = |json: &str| -> MiniPlayerSettings {
+            serde_json::from_str::<Settings>(json)
+                .unwrap()
+                .sanitized()
+                .mini_player
+        };
+        assert_eq!(
+            read(r#"{ "language": "en" }"#),
+            MiniPlayerSettings::default()
+        );
+        let odd = read(
+            r#"{ "miniPlayer": { "mode": "huge", "size": 3, "opacity": 0.05, "alwaysOnTop": "x" } }"#,
+        );
+        assert_eq!(odd.mode, Mode::Compact);
+        assert_eq!(odd.size, SizePreset::Medium);
+        assert_eq!(odd.opacity, 0.2);
+        assert!(odd.always_on_top);
+        assert_eq!(
+            read(r#"{ "miniPlayer": { "opacity": "half" } }"#).opacity,
+            1.0
+        );
+        assert_eq!(
+            read(r#"{ "miniPlayer": { "mode": "slim" } }"#).mode,
+            Mode::Slim
+        );
     }
 
     #[test]
