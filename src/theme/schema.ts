@@ -46,6 +46,8 @@ export const EASINGS = {
 const easingName = z.enum(['standard', 'emphasized', 'linear']);
 
 export const themeSchema = z.object({
+  /** Where an editor finds this schema (docs/theme.schema.json); Vitra ignores it. */
+  $schema: z.string().max(300).optional(),
   schemaVersion: z.literal(1),
   id: z.string().regex(/^[a-z0-9-]{1,64}$/, 'Lowercase letters, digits and hyphens only'),
   name: z.string().min(1).max(64),

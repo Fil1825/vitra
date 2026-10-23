@@ -23,7 +23,7 @@ the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
 | 4   | Links: yt-dlp playback, playlists, downloads           | in review (PR #5) |
 | 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | accepted (PR #6)  |
 | 6   | Mini player                                            | accepted (PR #7)  |
-| 7   | Customization: theme editor, `.vitratheme`, layout     | in progress       |
+| 7   | Customization: theme editor, `.vitratheme`, layout     | in review (PR #8) |
 | 8   | Sound & system: EQ, crossfade, media keys, tray        | not started       |
 | 9   | Playlist import: Spotify, Yandex, VK, Apple Music…     | not started       |
 | 10  | My Wave: mood analysis, endless mood-based queue       | not started       |
@@ -42,6 +42,8 @@ npm run check              # eslint, prettier, tsc, vitest, vite build
 npm run check:rust         # cargo fmt --check, clippy -D warnings, cargo test
 npm run check:all          # both of the above — must pass before every PR
 npm run check:cross        # clippy for aarch64-apple-darwin + x86_64-pc-windows-msvc from Linux
+npm run theme-schema       # regenerate docs/theme.schema.json after changing src/theme/schema.ts
+cargo run -p themes --example pack -- themes/dunes   # pack a theme folder → target/themes/*.vitratheme
 VITRA_MPV_TESTS=1 cargo test -p mpv-ipc   # also run the tests against a real mpv (on PATH)
 VITRA_YTDLP=src-tauri/sidecars/<triple>/yt-dlp cargo test -p links --test real_ytdlp
                                           # real yt-dlp against a local HTTP server (FFmpeg on PATH;
@@ -92,10 +94,16 @@ package.json            frontend + scripts; Tauri CLI is a devDependency
 index.html, mini.html   window entries: main window, mini player
 src/                    React + TypeScript frontend
   main.tsx              boot: backend bridge → settings, environment, player, queue, library,
-                        downloads, lyrics stores → i18n → render
-  app/                  shell layout (TitleBar, Sidebar, NowPlaying, ControlBar),
-                        useAppearanceController (theme vars, effect flags, window theme, language)
-                        and useLevelMeter (asks for the backdrop's music pulse)
+                        downloads, lyrics, themes stores → old panel state into the layout →
+                        i18n → render
+  app/                  the window's parts (TitleBar, Sidebar, NowPlaying, ControlBar),
+                        useAppearanceController (theme vars, user theme CSS, effect flags,
+                        window theme, language) and useLevelMeter (asks for the music's level)
+  layout/               modular layout: model.ts (zones, modules, normalize; pure), state.ts
+                        (in the settings, customize mode), Workspace (zones, resizing, dnd-kit),
+                        Palette (customize mode), presets.ts, modules/ (ArtworkPanel, LevelMeter)
+  shortcuts/            keyboard shortcuts: keys.ts (combinations, labels, focus rules; pure),
+                        actions.ts (actions, defaults, rebinding; pure), run.ts, useShortcuts
   components/           shared UI: Glass/ (glass surface, layer budget, refraction), Backdrop/,
                         ArtworkViewer/ (full-screen artwork), ui/ (IconButton,
                         SegmentedControl, Switch, Slider)
@@ -105,11 +113,15 @@ src/                    React + TypeScript frontend
                         which album a title + artist means), links/ (LinkDialog,
                         DownloadsView, download groups), lyrics/ (LyricsView, LyricsPanel, LyricsEditor +
                         SyncPane, tap-sync model sync.ts, Karaoke + clock.ts shared with the
-                        mini player), settings/
+                        mini player), settings/ (+ ShortcutSettings), themes/ (ThemeEditor,
+                        fields, editor.ts: the draft; actions.ts: import, export, duplicate)
   stores/               zustand stores: settings (mirror of Rust), environment, appearance,
                         player, queue, library (scan status), downloads, lyrics, navigation
-                        (routes), ui (sidebar mode, side panel, dialogs, artwork viewer)
-  theme/                zod schema, built-in themes (builtin/*.json), tokens → CSS vars, effects
+                        (routes), ui (dialogs, Settings, artwork viewer), themes (installed),
+                        themeEditor (the draft being edited)
+  theme/                zod schema (+ jsonSchema.ts), built-in themes (builtin/*.json), tokens →
+                        CSS vars, effects, user themes (user.ts), custom.css cleaning (css.ts),
+                        color helpers
   i18n/                 i18next setup, locales/en.json + ru.json (typed keys)
   lib/                  IPC wrappers, event bus + backend bridge, hooks, pure helpers
   styles/global.css     base document styles
@@ -118,6 +130,9 @@ src/                    React + TypeScript frontend
 src-tauri/              Tauri app crate (`vitra`, lib `vitra_lib`)
   src/lib.rs            builder, plugins, setup, command registration
   src/settings.rs       Settings struct, JSON persistence, get/set commands
+  src/layout.rs         the layout in the settings (normalized like the frontend's), presets
+  src/shortcuts.rs      the user's shortcut changes in the settings (kept tidy)
+  src/themes.rs         ThemeStore: installed themes, theme:// scheme, import/export commands
   src/window.rs         window creation from config, vibrancy / Mica / Acrylic
   src/error.rs          AppError (serializes to a message for the frontend)
   src/mini/             mini player window: show/hide and the main window, sizes per mode,
@@ -153,13 +168,16 @@ crates/                 pure-Rust crates testable without WebKit
                         and folder templates, progress lines, download state machine,
                         YtDlp runner and error classes (fixtures + opt-in real tests in
                         tests/)
+  themes/               .vitratheme packages: safe reading (sizes, names), writing, installing;
+                        examples/pack.rs packs a theme folder; tests/ packs the examples
 scripts/
   fetch-sidecars.mjs    downloader (I/O)
   record-ytdlp-fixtures.sh  real yt-dlp recordings for crates/links (needs YouTube)
   sidecars/plan.mjs     what to download per target (pure, unit-tested)
+  theme-schema.ts       writes docs/theme.schema.json from the zod schema (`npm run theme-schema`)
 assets/brand/           logo, app icon source, mono tray icon, palette (see its README)
-docs/                   PLAN.md; later THEMES.md, theme.schema.json
-themes/                 (stage 7) example themes
+docs/                   PLAN.md, THEMES.md (theme format), theme.schema.json (generated)
+themes/                 example themes (sources: theme.json, custom.css, assets/)
 .github/workflows/      CI
 ```
 
@@ -247,7 +265,8 @@ themes/                 (stage 7) example themes
    stores, Motion for animation, Lucide icons — each added in the stage that first needs it.
 9. **Multiple windows** = multiple Vite HTML entries (`index.html`, `mini.html`).
 10. **Security**: strict CSP in production (`script-src 'self'`), no remote scripts. Themes are
-    data (JSON + CSS + assets), never JavaScript; `custom.css` is sanitized on import.
+    data (JSON + CSS + assets), never JavaScript; `custom.css` is sanitized on import and
+    when applied (key decision 30).
     `devCsp` is `null` because Vite's dev server injects inline scripts — check CSP-sensitive
     work with `npm run tauri build`.
 11. **Persistence**: SQLite (`rusqlite`, bundled, FTS5) in the app data dir (`library.db`, WAL)
@@ -453,11 +472,13 @@ artist_id, position)`; `tracks.artist_id` stays the first (main) one, and an alb
     (`lib/reorder.ts`) because HTML5 drag and drop clashes with the window's file drop.
 25. License **GPL-3.0-or-later** (compatible with mpv). Bundle identifier
     `io.github.fil1825.vitra`. macOS minimum **14.0** (official mpv builds require it).
-26. **Sidebar** (`stores/ui.ts`): `expanded` / `rail` (icons, labels as tooltips, playlists as
-    monograms) / `hidden`, switched by the title bar button or ⌥⌘S / Ctrl+Alt+S (matched by
-    `event.code`, because Option changes `key` on macOS) and kept in `localStorage`. On
-    macOS the rail is 88 px so the traffic lights stay on it, and with no sidebar the title
-    bar leaves 84 px for them. ⌘F opens the full sidebar with the search field focused.
+26. **Sidebar** (`layout/state.ts`): `expanded` / `rail` (icons, labels as tooltips, playlists
+    as monograms) / `hidden`, switched by the title bar button or ⌥⌘S / Ctrl+Alt+S. It is the
+    layout's sidebar module (hidden = not shown, `layout.sidebar` = full or rail); the
+    `localStorage` values of stage 5 move into the layout once (`adoptOldPanels`). On macOS
+    the rail is 88 px so the traffic lights stay on it; whatever else sits in the window's
+    top-left corner leaves 84 px for them (`Workspace`, `data-lights`). ⌘F opens the full
+    sidebar with the search field focused.
 27. **Full-screen artwork** (`components/ArtworkViewer`): shows the cached image at once,
     then the original from `artwork_original` (track path or album id; links use their
     thumbnail or album cover), served unscaled by `ArtworkStore::insert_original`.
@@ -508,6 +529,63 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
       (80 ms, only while it is on and shown) reads the pointer and `NSEvent.modifierFlags` /
       `GetAsyncKeyState` and emits `mini://interactive` (bus `mini:interactive`, an accent
       ring). Linux can't read the key: turned off in Settings there.
+30. **User themes** (`crates/themes`, `src-tauri/src/themes.rs`, `theme/user.ts`,
+    `features/themes`, `docs/THEMES.md`):
+    - A `.vitratheme` is a zip of `theme.json`, `custom.css` and `assets/` (pictures without
+      SVG, fonts). Rust reads it with every size capped as it is read, takes only well-named
+      files (a path that could escape refuses the package), and installs it unpacked into
+      `<app data>/themes/<id>/` through a staging folder. The frontend checks `theme.json`
+      against the zod schema and cleans `custom.css` (`theme/css.ts`: `url()` only for the
+      theme's assets, no `@import`/`image-set`/script hooks; a linear scan, strings set
+      aside first) before installing and again when applying it.
+    - Import is two steps (`theme_open` keeps the read package under a token, the frontend
+      decides, `theme_install` writes it): a built-in id gets another, an installed one is
+      replaced or kept beside; a theme with a layout asks before changing the window.
+    - Assets reach the page through `theme://localhost/<id>/<name>` (`http://theme.localhost`
+      on Windows), only for installed themes' assets; CSP allows it in `img-src`/`font-src`.
+      Fonts become `@font-face` rules and the cleaned CSS a `<style id="vitra-theme-css">`.
+    - The editor (`ThemeEditor`, a panel over the window in Settings' place) edits a draft
+      (`stores/themeEditor.ts`) that `useAppearanceController` applies live; Save writes the
+      installed theme, closing with changes asks. New Theme copies the theme in use.
+    - Example themes are sources in `themes/` (fonts under OFL, cut to Latin + Cyrillic);
+      `cargo run -p themes --example pack` makes packages; `crates/themes/tests/examples.rs`
+      and `src/theme/examples.test.ts` keep them valid.
+    - Stable hooks for `custom.css`: `data-part` on the modules (`sidebar`, `queue`, `lyrics`,
+      `artwork`, `controls`, `level`), `center`, `header`, `main`, `lyrics-text`, `settings`,
+      `mini`, `backdrop`; `--glass-radius` set on a part rounds its glass. Class names are
+      hashed and never part of the theme API.
+31. **Layout** (`layout/`, `src-tauri/src/layout.rs`, settings `layout` + `layoutPresets`):
+    - Zones and panels (the owner's choice, not a free grid): modules in the left and right
+      columns (sidebar, queue, lyrics, artwork, level) and the top and bottom bars
+      (controls, level) around the main view. `FITS` says where each may go; `hidden`
+      modules keep their place. Column widths 180–560 px, a module's share of its column
+      0.25–4 (`weights`). Both sides normalize the same way (`normalizeLayout`,
+      `Layout: From<Value>`): every module placed exactly once, misplaced ones go home.
+    - `Workspace` is nested flex boxes (see Gotchas on WebKit grids). Columns resize at their
+      inner edge, modules at the line between them; changes show live and save on release.
+    - Customize mode (title bar button, Settings → Layout, a shortcut): dnd-kit drags a module
+      by its frame (`useSortable`) or a hidden one from the palette (`useDraggable`); the drop
+      target is the module under the pointer, else the zone (`dropTarget`: nearest centres
+      mean nothing between zones this different in size); the half dropped on decides
+      before/after. Built-in presets (`presets.ts`) and saved ones (≤ 20, by name).
+    - The queue and lyrics buttons show and hide their modules wherever they are; hidden
+      lyrics (`lyrics.visible`) take their module along.
+    - The level meter module reads `player://level` like the backdrop pulse: the filter is in
+      mpv's chain when either wants it (`Settings::measures_level`), and the window asks for
+      readings while it is visible and the meter shows (`useLevelMeter`).
+32. **Keyboard shortcuts** (`shortcuts/`, `src-tauri/src/shortcuts.rs`, settings `shortcuts`):
+    - Actions (`actions.ts`) with a default combination per platform; the settings keep only
+      the user's changes (`id → combination | null`), so new actions get their defaults.
+      Combinations are `Mod+Ctrl+Alt+Shift+<KeyboardEvent.code>` (`Mod` = ⌘ on macOS, Ctrl
+      elsewhere; `Ctrl` only on macOS), so they don't depend on the keyboard layout or on ⌥
+      changing letters. Rebinding takes the combination from the action that had it and
+      says so; the system's and text editing's combinations are refused (`isReserved`).
+    - One `keydown` listener per window (`useShortcuts('main' | 'mini')`; the mini player runs
+      the playback actions and its own toggle). Plain keys don't act in focused controls or
+      text fields, and editing chords (arrows, ⌘A/C/V/X/Z) not in text fields (`firesIn`); a
+      key a component already handled (`defaultPrevented`) is left alone; held keys repeat
+      only seeking and volume. The recorder in Settings captures keys first and pauses the
+      listener. Global (system-wide) shortcuts come with stage 8.
 
 ## Conventions
 

@@ -91,6 +91,7 @@ export function MiniApp() {
     <Glass
       as="main"
       className={styles.mini}
+      data-part="mini"
       data-mode={settings.mode}
       data-click-through={settings.clickThrough && !interactive ? '' : undefined}
       data-interactive={settings.clickThrough && interactive ? '' : undefined}

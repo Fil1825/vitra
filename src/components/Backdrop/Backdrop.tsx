@@ -39,7 +39,13 @@ export function Backdrop({ colors, artworkUrl, picture }: BackdropProps) {
     : undefined;
 
   return (
-    <div ref={root} className={styles.backdrop} style={style} aria-hidden="true">
+    <div
+      ref={root}
+      className={styles.backdrop}
+      data-part="backdrop"
+      style={style}
+      aria-hidden="true"
+    >
       <div className={styles.base} />
       {picture && (
         <div

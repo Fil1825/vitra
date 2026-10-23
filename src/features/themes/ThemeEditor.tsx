@@ -645,7 +645,7 @@ function CssField({ draft }: { draft: ThemeDraft }) {
         aria-label={t('themeEditor.css')}
         spellCheck={false}
         value={draft.css ?? ''}
-        placeholder={'[data-part="controls"] {\n  border-radius: 999px;\n}'}
+        placeholder={'[data-part="controls"] {\n  --glass-radius: 999px;\n}'}
         onChange={(event) => {
           const css = event.currentTarget.value;
           updateDraft(() => ({ css }));

@@ -65,12 +65,15 @@
   gap: var(--vitra-space-2);
 }
 
+/* Rounded like the glass inside it, so a theme's shadow or outline on `[data-part]` follows
+   the surface (and `--glass-radius` set there rounds both). */
 .module {
   position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  border-radius: var(--glass-radius, var(--vitra-radius-lg));
 }
 
 .bar > .module {

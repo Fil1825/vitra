@@ -210,6 +210,7 @@ export function LyricsView({
   return (
     <div
       className={`${styles.view} ${className ?? ''}`}
+      data-part="lyrics-text"
       data-variant={variant}
       style={{ '--lyrics-scale': settings.fontScale } as CSSProperties}
     >

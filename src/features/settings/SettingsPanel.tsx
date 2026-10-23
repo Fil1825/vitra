@@ -76,7 +76,13 @@ export function SettingsPanel({ onClose }: { onClose(): void }) {
       exit={{ x: '110%' }}
       transition={{ type: 'spring', stiffness: 380, damping: 38 }}
     >
-      <Glass as="aside" className={styles.panel} aria-label={t('settings.title')} priority={4}>
+      <Glass
+        as="aside"
+        className={styles.panel}
+        data-part="settings"
+        aria-label={t('settings.title')}
+        priority={4}
+      >
         <header className={styles.header}>
           <h2 className={styles.title}>{t('settings.title')}</h2>
           <IconButton label={t('settings.close')} onClick={onClose}>

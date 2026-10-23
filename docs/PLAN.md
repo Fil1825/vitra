@@ -234,6 +234,24 @@ and an explicit list of checks that can only be done on a Mac.
   bottom bars around the main view; modules move between zones, columns resize), not a
   free grid; the theme editor is a **panel over the window**, so the whole app is the
   live preview.
+- Done (PR #8, in review):
+  - Themes: the schema gained fonts, a background picture and a layout; `.vitratheme`
+    import (drop or button; the CSS is cleaned and what was taken out is shown; a theme's
+    layout is offered, not forced), export, duplicate, delete; `crates/themes` reads
+    packages defensively and `theme://` serves installed themes' assets.
+  - The editor: colors, glass, type and fonts, corners and spacing, background (gradient,
+    artwork, picture), motion, `custom.css`, assets; every change shows at once.
+  - Layout: modules in zones (left/right columns, top/bottom bars), resizing columns and
+    the split between modules, customize mode with dnd-kit, built-in and saved presets;
+    two new modules, a big artwork panel and a level meter.
+  - Rebindable shortcuts for every action in Settings, by key position (any keyboard
+    layout); a few new actions (queue, lyrics, shuffle, repeat, customize layout).
+  - Examples in `themes/` (Dunes, Neon Grid, Paper) and `docs/THEMES.md`.
+- **Mac** for stage 7: the glass, refraction fallback and backdrop picture under real
+  vibrancy / Liquid Glass; theme fonts and `theme://` assets in a release build (CSP);
+  the traffic lights next to the top bar or the main view when the sidebar moves; ⌘-based
+  shortcuts and the macOS menu's own (⌘Q, ⌘W, ⌘H, ⌘M stay the system's); dragging modules
+  with a trackpad.
 
 ## Stage 8 — Sound & system
 

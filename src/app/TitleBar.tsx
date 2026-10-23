@@ -51,7 +51,11 @@ export function TitleBar({ className, onOpenSettings }: TitleBarProps) {
   };
 
   return (
-    <header className={`${styles.titleBar} ${className ?? ''}`} data-tauri-drag-region>
+    <header
+      className={`${styles.titleBar} ${className ?? ''}`}
+      data-part="header"
+      data-tauri-drag-region
+    >
       <div className={styles.history}>
         <IconButton
           label={withShortcut(t(`nav.sidebarNext.${nextSidebar}`), shortcut.sidebar)}

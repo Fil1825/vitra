@@ -373,7 +373,13 @@ pub fn install(themes: &Path, id: &str, package: &Package) -> Result<()> {
 
 /// Reads an installed theme back as a package (to export it).
 pub fn read_installed(themes: &Path, id: &str) -> Result<Package> {
-    let dir = theme_dir(themes, id)?;
+    read_folder(&theme_dir(themes, id)?)
+}
+
+/// Reads a theme folder (`theme.json`, `custom.css`, `assets/`) as a package: an installed
+/// theme, or a theme's sources such as the examples in the repository's `themes/`. Assets
+/// whose names a theme can't have are left out (see [`asset_names`]).
+pub fn read_folder(dir: &Path) -> Result<Package> {
     let theme = text(read_file(&dir.join(THEME_FILE), LIMITS.text)?, THEME_FILE)?;
     let css = match read_file(&dir.join(CSS_FILE), LIMITS.text) {
         Ok(bytes) => Some(text(bytes, CSS_FILE)?),
@@ -381,7 +387,7 @@ pub fn read_installed(themes: &Path, id: &str) -> Result<Package> {
         Err(err) => return Err(err),
     };
     let mut assets = BTreeMap::new();
-    for name in asset_names(&dir) {
+    for name in asset_names(dir) {
         let bytes = read_file(&dir.join(ASSETS_DIR).join(&name), LIMITS.asset)?;
         assets.insert(name, bytes);
     }
