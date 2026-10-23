@@ -1,6 +1,10 @@
 import { NowPlaying } from '../../app/NowPlaying.tsx';
+import { useLyrics } from '../../stores/lyrics.ts';
 import { useNavigation } from '../../stores/navigation.ts';
+import { usePlayer } from '../../stores/player.ts';
+import { useUi } from '../../stores/ui.ts';
 import { DownloadsView } from '../links/DownloadsView.tsx';
+import { LyricsView } from '../lyrics/LyricsView.tsx';
 import { AlbumsView } from './AlbumsView.tsx';
 import { AlbumView } from './AlbumView.tsx';
 import { ArtistsView } from './ArtistsView.tsx';
@@ -15,11 +19,7 @@ export function LibraryView() {
   const route = useNavigation((s) => s.route);
   switch (route.view) {
     case 'nowPlaying':
-      return (
-        <div className={styles.nowPlaying}>
-          <NowPlaying />
-        </div>
-      );
+      return <NowPlayingStage />;
     case 'recent':
       return <AlbumsView recent />;
     case 'albums':
@@ -41,4 +41,18 @@ export function LibraryView() {
     case 'search':
       return <SearchView query={route.query} />;
   }
+}
+
+/** The playing track, with its lyrics beside it when it has some (and the panel doesn't). */
+function NowPlayingStage() {
+  const trackId = usePlayer((s) => s.state.track?.id ?? null);
+  const hasLyrics = useLyrics((s) => s.current.trackId === trackId && s.current.status === 'ready');
+  const panelShowsLyrics = useUi((s) => s.sidePanel === 'lyrics');
+  const showLyrics = trackId !== null && hasLyrics && !panelShowsLyrics;
+  return (
+    <div className={styles.nowPlaying} data-lyrics={showLyrics || undefined}>
+      <NowPlaying />
+      {showLyrics && <LyricsView variant="stage" className={styles.stageLyrics} />}
+    </div>
+  );
 }

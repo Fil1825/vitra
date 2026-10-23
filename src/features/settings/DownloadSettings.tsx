@@ -5,13 +5,14 @@ import { useTranslation } from 'react-i18next';
 import { SegmentedControl, type SegmentedOption } from '../../components/ui/SegmentedControl.tsx';
 import {
   downloads,
+  links,
   MP3_BITRATES,
   ytdlp,
   type AudioFormat,
   type YtDlpInfo,
 } from '../../lib/links.ts';
 import { pickFolder } from '../../lib/openFiles.ts';
-import type { DownloadSettings as Values } from '../../lib/settings.ts';
+import { COOKIE_BROWSERS, type DownloadSettings as Values } from '../../lib/settings.ts';
 import { useSettings } from '../../stores/settings.ts';
 import { report } from '../library/actions.ts';
 import styles from './SettingsPanel.module.css';
@@ -89,13 +90,64 @@ function YtDlpUpdate() {
   );
 }
 
+/** A text setting saved when the field loses focus (or on Enter). */
+function TemplateField({
+  label,
+  hint,
+  value,
+  onSave,
+}: {
+  label: string;
+  hint: string;
+  value: string;
+  onSave(value: string): void;
+}) {
+  const [text, setText] = useState(value);
+  // Follow changes saved elsewhere (or normalized by the backend).
+  const [saved, setSaved] = useState(value);
+  if (value !== saved) {
+    setSaved(value);
+    setText(value);
+  }
+  return (
+    <label className={styles.row}>
+      <span className={styles.rowText}>
+        <span>{label}</span>
+        <span className={styles.hint}>{hint}</span>
+      </span>
+      <input
+        className={styles.textInput}
+        value={text}
+        spellCheck={false}
+        onChange={(event) => setText(event.target.value)}
+        onBlur={() => text !== value && onSave(text)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.currentTarget.blur();
+          }
+        }}
+      />
+    </label>
+  );
+}
+
+const BROWSER_NAMES: Record<(typeof COOKIE_BROWSERS)[number], string> = {
+  safari: 'Safari',
+  chrome: 'Chrome',
+  firefox: 'Firefox',
+  edge: 'Edge',
+  brave: 'Brave',
+  chromium: 'Chromium',
+  opera: 'Opera',
+  vivaldi: 'Vivaldi',
+};
+
 /** Where downloads go, in what format and under which file name. */
 export function DownloadSettings() {
   const { t } = useTranslation();
   const values = useSettings((s) => s.settings.downloads);
   const update = useSettings((s) => s.update);
   const [folder, setFolder] = useState<string | null>(null);
-  const [template, setTemplate] = useState(values.template);
 
   const set = (change: Partial<Values>) =>
     void update((current) => ({ ...current, downloads: { ...current.downloads, ...change } }));
@@ -103,13 +155,6 @@ export function DownloadSettings() {
   useEffect(() => {
     downloads.folder().then(setFolder).catch(report('Reading the downloads folder'));
   }, [values.folder]);
-
-  // Follow changes saved elsewhere (or normalized by the backend).
-  const [savedTemplate, setSavedTemplate] = useState(values.template);
-  if (values.template !== savedTemplate) {
-    setSavedTemplate(values.template);
-    setTemplate(values.template);
-  }
 
   const chooseFolder = async () => {
     const chosen = await pickFolder();
@@ -175,26 +220,68 @@ export function DownloadSettings() {
         </div>
       )}
 
+      <TemplateField
+        label={t('settings.downloads.template')}
+        hint={t('settings.downloads.templateHint')}
+        value={values.template}
+        onSave={(template) => set({ template })}
+      />
+      <TemplateField
+        label={t('settings.downloads.albumTemplate')}
+        hint={t('settings.downloads.albumTemplateHint')}
+        value={values.albumTemplate}
+        onSave={(albumTemplate) => set({ albumTemplate })}
+      />
+
       <label className={styles.row}>
         <span className={styles.rowText}>
-          <span>{t('settings.downloads.template')}</span>
-          <span className={styles.hint}>{t('settings.downloads.templateHint')}</span>
+          <span>{t('settings.downloads.cookies')}</span>
+          <span className={styles.hint}>{t('settings.downloads.cookiesHint')}</span>
         </span>
-        <input
+        <select
           className={styles.textInput}
-          value={template}
-          spellCheck={false}
-          onChange={(event) => setTemplate(event.target.value)}
-          onBlur={() => template !== values.template && set({ template })}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.currentTarget.blur();
-            }
-          }}
-        />
+          value={values.cookiesFromBrowser}
+          onChange={(event) => set({ cookiesFromBrowser: event.target.value })}
+        >
+          <option value="">{t('settings.downloads.cookiesNone')}</option>
+          {COOKIE_BROWSERS.map((browser) => (
+            <option key={browser} value={browser}>
+              {BROWSER_NAMES[browser]}
+            </option>
+          ))}
+        </select>
       </label>
 
+      <CookiesAccess browser={values.cookiesFromBrowser} />
       <YtDlpUpdate />
     </div>
+  );
+}
+
+/** Warns when Vitra can't read the chosen browser's cookies (Safari without Full Disk
+ * Access), before a link fails because of it. */
+function CookiesAccess({ browser }: { browser: string }) {
+  const { t } = useTranslation();
+  const [denied, setDenied] = useState<string | null>(null);
+  useEffect(() => {
+    if (!browser) {
+      return;
+    }
+    let current = true;
+    links
+      .cookiesAccess(browser)
+      .then((access) => current && setDenied(access === 'noAccess' ? browser : null))
+      .catch(report('Checking cookie access'));
+    return () => {
+      current = false;
+    };
+  }, [browser]);
+  if (!browser || denied !== browser) {
+    return null;
+  }
+  return (
+    <p className={styles.warning} role="alert">
+      {t('settings.downloads.cookiesNoAccess')}
+    </p>
   );
 }

@@ -46,12 +46,20 @@ pub fn folder_artwork(track: &Path) -> Option<Artwork> {
     })
 }
 
+/// The MIME type of encoded image bytes, if they are an image.
+pub fn image_mime(bytes: &[u8]) -> Option<String> {
+    image::guess_format(bytes)
+        .ok()
+        .map(|format| format.to_mime_type().to_owned())
+}
+
 /// Artwork ready for the UI.
 #[derive(Debug, Clone)]
 pub struct PreparedArtwork {
     /// For display: the original, or a JPEG copy when the original is very large.
     pub image: Artwork,
-    /// A small JPEG for the blurred window background.
+    /// A small JPEG for the window background, already blurred and saturated (see
+    /// [`backdrop_image`]).
     pub thumbnail: Vec<u8>,
     pub palette: Option<Palette>,
 }
@@ -60,6 +68,10 @@ pub struct PreparedArtwork {
 const DISPLAY_MAX: u32 = 1200;
 /// The backdrop blurs heavily, so a tiny image looks the same and costs far less.
 const THUMBNAIL_MAX: u32 = 96;
+/// The backdrop's blur, in pixels of the 96 px image: about what `blur(56px)` was on a
+/// window-sized copy.
+const BACKDROP_BLUR: f32 = 4.0;
+const BACKDROP_SATURATION: f32 = 1.4;
 /// Enough pixels for stable dominant colors.
 const PALETTE_SAMPLE: u32 = 48;
 
@@ -86,7 +98,7 @@ pub fn prepare_artwork(artwork: Artwork) -> Result<PreparedArtwork, MediaError> 
         }
     };
 
-    let thumbnail = encode_jpeg(&decoded.thumbnail(THUMBNAIL_MAX, THUMBNAIL_MAX), 80)?;
+    let thumbnail = encode_jpeg(&backdrop_image(&decoded), 80)?;
     let sample = decoded.thumbnail(PALETTE_SAMPLE, PALETTE_SAMPLE).to_rgb8();
     let palette = extract_palette(sample.pixels().map(|p| p.0));
 
@@ -109,6 +121,46 @@ pub fn cover_thumbnail(bytes: &[u8], max: u32) -> Result<Vec<u8>, MediaError> {
     encode_jpeg(&image, 85)
 }
 
+/// A square JPEG or PNG cover (what every tag format takes) from a thumbnail: its centre, as
+/// wide as it is high. YouTube shows album art inside 16:9 thumbnails, with bars at the
+/// sides; this cuts them off. A square (within 2 %) JPEG or PNG comes back as it is.
+pub fn square_cover(bytes: &[u8]) -> Result<Vec<u8>, MediaError> {
+    let decoded = image::load_from_memory(bytes)?;
+    let (width, height) = decoded.dimensions();
+    let side = width.min(height);
+    let square = side > 0 && width.max(height) - side <= side / 50;
+    let taggable = matches!(
+        image::guess_format(bytes),
+        Ok(image::ImageFormat::Jpeg | image::ImageFormat::Png)
+    );
+    if square && taggable {
+        return Ok(bytes.to_vec());
+    }
+    if square || side == 0 {
+        return encode_jpeg(&decoded, 92);
+    }
+    let cropped = decoded.crop_imm((width - side) / 2, (height - side) / 2, side, side);
+    encode_jpeg(&cropped, 92)
+}
+
+/// The window background's image: small, blurred and saturated here once, so the window only
+/// moves and scales it. A CSS `filter` on a moving layer would be redone on every frame.
+fn backdrop_image(image: &DynamicImage) -> DynamicImage {
+    let small = image.thumbnail(THUMBNAIL_MAX, THUMBNAIL_MAX).to_rgb8();
+    let mut blurred = image::imageops::blur(&small, BACKDROP_BLUR);
+    for pixel in blurred.pixels_mut() {
+        let [r, g, b] = pixel.0.map(f32::from);
+        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        pixel.0 = [r, g, b].map(|c| {
+            // Clamped to a byte's range first, so the cast can't overflow.
+            (luma + (c - luma) * BACKDROP_SATURATION)
+                .round()
+                .clamp(0.0, 255.0) as u8
+        });
+    }
+    DynamicImage::ImageRgb8(blurred)
+}
+
 fn encode_jpeg(image: &DynamicImage, quality: u8) -> Result<Vec<u8>, MediaError> {
     let mut out = Cursor::new(Vec::new());
     JpegEncoder::new_with_quality(&mut out, quality).encode_image(&image.to_rgb8())?;
@@ -118,6 +170,64 @@ fn encode_jpeg(image: &DynamicImage, quality: u8) -> Result<Vec<u8>, MediaError>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn png(width: u32, height: u32) -> Vec<u8> {
+        let mut out = Cursor::new(Vec::new());
+        image::RgbImage::from_fn(width, height, |x, _| {
+            // Black bars at the sides of a 16:9 frame, the "cover" in the middle.
+            if x < (width - height) / 2 || x >= (width + height) / 2 {
+                image::Rgb([0, 0, 0])
+            } else {
+                image::Rgb([200, 40, 40])
+            }
+        })
+        .write_to(&mut out, image::ImageFormat::Png)
+        .unwrap();
+        out.into_inner()
+    }
+
+    #[test]
+    fn the_backdrop_image_comes_blurred() {
+        // Hard edges between the bars and the red middle...
+        let decoded = image::load_from_memory(&png(160, 90)).unwrap();
+        let backdrop = backdrop_image(&decoded).to_rgb8();
+        assert!(backdrop.width() <= THUMBNAIL_MAX && backdrop.height() <= THUMBNAIL_MAX);
+        // ...become a gradient: no two neighbours far apart.
+        let row: Vec<i32> = (0..backdrop.width())
+            .map(|x| i32::from(backdrop.get_pixel(x, backdrop.height() / 2).0[0]))
+            .collect();
+        let steepest = row.windows(2).map(|w| (w[0] - w[1]).abs()).max().unwrap();
+        assert!(steepest < 40, "{steepest}");
+        // And more saturated: red stands further from green than in the source (200 vs 40).
+        let middle = backdrop
+            .get_pixel(backdrop.width() / 2, backdrop.height() / 2)
+            .0;
+        assert!(middle[0] > middle[1] + 160, "{middle:?}");
+    }
+
+    #[test]
+    fn cuts_wide_thumbnails_to_the_square_cover() {
+        let square = square_cover(&png(160, 90)).unwrap();
+        let decoded = image::load_from_memory(&square).unwrap();
+        assert_eq!(decoded.dimensions(), (90, 90));
+        // No bar left at the edges.
+        let edge = decoded.to_rgb8().get_pixel(0, 45).0;
+        assert!(edge[0] > 150, "{edge:?}");
+        let already = png(100, 100);
+        assert_eq!(square_cover(&already).unwrap(), already);
+        // Other formats become JPEG.
+        let mut webp = Cursor::new(Vec::new());
+        image::load_from_memory(&already)
+            .unwrap()
+            .write_to(&mut webp, image::ImageFormat::WebP)
+            .unwrap();
+        let converted = square_cover(webp.get_ref()).unwrap();
+        assert_eq!(
+            image::guess_format(&converted).unwrap(),
+            image::ImageFormat::Jpeg
+        );
+        assert!(square_cover(b"not an image").is_err());
+    }
     use crate::palette::Rgb;
     use image::{ImageFormat, Rgb as Pixel, RgbImage};
 

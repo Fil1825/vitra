@@ -21,7 +21,7 @@ the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
 | 2   | Engine: mpv IPC, transport controls, artwork backdrop  | in review (PR #3) |
 | 3   | Library & queue: scan, SQLite, views, search, session  | in review (PR #4) |
 | 4   | Links: yt-dlp playback, playlists, downloads           | in review (PR #5) |
-| 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | not started       |
+| 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | in review (PR #6) |
 | 6   | Mini player                                            | not started       |
 | 7   | Customization: theme editor, `.vitratheme`, layout     | not started       |
 | 8   | Sound & system: EQ, crossfade, media keys, tray        | not started       |
@@ -42,8 +42,10 @@ npm run check:all          # both of the above — must pass before every PR
 npm run check:cross        # clippy for aarch64-apple-darwin + x86_64-pc-windows-msvc from Linux
 VITRA_MPV_TESTS=1 cargo test -p mpv-ipc   # also run the tests against a real mpv (on PATH)
 VITRA_YTDLP=src-tauri/sidecars/<triple>/yt-dlp cargo test -p links --test real_ytdlp
-                                          # real yt-dlp against a local HTTP server (FFmpeg on PATH)
-scripts/record-ytdlp-fixtures.sh          # re-record yt-dlp fixtures (needs the sites reachable)
+                                          # real yt-dlp against a local HTTP server (FFmpeg on PATH;
+                                          # relative paths are from the repo root; macOS:
+                                          # .../<triple>/yt-dlp/yt-dlp_macos)
+scripts/record-ytdlp-fixtures.sh          # record real pages as *-recorded.json fixtures
 ```
 
 Debugging playback: `VITRA_MPV_ARGS="--ao=null --log-file=/tmp/mpv.log" npm run tauri dev` passes
@@ -75,7 +77,10 @@ sudo apt-get install -y llvm
 - Node's `fetch` ignores `HTTPS_PROXY` unless `NODE_USE_ENV_PROXY=1`; `fetch-sidecars`
   re-launches itself with it when a proxy is configured.
 - Toolchain at stage 0: Rust 1.97, Node 22.22, npm 10.9, Tauri CLI 2.12 (npm devDependency,
-  use `npx tauri`, not `cargo tauri`).
+  use `npx tauri`, not `cargo tauri`). CI uses the latest stable Rust (1.99 at stage 5), whose
+  clippy may add lints: `rustup update stable` before `check:rust`.
+- The session's disk allowance fills up with `target/` (debug, incremental, cross-check
+  targets): `cargo clean` when "no space left on device" appears.
 
 ## Repository layout
 
@@ -84,18 +89,23 @@ Cargo.toml              Cargo workspace (members: src-tauri, later crates/*)
 package.json            frontend + scripts; Tauri CLI is a devDependency
 index.html              main window entry (mini player gets mini.html in stage 6)
 src/                    React + TypeScript frontend
-  main.tsx              boot: backend bridge → settings, environment, player, queue, library
-                        stores → i18n → render
-  app/                  shell layout (TitleBar, Sidebar, NowPlaying, ControlBar) and
+  main.tsx              boot: backend bridge → settings, environment, player, queue, library,
+                        downloads, lyrics stores → i18n → render
+  app/                  shell layout (TitleBar, Sidebar, NowPlaying, ControlBar),
                         useAppearanceController (theme vars, effect flags, window theme, language)
+                        and useLevelMeter (asks for the backdrop's music pulse)
   components/           shared UI: Glass/ (glass surface, layer budget, refraction), Backdrop/,
-                        ui/ (IconButton, SegmentedControl, Switch, Slider)
-  features/<feature>/   feature UI: library/ (views, TrackTable, AlbumGrid, actions + menus),
-                        queue/ (QueuePanel), tags/ (TagEditor), links/ (LinkDialog,
-                        DownloadsView), settings/
+                        ArtworkViewer/ (full-screen artwork), ui/ (IconButton,
+                        SegmentedControl, Switch, Slider)
+  features/<feature>/   feature UI: library/ (views, TrackTable, AlbumGrid, actions + menus,
+                        HeroCover + covers.ts: covers the user chooses),
+                        queue/ (QueuePanel), tags/ (TagEditor, files and links; album.ts:
+                        which album a title + artist means), links/ (LinkDialog,
+                        DownloadsView, download groups), lyrics/ (LyricsView, LyricsPanel, LyricsEditor +
+                        SyncPane, tap-sync model sync.ts), settings/
   stores/               zustand stores: settings (mirror of Rust), environment, appearance,
-                        player, queue, library (scan status), downloads, navigation (routes),
-                        ui (panels, dialogs)
+                        player, queue, library (scan status), downloads, lyrics, navigation
+                        (routes), ui (sidebar mode, side panel, dialogs, artwork viewer)
   theme/                zod schema, built-in themes (builtin/*.json), tokens → CSS vars, effects
   i18n/                 i18next setup, locales/en.json + ru.json (typed keys)
   lib/                  IPC wrappers, event bus + backend bridge, hooks, pure helpers
@@ -109,25 +119,36 @@ src-tauri/              Tauri app crate (`vitra`, lib `vitra_lib`)
   src/sidecar.rs        locating mpv / yt-dlp / ffmpeg / ffprobe / deno
   src/player/           mpv supervisor, queue mirroring and commands (mod.rs, commands.rs),
                         PlayerState reducer (state.rs), play queue (queue.rs, pure),
-                        session save/restore (session.rs), artwork:// scheme (artwork.rs)
+                        session save/restore (session.rs), artwork:// scheme (artwork.rs),
+                        loudness for the backdrop pulse (level.rs)
   src/library/          LibraryService: DB connection, scanner thread, folder watcher
                         (watch.rs), library/playlist/tag-editor commands (commands.rs)
   src/links/            LinkService (resolve, play, import + background enrich, yt-dlp
                         update), Downloads (queue, 2 at a time), commands
+  src/lyrics/           LyricsService (playing track's lyrics, offset, line events), source
+                        priority (sources.rs), LRCLIB via curl (online.rs), backups before
+                        tag writes (backup.rs), editor commands
   tauri.conf.json, capabilities/, icons/ (generated: `npm run tauri icon -- assets/brand/icon-1024.png`)
   sidecars/<triple>/    fetched binaries (git-ignored)
 crates/                 pure-Rust crates testable without WebKit
   mpv-ipc/              async mpv JSON IPC client + spawning mpv (in-memory fake + opt-in real-mpv tests)
-  media/                lofty tags (read + write), embedded/folder artwork, thumbnails, color
-                        palette (fixtures in tests/)
+  media/                lofty tags (read + write, lyrics incl. SYLT / SYNCEDLYRICS, several
+                        artists), embedded/folder artwork, thumbnails, square album covers,
+                        color palette (fixtures in tests/)
   library/              SQLite library: schema + migrations, tracks/albums/artists, FTS5
                         search, playlists, history, session, incremental folder scanner,
-                        links as tracks (remote.rs)
-  links/                URL classification, yt-dlp -J parsing, file name templates, progress
-                        lines, download state machine, YtDlp runner (fixtures + opt-in real
-                        tests in tests/)
+                        links as tracks (remote.rs), saved lyrics + offsets (lyrics.rs),
+                        several artists per track and credit splitting (artists.rs),
+                        covers the user chose (covers.rs)
+  lyrics/               LRC / enhanced LRC parser and writer, SYLT conversion, .lrc files
+                        and their encodings, LRCLIB URLs and result matching (pure)
+  links/                URL classification, yt-dlp -J parsing (albums included), file name
+                        and folder templates, progress lines, download state machine,
+                        YtDlp runner and error classes (fixtures + opt-in real tests in
+                        tests/)
 scripts/
   fetch-sidecars.mjs    downloader (I/O)
+  record-ytdlp-fixtures.sh  real yt-dlp recordings for crates/links (needs YouTube)
   sidecars/plan.mjs     what to download per target (pure, unit-tested)
 assets/brand/           logo, app icon source, mono tray icon, palette (see its README)
 docs/                   PLAN.md; later THEMES.md, theme.schema.json
@@ -199,6 +220,21 @@ themes/                 (stage 7) example themes
 7. **Accent & backdrop from artwork**: themes opt in with `background.useArtwork` (blurred
    thumbnail + palette-colored gradient) and `accentFromArtwork`; the user can turn the accent
    off (`appearance.artworkAccent`). `theme/accent.ts` adjusts the color per light/dark.
+   - The backdrop moves (`components/Backdrop`): the cover breathes, three copies of it drift
+     and turn over each other (the third a soft round patch, `mask-image`), the theme's blobs
+     drift on top. The 96 px thumbnail comes blurred and saturated from Rust
+     (`media::artwork::backdrop_image`), so no moving layer has a CSS `filter`, and only
+     `transform`/`opacity` animate. `data-backdrop-animation='off'` pauses it all.
+   - Pulse (`appearance.backdropPulse`, on by default): while it is on, mpv's audio chain
+     has `@vitralevel:lavfi=[astats=…RMS_level]` (`player/level.rs`; added when mpv starts,
+     never touched for visibility changes, which could click). While a window wants it
+     (`player_level_meter` from `useLevelMeter`: setting on, motion on, window visible) the
+     player reads `af-metadata/vitralevel` every 70 ms and emits `player://level` (0..1: a
+     smoothed loudness plus a kick when it rises above the recent average). `Backdrop` sets
+     `--vitra-pulse` on its own element (on `<html>` it would restyle the whole window
+     a dozen times a second): a slight scale and a glow from the middle.
+   - WebKitGTK under Xvfb composites on the CPU: any moving backdrop under the glass (and
+     the progress bar's repaints) cost a lot there; that says nothing about a Mac's GPU.
 8. **Frontend**: React 19, TypeScript 6.0 (strict), Vite 8, CSS Modules. Every visual value is
    a CSS custom property (`--vitra-*`), so a theme is just a set of variables. Zustand for
    stores, Motion for animation, Lucide icons — each added in the stage that first needs it.
@@ -240,7 +276,9 @@ themes/                 (stage 7) example themes
       an unreadable folder or a cancelled scan, and date a folder's first scan by file mtime.
     - Album covers: 512 px JPEGs named by the FNV-1a hash of the source image, cached in
       `<app data>/covers`, garbage-collected after scans. Albums sharing a cover share the id,
-      so each write goes through its own temporary file (`<id>.<pid>-<n>.part`).
+      so each write goes through its own temporary file (`<id>.<pid>-<n>.part`). They come
+      from the album's own files (embedded art in the first three, else the folder's
+      `cover.jpg` & co.) and only then from downloaded links, whose art is a site's thumbnail.
     - Single tracks: files opened or dropped outside library folders join the library with
       `folder_id = NULL` (setting `library.addOpenedFiles`, on by default; done in the
       background after playback starts, then the queue entries get their track ids). Adding a
@@ -250,9 +288,25 @@ themes/                 (stage 7) example themes
     - One scanner thread with its own connection; commands share another (`LibraryService`).
       `notify` watches folders; changes rescan the folder 3 s after things settle.
     - Search: FTS5 `unicode61 remove_diacritics 2`, every word a prefix (`"word"*`), ranked
-      title > artist > album > album artist > lyrics.
+      title > artist > album > album artist > lyrics. `remove_diacritics` doesn't fold
+      ё → е (they are separate letters to Unicode), so `search::fold` does it for the index
+      and for queries (migration 3 refolded existing rows).
     - Events: `library://changed` (`tracks` | `playlists` | `folders`) and `library://scan`;
       views reload through `useLibraryData`, which coalesces bursts.
+    - Several artists (`library/artists.rs`, migration 4): `track_artists(track_id,
+artist_id, position)`; `tracks.artist_id` stays the first (main) one, and an album
+      belongs to its album artist or the first track artist. Lists from tags (several
+      `ARTIST`, `ARTISTS`, `TPE1` with `\0`) or yt-dlp (`artists`/`creators`) are used as
+      they are; a single credit is split on `feat.`/`ft.`/`featuring`/`, `/`&`/`x`/`×`/`; `
+      unless a whole name is an exception (`BUILTIN_EXCEPTIONS` + `library.artistSplitting`).
+      The split credit is kept in `tracks.artist_credit` so changing the setting re-splits
+      without rereading files (`set_artist_splitting`); migration 4 also re-reads folder
+      tracks (`file_mtime = 0`) and re-splits once (`artists.resplitPending`). The scanner's
+      connection reads the setting from the `session` table (`artistSplitting`). Artists are
+      searched through their own FTS table (`artist_search`). An artist's page: their albums,
+      then "Appears On" (`TrackFilter::ArtistAppearances`).
+    - Tags are written with each artist as a separate value; MP4 has no multi-value `©ART`
+      in common players, so it gets "A, B" plus `----:com.apple.iTunes:ARTISTS` items.
 21. **Queue** (`player/queue.rs`, pure): items in play order with unique `uid`s, `current`,
     shuffle (current item first, the original order kept to unshuffle), repeat off/all/one.
     Gapless: mpv's playlist holds the current item and `peek_next()` (`loadfile … append`,
@@ -266,16 +320,59 @@ themes/                 (stage 7) example themes
       `--js-runtimes deno:<path>` when Deno is found.
     - Pages are resolved with `yt-dlp -J --flat-playlist --no-playlist`, writing the thumbnail
       in the same run (`--no-simulate --skip-download --write-thumbnail`); direct audio files
-      and radio (`.m3u`/`.pls`/HLS) skip yt-dlp. No HTTP client of our own.
+      and radio (`.m3u`/`.pls`/HLS) skip yt-dlp. No HTTP client of our own. Thumbnails go to
+      a scratch folder by `-o thumbnail:` **and** `-o pl_thumbnail:` (a playlist's own
+      thumbnail, which otherwise lands in the working folder), and resolve/enrich run with
+      that folder as their working directory.
     - A link is a library track whose path is its page URL (`tracks.source_url`, migration 2);
-      its thumbnail is the track's own cover (`tracks.cover`, shown before the album's).
+      its thumbnail is the track's own cover (`tracks.cover`, shown before the album's
+      unless the user corrected the link into an album).
       Listings (`complete: false`) never overwrite what a full description stored. Links
       join the library when played if `library.addOpenedFiles` is on; always when imported
       or downloaded.
     - Imported playlists keep `playlists.source_url`; importing again replaces their entries
       and keeps the name. Entries are filled in afterwards by `yt-dlp -j` (one line each).
+    - Albums: a playlist whose id starts with `OLAK5uy_`, a `music.youtube.com/browse/MPREb…`
+      page or a Bandcamp album (`info::album_of`). The title loses YouTube's "Album - ", the
+      artist comes from `album_artists`, the uploader without " - Topic", or the tracks'
+      usual artist. Entries are numbered by their place in the listing (private videos keep
+      their number) and stored as one library album with one square cover
+      (`media::square_cover`, `Library::set_album_artwork`); album tracks get no covers of
+      their own. Enrichment keeps the placement (`Placement`), so `yt-dlp -j` can't move a
+      track to another album.
+    - Corrections: the tag editor edits a streamed link's title, artists, album, album artist
+      and year in the library (`Library::edit_link`, `TagForm.link`); the album is found by
+      title + album artist (or made), like a file's. `tracks.edited` (migration 6) makes
+      `store_remote` keep them against every later description (opening the link, playlist
+      enrichment, album placement). The link dialog and playback take a known link's
+      library details; downloads take the track's album values before the group's. A
+      downloaded link is a file: the editor writes its tags.
+    - A corrected link in an album shows the album's cover, not its thumbnail (the
+      `track_cover!` SQL rule in `tracks.rs`; the player's `link_thumbnail` follows it); an
+      album without a cover gets the link's thumbnail cut square (the full one if
+      `LinkService` still has it, else the cached copy). "Restore Site Details" in the
+      editor (`TagForm.edited`, `link_restore` → `LinkService::restore`): yt-dlp describes
+      the link afresh and `Library::restore_link` clears `edited` and stores that.
+    - An album's listing often has no thumbnail: then the first entry thumbnail enrichment
+      brings covers it (`Library::store_enriched` → `cover_bare_album`). Opening an album
+      page whose album still has no cover (`library_album`) looks for one in the background
+      once per session (`LinkService::cover_album_later`: a recent thumbnail, else the first
+      entry's from `yt-dlp`), which also repairs albums stored before this existed.
+    - Errors: `ytdlp::failure` turns yt-dlp's stderr into `AgeRestricted`, `SignInRequired`
+      or `Cookies`; the UI shows translated text for them (`features/links/errors.ts`).
+      `downloads.cookiesFromBrowser` (safari/chrome/firefox/…, `COOKIE_BROWSERS`) adds
+      `--cookies-from-browser` to every yt-dlp run and to mpv's hook (`ytdl-raw-options`
+      is set as a JSON map after each mpv start and when the setting changes).
     - mpv plays links through its own yt-dlp hook: `--script-opts-append=ytdl_hook-ytdl_path=`
-      and `--ytdl-raw-options-append=js-runtimes=deno:` point it at our binaries. Radio
+      and `--ytdl-raw-options-append=js-runtimes=deno:` point it at our binaries. A failed
+      link's `end-file` only says "unrecognized file format", so the player asks mpv for its
+      log (`request_log_messages warn`), keeps the `ytdl_hook` lines of the current link and
+      reads them with `ytdlp::failure`: cookies, age limits and sign-ins stop playback with
+      that error (`PlayerError::Playback` carrying the `LinkError` text, which the UI
+      translates; the control bar shows it too), since the next links would fail the same
+      way; other failures are skipped as before. `Mirror::halted` keeps the preloaded file
+      mpv starts meanwhile from clearing the error. Settings warn up front when Safari's
+      cookie file can't be opened (`links/cookies.rs`; macOS needs Full Disk Access). Radio
       playlists end in `end-file reason=redirect`, after which the next `start-file` is the
       same queue item; `metadata` is observed for `icy-title`.
     - Downloads: `-f bestaudio/best -x` (+ `--audio-format mp3|flac`), `--embed-metadata`,
@@ -285,6 +382,16 @@ themes/                 (stage 7) example themes
       own title/artist/album/year and saved lyrics into the file and
       `Library::attach_download` swaps the stream's path for the file (same row; a row the
       watcher added first is merged in).
+    - Album downloads are a group (`downloads.rs`: `GroupInfo` on every job, cancel/retry
+      the group): files go to `downloads.albumTemplate` (`{album_artist}/{album}/{track}
+{title}`, `/` makes folders; `links::relative_path`), get album, album artist, track
+      number/total and year, and all get the same cover (the album's, else the first
+      track's thumbnail). Tags are re-read from the library when a job starts, so
+      enrichment that finished meanwhile is used. "Download All" on a playlist is a group
+      without album tags. An album page or tile of the library downloads its streamed
+      tracks as such a group too (`downloads_add_album`, group url `vitra:album/<id>`;
+      `Album.linkCount` says whether there is anything to download); its cover comes from
+      the first track's thumbnail or the art yt-dlp embeds, never the user's own cover.
     - "Update yt-dlp": on macOS `links::release::install_zip_release` downloads the latest
       `yt-dlp_macos.zip` and `SHA2-256SUMS` with `curl`, checks the hash (`sha2`), unpacks
       with `ditto` and swaps the folder into `<app data>/sidecars/yt-dlp/` (a
@@ -293,11 +400,59 @@ themes/                 (stage 7) example themes
       system yt-dlp is updated in place (pip/Homebrew ones refuse).
     - While mpv opens a link (its hook waits for yt-dlp) the status is `loading`: the UI
       shows a spinner and disables seeking, and `Player::seek` defers to `file-loaded`.
-23. **Context menus** are native (`@tauri-apps/api/menu`, `lib/menu.ts`); the WebView's own
+23. **Lyrics** (`crates/lyrics`, `src-tauri/src/lyrics`, `features/lyrics`):
+    - One model (`Lyrics { lines, synced, offset_ms, tags }`, lines with optional word
+      timings and a translation) for tags, `.lrc`, search and the editor. A line repeating the
+      previous line's timestamp is its translation; `[offset]` follows LRC (positive =
+      sooner) and is folded into the timestamps (`normalized()`) before anything uses them.
+      Timestamps are written in hundredths.
+    - Sources, best first (`lyrics/sources.rs`): lyrics the user saved in the app (an
+      explicit choice made after seeing what the file has) → synced tags (`SYLT`, or LRC in
+      `SYNCEDLYRICS`/`LYRICS`/`USLT`/`©lyr`) → `.lrc` next to the file (UTF-8/16,
+      Windows-1251 or Latin-1) → plain tags → lyrics cached from LRCLIB. The spec lists the
+      app DB after the tags; user lyrics come first so "save to Vitra only" isn't hidden by
+      a file. lofty's generic tag doesn't show `SYLT` or `SYNCEDLYRICS`, so they're read from
+      the concrete tags and removed whenever new lyrics are written.
+    - The editor saves LRC text into the format's lyrics field (`USLT`, `LYRICS`, `©lyr`),
+      not `SYLT`; saving to tags or `.lrc` drops the user's DB copy so the file wins. A copy
+      of the file goes to `<app data>/backups/tags|lrc/` first (newest 10 kept).
+    - LRCLIB (setting `lyrics.online`, off by default): curl with a User-Agent naming Vitra,
+      `/api/get` (title, artist, album, duration ±2 s) then `/api/search`, URLs percent-
+      encoded to ASCII (Windows passes non-ASCII arguments in the ANSI code page). Results are
+      cached in the DB (`source = 'lrclib'`), misses in `lyrics_lookups` for 30 days. 429 and
+      5xx answers (and curl failures) are retried after 1.5 s and 4 s and never cached as
+      misses (`online::fetch_patiently`).
+    - The user's sync offset is per track (`tracks.lyrics_offset`, positive = later) or per
+      session for files outside the library. `lyrics://changed` carries the whole state;
+      `lyrics://line` fires when the playing line changes (for the mini player and plugins:
+      the view keeps its own frame clock for karaoke).
+    - The view: the playing line a third of the way down, smooth scroll and per-line blur
+      only with motion on, scrolling by hand pauses following for 3 s. Tap-sync captures
+      Space/Backspace/arrows before the player's shortcuts while the edited track plays.
+24. **Context menus** are native (`@tauri-apps/api/menu`, `lib/menu.ts`); the WebView's own
     menu is suppressed outside text fields. Reordering uses a small pointer-based hook
     (`lib/reorder.ts`) because HTML5 drag and drop clashes with the window's file drop.
-24. License **GPL-3.0-or-later** (compatible with mpv). Bundle identifier
+25. License **GPL-3.0-or-later** (compatible with mpv). Bundle identifier
     `io.github.fil1825.vitra`. macOS minimum **14.0** (official mpv builds require it).
+26. **Sidebar** (`stores/ui.ts`): `expanded` / `rail` (icons, labels as tooltips, playlists as
+    monograms) / `hidden`, switched by the title bar button or ⌥⌘S / Ctrl+Alt+S (matched by
+    `event.code`, because Option changes `key` on macOS) and kept in `localStorage`. On
+    macOS the rail is 88 px so the traffic lights stay on it, and with no sidebar the title
+    bar leaves 84 px for them. ⌘F opens the full sidebar with the search field focused.
+27. **Full-screen artwork** (`components/ArtworkViewer`): shows the cached image at once,
+    then the original from `artwork_original` (track path or album id; links use their
+    thumbnail or album cover), served unscaled by `ArtworkStore::insert_original`.
+28. **Covers the user chooses** (migration 5, `library/covers.rs`, `features/library/
+covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart from the
+    automatic `albums.cover` that scans and links write, so nothing automatic replaces them.
+    Every query puts them first (`COALESCE(custom, automatic)`, plus a `customCover` flag
+    for "Reset"); tracks of such an album show it too (rows, queue, Now Playing: the player
+    reads it before the file's artwork). Images (jpg/png/webp, ≤ 50 MB) are cut square and
+    kept up to 1200 px as JPEG in `covers/` under an id salted with "custom:" (never the
+    512 px copy of the same image). Only the library keeps them; tags are the tag editor's.
+    UI: `HeroCover` on album/artist/playlist pages (button on hover, context menu, an image
+    file dropped on it: `useFileDrop` finds the `[data-cover-drop]` element under Tauri's
+    drop position), plus entries in the album, artist and playlist menus. The sidebar shows a playlist's chosen cover in place of its icon.
 
 ## Conventions
 
@@ -347,6 +502,10 @@ themes/                 (stage 7) example themes
   reads the macOS drag pasteboard (`public.url`, legacy `NSURLPboardType`, plain text).
   Windows and Linux report nothing for links; paste works there. Don't turn off
   `dragDropEnabled`: file and folder drops need its real paths.
+- Tauri types drop positions as `PhysicalPosition`, but only Windows reports physical pixels
+  (WebView2, `ScreenToClient`); macOS (`draggingLocation`, points) and Linux (GTK widget
+  coordinates) report logical ones. `useFileDrop.dropPoint` divides by `devicePixelRatio`
+  on Windows only.
 - lofty can't write `ItemKey::Lyrics` to ID3v2; use `ItemKey::UnsyncLyrics` (USLT) there.
   lofty also warns about every odd MP3 frame; the app logs `lofty` at error level only.
 - The macOS mpv tarball carries code-signature xattrs; `fetch-sidecars` moves extracted files

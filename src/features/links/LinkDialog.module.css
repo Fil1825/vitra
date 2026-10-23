@@ -98,6 +98,10 @@
   gap: var(--vitra-space-4);
 }
 
+.summary[data-album] {
+  grid-template-columns: 132px minmax(0, 1fr);
+}
+
 .thumbnail {
   display: grid;
   place-items: center;

@@ -3,6 +3,7 @@
 use library::{Playlist, TrackFilter};
 use tauri::{AppHandle, State};
 
+use super::cookies::{self, CookiesAccess};
 use super::downloads::{self, Job};
 use super::{Downloads, LinkPreview, LinkService, PlayMode, YtDlpInfo};
 use crate::error::AppError;
@@ -27,6 +28,12 @@ pub async fn link_play(
     links.play(&url, mode).await
 }
 
+/// Gives a corrected link the details of its page back.
+#[tauri::command]
+pub async fn link_restore(links: State<'_, LinkService>, url: String) -> Result<(), AppError> {
+    links.restore(&url).await.map(drop)
+}
+
 #[tauri::command]
 pub async fn link_import(links: State<'_, LinkService>, url: String) -> Result<Playlist, AppError> {
     links.import(&url).await
@@ -39,8 +46,25 @@ pub async fn link_download(
     downloads: State<'_, Downloads>,
     url: String,
 ) -> Result<usize, AppError> {
-    let tracks = links.tracks_for_download(&url).await?;
-    Ok(downloads.add(tracks))
+    let (tracks, group) = links.tracks_for_download(&url).await?;
+    Ok(downloads.add(tracks, group))
+}
+
+/// Whether Vitra can read `browser`'s cookies (see [`cookies::access`]).
+#[tauri::command]
+pub fn links_cookies_access(browser: String) -> CookiesAccess {
+    cookies::access(&browser)
+}
+
+/// Downloads a library album's streamed tracks as that album; returns how many were queued.
+#[tauri::command]
+pub async fn downloads_add_album(
+    links: State<'_, LinkService>,
+    downloads: State<'_, Downloads>,
+    album_id: i64,
+) -> Result<usize, AppError> {
+    let (tracks, group) = links.album_for_download(album_id).await?;
+    Ok(downloads.add(tracks, group))
 }
 
 #[tauri::command]
@@ -58,7 +82,7 @@ pub async fn downloads_add(
     let tracks = library
         .run(move |db| db.tracks(&TrackFilter::Ids(track_ids)))
         .await?;
-    Ok(downloads.add(tracks))
+    Ok(downloads.add(tracks, None))
 }
 
 #[tauri::command]
@@ -69,6 +93,18 @@ pub fn downloads_cancel(downloads: State<'_, Downloads>, id: u64) {
 #[tauri::command]
 pub fn downloads_retry(downloads: State<'_, Downloads>, id: u64) {
     downloads.retry(id);
+}
+
+/// Cancels every unfinished download of an album or playlist.
+#[tauri::command]
+pub fn downloads_cancel_group(downloads: State<'_, Downloads>, group: u64) {
+    downloads.cancel_group(group);
+}
+
+/// Retries every failed or cancelled download of an album or playlist.
+#[tauri::command]
+pub fn downloads_retry_group(downloads: State<'_, Downloads>, group: u64) {
+    downloads.retry_group(group);
 }
 
 #[tauri::command]

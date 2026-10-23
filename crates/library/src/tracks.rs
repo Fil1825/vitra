@@ -3,14 +3,47 @@ use std::path::Path;
 
 use rusqlite::{OptionalExtension, Row, Transaction, params, params_from_iter};
 
-use crate::model::{Album, Artist, HistoryEntry, ScannedTrack, Track, TrackFilter};
+use crate::artists::{
+    ArtistSplitting, album_artist_name, artist_id, artist_names, write_track_artists,
+};
+use crate::model::{Album, Artist, ArtistRef, HistoryEntry, ScannedTrack, Track, TrackFilter};
+use crate::search::fold;
 use crate::{Library, Result, now};
 
-/// Columns of [`Track`], in [`track_from_row`] order. Joins `artists ar` and `albums al`.
-pub(crate) const TRACK_COLUMNS: &str = "t.id, t.path, t.title, ar.name, t.artist_id, al.title,
+/// A track's cover, for track `$t` on album `$al`: the one the user chose for the album, then
+/// the album's for a link the user put there, then the track's own (a link's thumbnail),
+/// then the album's.
+macro_rules! track_cover {
+    ($t:literal, $al:literal) => {
+        concat!(
+            "COALESCE(",
+            $al,
+            ".custom_cover, CASE WHEN ",
+            $t,
+            ".edited THEN ",
+            $al,
+            ".cover END, ",
+            $t,
+            ".cover, ",
+            $al,
+            ".cover)"
+        )
+    };
+}
+
+/// Columns of [`Track`], in [`track_from_row`] order. Joins `artists ar` (the main artist,
+/// for sorting) and `albums al`; the artists come as a JSON array of `[id, name]`.
+pub(crate) const TRACK_COLUMNS: &str = concat!(
+    "t.id, t.path, t.title,
+    (SELECT json_group_array(json_array(x.id, x.name) ORDER BY ta.position)
+        FROM track_artists ta JOIN artists x ON x.id = ta.artist_id WHERE ta.track_id = t.id),
+    t.artist_id, al.title,
     t.album_id, t.album_artist, t.genre, t.year, t.track_number, t.disc_number, t.duration,
     t.format, t.sample_rate, t.bit_depth, t.bitrate, t.favorite, t.play_count,
-    t.last_played_at, t.added_at, COALESCE(t.cover, al.cover), t.folder_id, t.source_url";
+    t.last_played_at, t.added_at, ",
+    track_cover!("t", "al"),
+    ", t.folder_id, t.source_url"
+);
 
 pub(crate) const TRACK_FROM: &str = "tracks t
     LEFT JOIN artists ar ON ar.id = t.artist_id
@@ -20,13 +53,33 @@ pub(crate) const TRACK_FROM: &str = "tracks t
 const ALBUM_ORDER: &str = "al.year, al.title COLLATE NOCASE, t.disc_number, t.track_number,
     t.title COLLATE NOCASE";
 
+/// `[[id, name], ...]` as [`TRACK_COLUMNS`] selects it.
+fn artists_from_json(json: Option<String>) -> Vec<ArtistRef> {
+    let pairs: Vec<(i64, String)> = json
+        .and_then(|json| serde_json::from_str(&json).ok())
+        .unwrap_or_default();
+    pairs
+        .into_iter()
+        .map(|(id, name)| ArtistRef { id, name })
+        .collect()
+}
+
 pub(crate) fn track_from_row(row: &Row<'_>) -> rusqlite::Result<Track> {
+    let artists = artists_from_json(row.get(3)?);
+    let artist = (!artists.is_empty()).then(|| {
+        artists
+            .iter()
+            .map(|a| a.name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    });
     Ok(Track {
         id: row.get(0)?,
         path: row.get(1)?,
         title: row.get(2)?,
-        artist: row.get(3)?,
+        artist,
         artist_id: row.get(4)?,
+        artists,
         album: row.get(5)?,
         album_id: row.get(6)?,
         album_artist: row.get(7)?,
@@ -49,9 +102,11 @@ pub(crate) fn track_from_row(row: &Row<'_>) -> rusqlite::Result<Track> {
     })
 }
 
-/// An album without a cover of its own (only links in it) shows one of its tracks' covers.
+/// The user's cover comes first; an album without a cover of its own (only links in it)
+/// shows one of its tracks' covers.
 pub(crate) const ALBUM_SELECT: &str = "SELECT al.id, al.title, ar.name, al.artist_id, al.year,
-        COALESCE(al.cover, MAX(t.cover)), COUNT(t.id), COALESCE(SUM(t.duration), 0),
+        COALESCE(al.custom_cover, al.cover, MAX(t.cover)), al.custom_cover IS NOT NULL,
+        COUNT(t.id), COALESCE(SUM(t.path = t.source_url), 0), COALESCE(SUM(t.duration), 0),
         MAX(t.added_at)
     FROM albums al
     LEFT JOIN artists ar ON ar.id = al.artist_id
@@ -65,21 +120,40 @@ pub(crate) fn album_from_row(row: &Row<'_>) -> rusqlite::Result<Album> {
         artist_id: row.get(3)?,
         year: row.get(4)?,
         cover: row.get(5)?,
-        track_count: row.get(6)?,
-        duration: row.get(7)?,
-        added_at: row.get(8)?,
+        custom_cover: row.get(6)?,
+        track_count: row.get(7)?,
+        link_count: row.get(8)?,
+        duration: row.get(9)?,
+        added_at: row.get(10)?,
     })
 }
 
-pub(crate) const ARTIST_SELECT: &str = "SELECT ar.id, ar.name,
+/// Counts every track the artist is on (theirs, features, and their albums'); the picture
+/// is the one the user chose, else one of their albums' covers, else a cover of a track
+/// they lead, else of any.
+pub(crate) const ARTIST_SELECT: &str = concat!(
+    "SELECT ar.id, ar.name,
         (SELECT COUNT(*) FROM albums WHERE artist_id = ar.id),
-        (SELECT COUNT(*) FROM tracks WHERE artist_id = ar.id),
+        (SELECT COUNT(*) FROM (
+            SELECT track_id FROM track_artists WHERE artist_id = ar.id
+            UNION SELECT t.id FROM albums a JOIN tracks t ON t.album_id = a.id
+                WHERE a.artist_id = ar.id)),
         COALESCE(
-            (SELECT cover FROM albums WHERE artist_id = ar.id AND cover IS NOT NULL
+            ar.cover,
+            (SELECT COALESCE(custom_cover, cover) FROM albums
+                WHERE artist_id = ar.id AND COALESCE(custom_cover, cover) IS NOT NULL
                 ORDER BY year DESC LIMIT 1),
-            (SELECT cover FROM tracks WHERE artist_id = ar.id AND cover IS NOT NULL
-                ORDER BY added_at DESC LIMIT 1))
-    FROM artists ar";
+            (SELECT ",
+    track_cover!("t", "a"),
+    " FROM track_artists ta
+                JOIN tracks t ON t.id = ta.track_id LEFT JOIN albums a ON a.id = t.album_id
+                WHERE ta.artist_id = ar.id AND ",
+    track_cover!("t", "a"),
+    " IS NOT NULL
+                ORDER BY ta.position, t.added_at DESC LIMIT 1)),
+        ar.cover IS NOT NULL
+    FROM artists ar"
+);
 
 pub(crate) fn artist_from_row(row: &Row<'_>) -> rusqlite::Result<Artist> {
     Ok(Artist {
@@ -88,6 +162,7 @@ pub(crate) fn artist_from_row(row: &Row<'_>) -> rusqlite::Result<Artist> {
         album_count: row.get(2)?,
         track_count: row.get(3)?,
         cover: row.get(4)?,
+        custom_cover: row.get(5)?,
     })
 }
 
@@ -104,19 +179,7 @@ fn non_empty(value: Option<&str>) -> Option<&str> {
     value.map(str::trim).filter(|v| !v.is_empty())
 }
 
-fn artist_id(tx: &Transaction<'_>, name: Option<&str>) -> Result<Option<i64>> {
-    let Some(name) = non_empty(name) else {
-        return Ok(None);
-    };
-    tx.execute("INSERT OR IGNORE INTO artists (name) VALUES (?)", [name])?;
-    Ok(Some(tx.query_row(
-        "SELECT id FROM artists WHERE name = ?",
-        [name],
-        |row| row.get(0),
-    )?))
-}
-
-fn album_id(
+pub(crate) fn album_id(
     tx: &Transaction<'_>,
     title: Option<&str>,
     artist_id: Option<i64>,
@@ -159,12 +222,22 @@ pub(crate) fn upsert_track(
     folder_id: Option<i64>,
     track: &ScannedTrack,
     added_at: i64,
+    splitting: &ArtistSplitting,
 ) -> Result<i64> {
     let m = &track.metadata;
-    let artist = non_empty(m.artist.as_deref());
-    let album_artist = non_empty(m.album_artist.as_deref()).or(artist);
-    let artist_id = artist_id(tx, artist)?;
-    let album_artist_id = artist_id_for_album(tx, album_artist, artist, artist_id)?;
+    let (artists, credit) = artist_names(&m.artists, m.artist.as_deref(), splitting);
+    let artist_ids = artists
+        .iter()
+        .map(|name| artist_id(tx, name))
+        .collect::<Result<Vec<_>>>()?;
+    // An album goes under its album artist's main artist, else the track's main artist, so
+    // "A feat. B" doesn't make an album of its own.
+    let album_artist = album_artist_name(non_empty(m.album_artist.as_deref()), splitting)
+        .or_else(|| artists.first().cloned());
+    let album_artist_id = album_artist
+        .as_deref()
+        .map(|name| artist_id(tx, name))
+        .transpose()?;
     let album_id = album_id(tx, m.album.as_deref(), album_artist_id, m.year)?;
     let title = non_empty(m.title.as_deref())
         .map(str::to_owned)
@@ -173,11 +246,13 @@ pub(crate) fn upsert_track(
     let id: i64 = tx.query_row(
         "INSERT INTO tracks (path, folder_id, title, artist_id, album_id, album_artist, genre,
              year, track_number, disc_number, duration, format, sample_rate, bit_depth,
-             bitrate, file_size, file_mtime, added_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
+             bitrate, file_size, file_mtime, added_at, artist_credit)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18,
+             ?19)
          ON CONFLICT (path) DO UPDATE SET
              folder_id = excluded.folder_id, title = excluded.title,
              artist_id = excluded.artist_id, album_id = excluded.album_id,
+             artist_credit = excluded.artist_credit,
              album_artist = excluded.album_artist, genre = excluded.genre,
              year = excluded.year, track_number = excluded.track_number,
              disc_number = excluded.disc_number, duration = excluded.duration,
@@ -189,7 +264,7 @@ pub(crate) fn upsert_track(
             track.path,
             folder_id,
             title,
-            artist_id,
+            artist_ids.first(),
             album_id,
             non_empty(m.album_artist.as_deref()),
             non_empty(m.genre.as_deref()),
@@ -204,36 +279,41 @@ pub(crate) fn upsert_track(
             track.size as i64,
             track.mtime,
             added_at,
+            credit,
         ],
         |row| row.get(0),
     )?;
+    write_track_artists(tx, id, &artist_ids)?;
 
+    // Lyrics saved in the app come first, as when they're shown.
+    let saved: Option<String> = tx
+        .query_row("SELECT text FROM lyrics WHERE track_id = ?", [id], |row| {
+            row.get(0)
+        })
+        .optional()?;
+    let words = saved
+        .as_deref()
+        .or(m.lyrics.as_deref())
+        .map(searchable_lyrics);
     tx.execute("DELETE FROM track_search WHERE rowid = ?", [id])?;
     tx.execute(
         "INSERT INTO track_search (rowid, title, artist, album, album_artist, lyrics)
-         VALUES (?1, ?2, ?3, ?4, ?5, (SELECT text FROM lyrics WHERE track_id = ?1))",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![
             id,
-            title,
-            artist,
-            non_empty(m.album.as_deref()),
-            album_artist
+            fold(&title),
+            (!artists.is_empty()).then(|| fold(&artists.join(" "))),
+            non_empty(m.album.as_deref()).map(fold),
+            album_artist.as_deref().map(fold),
+            words
         ],
     )?;
     Ok(id)
 }
 
-fn artist_id_for_album(
-    tx: &Transaction<'_>,
-    album_artist: Option<&str>,
-    artist: Option<&str>,
-    artist_id: Option<i64>,
-) -> Result<Option<i64>> {
-    if album_artist == artist {
-        Ok(artist_id)
-    } else {
-        self::artist_id(tx, album_artist)
-    }
+/// Lyrics as searchable words: LRC timestamps and tags would only add noise to the index.
+pub(crate) fn searchable_lyrics(text: &str) -> String {
+    fold(&lyrics::parse(text).plain_text())
 }
 
 /// The file name without extension.
@@ -259,8 +339,9 @@ pub(crate) fn prune(tx: &Transaction<'_>) -> Result<()> {
         "DELETE FROM albums WHERE id NOT IN
              (SELECT album_id FROM tracks WHERE album_id IS NOT NULL);
          DELETE FROM artists WHERE id NOT IN
-             (SELECT artist_id FROM tracks WHERE artist_id IS NOT NULL
-              UNION SELECT artist_id FROM albums WHERE artist_id IS NOT NULL);",
+             (SELECT artist_id FROM track_artists
+              UNION SELECT artist_id FROM albums WHERE artist_id IS NOT NULL);
+         DELETE FROM artist_search WHERE rowid NOT IN (SELECT id FROM artists);",
     )?;
     Ok(())
 }
@@ -274,9 +355,10 @@ impl Library {
     ) -> Result<Vec<i64>> {
         let tx = self.conn.transaction()?;
         let added_at = now();
+        let splitting = crate::artists::splitting(&tx)?;
         let ids = tracks
             .iter()
-            .map(|track| upsert_track(&tx, folder_id, track, added_at))
+            .map(|track| upsert_track(&tx, folder_id, track, added_at, &splitting))
             .collect::<Result<_>>()?;
         tx.commit()?;
         Ok(ids)
@@ -305,6 +387,14 @@ impl Library {
             TrackFilter::Artist(id) => query(
                 format!(
                     "{base} WHERE t.artist_id = ?1 OR al.artist_id = ?1 ORDER BY {ALBUM_ORDER}"
+                ),
+                vec![*id],
+            ),
+            TrackFilter::ArtistAppearances(id) => query(
+                format!(
+                    "{base} WHERE t.id IN (SELECT track_id FROM track_artists WHERE artist_id = ?1)
+                         AND t.artist_id IS NOT ?1 AND al.artist_id IS NOT ?1
+                     ORDER BY ar.name COLLATE NOCASE, {ALBUM_ORDER}"
                 ),
                 vec![*id],
             ),
@@ -469,6 +559,9 @@ impl Library {
     pub fn cover_ids(&self) -> Result<HashSet<String>> {
         let mut statement = self.conn.prepare(
             "SELECT cover FROM albums WHERE cover IS NOT NULL
+             UNION SELECT custom_cover FROM albums WHERE custom_cover IS NOT NULL
+             UNION SELECT cover FROM artists WHERE cover IS NOT NULL
+             UNION SELECT cover FROM playlists WHERE cover IS NOT NULL
              UNION SELECT cover FROM tracks WHERE cover IS NOT NULL",
         )?;
         let ids = statement
@@ -477,14 +570,26 @@ impl Library {
         Ok(ids)
     }
 
-    /// Paths of an album's tracks in album order, files only (no links).
+    /// Paths of an album's tracks in album order, files only (no streams): the album's own
+    /// files, then downloaded links (whose art is a site's thumbnail).
     pub fn album_paths(&self, album_id: i64) -> Result<Vec<String>> {
+        Ok(self
+            .album_files(album_id)?
+            .into_iter()
+            .map(|(path, _)| path)
+            .collect())
+    }
+
+    /// [`Self::album_paths`], each marked whether it is a downloaded link.
+    pub(crate) fn album_files(&self, album_id: i64) -> Result<Vec<(String, bool)>> {
         let mut statement = self.conn.prepare(
-            "SELECT path FROM tracks WHERE album_id = ? AND path IS NOT source_url
-             ORDER BY disc_number, track_number, title COLLATE NOCASE",
+            "SELECT path, source_url IS NOT NULL FROM tracks
+             WHERE album_id = ? AND path IS NOT source_url
+             ORDER BY source_url IS NOT NULL, disc_number IS NULL, disc_number,
+                 track_number IS NULL, track_number, title COLLATE NOCASE",
         )?;
         let paths = statement
-            .query_map([album_id], |row| row.get(0))?
+            .query_map([album_id], |row| Ok((row.get(0)?, row.get(1)?)))?
             .collect::<rusqlite::Result<_>>()?;
         Ok(paths)
     }
@@ -493,6 +598,7 @@ impl Library {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::ArtistSplitting;
     use media::TrackMetadata;
 
     pub(crate) fn scanned(
@@ -662,6 +768,166 @@ pub(crate) mod tests {
         let favorites = library.tracks(&TrackFilter::Favorites).unwrap();
         assert_eq!(favorites.len(), 1);
         assert_eq!(favorites[0].id, track.id);
+    }
+
+    fn names(tracks: &[Track]) -> Vec<Vec<&str>> {
+        tracks
+            .iter()
+            .map(|t| t.artists.iter().map(|a| a.name.as_str()).collect())
+            .collect()
+    }
+
+    fn artist_named(library: &Library, name: &str) -> Artist {
+        library
+            .artists()
+            .unwrap()
+            .into_iter()
+            .find(|a| a.name == name)
+            .unwrap_or_else(|| panic!("no artist {name}"))
+    }
+
+    #[test]
+    fn a_credit_with_several_artists_makes_one_artist_each() {
+        let mut library = Library::open_in_memory().unwrap();
+        library
+            .upsert_tracks(
+                None,
+                &[
+                    scanned("/1.mp3", "Solo", "madk1d", "Single", 1),
+                    scanned("/2.mp3", "Duo", "VILLIAN, madk1d", "Night", 1),
+                    scanned("/3.mp3", "Trio", "greyrock, tewiq, madk1d", "Other", 1),
+                    scanned("/4.mp3", "Prince", "madk1d & тёмный принц", "Night", 2),
+                ],
+            )
+            .unwrap();
+        let artists: Vec<String> = library
+            .artists()
+            .unwrap()
+            .into_iter()
+            .map(|a| a.name)
+            .collect();
+        assert_eq!(
+            artists,
+            ["greyrock", "madk1d", "tewiq", "VILLIAN", "тёмный принц"]
+        );
+        let tracks = library.tracks(&TrackFilter::All).unwrap();
+        let duo = tracks.iter().find(|t| t.title == "Duo").unwrap();
+        assert_eq!(duo.artist.as_deref(), Some("VILLIAN, madk1d"));
+        assert_eq!(names(std::slice::from_ref(duo)), [["VILLIAN", "madk1d"]]);
+        assert_eq!(duo.artist_id, Some(duo.artists[0].id));
+
+        // Albums go under the main artist: "Night" is VILLIAN's, though its second track
+        // is led by madk1d.
+        let night: Vec<Album> = library
+            .albums(AlbumSort::Artist)
+            .unwrap()
+            .into_iter()
+            .filter(|a| a.title == "Night")
+            .collect();
+        assert_eq!(
+            night
+                .iter()
+                .map(|a| a.artist.as_deref())
+                .collect::<Vec<_>>(),
+            [Some("madk1d"), Some("VILLIAN")]
+        );
+
+        let madk1d = artist_named(&library, "madk1d");
+        assert_eq!(madk1d.track_count, 4);
+        let own = library.tracks(&TrackFilter::Artist(madk1d.id)).unwrap();
+        assert_eq!(
+            own.iter().map(|t| t.title.as_str()).collect::<Vec<_>>(),
+            ["Prince", "Solo"]
+        );
+        let features = library
+            .tracks(&TrackFilter::ArtistAppearances(madk1d.id))
+            .unwrap();
+        assert_eq!(
+            features
+                .iter()
+                .map(|t| t.title.as_str())
+                .collect::<Vec<_>>(),
+            ["Trio", "Duo"]
+        );
+        // Searching for the featured artist finds that artist alone.
+        let found = library.search("madk", 10).unwrap();
+        assert_eq!(
+            found
+                .artists
+                .iter()
+                .map(|a| a.name.as_str())
+                .collect::<Vec<_>>(),
+            ["madk1d"]
+        );
+        assert_eq!(found.tracks.len(), 4);
+    }
+
+    #[test]
+    fn tag_lists_and_album_artists() {
+        let mut library = Library::open_in_memory().unwrap();
+        let mut listed = scanned("/1.flac", "One", "Tyler", "Album", 1);
+        listed.metadata.artists = vec!["Tyler".into(), "The Creator".into()];
+        let mut compilation = scanned("/2.flac", "Two", "A feat. B", "Hits", 1);
+        compilation.metadata.album_artist = Some("Various Artists".into());
+        let mut duo_album = scanned("/3.flac", "Three", "C", "Joint", 1);
+        duo_album.metadata.album_artist = Some("VILLIAN, madk1d".into());
+        library
+            .upsert_tracks(None, &[listed, compilation, duo_album])
+            .unwrap();
+        let tracks = library.tracks(&TrackFilter::All).unwrap();
+        assert_eq!(
+            names(&tracks),
+            [vec!["A", "B"], vec!["C"], vec!["Tyler", "The Creator"]]
+        );
+        let albums = library.albums(AlbumSort::Artist).unwrap();
+        let artists: Vec<_> = albums
+            .iter()
+            .map(|a| (a.title.as_str(), a.artist.as_deref()))
+            .collect();
+        assert!(artists.contains(&("Hits", Some("Various Artists"))));
+        assert!(artists.contains(&("Joint", Some("VILLIAN"))));
+        assert!(artists.contains(&("Album", Some("Tyler"))));
+    }
+
+    #[test]
+    fn changing_the_splitting_setting_resplits_the_library() {
+        let mut library = Library::open_in_memory().unwrap();
+        let mut listed = scanned("/2.flac", "Listed", "X", "L", 1);
+        listed.metadata.artists = vec!["X".into(), "Y, Z".into()];
+        library
+            .upsert_tracks(
+                None,
+                &[scanned("/1.mp3", "Song", "Foo & Bar", "Record", 1), listed],
+            )
+            .unwrap();
+        assert!(library.artists().unwrap().iter().any(|a| a.name == "Foo"));
+
+        let off = ArtistSplitting {
+            enabled: false,
+            exceptions: Vec::new(),
+        };
+        assert!(library.set_artist_splitting(&off).unwrap());
+        assert!(!library.set_artist_splitting(&off).unwrap(), "unchanged");
+        let tracks = library.tracks(&TrackFilter::All).unwrap();
+        assert_eq!(names(&tracks), [vec!["Foo & Bar"], vec!["X", "Y, Z"]]);
+        // The album moved to the whole name, and the split names are gone.
+        let album = library.album(tracks[0].album_id.unwrap()).unwrap().unwrap();
+        assert_eq!(album.artist.as_deref(), Some("Foo & Bar"));
+        assert!(library.artists().unwrap().iter().all(|a| a.name != "Foo"));
+        assert_eq!(library.albums(AlbumSort::Artist).unwrap().len(), 2);
+        assert_eq!(
+            library.search("foo", 10).unwrap().artists[0].name,
+            "Foo & Bar"
+        );
+
+        let with_exception = ArtistSplitting {
+            enabled: true,
+            exceptions: vec!["Foo & Bar".into()],
+        };
+        library.set_artist_splitting(&with_exception).unwrap();
+        assert_eq!(library.artist_splitting().unwrap(), with_exception);
+        let tracks = library.tracks(&TrackFilter::All).unwrap();
+        assert_eq!(names(&tracks)[0], ["Foo & Bar"]);
     }
 
     #[test]

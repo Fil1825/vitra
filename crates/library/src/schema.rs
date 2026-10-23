@@ -113,6 +113,65 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     CREATE INDEX tracks_source ON tracks(source_url);
     ALTER TABLE playlists ADD COLUMN source_url TEXT;
     ",
+    // 3: lyrics (stage 5). `lyrics_offset` is the user's sync adjustment for a track, whatever
+    // the lyrics' source; `lyrics_lookups` remembers online searches that found nothing.
+    // Tracks are re-read once (mtime 0) so lyrics in their tags get indexed for search, and
+    // the index folds "ё" to "е" (see `search::fold`).
+    r"
+    ALTER TABLE tracks ADD COLUMN lyrics_offset INTEGER NOT NULL DEFAULT 0;
+    CREATE TABLE lyrics_lookups (
+        track_id    INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+        checked_at  INTEGER NOT NULL
+    );
+    UPDATE tracks SET file_mtime = 0 WHERE folder_id IS NOT NULL;
+    UPDATE track_search SET
+        title = replace(replace(title, 'ё', 'е'), 'Ё', 'Е'),
+        artist = replace(replace(artist, 'ё', 'е'), 'Ё', 'Е'),
+        album = replace(replace(album, 'ё', 'е'), 'Ё', 'Е'),
+        album_artist = replace(replace(album_artist, 'ё', 'е'), 'Ё', 'Е'),
+        lyrics = replace(replace(lyrics, 'ё', 'е'), 'Ё', 'Е');
+    ",
+    // 4: several artists per track. `track_artists` lists them in order (`tracks.artist_id`
+    // stays the first, the main one); `artist_credit` keeps the credit they were split from
+    // ("A feat. B"), so changing the splitting setting can split it again. Existing credits
+    // are split once on the next open (`artists.resplitPending`), and files are re-read for
+    // tags with several artist values. `artist_search` finds artists by name.
+    r"
+    CREATE TABLE track_artists (
+        track_id   INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+        artist_id  INTEGER NOT NULL REFERENCES artists(id) ON DELETE CASCADE,
+        position   INTEGER NOT NULL,
+        PRIMARY KEY (track_id, position)
+    );
+    CREATE INDEX track_artists_artist ON track_artists(artist_id, track_id);
+    CREATE INDEX albums_artist ON albums(artist_id);
+    ALTER TABLE tracks ADD COLUMN artist_credit TEXT;
+    INSERT INTO track_artists (track_id, artist_id, position)
+        SELECT id, artist_id, 0 FROM tracks WHERE artist_id IS NOT NULL;
+    UPDATE tracks SET artist_credit = (SELECT name FROM artists WHERE id = tracks.artist_id);
+    CREATE VIRTUAL TABLE artist_search USING fts5(
+        name,
+        tokenize = 'unicode61 remove_diacritics 2',
+        prefix = '1 2 3'
+    );
+    INSERT INTO artist_search (rowid, name)
+        SELECT id, replace(replace(name, 'ё', 'е'), 'Ё', 'Е') FROM artists;
+    UPDATE tracks SET file_mtime = 0 WHERE folder_id IS NOT NULL;
+    INSERT OR REPLACE INTO session (key, value) VALUES ('artists.resplitPending', 'true');
+    ",
+    // 5: covers the user chose. They are shown before automatic ones and nothing automatic
+    // writes them: scans and links set `albums.cover`, never `albums.custom_cover`. Artists
+    // and playlists have no stored automatic cover (theirs comes from their tracks).
+    r"
+    ALTER TABLE albums ADD COLUMN custom_cover TEXT;
+    ALTER TABLE artists ADD COLUMN cover TEXT;
+    ALTER TABLE playlists ADD COLUMN cover TEXT;
+    ",
+    // 6: details of a link the user corrected (title, artists, album): yt-dlp's later
+    // descriptions of it (opening the link again, filling in its playlist) leave them alone.
+    r"
+    ALTER TABLE tracks ADD COLUMN edited INTEGER NOT NULL DEFAULT 0;
+    ",
 ];
 
 /// Brings the database up to the latest schema.

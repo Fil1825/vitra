@@ -7,7 +7,11 @@ export interface PreviewTrack {
   url: string;
   title: string;
   artist: string | null;
+  /** The artists when the site lists several. */
+  artists: string[];
   album: string | null;
+  /** The track's number on its album. */
+  trackNumber: number | null;
   /** Seconds; `null` for live streams and unknown lengths. */
   duration: number | null;
   live: boolean;
@@ -32,7 +36,20 @@ export type LinkPreview =
       tracks: PreviewTrack[];
       /** The playlist this link was imported as before. */
       playlistId: number | null;
+      /** Set when the playlist is an album. */
+      album: AlbumPreview | null;
     };
+
+/** An album link (YouTube / YouTube Music album playlists and pages). */
+export interface AlbumPreview {
+  title: string;
+  artist: string | null;
+  year: number | null;
+  /** Tracks on the album, unavailable ones included. */
+  count: number | null;
+  /** The library album, once its tracks are in the library. */
+  albumId: number | null;
+}
 
 /** How a link joins the queue. */
 export type PlayMode = 'play' | 'next' | 'append';
@@ -46,6 +63,17 @@ export type DownloadStatus =
   | { state: 'failed'; error: string }
   | { state: 'cancelled' };
 
+/** An album or playlist downloaded together. */
+export interface DownloadGroup {
+  id: number;
+  kind: 'album' | 'playlist';
+  url: string;
+  title: string;
+  artist: string | null;
+  /** Library cover id. */
+  cover: string | null;
+}
+
 export interface DownloadJob {
   id: number;
   trackId: number;
@@ -54,6 +82,8 @@ export interface DownloadJob {
   artist: string | null;
   album: string | null;
   status: DownloadStatus;
+  /** The album or playlist it is downloaded with. */
+  group: DownloadGroup | null;
 }
 
 export type AudioFormat = 'original' | 'mp3' | 'flac';
@@ -106,16 +136,27 @@ export const links = {
   resolve: (input: string) => call<LinkPreview>('link_resolve', { input }),
   play: (url: string, mode: PlayMode) => call('link_play', { url, mode }),
   import: (url: string) => call<{ id: number; name: string }>('link_import', { url }),
+  /** Drops the user's corrections of a library link and reads its page again. */
+  restore: (url: string) => call('link_restore', { url }),
   /** Downloads a link (each entry, for a playlist); resolves with how many were queued. */
   download: (url: string) => call<number>('link_download', { url }),
+  /** Whether Vitra can read the browser's cookies (only Safari's can be checked). */
+  cookiesAccess: (browser: string) =>
+    call<'ok' | 'noAccess' | 'unknown'>('links_cookies_access', { browser }),
 };
 
 export const downloads = {
   list: () => call<DownloadJob[]>('downloads_list'),
   /** Downloads library tracks that are links; resolves with how many were queued. */
   add: (trackIds: number[]) => call<number>('downloads_add', { trackIds }),
+  /** Downloads a library album's linked tracks as that album (folders, tags, one cover). */
+  addAlbum: (albumId: number) => call<number>('downloads_add_album', { albumId }),
   cancel: (id: number) => call('downloads_cancel', { id }),
   retry: (id: number) => call('downloads_retry', { id }),
+  /** Cancels every unfinished download of an album or playlist. */
+  cancelGroup: (group: number) => call('downloads_cancel_group', { group }),
+  /** Retries every failed or cancelled download of an album or playlist. */
+  retryGroup: (group: number) => call('downloads_retry_group', { group }),
   clear: () => call('downloads_clear'),
   /** Where downloads go with the current settings. */
   folder: () => call<string>('downloads_folder'),

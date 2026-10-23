@@ -9,12 +9,16 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+use library::ArtistSplitting;
 use links::AudioFormat;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::error::AppError;
+use crate::library::LibraryService;
+use crate::lyrics::LyricsService;
+use crate::player::Player;
 use crate::window;
 
 /// Emitted to every window with the new [`Settings`] after a change.
@@ -31,7 +35,38 @@ pub struct Settings {
     pub library: LibrarySettings,
     #[serde(deserialize_with = "or_default")]
     pub downloads: DownloadSettings,
+    #[serde(deserialize_with = "or_default")]
+    pub lyrics: LyricsSettings,
 }
+
+/// The lyrics view and where lyrics come from.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct LyricsSettings {
+    /// Look lyrics up on LRCLIB when a track has none (sends its title, artist, album and
+    /// duration to lrclib.net).
+    #[serde(deserialize_with = "or_default")]
+    pub online: bool,
+    /// Text size in the lyrics view, relative to the theme's.
+    #[serde(deserialize_with = "or_default")]
+    pub font_scale: f64,
+    /// Show a translation line under the original when the lyrics have one.
+    #[serde(deserialize_with = "or_true")]
+    pub show_translation: bool,
+}
+
+impl Default for LyricsSettings {
+    fn default() -> Self {
+        Self {
+            online: false,
+            font_scale: 1.0,
+            show_translation: true,
+        }
+    }
+}
+
+/// The range the lyrics view's text size can be scaled in.
+const FONT_SCALES: std::ops::RangeInclusive<f64> = 0.7..=1.6;
 
 /// Downloading links into the library.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -45,9 +80,16 @@ pub struct DownloadSettings {
     /// kbit/s, for MP3 (one of [`links::MP3_BITRATES`]).
     #[serde(deserialize_with = "or_default")]
     pub mp3_bitrate: u32,
-    /// File name template, e.g. `{artist} - {title}`.
+    /// File name template, e.g. `{artist} - {title}`; `/` makes folders.
     #[serde(deserialize_with = "or_default")]
     pub template: String,
+    /// The template for tracks of an album, e.g. `{album_artist}/{album}/{track} {title}`.
+    #[serde(deserialize_with = "or_default")]
+    pub album_template: String,
+    /// Browser whose cookies yt-dlp uses (one of [`links::COOKIE_BROWSERS`]); empty for
+    /// none. Signed in there, age-restricted videos play.
+    #[serde(deserialize_with = "or_default")]
+    pub cookies_from_browser: String,
 }
 
 impl Default for DownloadSettings {
@@ -57,7 +99,17 @@ impl Default for DownloadSettings {
             format: AudioFormat::Original,
             mp3_bitrate: 320,
             template: links::DEFAULT_TEMPLATE.to_owned(),
+            album_template: links::DEFAULT_ALBUM_TEMPLATE.to_owned(),
+            cookies_from_browser: String::new(),
         }
+    }
+}
+
+impl DownloadSettings {
+    /// The browser to take cookies from, if one is set.
+    pub fn cookies_browser(&self) -> Option<String> {
+        let browser = self.cookies_from_browser.trim();
+        (!browser.is_empty()).then(|| browser.to_owned())
     }
 }
 
@@ -68,12 +120,17 @@ pub struct LibrarySettings {
     /// tracks, so they get favorites, history and playlists too.
     #[serde(deserialize_with = "or_true")]
     pub add_opened_files: bool,
+    /// How a credit like "A feat. B" or "A, B" is split into artists. The library keeps a
+    /// copy, so its scanner splits the same way.
+    #[serde(deserialize_with = "or_default")]
+    pub artist_splitting: ArtistSplitting,
 }
 
 impl Default for LibrarySettings {
     fn default() -> Self {
         Self {
             add_opened_files: true,
+            artist_splitting: ArtistSplitting::default(),
         }
     }
 }
@@ -107,6 +164,9 @@ pub struct Appearance {
     /// Tint the accent color from the playing track's artwork (themes can still pin it).
     #[serde(deserialize_with = "or_true")]
     pub artwork_accent: bool,
+    /// The animated backdrop swells with the music (its loudness, a kick on beats).
+    #[serde(deserialize_with = "or_true")]
+    pub backdrop_pulse: bool,
 }
 
 impl Default for Appearance {
@@ -119,6 +179,7 @@ impl Default for Appearance {
             power_saving: false,
             window_material: WindowMaterial::Vibrancy,
             artwork_accent: true,
+            backdrop_pulse: true,
         }
     }
 }
@@ -188,10 +249,34 @@ impl Settings {
         if downloads.template.trim().is_empty() {
             downloads.template = links::DEFAULT_TEMPLATE.to_owned();
         }
+        if downloads.album_template.trim().is_empty() {
+            downloads.album_template = links::DEFAULT_ALBUM_TEMPLATE.to_owned();
+        }
+        let browser = downloads.cookies_from_browser.trim().to_ascii_lowercase();
+        downloads.cookies_from_browser = if links::COOKIE_BROWSERS.contains(&browser.as_str()) {
+            browser
+        } else {
+            String::new()
+        };
+        let splitting = &mut self.library.artist_splitting;
+        let mut exceptions: Vec<String> = Vec::new();
+        for name in &splitting.exceptions {
+            let name = name.trim();
+            if !name.is_empty() && !exceptions.iter().any(|known| known == name) {
+                exceptions.push(name.to_owned());
+            }
+        }
+        splitting.exceptions = exceptions;
         // Only an absolute folder makes sense; anything else means the default.
         if !Path::new(downloads.folder.trim()).is_absolute() {
             downloads.folder.clear();
         }
+        let scale = &mut self.lyrics.font_scale;
+        *scale = if scale.is_finite() && *scale > 0.0 {
+            scale.clamp(*FONT_SCALES.start(), *FONT_SCALES.end())
+        } else {
+            1.0
+        };
         self
     }
 }
@@ -278,10 +363,32 @@ pub fn set_settings(
     store: State<'_, SettingsStore>,
     settings: Settings,
 ) -> Result<Settings, AppError> {
-    let previous = store.get().appearance.window_material;
+    let previous = store.get();
     let saved = store.set(settings)?;
-    if saved.appearance.window_material != previous {
+    if saved.appearance.window_material != previous.appearance.window_material {
         window::reapply_all(&app, saved.appearance.window_material);
+    }
+    if saved.library.artist_splitting != previous.library.artist_splitting
+        && let Some(library) = app.try_state::<LibraryService>()
+    {
+        library.set_artist_splitting(saved.library.artist_splitting.clone());
+    }
+    if saved.downloads.cookies_from_browser != previous.downloads.cookies_from_browser
+        && let Some(player) = app.try_state::<Player>()
+    {
+        player.links_settings_changed();
+    }
+    if saved.appearance.backdrop_pulse != previous.appearance.backdrop_pulse
+        && let Some(player) = app.try_state::<Player>()
+    {
+        player.backdrop_pulse_changed();
+    }
+    // Turning online lyrics on looks the playing track up right away.
+    if saved.lyrics.online
+        && !previous.lyrics.online
+        && let Some(lyrics) = app.try_state::<LyricsService>()
+    {
+        lyrics.reload();
     }
     app.emit(SETTINGS_CHANGED, &saved)?;
     Ok(saved)
@@ -313,6 +420,10 @@ mod tests {
             },
             library: LibrarySettings {
                 add_opened_files: false,
+                artist_splitting: ArtistSplitting {
+                    enabled: false,
+                    exceptions: vec!["Foo & Bar".into()],
+                },
             },
             downloads: DownloadSettings {
                 folder: std::env::temp_dir()
@@ -322,6 +433,13 @@ mod tests {
                 format: AudioFormat::Mp3,
                 mp3_bitrate: 192,
                 template: "{title}".into(),
+                album_template: "{album}/{track} {title}".into(),
+                cookies_from_browser: "firefox".into(),
+            },
+            lyrics: LyricsSettings {
+                online: true,
+                font_scale: 1.2,
+                show_translation: false,
             },
         };
 
@@ -344,15 +462,22 @@ mod tests {
                     "refraction": "auto",
                     "powerSaving": false,
                     "windowMaterial": "vibrancy",
-                    "artworkAccent": true
+                    "artworkAccent": true,
+                    "backdropPulse": true
                 },
-                "library": { "addOpenedFiles": true },
+                "library": {
+                    "addOpenedFiles": true,
+                    "artistSplitting": { "enabled": true, "exceptions": [] }
+                },
                 "downloads": {
                     "folder": "",
                     "format": "original",
                     "mp3Bitrate": 320,
-                    "template": "{artist} - {title}"
-                }
+                    "template": "{artist} - {title}",
+                    "albumTemplate": "{album_artist}/{album}/{track} {title}",
+                    "cookiesFromBrowser": ""
+                },
+                "lyrics": { "online": false, "fontScale": 1.0, "showTranslation": true }
             })
         );
     }
@@ -404,6 +529,44 @@ mod tests {
         )
         .unwrap();
         assert_eq!(settings.sanitized().downloads, DownloadSettings::default());
+    }
+
+    #[test]
+    fn lyrics_text_size_stays_in_range() {
+        let read = |json: &str| -> LyricsSettings {
+            serde_json::from_str::<Settings>(json)
+                .unwrap()
+                .sanitized()
+                .lyrics
+        };
+        assert_eq!(read(r#"{ "lyrics": { "fontScale": 9 } }"#).font_scale, 1.6);
+        assert_eq!(read(r#"{ "lyrics": { "fontScale": 0 } }"#).font_scale, 1.0);
+        assert_eq!(
+            read(r#"{ "lyrics": { "fontScale": "big" } }"#).font_scale,
+            1.0
+        );
+        let old = read(r#"{ "language": "en" }"#);
+        assert_eq!(old, LyricsSettings::default());
+    }
+
+    #[test]
+    fn odd_cookie_browsers_and_exceptions_are_cleaned_up() {
+        let settings: Settings = serde_json::from_str(
+            r#"{ "downloads": { "cookiesFromBrowser": " Safari " },
+                 "library": { "artistSplitting": { "exceptions": [" A, B ", "", "A, B"] } } }"#,
+        )
+        .unwrap();
+        let settings = settings.sanitized();
+        assert_eq!(
+            settings.downloads.cookies_browser().as_deref(),
+            Some("safari")
+        );
+        assert_eq!(settings.library.artist_splitting.exceptions, ["A, B"]);
+        assert!(settings.library.artist_splitting.enabled);
+        let odd: Settings =
+            serde_json::from_str(r#"{ "downloads": { "cookiesFromBrowser": "netscape; rm" } }"#)
+                .unwrap();
+        assert_eq!(odd.sanitized().downloads.cookies_browser(), None);
     }
 
     #[test]

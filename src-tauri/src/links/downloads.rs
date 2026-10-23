@@ -1,5 +1,9 @@
 //! The download queue: links downloaded into the library a few at a time, with progress,
 //! cancelling and retrying. A finished download takes over its streamed track's row.
+//!
+//! The tracks of an album or a playlist downloaded together form a group, which the windows
+//! show as one item with the overall progress and cancel or retry as a whole. Album tracks go
+//! into the album template's folders and get the album's tags and one cover.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -8,7 +12,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use library::Track;
-use links::{DownloadEvent, DownloadOptions, DownloadStatus, FileNameFields, LinkError};
+use links::{DownloadEvent, DownloadOptions, DownloadStatus, FileNameFields, LinkAlbum, LinkError};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::watch;
@@ -27,6 +31,50 @@ const PARALLEL: usize = 2;
 /// Progress is sent to the windows at most this often.
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GroupKind {
+    Album,
+    Playlist,
+}
+
+/// An album or playlist downloaded together, as the windows see it.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GroupInfo {
+    pub id: u64,
+    pub kind: GroupKind,
+    pub url: String,
+    pub title: String,
+    pub artist: Option<String>,
+    /// Library cover id (`artwork://localhost/cover/<id>`).
+    pub cover: Option<String>,
+}
+
+/// What a group is made from.
+#[derive(Debug, Clone)]
+pub struct GroupSpec {
+    pub url: String,
+    pub kind: GroupKind,
+    pub title: String,
+    pub artist: Option<String>,
+    pub cover_id: Option<String>,
+    /// The album, for album downloads.
+    pub album: Option<LinkAlbum>,
+    /// The album's square cover, written into every track.
+    pub cover: Option<Arc<Vec<u8>>>,
+    /// The album's first track: its thumbnail is the cover when the album had none.
+    pub first_track: Option<String>,
+}
+
+struct Group {
+    info: GroupInfo,
+    album: Option<LinkAlbum>,
+    /// Found lazily when the album came without one; then every later track gets it too.
+    cover: Mutex<Option<Arc<Vec<u8>>>>,
+    first_track: Option<String>,
+}
+
 /// One download as the windows see it.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,15 +85,15 @@ pub struct Job {
     pub title: String,
     pub artist: Option<String>,
     pub album: Option<String>,
-    #[serde(skip)]
-    year: Option<i64>,
     pub status: DownloadStatus,
+    /// The album or playlist it is downloaded with.
+    pub group: Option<GroupInfo>,
     /// Stops the running yt-dlp.
     #[serde(skip)]
     cancel: Option<watch::Sender<bool>>,
-    /// The file name (without extension) this job reserved.
+    /// The folder and file name (without extension) this job reserved.
     #[serde(skip)]
-    stem: Option<String>,
+    stem: Option<(PathBuf, String)>,
 }
 
 #[derive(Clone)]
@@ -54,6 +102,7 @@ pub struct Downloads(Arc<Inner>);
 struct Inner {
     app: AppHandle,
     jobs: Mutex<Vec<Job>>,
+    groups: Mutex<Vec<Arc<Group>>>,
     next_id: AtomicU64,
     /// Partial files, one directory per job.
     temp_root: PathBuf,
@@ -93,6 +142,81 @@ fn stems_in(dir: &Path) -> HashSet<String> {
         .collect()
 }
 
+/// What a download's file is tagged with.
+#[derive(Debug, Clone, Default, PartialEq)]
+struct Tagging {
+    title: String,
+    artists: Vec<String>,
+    album: Option<String>,
+    album_artist: Option<String>,
+    year: Option<u16>,
+    /// Number and total, for album tracks.
+    track: Option<(u32, Option<u32>)>,
+}
+
+/// The tags of a track downloaded on its own, or as part of `album`.
+fn tagging(track: &Track, album: Option<&LinkAlbum>, album_year: Option<i64>) -> Tagging {
+    let artists = if track.artists.is_empty() {
+        track.artist.clone().into_iter().collect()
+    } else {
+        track.artists.iter().map(|a| a.name.clone()).collect()
+    };
+    let year = track
+        .year
+        .or(album_year)
+        .and_then(|year| u16::try_from(year).ok())
+        .or_else(|| album.and_then(|a| a.year));
+    Tagging {
+        title: track.title.clone(),
+        artists,
+        // The library's values first: the user may have corrected them (see
+        // `Library::edit_link`); the link's album only fills in what the track lacks.
+        album: track
+            .album
+            .clone()
+            .or_else(|| album.map(|a| a.title.clone())),
+        album_artist: track
+            .album_artist
+            .clone()
+            .or_else(|| album.and_then(|a| a.artist.clone())),
+        year,
+        track: album.and_then(|a| {
+            let number = track.track_number.and_then(|n| u32::try_from(n).ok())?;
+            Some((number, a.count))
+        }),
+    }
+}
+
+/// The download's folder (under the download folder) and file name.
+fn placement(
+    base: &Path,
+    settings: &DownloadSettings,
+    tags: &Tagging,
+    in_album: bool,
+) -> (PathBuf, String) {
+    let template = if in_album {
+        &settings.album_template
+    } else {
+        &settings.template
+    };
+    let artist = tags.artists.join(", ");
+    let (folders, stem) = links::relative_path(
+        template,
+        &FileNameFields {
+            artist: (!artist.is_empty()).then_some(artist.as_str()),
+            title: Some(&tags.title),
+            album: tags.album.as_deref(),
+            album_artist: tags.album_artist.as_deref(),
+            track: tags.track.map(|(number, _)| number),
+            year: tags.year,
+        },
+    );
+    let dir = folders
+        .iter()
+        .fold(base.to_path_buf(), |dir, f| dir.join(f));
+    (dir, stem)
+}
+
 impl Downloads {
     pub fn new(app: AppHandle) -> Result<Self, AppError> {
         let temp_root = app.path().app_cache_dir()?.join("downloads");
@@ -101,6 +225,7 @@ impl Downloads {
         Ok(Self(Arc::new(Inner {
             app,
             jobs: Mutex::new(Vec::new()),
+            groups: Mutex::new(Vec::new()),
             next_id: AtomicU64::new(1),
             temp_root,
             last_progress: Mutex::new(Instant::now()),
@@ -143,9 +268,56 @@ impl Downloads {
         }
     }
 
-    /// Queues link tracks for download. Tracks that are files already, or queued already,
-    /// are skipped. Returns how many were queued.
-    pub fn add(&self, tracks: Vec<Track>) -> usize {
+    /// The group for `spec`: the one downloading the same link, or a new one.
+    fn group(&self, spec: GroupSpec) -> Arc<Group> {
+        let mut groups = lock(&self.0.groups);
+        if let Some(index) = groups.iter().position(|g| g.info.url == spec.url) {
+            let old = &groups[index];
+            let cover = lock(&old.cover).clone().or(spec.cover);
+            let group = Arc::new(Group {
+                info: GroupInfo {
+                    id: old.info.id,
+                    kind: spec.kind,
+                    url: spec.url,
+                    title: spec.title,
+                    artist: spec.artist,
+                    cover: spec.cover_id.or(old.info.cover.clone()),
+                },
+                album: spec.album,
+                cover: Mutex::new(cover),
+                first_track: spec.first_track,
+            });
+            groups[index] = Arc::clone(&group);
+            return group;
+        }
+        let group = Arc::new(Group {
+            info: GroupInfo {
+                id: self.0.next_id.fetch_add(1, Ordering::Relaxed),
+                kind: spec.kind,
+                url: spec.url,
+                title: spec.title,
+                artist: spec.artist,
+                cover: spec.cover_id,
+            },
+            album: spec.album,
+            cover: Mutex::new(spec.cover),
+            first_track: spec.first_track,
+        });
+        groups.push(Arc::clone(&group));
+        group
+    }
+
+    fn group_by_id(&self, id: u64) -> Option<Arc<Group>> {
+        lock(&self.0.groups)
+            .iter()
+            .find(|g| g.info.id == id)
+            .cloned()
+    }
+
+    /// Queues link tracks for download, as `group` when given. Tracks that are files
+    /// already, or queued already, are skipped. Returns how many were queued.
+    pub fn add(&self, tracks: Vec<Track>, group: Option<GroupSpec>) -> usize {
+        let group = group.map(|spec| self.group(spec));
         let mut added = 0;
         {
             let mut jobs = lock(&self.0.jobs);
@@ -171,8 +343,8 @@ impl Downloads {
                     title: track.title,
                     artist: track.artist,
                     album: track.album,
-                    year: track.year,
                     status: DownloadStatus::Queued,
+                    group: group.as_ref().map(|g| g.info.clone()),
                     cancel: None,
                     stem: None,
                 });
@@ -215,9 +387,43 @@ impl Downloads {
         }
     }
 
-    /// Forgets finished, failed and cancelled downloads.
+    fn group_job_ids(&self, group: u64) -> Vec<u64> {
+        lock(&self.0.jobs)
+            .iter()
+            .filter(|job| job.group.as_ref().is_some_and(|g| g.id == group))
+            .map(|job| job.id)
+            .collect()
+    }
+
+    /// Cancels every unfinished download of an album or playlist.
+    pub fn cancel_group(&self, group: u64) {
+        for id in self.group_job_ids(group) {
+            self.cancel(id);
+        }
+    }
+
+    /// Retries every failed or cancelled download of an album or playlist.
+    pub fn retry_group(&self, group: u64) {
+        let mut retried = false;
+        for id in self.group_job_ids(group) {
+            retried |= self.transition(id, DownloadStatus::retried);
+        }
+        if retried {
+            self.emit();
+            self.pump();
+        }
+    }
+
+    /// Forgets finished, failed and cancelled downloads (and groups left empty).
     pub fn clear(&self) {
-        lock(&self.0.jobs).retain(|job| job.status.is_active());
+        let groups: HashSet<u64> = {
+            let mut jobs = lock(&self.0.jobs);
+            jobs.retain(|job| job.status.is_active());
+            jobs.iter()
+                .filter_map(|job| job.group.as_ref().map(|g| g.id))
+                .collect()
+        };
+        lock(&self.0.groups).retain(|g| groups.contains(&g.info.id));
         self.emit();
     }
 
@@ -282,22 +488,59 @@ impl Downloads {
         self.emit();
     }
 
-    /// Reserves a file name no file in `dir` and no other download has.
+    /// Reserves a file name no file in `dir` and no other download into `dir` has.
     fn reserve_stem(&self, id: u64, dir: &Path, wanted: &str) -> String {
         let on_disk = stems_in(dir);
         let mut jobs = lock(&self.0.jobs);
         let reserved: HashSet<String> = jobs
             .iter()
-            .filter_map(|job| job.stem.as_deref().map(str::to_lowercase))
+            .filter_map(|job| job.stem.as_ref())
+            .filter(|(folder, _)| folder == dir)
+            .map(|(_, stem)| stem.to_lowercase())
             .collect();
         let stem = links::unique_stem(wanted, |candidate| {
             let key = candidate.to_lowercase();
             on_disk.contains(&key) || reserved.contains(&key)
         });
         if let Some(job) = jobs.iter_mut().find(|job| job.id == id) {
-            job.stem = Some(stem.clone());
+            job.stem = Some((dir.to_path_buf(), stem.clone()));
         }
         stem
+    }
+
+    /// The album's cover for a track: the group's, else its first track's thumbnail, else
+    /// the cover yt-dlp embedded in `file` (cut square). The first found is kept for the
+    /// album's other tracks.
+    async fn album_cover(
+        &self,
+        group: &Group,
+        links: &LinkService,
+        file: &Path,
+    ) -> Option<Arc<Vec<u8>>> {
+        if let Some(cover) = lock(&group.cover).clone() {
+            return Some(cover);
+        }
+        let thumbnail = group
+            .first_track
+            .as_deref()
+            .and_then(|url| links.thumbnail(url))
+            .map(|bytes| bytes.as_ref().clone());
+        let file = file.to_path_buf();
+        let square = tauri::async_runtime::spawn_blocking(move || {
+            let source = thumbnail.or_else(|| {
+                media::read_track(&file)
+                    .ok()?
+                    .embedded_artwork
+                    .map(|art| art.bytes)
+            })?;
+            media::square_cover(&source).ok()
+        })
+        .await
+        .ok()
+        .flatten()?;
+        let square = Arc::new(square);
+        let mut cover = lock(&group.cover);
+        Some(Arc::clone(cover.get_or_insert(square)))
     }
 
     /// Downloads one job's link, tags the file and puts it in the library; returns the file.
@@ -313,17 +556,11 @@ impl Downloads {
                 "FFmpeg is needed for downloads but was not found".into(),
             ));
         }
-        let dir = download_folder(app, &settings)?;
-        let year = job.year.and_then(|year| u16::try_from(year).ok());
-        let wanted = links::file_stem(
-            &settings.template,
-            &FileNameFields {
-                artist: job.artist.as_deref(),
-                title: Some(&job.title),
-                album: job.album.as_deref(),
-                year,
-            },
-        );
+        let group = job.group.as_ref().and_then(|g| self.group_by_id(g.id));
+        let album = group.as_ref().and_then(|g| g.album.clone());
+        let tags = self.tagging(&library, &job, album.as_ref()).await?;
+        let base = download_folder(app, &settings)?;
+        let (dir, wanted) = placement(&base, &settings, &tags, album.is_some());
         let options = DownloadOptions {
             format: settings.format,
             mp3_bitrate: settings.mp3_bitrate,
@@ -350,13 +587,19 @@ impl Downloads {
             self.emit();
         }
 
+        // Read again: the album's other tracks may have brought its year meanwhile.
+        let tags = self.tagging(&library, &job, album.as_ref()).await?;
+        let cover = match (&group, &album) {
+            (Some(group), Some(_)) => self.album_cover(group, &links, &file).await,
+            _ => None,
+        };
         let track = {
             let library = library.clone();
-            let job = job.clone();
+            let track_id = job.track_id;
             let file = file.clone();
             tauri::async_runtime::spawn_blocking(move || {
-                tag_file(&library, &job, year, &file);
-                library.with(|db| db.attach_download(job.track_id, &file, library.covers_dir()))
+                tag_file(&library, track_id, &tags, cover.as_deref(), &file);
+                library.with(|db| db.attach_download(track_id, &file, library.covers_dir()))
             })
             .await??
         };
@@ -368,28 +611,72 @@ impl Downloads {
         }
         Ok(track.path)
     }
+
+    /// The tags for a job, from the library's current view of its track (filled in while the
+    /// download waited) and its album.
+    async fn tagging(
+        &self,
+        library: &LibraryService,
+        job: &Job,
+        album: Option<&LinkAlbum>,
+    ) -> Result<Tagging, AppError> {
+        let track_id = job.track_id;
+        let stored = library
+            .run(move |db| {
+                let Some(track) = db.track(track_id)? else {
+                    return Ok(None);
+                };
+                let album_year = match track.album_id {
+                    Some(id) => db.album(id)?.and_then(|a| a.year),
+                    None => None,
+                };
+                Ok(Some((track, album_year)))
+            })
+            .await?;
+        Ok(match stored {
+            Some((track, album_year)) => tagging(&track, album, album_year),
+            // The track left the library meanwhile: what the job knew.
+            None => Tagging {
+                title: job.title.clone(),
+                artists: job.artist.clone().into_iter().collect(),
+                album: job.album.clone(),
+                ..Tagging::default()
+            },
+        })
+    }
 }
 
 /// Writes the track's metadata as Vitra shows it (cleaner than the page's title and
-/// uploader yt-dlp embeds) and its lyrics into the file. The cover yt-dlp embedded stays.
-fn tag_file(library: &LibraryService, job: &Job, year: Option<u16>, file: &Path) {
-    let lyrics = library
-        .with(|db| db.lyrics_text(job.track_id))
-        .ok()
-        .flatten();
-    let album_artist = media::read_track(file)
-        .ok()
-        .and_then(|info| info.metadata.album_artist)
-        .unwrap_or_default();
+/// uploader yt-dlp embeds), each artist as its own value, and its lyrics into the file.
+/// Values Vitra doesn't know (a year, an album artist) keep what yt-dlp wrote; `cover`
+/// replaces the thumbnail yt-dlp embedded.
+fn tag_file(
+    library: &LibraryService,
+    track_id: i64,
+    tags: &Tagging,
+    cover: Option<&Vec<u8>>,
+    file: &Path,
+) {
+    let lyrics = library.with(|db| db.lyrics_text(track_id)).ok().flatten();
+    let written = media::read_track(file).ok().map(|info| info.metadata);
     let values = media::TagValues {
-        title: job.title.clone(),
-        artist: job.artist.clone().unwrap_or_default(),
-        album: job.album.clone().unwrap_or_default(),
-        album_artist,
-        year,
+        title: tags.title.clone(),
+        artist: tags.artists.join(&media::ARTIST_SEPARATOR.to_string()),
+        album: tags.album.clone().unwrap_or_default(),
+        album_artist: tags
+            .album_artist
+            .clone()
+            .or_else(|| written.as_ref().and_then(|m| m.album_artist.clone()))
+            .unwrap_or_default(),
+        year: tags.year.or_else(|| written.as_ref().and_then(|m| m.year)),
+        track: tags.track,
         lyrics,
     };
-    if let Err(err) = media::write_tags(file, &values, &media::CoverChange::Keep) {
+    let cover = match cover {
+        Some(bytes) => media::CoverChange::Replace(bytes.clone()),
+        None => media::CoverChange::Keep,
+    };
+    if let Err(err) = media::write_tags(file, &values, &cover) {
         log::warn!("cannot tag {}: {err}", file.display());
     }
 }
@@ -397,6 +684,7 @@ fn tag_file(library: &LibraryService, job: &Job, year: Option<u16>, file: &Path)
 #[cfg(test)]
 mod tests {
     use super::*;
+    use library::ArtistRef;
 
     #[test]
     fn existing_files_are_found_by_stem_ignoring_case() {
@@ -407,5 +695,82 @@ mod tests {
         assert!(stems.contains("artist - song"));
         assert!(stems.contains("other"));
         assert!(stems_in(&tmp.path().join("missing")).is_empty());
+    }
+
+    fn track() -> Track {
+        Track {
+            id: 1,
+            path: "https://y/1".into(),
+            title: "Ice Fields".into(),
+            artist: Some("Glass Harbor, Aurora Collective".into()),
+            artist_id: Some(2),
+            artists: vec![
+                ArtistRef {
+                    id: 2,
+                    name: "Glass Harbor".into(),
+                },
+                ArtistRef {
+                    id: 1,
+                    name: "Aurora Collective".into(),
+                },
+            ],
+            album: Some("Polar Lights".into()),
+            album_id: Some(1),
+            album_artist: Some("Aurora Collective".into()),
+            genre: None,
+            year: None,
+            track_number: Some(2),
+            disc_number: None,
+            duration: Some(187.0),
+            format: None,
+            sample_rate: None,
+            bit_depth: None,
+            bitrate: None,
+            favorite: false,
+            play_count: 0,
+            last_played_at: None,
+            added_at: 0,
+            cover: None,
+            folder_id: None,
+            source_url: Some("https://y/1".into()),
+        }
+    }
+
+    #[test]
+    fn album_tracks_are_numbered_into_album_folders() {
+        let album = LinkAlbum {
+            title: "Polar Lights".into(),
+            artist: Some("Aurora Collective".into()),
+            year: None,
+            count: Some(12),
+        };
+        let tags = tagging(&track(), Some(&album), Some(2021));
+        assert_eq!(tags.artists, ["Glass Harbor", "Aurora Collective"]);
+        assert_eq!(tags.track, Some((2, Some(12))));
+        assert_eq!(tags.year, Some(2021));
+        assert_eq!(tags.album_artist.as_deref(), Some("Aurora Collective"));
+
+        let settings = DownloadSettings::default();
+        let base = Path::new("/music/Vitra");
+        let (dir, stem) = placement(base, &settings, &tags, true);
+        assert_eq!(dir, base.join("Aurora Collective").join("Polar Lights"));
+        assert_eq!(stem, "02 Ice Fields");
+        // What the user corrected wins over the link's album.
+        let corrected = Track {
+            album: Some("Northern Lights".into()),
+            album_artist: Some("Glass Harbor".into()),
+            ..track()
+        };
+        let tags = tagging(&corrected, Some(&album), None);
+        assert_eq!(
+            (tags.album.as_deref(), tags.album_artist.as_deref()),
+            (Some("Northern Lights"), Some("Glass Harbor"))
+        );
+        // On its own, the same track goes by the single-track template.
+        let single = tagging(&track(), None, None);
+        assert_eq!(single.track, None);
+        let (dir, stem) = placement(base, &settings, &single, false);
+        assert_eq!(dir, base);
+        assert_eq!(stem, "Glass Harbor, Aurora Collective - Ice Fields");
     }
 }

@@ -18,14 +18,15 @@ import { useTranslation } from 'react-i18next';
 import { Glass } from '../components/Glass/index.ts';
 import { IconButton } from '../components/ui/IconButton.tsx';
 import { createPlaylist, report } from '../features/library/actions.ts';
+import { coverMenu } from '../features/library/covers.ts';
 import { usePlaylists } from '../features/library/usePlaylists.ts';
 import { confirm } from '../lib/confirm.ts';
-import { playlists } from '../lib/library.ts';
+import { coverUrl, playlists } from '../lib/library.ts';
 import { isActive } from '../lib/links.ts';
 import { showContextMenu } from '../lib/menu.ts';
 import { useDownloads } from '../stores/downloads.ts';
 import { useNavigation, type Route } from '../stores/navigation.ts';
-import { useUi } from '../stores/ui.ts';
+import { useUi, type SidebarMode } from '../stores/ui.ts';
 import styles from './Sidebar.module.css';
 
 /** Typing pauses this long before the search runs. */
@@ -47,20 +48,17 @@ function SearchField() {
     }
   }
 
+  // Cmd+F (see TitleBar) and the rail's search button ask for the field.
+  const requested = useUi((s) => s.searchRequested);
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
-        event.preventDefault();
-        input.current?.focus();
-        input.current?.select();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.clearTimeout(timer.current);
-    };
-  }, []);
+    if (requested) {
+      input.current?.focus();
+      input.current?.select();
+      useUi.getState().searchFocused();
+    }
+  }, [requested]);
+
+  useEffect(() => () => window.clearTimeout(timer.current), []);
 
   const search = (query: string) => {
     setText(query);
@@ -106,17 +104,53 @@ function SearchField() {
     </div>
   );
 }
+/** The rail's stand-in for the search field: opens the full sidebar with the field focused. */
+function SearchButton() {
+  const { t } = useTranslation();
+  const searching = useNavigation((s) => s.route.view === 'search');
+  return (
+    <button
+      type="button"
+      className={`${styles.item} ${styles.railSearch}`}
+      aria-label={t('nav.search')}
+      title={t('nav.search')}
+      aria-current={searching ? 'page' : undefined}
+      onClick={() => useUi.getState().focusSearch()}
+    >
+      <Search size={16} className={styles.icon} aria-hidden="true" />
+    </button>
+  );
+}
+
+/** What a playlist shows in the rail, where every playlist would otherwise have the same icon. */
+function Monogram({ name }: { name: string }) {
+  return (
+    <span className={styles.monogram} aria-hidden="true">
+      {Array.from(name.trim())[0]?.toUpperCase() ?? ''}
+    </span>
+  );
+}
+
 function NavItem({
   route,
   label,
   icon: Icon,
+  rail,
+  monogram,
+  image,
   badge,
   onContextMenu,
 }: {
   route: Route;
   label: string;
   icon: LucideIcon;
-  /** A count shown at the end (e.g. running downloads). */
+  /** Only the icon, with the label as a tooltip. */
+  rail: boolean;
+  /** In the rail, show the label's first letter instead of the icon. */
+  monogram?: boolean;
+  /** A cover (one the user chose) shown instead of the icon. */
+  image?: string | null;
+  /** A count shown at the end (e.g. running downloads); a dot in the rail. */
   badge?: number;
   onContextMenu?(event: MouseEvent): void;
 }) {
@@ -125,24 +159,45 @@ function NavItem({
   const active =
     current.view === route.view &&
     (!('id' in route) || ('id' in current && current.id === route.id));
+  const showBadge = badge !== undefined && badge > 0;
   return (
     <li>
       <button
         type="button"
         className={styles.item}
         aria-current={active ? 'page' : undefined}
+        aria-label={rail ? label : undefined}
+        title={rail ? label : undefined}
         onClick={() => go(route)}
         onContextMenu={onContextMenu}
       >
-        <Icon size={16} className={styles.icon} aria-hidden="true" />
-        <span className={styles.label}>{label}</span>
-        {badge !== undefined && badge > 0 && <span className={styles.badge}>{badge}</span>}
+        {image ? (
+          <img className={styles.thumb} src={coverUrl(image)} alt="" draggable={false} />
+        ) : rail && monogram ? (
+          <Monogram name={label} />
+        ) : (
+          <Icon size={16} className={styles.icon} aria-hidden="true" />
+        )}
+        {!rail && <span className={styles.label}>{label}</span>}
+        {showBadge && (
+          <span className={styles.badge} aria-hidden={rail}>
+            {rail ? '' : badge}
+          </span>
+        )}
       </button>
     </li>
   );
 }
 
-function DownloadsItem({ visible, badge }: { visible: boolean; badge: number }) {
+function DownloadsItem({
+  visible,
+  badge,
+  rail,
+}: {
+  visible: boolean;
+  badge: number;
+  rail: boolean;
+}) {
   const { t } = useTranslation();
   const open = useNavigation((s) => s.route.view === 'downloads');
   if (!visible && !open) {
@@ -153,17 +208,26 @@ function DownloadsItem({ visible, badge }: { visible: boolean; badge: number }) 
       route={{ view: 'downloads' }}
       label={t('nav.downloads')}
       icon={Download}
+      rail={rail}
       badge={badge}
     />
   );
 }
 
-export function Sidebar({ className }: { className?: string }) {
+export function Sidebar({
+  className,
+  mode,
+}: {
+  className?: string;
+  /** The full sidebar, or a narrow strip of icons. */
+  mode: Exclude<SidebarMode, 'hidden'>;
+}) {
   const { t } = useTranslation();
   const all = usePlaylists();
   const renamePlaylist = useUi((s) => s.renamePlaylist);
   const activeDownloads = useDownloads((s) => s.jobs.filter((job) => isActive(job.status)).length);
   const hasDownloads = useDownloads((s) => s.jobs.length > 0);
+  const rail = mode === 'rail';
   const items: { route: Route; label: string; icon: LucideIcon }[] = [
     { route: { view: 'nowPlaying' }, label: t('nav.nowPlaying'), icon: AudioLines },
     { route: { view: 'recent' }, label: t('nav.recent'), icon: Clock3 },
@@ -173,7 +237,7 @@ export function Sidebar({ className }: { className?: string }) {
     { route: { view: 'favorites' }, label: t('nav.favorites'), icon: Heart },
   ];
 
-  const playlistMenu = (id: number, name: string) => (event: MouseEvent) => {
+  const playlistMenu = (id: number, name: string, custom: boolean) => (event: MouseEvent) => {
     event.preventDefault();
     showContextMenu([
       {
@@ -183,6 +247,7 @@ export function Sidebar({ className }: { className?: string }) {
           renamePlaylist(id);
         },
       },
+      ...coverMenu({ kind: 'playlist', id }, custom),
       {
         label: t('library.deletePlaylist'),
         action: () => {
@@ -207,30 +272,39 @@ export function Sidebar({ className }: { className?: string }) {
       as="nav"
       className={`${styles.sidebar} ${className ?? ''}`}
       aria-label={t('nav.label')}
+      data-mode={mode}
       priority={2}
     >
       {/* Room for the macOS traffic lights; also lets the user drag the window from here. */}
       <div className={styles.dragArea} data-tauri-drag-region />
-      <SearchField />
+      {rail ? <SearchButton /> : <SearchField />}
       <div className={styles.scroll}>
-        <p className={styles.section}>{t('nav.library')}</p>
+        {rail ? (
+          <hr className={styles.divider} />
+        ) : (
+          <p className={styles.section}>{t('nav.library')}</p>
+        )}
         <ul className={styles.list}>
           {items.map((item) => (
-            <NavItem key={item.route.view} {...item} />
+            <NavItem key={item.route.view} {...item} rail={rail} />
           ))}
           {/* Shown once there is something to show, or while it is open. */}
-          <DownloadsItem visible={hasDownloads} badge={activeDownloads} />
+          <DownloadsItem visible={hasDownloads} badge={activeDownloads} rail={rail} />
         </ul>
-        <div className={styles.sectionRow}>
-          <p className={styles.section}>{t('nav.playlists')}</p>
-          <IconButton
-            label={t('nav.newPlaylist')}
-            className={styles.add}
-            onClick={() => createPlaylist()}
-          >
-            <Plus size={14} />
-          </IconButton>
-        </div>
+        {rail ? (
+          <hr className={styles.divider} />
+        ) : (
+          <div className={styles.sectionRow}>
+            <p className={styles.section}>{t('nav.playlists')}</p>
+            <IconButton
+              label={t('nav.newPlaylist')}
+              className={styles.add}
+              onClick={() => createPlaylist()}
+            >
+              <Plus size={14} />
+            </IconButton>
+          </div>
+        )}
         <ul className={styles.list}>
           {all.map((playlist) => (
             <NavItem
@@ -238,9 +312,25 @@ export function Sidebar({ className }: { className?: string }) {
               route={{ view: 'playlist', id: playlist.id }}
               label={playlist.name}
               icon={ListMusic}
-              onContextMenu={playlistMenu(playlist.id, playlist.name)}
+              rail={rail}
+              monogram
+              image={playlist.customCover ? playlist.cover : null}
+              onContextMenu={playlistMenu(playlist.id, playlist.name, playlist.customCover)}
             />
           ))}
+          {rail && (
+            <li>
+              <button
+                type="button"
+                className={styles.item}
+                aria-label={t('nav.newPlaylist')}
+                title={t('nav.newPlaylist')}
+                onClick={() => createPlaylist()}
+              >
+                <Plus size={16} className={styles.icon} aria-hidden="true" />
+              </button>
+            </li>
+          )}
         </ul>
       </div>
     </Glass>

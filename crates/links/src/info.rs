@@ -14,12 +14,16 @@ struct RawInfo {
     title: Option<String>,
     track: Option<String>,
     artist: Option<String>,
-    artists: Option<Vec<String>>,
+    artists: Option<Vec<Option<String>>>,
     creator: Option<String>,
+    creators: Option<Vec<Option<String>>>,
     uploader: Option<String>,
     channel: Option<String>,
     album: Option<String>,
     album_artist: Option<String>,
+    album_artists: Option<Vec<Option<String>>>,
+    track_number: Option<i64>,
+    playlist_index: Option<i64>,
     release_year: Option<i64>,
     upload_date: Option<String>,
     duration: Option<f64>,
@@ -41,14 +45,31 @@ pub struct LinkTrack {
     /// The extractor's id, used to match a track with its later, complete metadata.
     pub id: Option<String>,
     pub title: String,
+    /// The credit as one text ("A, B" when the site lists several artists).
     pub artist: Option<String>,
+    /// The artists as the site lists them; empty when it only gives one text, which the
+    /// library then splits (see `library::ArtistSplitting`).
+    pub artists: Vec<String>,
     pub album: Option<String>,
+    pub album_artist: Option<String>,
+    pub track_number: Option<u32>,
     pub year: Option<u16>,
     /// Seconds.
     pub duration: Option<f64>,
     pub live: bool,
     /// The site, e.g. "Youtube" or "Soundcloud".
     pub source: Option<String>,
+}
+
+/// What makes a playlist an album.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct LinkAlbum {
+    pub title: String,
+    pub artist: Option<String>,
+    /// Known once a track's own page was read (listings don't carry it).
+    pub year: Option<u16>,
+    /// Tracks on the album, unavailable ones included (the "of" in "3 of 12").
+    pub count: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -58,6 +79,95 @@ pub struct LinkPlaylist {
     pub title: String,
     pub uploader: Option<String>,
     pub tracks: Vec<LinkTrack>,
+    /// Set when the playlist is an album (YouTube Music's album playlists, Bandcamp albums):
+    /// its entries are then numbered tracks of that album.
+    pub album: Option<LinkAlbum>,
+}
+
+/// YouTube's album playlists ("OLAK5uy_…"); YouTube Music's album pages
+/// (`browse/MPREb…`) are resolved by yt-dlp to them.
+const ALBUM_PLAYLIST_PREFIX: &str = "OLAK5uy_";
+/// What YouTube puts before an album playlist's title.
+const ALBUM_TITLE_PREFIX: &str = "Album - ";
+
+/// Whether a link is a YouTube or YouTube Music album, judging by the URL alone.
+pub fn is_album_link(url: &str) -> bool {
+    url.contains(&format!("list={ALBUM_PLAYLIST_PREFIX}")) || url.contains("/browse/MPREb")
+}
+
+/// The album a playlist is, if it is one.
+fn album_of(raw: &RawInfo, requested: &str, url: &str) -> Option<LinkAlbum> {
+    let by_id = raw
+        .id
+        .as_deref()
+        .is_some_and(|id| id.starts_with(ALBUM_PLAYLIST_PREFIX));
+    let by_site = raw.extractor_key.as_deref() == Some("BandcampAlbum");
+    if !(by_id || by_site || is_album_link(requested) || is_album_link(url)) {
+        return None;
+    }
+    let title = non_empty(raw.title.clone()).unwrap_or_default();
+    let title = title
+        .strip_prefix(ALBUM_TITLE_PREFIX)
+        .unwrap_or(&title)
+        .trim()
+        .to_owned();
+    Some(LinkAlbum {
+        title,
+        artist: first_of(raw.album_artists.clone())
+            .or_else(|| non_empty(raw.album_artist.clone()))
+            .or_else(|| without_topic(non_empty(raw.uploader.clone())))
+            .or_else(|| without_topic(non_empty(raw.channel.clone()))),
+        year: raw.release_year.and_then(|year| u16::try_from(year).ok()),
+        count: None,
+    })
+}
+
+/// YouTube's auto-generated music channels are "Artist - Topic".
+fn without_topic(name: Option<String>) -> Option<String> {
+    name.map(|name| name.strip_suffix(" - Topic").unwrap_or(&name).to_owned())
+}
+
+/// Non-empty, trimmed names of a list.
+fn names(list: Option<Vec<Option<String>>>) -> Vec<String> {
+    list.unwrap_or_default()
+        .into_iter()
+        .filter_map(non_empty)
+        .collect()
+}
+
+fn first_of(list: Option<Vec<Option<String>>>) -> Option<String> {
+    names(list).into_iter().next()
+}
+
+/// The artist most of an album's tracks are by (their main artist), for albums whose
+/// playlist doesn't name one.
+fn usual_artist(tracks: &[LinkTrack]) -> Option<String> {
+    let mut counts: Vec<(&str, usize)> = Vec::new();
+    for track in tracks {
+        let Some(artist) = track.artists.first().or(track.artist.as_ref()) else {
+            continue;
+        };
+        match counts.iter_mut().find(|(name, _)| name == artist) {
+            Some((_, count)) => *count += 1,
+            None => counts.push((artist, 1)),
+        }
+    }
+    // The first of the most frequent, so ties go to the album's opening track.
+    let most = counts.iter().map(|(_, count)| *count).max()?;
+    counts
+        .iter()
+        .find(|(_, count)| *count == most)
+        .map(|(name, _)| (*name).to_owned())
+}
+
+/// Files a track under its album: the album's title and artist, numbered by its place.
+pub fn place_in_album(track: &mut LinkTrack, album: &LinkAlbum, number: u32) {
+    track.album = Some(album.title.clone());
+    track.album_artist.clone_from(&album.artist);
+    track.track_number = Some(number);
+    if track.year.is_none() {
+        track.year = album.year;
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -68,29 +178,51 @@ pub enum Resolved {
 
 /// Parses `yt-dlp -J` output for `requested` (the link the user gave).
 pub fn parse_info(json: &str, requested: &str) -> Result<Resolved> {
-    let raw: RawInfo = serde_json::from_str(json)?;
+    let mut raw: RawInfo = serde_json::from_str(json)?;
     if raw.kind.as_deref() == Some("playlist") || raw.entries.is_some() {
         let url = raw
             .webpage_url
             .clone()
             .or_else(|| raw.original_url.clone())
             .unwrap_or_else(|| requested.to_owned());
-        let tracks = raw
-            .entries
-            .unwrap_or_default()
-            .into_iter()
-            .flatten()
-            .filter_map(|entry| track(entry, Some(&url)))
-            .collect();
+        let mut album = album_of(&raw, requested, &url);
+        let entries = raw.entries.take().unwrap_or_default();
+        if let Some(album) = album.as_mut() {
+            album.count = u32::try_from(entries.len()).ok().filter(|n| *n > 0);
+        }
+        let mut tracks: Vec<LinkTrack> = Vec::new();
+        let mut numbers: Vec<u32> = Vec::new();
+        for (index, entry) in entries.into_iter().enumerate() {
+            let Some(entry) = entry else {
+                continue;
+            };
+            // Numbered by place in the listing, unavailable entries included.
+            let number = entry
+                .playlist_index
+                .and_then(|n| u32::try_from(n).ok())
+                .unwrap_or(index as u32 + 1);
+            if let Some(track) = track(entry, Some(&url)) {
+                tracks.push(track);
+                numbers.push(number);
+            }
+        }
+        if let Some(album) = album.as_mut() {
+            if album.artist.is_none() {
+                album.artist = usual_artist(&tracks);
+            }
+            for (track, number) in tracks.iter_mut().zip(numbers) {
+                place_in_album(track, album, number);
+            }
+        }
         return Ok(Resolved::Playlist(LinkPlaylist {
             title: non_empty(raw.title).unwrap_or_else(|| url.clone()),
             uploader: non_empty(raw.uploader).or(non_empty(raw.channel)),
             id: raw.id,
             url,
             tracks,
+            album,
         }));
     }
-    let mut raw = raw;
     if raw.webpage_url.is_none() && raw.original_url.is_none() {
         raw.webpage_url = Some(requested.to_owned());
     }
@@ -178,26 +310,20 @@ fn track(raw: RawInfo, playlist_url: Option<&str>) -> Option<LinkTrack> {
         return None;
     }
 
-    let tagged_artist = raw
-        .artists
-        .as_ref()
-        .map(|artists| {
-            artists
-                .iter()
-                .map(|a| a.trim())
-                .filter(|a| !a.is_empty())
-                .collect::<Vec<_>>()
-                .join(", ")
-        })
-        .filter(|joined| !joined.is_empty())
+    // The site's list of artists (YouTube Music, SoundCloud) is what the library stores;
+    // a lone text is split by the library.
+    let mut listed = names(raw.artists.clone());
+    if listed.is_empty() {
+        listed = names(raw.creators.clone());
+    }
+    let tagged_artist = (!listed.is_empty())
+        .then(|| listed.join(", "))
         .or_else(|| non_empty(raw.artist.clone()))
         .or_else(|| non_empty(raw.creator.clone()))
         .or_else(|| non_empty(raw.album_artist.clone()));
     let track_title = non_empty(raw.track.clone());
-    let uploader = non_empty(raw.uploader.clone())
-        .or_else(|| non_empty(raw.channel.clone()))
-        // YouTube's auto-generated music channels are "Artist - Topic".
-        .map(|name| name.strip_suffix(" - Topic").unwrap_or(&name).to_owned());
+    let uploader =
+        without_topic(non_empty(raw.uploader.clone()).or_else(|| non_empty(raw.channel.clone())));
 
     let (artist, title) = match (tagged_artist, track_title) {
         (artist, Some(title)) => (artist.or(uploader), title),
@@ -236,12 +362,22 @@ fn track(raw: RawInfo, playlist_url: Option<&str>) -> Option<LinkTrack> {
                 .and_then(|date| date.get(..4))
                 .and_then(|year| year.parse().ok())
         });
+    // Only the site's list is kept as a list; an artist taken from the title or uploader is
+    // a credit like any other.
+    let artists = if artist.as_deref() == Some(listed.join(", ").as_str()) {
+        listed
+    } else {
+        Vec::new()
+    };
     Some(LinkTrack {
         url,
         id: raw.id,
         title,
         artist,
+        artists,
         album: non_empty(raw.album),
+        album_artist: first_of(raw.album_artists).or_else(|| non_empty(raw.album_artist)),
+        track_number: raw.track_number.and_then(|n| u32::try_from(n).ok()),
         year,
         duration: raw.duration.filter(|d| *d > 0.0),
         live: raw.is_live == Some(true) || raw.live_status.as_deref() == Some("is_live"),
@@ -268,10 +404,22 @@ mod tests {
     }
 
     fn playlist(name: &str) -> LinkPlaylist {
-        match parse_info(&fixture(name), "https://example.com/list").unwrap() {
+        playlist_from(&fixture(name), "https://example.com/list")
+    }
+
+    fn playlist_from(json: &str, requested: &str) -> LinkPlaylist {
+        match parse_info(json, requested).unwrap() {
             Resolved::Playlist(playlist) => playlist,
             other => panic!("expected a playlist, got {other:?}"),
         }
+    }
+
+    /// A fixture that `scripts/record-ytdlp-fixtures.sh` records, if it has been run.
+    fn recorded(name: &str) -> Option<String> {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures")
+            .join(name);
+        std::fs::read_to_string(path).ok()
     }
 
     #[test]
@@ -393,6 +541,176 @@ mod tests {
             panic!("a track");
         };
         assert_eq!(track.url, "https://example.com/abc");
+    }
+
+    #[test]
+    fn album_links_are_recognized_by_url() {
+        assert!(is_album_link(
+            "https://music.youtube.com/playlist?list=OLAK5uy_abc"
+        ));
+        assert!(is_album_link(
+            "https://www.youtube.com/playlist?list=OLAK5uy_abc&si=x"
+        ));
+        assert!(is_album_link(
+            "https://music.youtube.com/browse/MPREb_abcdef"
+        ));
+        assert!(!is_album_link(
+            "https://www.youtube.com/playlist?list=PLabc"
+        ));
+        assert!(!is_album_link("https://www.youtube.com/watch?v=x"));
+    }
+
+    #[test]
+    fn a_youtube_album_is_an_album_with_numbered_tracks() {
+        check_album(&playlist("youtube-album.json"));
+        if let Some(json) = recorded("youtube-album-recorded.json") {
+            check_album(&playlist_from(&json, "https://example.com/list"));
+        }
+        if let Some(json) = recorded("youtube-album-page-recorded.json") {
+            check_album(&playlist_from(
+                &json,
+                "https://music.youtube.com/browse/MPREb_recorded",
+            ));
+        }
+    }
+
+    fn check_album(list: &LinkPlaylist) {
+        let album = list.album.as_ref().expect("an album");
+        assert!(!album.title.is_empty());
+        assert!(!album.title.starts_with("Album - "), "{}", album.title);
+        let artist = album.artist.as_deref().expect("an album artist");
+        assert!(!artist.ends_with(" - Topic"), "{artist}");
+        assert!(!list.tracks.is_empty());
+        let mut last = 0;
+        for track in &list.tracks {
+            assert_eq!(track.album.as_deref(), Some(album.title.as_str()));
+            assert_eq!(track.album_artist.as_deref(), Some(artist));
+            let number = track.track_number.expect("numbered");
+            assert!(number > last, "numbers keep the album's order");
+            last = number;
+            assert!(track.duration.is_some_and(|d| d > 0.0), "{}", track.title);
+        }
+    }
+
+    #[test]
+    fn album_details_of_the_hand_written_fixture() {
+        let list = playlist("youtube-album.json");
+        let album = list.album.unwrap();
+        assert_eq!(album.title, "Polar Lights");
+        // The playlist has no owner; the tracks' artist names it.
+        assert_eq!(album.artist.as_deref(), Some("Aurora Collective"));
+        let numbers: Vec<_> = list.tracks.iter().map(|t| t.track_number).collect();
+        // The private video keeps its place, and counts.
+        assert_eq!(numbers, [Some(1), Some(2), Some(4)]);
+        assert_eq!(album.count, Some(4));
+    }
+
+    #[test]
+    fn an_album_page_is_an_album_whatever_yt_dlp_calls_it() {
+        let json = r#"{"_type":"playlist","id":"VLsomething","title":"Some Album",
+            "uploader":"Band - Topic","entries":[{"_type":"url","id":"a",
+            "url":"https://www.youtube.com/watch?v=a","title":"One","duration":10}]}"#;
+        let Resolved::Playlist(list) =
+            parse_info(json, "https://music.youtube.com/browse/MPREb_abc").unwrap()
+        else {
+            panic!("a playlist");
+        };
+        let album = list.album.unwrap();
+        assert_eq!(
+            (album.title.as_str(), album.artist.as_deref()),
+            ("Some Album", Some("Band"))
+        );
+        // An ordinary playlist isn't.
+        assert_eq!(playlist("youtube-playlist.json").album, None);
+    }
+
+    /// Recordings of real pages (scripts/record-ytdlp-fixtures.sh), checked for what doesn't
+    /// depend on which video or set was recorded.
+    #[test]
+    fn recorded_pages_parse_like_the_hand_written_ones() {
+        let track_of = |name: &str, requested: &str| {
+            let json = recorded(name)?;
+            match parse_info(&json, requested).unwrap() {
+                Resolved::Track(track) => Some(track),
+                other => panic!("{name}: expected a track, got {other:?}"),
+            }
+        };
+        if let Some(video) = track_of("youtube-video-recorded.json", "https://youtu.be/x") {
+            assert!(
+                video.url.starts_with("https://www.youtube.com/watch?v="),
+                "{}",
+                video.url
+            );
+            assert!(!video.title.is_empty());
+            assert!(video.artist.is_some(), "{video:?}");
+            assert!(video.duration.is_some_and(|d| d > 0.0), "{video:?}");
+            assert!(!video.live);
+        }
+        // A track of an "Artist - Topic" channel comes with its music tags.
+        if let Some(music) = track_of(
+            "youtube-music-recorded.json",
+            "https://music.youtube.com/watch?v=x",
+        ) {
+            assert!(!music.artists.is_empty(), "{music:?}");
+            assert_eq!(music.artist, Some(music.artists.join(", ")));
+            assert!(music.album.is_some(), "{music:?}");
+            assert!(!music.title.is_empty());
+        }
+        if let Some(sound) = track_of(
+            "soundcloud-track-recorded.json",
+            "https://soundcloud.com/a/b",
+        ) {
+            assert!(!sound.title.is_empty());
+            assert!(sound.artist.is_some(), "{sound:?}");
+        }
+        if let Some(json) = recorded("soundcloud-set-recorded.json") {
+            let set = playlist_from(&json, "https://soundcloud.com/a/sets/b");
+            assert_eq!(set.album, None, "a set is a playlist");
+        }
+    }
+
+    #[test]
+    fn a_recorded_album_track_lists_its_artists() {
+        let Some(json) = recorded("youtube-album-entry-recorded.json") else {
+            return;
+        };
+        let track = parse_entry(&json.replace('\n', " ")).unwrap().unwrap();
+        assert!(!track.artists.is_empty(), "{track:?}");
+        assert_eq!(track.artist, Some(track.artists.join(", ")));
+        assert!(track.album.is_some(), "{track:?}");
+    }
+
+    #[test]
+    fn an_album_track_page_lists_its_artists() {
+        let line = fixture("youtube-album-entry.json").replace('\n', " ");
+        let track = parse_entry(&line).unwrap().unwrap();
+        assert_eq!(track.artists, ["Aurora Collective", "Glass Harbor"]);
+        assert_eq!(
+            track.artist.as_deref(),
+            Some("Aurora Collective, Glass Harbor")
+        );
+        assert_eq!(track.album.as_deref(), Some("Polar Lights"));
+        assert_eq!(track.year, Some(2021));
+    }
+
+    #[test]
+    fn several_artists_come_as_a_list_or_a_credit() {
+        let parse = |json: &str| match parse_info(json, "https://y/x").unwrap() {
+            Resolved::Track(track) => track,
+            other => panic!("a track: {other:?}"),
+        };
+        let listed = parse(
+            r#"{"id":"x","title":"Song","track":"Song","artists":["VILLIAN"," madk1d ",null,""]}"#,
+        );
+        assert_eq!(listed.artists, ["VILLIAN", "madk1d"]);
+        assert_eq!(listed.artist.as_deref(), Some("VILLIAN, madk1d"));
+        let creators = parse(r#"{"id":"x","title":"Song","creators":["A","B"]}"#);
+        assert_eq!(creators.artists, ["A", "B"]);
+        // From the title: a credit for the library to split.
+        let credit = parse(r#"{"id":"x","title":"VILLIAN, madk1d - Song","uploader":"Label"}"#);
+        assert!(credit.artists.is_empty());
+        assert_eq!(credit.artist.as_deref(), Some("VILLIAN, madk1d"));
+        assert_eq!(credit.title, "Song");
     }
 
     #[test]

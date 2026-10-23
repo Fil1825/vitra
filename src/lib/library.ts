@@ -2,12 +2,22 @@ import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core';
 
 // Mirrors crates/library/src/model.rs and src-tauri/src/library.
 
+/** One of a track's artists. */
+export interface ArtistRef {
+  id: number;
+  name: string;
+}
+
 export interface LibraryTrack {
   id: number;
   path: string;
   title: string;
+  /** The artists' names joined for display ("A, B"). */
   artist: string | null;
+  /** The main (first) artist. */
   artistId: number | null;
+  /** Every artist in credit order, the main one first. */
+  artists: ArtistRef[];
   album: string | null;
   albumId: number | null;
   albumArtist: string | null;
@@ -26,7 +36,8 @@ export interface LibraryTrack {
   lastPlayedAt: number | null;
   /** Unix seconds. */
   addedAt: number;
-  /** Cover id: the track's own (a link's thumbnail), else its album's. */
+  /** Cover id: the one the user chose for its album, else the track's own (a link's
+   * thumbnail), else its album's. */
   cover: string | null;
   /** The library folder the file is in; `null` for a single file or a link. */
   folderId: number | null;
@@ -40,8 +51,13 @@ export interface Album {
   artist: string | null;
   artistId: number | null;
   year: number | null;
+  /** The cover the user chose, else the automatic one. */
   cover: string | null;
+  /** `cover` is one the user chose. */
+  customCover: boolean;
   trackCount: number;
+  /** Tracks that stream from links (and can be downloaded). */
+  linkCount: number;
   duration: number;
   addedAt: number;
 }
@@ -51,7 +67,10 @@ export interface Artist {
   name: string;
   albumCount: number;
   trackCount: number;
+  /** The picture the user chose, else one of their albums' covers. */
   cover: string | null;
+  /** `cover` is one the user chose. */
+  customCover: boolean;
 }
 
 export interface Playlist {
@@ -63,7 +82,15 @@ export interface Playlist {
   updatedAt: number;
   /** The web playlist it was imported from. */
   sourceUrl: string | null;
+  /** The cover the user chose, else the first among its tracks. */
+  cover: string | null;
+  /** `cover` is one the user chose. */
+  customCover: boolean;
 }
+
+/** What a cover the user chooses is for. */
+export type CoverTarget =
+  { kind: 'album'; id: number } | { kind: 'artist'; id: number } | { kind: 'playlist'; id: number };
 
 export interface Folder {
   id: number;
@@ -101,6 +128,8 @@ export type TrackQuery =
   | { kind: 'all' }
   | { kind: 'album'; id: number }
   | { kind: 'artist'; id: number }
+  /** Tracks the artist only features on. */
+  | { kind: 'artistAppearances'; id: number }
   | { kind: 'favorites' }
   | { kind: 'recent'; limit: number }
   | { kind: 'playlist'; id: number }
@@ -117,6 +146,10 @@ export interface TagForm {
   /** Artwork id of the current cover. */
   cover: string | null;
   writable: boolean;
+  /** A streamed link: no file, so Vitra's library keeps the changes (no cover here). */
+  link: boolean;
+  /** A link the user corrected: its page's details can be restored (`links.restore`). */
+  edited: boolean;
 }
 
 export interface TagValues {
@@ -184,6 +217,22 @@ export const playlists = {
     call('playlist_add', { id, trackIds, index: index ?? null }),
   removeItems: (id: number, indices: number[]) => call('playlist_remove', { id, indices }),
   move: (id: number, from: number, to: number) => call('playlist_move', { id, from, to }),
+};
+
+/** Whose artwork the full-screen viewer shows. */
+export type ArtworkSource = { kind: 'track'; path: string } | { kind: 'album'; id: number };
+
+export const covers = {
+  /** Sets the cover the user chose from an image file; resolves with its cover id. */
+  set: (target: CoverTarget, path: string) =>
+    call<string | null>('library_set_cover', { target, path }),
+  /** Goes back to the automatic cover. */
+  reset: (target: CoverTarget) => call<string | null>('library_set_cover', { target, path: null }),
+};
+
+export const artwork = {
+  /** Artwork in its original size; resolves with its artwork id, or `null` if there is none. */
+  original: (source: ArtworkSource) => call<string | null>('artwork_original', { source }),
 };
 
 export const tags = {

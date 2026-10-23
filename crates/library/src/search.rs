@@ -14,10 +14,17 @@ use crate::{Library, Result};
 /// Albums and artists shown above the matching tracks.
 const GROUP_LIMIT: usize = 12;
 
+/// Text as it goes into (and is looked up in) the index. `unicode61`'s diacritic removal only
+/// covers Latin letters, so Russian "ё" is folded to "е" here: people type "е" for both.
+pub(crate) fn fold(text: &str) -> String {
+    text.replace('ё', "е").replace('Ё', "Е")
+}
+
 /// Turns what the user typed into an FTS5 query in which every word must match the start of
 /// a word ("aur bor" finds "Aurora Borealis"). Words are split the way the `unicode61`
 /// tokenizer splits them and quoted, so FTS syntax characters in the input are harmless.
 pub(crate) fn fts_query(input: &str) -> Option<String> {
+    let input = fold(input);
     let terms: Vec<String> = input
         .split(|c: char| !c.is_alphanumeric())
         .filter(|term| !term.is_empty())
@@ -57,28 +64,15 @@ impl Library {
             ));
         }
 
-        // The `artist` column holds the track artist and `album_artist` the album's artist,
-        // so each column maps back to a different artist id.
-        let mut artist_ids =
-            self.matching_ids("t.artist_id", &format!("{{artist}} : ({query})"), "")?;
-        for id in self.matching_ids(
-            "al.artist_id",
-            &format!("{{album_artist}} : ({query})"),
-            "JOIN albums al ON al.id = t.album_id",
-        )? {
-            if !artist_ids.contains(&id) {
-                artist_ids.push(id);
-            }
-        }
-        artist_ids.truncate(GROUP_LIMIT);
-        let mut artists = Vec::with_capacity(artist_ids.len());
-        for id in artist_ids {
-            artists.extend(self.conn.query_row(
-                &format!("{ARTIST_SELECT} WHERE ar.id = ?"),
-                [id],
-                artist_from_row,
-            ));
-        }
+        // Artists by their own names, so a track by "A, B" doesn't bring up A when B is
+        // searched for.
+        let mut statement = self.conn.prepare(&format!(
+            "{ARTIST_SELECT} JOIN artist_search ON artist_search.rowid = ar.id
+             WHERE artist_search MATCH ?1 ORDER BY artist_search.rank LIMIT ?2"
+        ))?;
+        let artists = statement
+            .query_map(params![query, GROUP_LIMIT as i64], artist_from_row)?
+            .collect::<rusqlite::Result<_>>()?;
 
         Ok(SearchResults {
             tracks,
@@ -136,6 +130,36 @@ mod tests {
 
     fn titles(results: &SearchResults) -> Vec<&str> {
         results.tracks.iter().map(|t| t.title.as_str()).collect()
+    }
+
+    #[test]
+    fn yo_and_ye_find_each_other() {
+        let mut library = Library::open_in_memory().unwrap();
+        library
+            .upsert_tracks(
+                None,
+                &[
+                    scanned("/r/1.mp3", "Ёлка", "Звёздный путь", "Альбом", 1),
+                    scanned("/r/2.mp3", "Елочка", "Кто-то", "Альбом", 2),
+                ],
+            )
+            .unwrap();
+        let found = |q: &str| {
+            let mut titles: Vec<String> = library
+                .search(q, 10)
+                .unwrap()
+                .tracks
+                .into_iter()
+                .map(|t| t.title)
+                .collect();
+            titles.sort();
+            titles
+        };
+        assert_eq!(found("елк"), ["Ёлка"]);
+        assert_eq!(found("ёлоч"), ["Елочка"]);
+        assert_eq!(found("звездный"), ["Ёлка"]);
+        // Names are shown as written.
+        assert_eq!(found("ЁЛКА"), ["Ёлка"]);
     }
 
     #[test]

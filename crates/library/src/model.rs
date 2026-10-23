@@ -1,7 +1,7 @@
 //! Rows returned to the UI. Field names serialize as camelCase for the frontend.
 
 use media::TrackMetadata;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -12,14 +12,26 @@ pub struct Folder {
     pub track_count: i64,
 }
 
+/// One of a track's artists.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArtistRef {
+    pub id: i64,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Track {
     pub id: i64,
     pub path: String,
     pub title: String,
+    /// The artists' names, joined for display ("A, B").
     pub artist: Option<String>,
+    /// The main (first) artist.
     pub artist_id: Option<i64>,
+    /// Every artist in credit order, the main one first.
+    pub artists: Vec<ArtistRef>,
     pub album: Option<String>,
     pub album_id: Option<i64>,
     pub album_artist: Option<String>,
@@ -54,8 +66,13 @@ pub struct Album {
     pub artist: Option<String>,
     pub artist_id: Option<i64>,
     pub year: Option<i64>,
+    /// The cover the user chose, else the automatic one.
     pub cover: Option<String>,
+    /// `cover` is one the user chose.
+    pub custom_cover: bool,
     pub track_count: i64,
+    /// Tracks that stream from links (and can be downloaded).
+    pub link_count: i64,
     pub duration: f64,
     pub added_at: i64,
 }
@@ -67,8 +84,11 @@ pub struct Artist {
     pub name: String,
     pub album_count: i64,
     pub track_count: i64,
-    /// A cover to illustrate the artist (from one of their albums).
+    /// The picture the user chose, else a cover to illustrate the artist (from one of their
+    /// albums).
     pub cover: Option<String>,
+    /// `cover` is one the user chose.
+    pub custom_cover: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -82,6 +102,10 @@ pub struct Playlist {
     pub updated_at: i64,
     /// The web playlist it was imported from.
     pub source_url: Option<String>,
+    /// The cover the user chose, else the first one among its tracks.
+    pub cover: Option<String>,
+    /// `cover` is one the user chose.
+    pub custom_cover: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -109,13 +133,31 @@ pub struct ScannedTrack {
     pub metadata: TrackMetadata,
 }
 
+/// What the user corrected about a link, which has no file to tag.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LinkEdit {
+    pub title: String,
+    /// Several artists are kept as they are; one is a credit ("A feat. B"), split like a
+    /// file's single artist tag.
+    pub artists: Vec<String>,
+    pub album: Option<String>,
+    pub album_artist: Option<String>,
+    pub year: Option<u16>,
+}
+
 /// A track that plays from a link, as yt-dlp described it.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct RemoteTrack {
     pub url: String,
     pub title: String,
+    /// The credit as one text; split like a file's (see [`crate::ArtistSplitting`]) unless
+    /// `artists` lists them.
     pub artist: Option<String>,
+    /// The artists as the site lists them, when it does.
+    pub artists: Vec<String>,
     pub album: Option<String>,
+    pub album_artist: Option<String>,
+    pub track_number: Option<u32>,
     pub year: Option<u16>,
     pub duration: Option<f64>,
     /// Described from the track's own page, not from a playlist listing: its values replace
@@ -128,7 +170,10 @@ pub struct RemoteTrack {
 pub enum TrackFilter {
     All,
     Album(i64),
+    /// The artist's own tracks: those they lead or whose album is theirs.
     Artist(i64),
+    /// Tracks the artist only features on.
+    ArtistAppearances(i64),
     Favorites,
     /// Newest first.
     RecentlyAdded {

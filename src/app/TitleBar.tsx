@@ -1,11 +1,20 @@
-import { ChevronLeft, ChevronRight, FolderOpen, Link2, Settings2 } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  FolderOpen,
+  Link2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Settings2,
+} from 'lucide-react';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { IconButton } from '../components/ui/IconButton.tsx';
 import { pickAndPlay } from '../lib/openFiles.ts';
+import { useEnvironment } from '../stores/environment.ts';
 import { useNavigation } from '../stores/navigation.ts';
-import { useUi } from '../stores/ui.ts';
+import { nextSidebarMode, useUi } from '../stores/ui.ts';
 import styles from './TitleBar.module.css';
 
 export interface TitleBarProps {
@@ -20,10 +29,27 @@ export function TitleBar({ className, onOpenSettings }: TitleBarProps) {
   const canGoForward = useNavigation((s) => s.forward.length > 0);
   const goBack = useNavigation((s) => s.goBack);
   const goForward = useNavigation((s) => s.goForward);
+  const sidebar = useUi((s) => s.sidebar);
+  const setSidebar = useUi((s) => s.setSidebar);
+  const mac = useEnvironment((s) => s.platform === 'macos');
+  const nextSidebar = nextSidebarMode(sidebar);
 
   useEffect(() => {
-    // Cmd+[ / Cmd+] (macOS) and Alt+←/→ (elsewhere), like a browser.
     const onKey = (event: KeyboardEvent) => {
+      const command = event.metaKey || event.ctrlKey;
+      // Cmd+Option+S / Ctrl+Alt+S. Option changes `key` on macOS (ß), so match the key itself.
+      if (command && event.altKey && !event.shiftKey && event.code === 'KeyS') {
+        event.preventDefault();
+        const ui = useUi.getState();
+        ui.setSidebar(nextSidebarMode(ui.sidebar));
+        return;
+      }
+      if (command && !event.altKey && event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        useUi.getState().focusSearch();
+        return;
+      }
+      // Cmd+[ / Cmd+] (macOS) and Alt+←/→ (elsewhere), like a browser.
       const back =
         ((event.metaKey || event.ctrlKey) && event.key === '[') ||
         (event.altKey && event.key === 'ArrowLeft');
@@ -47,6 +73,12 @@ export function TitleBar({ className, onOpenSettings }: TitleBarProps) {
   return (
     <header className={`${styles.titleBar} ${className ?? ''}`} data-tauri-drag-region>
       <div className={styles.history}>
+        <IconButton
+          label={`${t(`nav.sidebarNext.${nextSidebar}`)} (${mac ? '⌥⌘S' : 'Ctrl+Alt+S'})`}
+          onClick={() => setSidebar(nextSidebar)}
+        >
+          {sidebar === 'hidden' ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+        </IconButton>
         <IconButton label={t('nav.back')} disabled={!canGoBack} onClick={goBack}>
           <ChevronLeft size={20} />
         </IconButton>

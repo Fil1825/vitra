@@ -14,6 +14,8 @@ pub enum AppError {
     NotFound(String),
     #[error("{0}")]
     Player(String),
+    #[error("{0}")]
+    Lyrics(String),
     #[error(transparent)]
     Library(#[from] library::Error),
     #[error(transparent)]

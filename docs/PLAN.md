@@ -124,6 +124,78 @@ and an explicit list of checks that can only be done on a Mac.
   adjustable live.
 - Editor: paste/write, tap-to-sync with Space (undo line, shift all), save to tags (confirm +
   backup) / `.lrc` / DB only, import/export `.lrc`.
+- Done as planned, with these choices: lyrics the user saved in the app come before the
+  file's (otherwise "save to Vitra only" would be hidden by plain lyrics in the tags); synced
+  lyrics go into tags as LRC text in the lyrics field (`USLT`/`LYRICS`/`©lyr`), and stale
+  `SYLT`/`SYNCEDLYRICS` are removed so they can't outrank it; tag backups go to
+  `<app data>/backups/` (newest 10). Also: `.lrc` files in UTF-16, Windows-1251 or Latin-1;
+  lyrics words are searchable (ё and е find each other); a lyrics panel next to the queue
+  and lyrics beside the artwork in Now Playing; LRCLIB results cached, misses re-checked
+  after 30 days; "Search LRCLIB" on demand even with online lookups off. Not done here:
+  writing `SYLT` frames, word-level tap-sync (lines only; word timings from files are kept and
+  move with their line).
+- Round before stage 6 (owner's requests after the Mac review):
+  - **Several artists per track** (`track_artists`, migration 4): lists from tags (several
+    `ARTIST` values, `ARTISTS`, ID3v2.4 `TPE1` with `\0`) and from yt-dlp (`artists` /
+    `creators`) are taken as they are; a single credit is split on feat./ft./&/,/x/; with
+    an exception list ("Tyler, The Creator", user additions) and a setting to turn it off
+    (changing it re-splits the library). An album belongs to its first artist; an artist's
+    page lists the albums and an "Appears On" section; each artist in a track row is a link.
+    Downloads write the artists as separate values (MP4: `©ART` "A, B" plus `ARTISTS`).
+  - **YouTube / YouTube Music albums** (`OLAK5uy_…` playlists, `browse/MPREb…` pages): the
+    link dialog shows the album (cover, artist, year, numbered tracks) with Listen and
+    Download Album; the library gets one album with one cover; downloads go to
+    `{album_artist}/{album}/{track} {title}` (a setting) with album, album artist, track
+    number/total, year and the album cover in every file, grouped in the downloads view
+    (overall progress, cancel/retry all). Playlists keep importing, plus "Download All".
+  - Full-screen artwork (Now Playing, album page, control bar) at the original resolution.
+  - Sidebar: expanded / icons only / hidden (button in the title bar, ⌥⌘S / Ctrl+Alt+S),
+    remembered per window.
+  - Readable errors for age-restricted and sign-in-only videos, and a "cookies from a browser"
+    setting (`--cookies-from-browser`, also passed to mpv's hook). LRCLIB is asked again
+    (after 1.5 s and 4 s) when it answers 429/5xx; such answers are never cached as misses.
+- Second round before stage 6:
+  - Fix: an album added from a link kept no cover when its listing had no thumbnail. The
+    first entry thumbnail that enrichment brings now covers it, and opening the album's
+    page looks for a cover for albums stored without one (once per session).
+  - Covers the user chooses for albums, artists and playlists (migration 5): a button on
+    the page's cover, the context menus, or an image file dropped on the cover; "Reset"
+    goes back to the automatic one. They come first everywhere (grids, search, sidebar,
+    track rows, queue, Now Playing) and stay in Vitra's library (not written to tags).
+- Third round (Mac check of the second): playlist thumbnails no longer land in the app's
+  working folder (`pl_thumbnail:`); a link that fails on cookies, an age limit or a sign-in
+  stops playback with a readable error (read from mpv's yt-dlp hook log) instead of being
+  skipped silently, and Settings warn when Safari's cookies can't be read; dropping an image
+  on a cover works on Retina (macOS drop positions are logical); "Download Album" on album
+  pages and tiles; the fixture script finds the macOS folder build, writes recordings
+  next to the hand-written fixtures and never truncates one when yt-dlp fails.
+- **Mac** for round 3: the traffic lights over the sidebar's icon strip and next to the
+  title bar with the sidebar hidden, cookies from Safari (needs Full Disk Access) and Chrome
+  (Keychain prompt), how Apple Music / Finder show downloaded files with several artists,
+  real album links and `scripts/record-ytdlp-fixtures.sh` (records album fixtures too).
+- Fourth round:
+  - Link details can be corrected ("Edit Tags" on a link: title, several artists, album,
+    album artist, year). They live in the library (migration 6, `tracks.edited`), so
+    opening the link again, refreshing its playlist or album never overwrite them; an
+    album name moves the track into that album or makes a new one; the link dialog and
+    playback show them; downloads write them into the file. A downloaded link edits its
+    file's tags as before. A corrected link in an album shows the album's cover (an album
+    without one takes the link's thumbnail, cut square), and "Restore Site Details" asks
+    yt-dlp again and drops the corrections.
+  - Fix: a downloaded link no longer replaces its album's cover with the site's thumbnail
+    embedded in the file; the album's own files (and their folder's cover) come first.
+  - A live backdrop everywhere: the blurred cover (blurred once in Rust, so nothing moving
+    has a CSS filter) breathes and its copies drift over each other with the theme's
+    blobs, and with "Background moves with the music" (on by default) it swells softly with the
+    loudness and beats (mpv's `astats` filter, read ~14 times a second only while a
+    window shows it). Reduce Motion and power saving hold it still.
+- **Mac** for round 4: how the pulse feels on real music and what Activity Monitor shows
+  for Vitra's web content process with the backdrop moving (the Linux VM renders on the
+  CPU, so its numbers say nothing about a Mac's GPU), Reduce Motion stopping it.
+- **Mac**: how the view looks and scrolls (blur, karaoke fill, smooth scrolling in WebKit),
+  Space in the sync view not pausing playback, saving into tags of an M4A (`©lyr`) and an MP3
+  (`USLT`) and reading them back in Apple Music / Finder, the native save/import/export
+  dialogs, LRCLIB lookups over the real network (curl on macOS).
 
 ## Stage 6 — Mini player
 

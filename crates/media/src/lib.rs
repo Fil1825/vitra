@@ -2,14 +2,19 @@
 //! artwork (embedded or next to the file) and the color palette the UI is tinted with.
 
 mod artwork;
+mod lyrics;
 mod metadata;
 mod palette;
 mod tags;
 
-pub use artwork::{Artwork, PreparedArtwork, cover_thumbnail, folder_artwork, prepare_artwork};
+pub use artwork::{
+    Artwork, PreparedArtwork, cover_thumbnail, folder_artwork, image_mime, prepare_artwork,
+    square_cover,
+};
+pub use lyrics::{TagLyrics, read_lyrics};
 pub use metadata::{TrackInfo, TrackMetadata, read_track};
 pub use palette::{Palette, Rgb, extract_palette};
-pub use tags::{CoverChange, TagValues, write_tags};
+pub use tags::{ARTIST_SEPARATOR, CoverChange, TagValues, artist_list, write_lyrics, write_tags};
 
 #[derive(Debug, thiserror::Error)]
 pub enum MediaError {

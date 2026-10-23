@@ -11,6 +11,7 @@
 
 mod artwork;
 mod commands;
+mod level;
 mod queue;
 mod session;
 mod state;
@@ -33,6 +34,7 @@ use tokio::sync::Notify;
 use crate::error::AppError;
 use crate::library::{LibraryService, entry_from_track};
 use crate::links::LinkService;
+use crate::lyrics::{LyricsService, TrackInfo};
 use crate::settings::SettingsStore;
 use crate::sidecar::{self, Sidecar};
 
@@ -93,6 +95,9 @@ struct Mirror {
     /// The playing entry was a playlist (a radio station's `.m3u`/`.pls`) that mpv replaced
     /// with its entries: the next `start-file` is the same queue item.
     redirected: bool,
+    /// Playback stopped on an error: mpv may already be starting the preloaded file, which
+    /// must not replace the error with a loading state. Cleared by the next load.
+    halted: bool,
 }
 
 struct Inner {
@@ -119,6 +124,36 @@ struct Inner {
     queue_dirty: AtomicBool,
     /// The playback values last saved (JSON), to skip writing unchanged ones.
     saved_playback: Mutex<String>,
+    /// What mpv's yt-dlp hook logged while opening the current link (see [`hook_line`]).
+    hook_log: Mutex<Vec<String>>,
+    /// A window shows the backdrop's pulse: read the audio level (see [`level`]).
+    level_wanted: AtomicBool,
+    level_running: AtomicBool,
+}
+
+/// Lines of the hook's log kept per link: its errors are a few lines of yt-dlp's stderr.
+const HOOK_LOG_LINES: usize = 40;
+
+/// The text of a `log-message` event from mpv's yt-dlp hook (warnings and errors).
+fn hook_line(raw: &Value) -> Option<String> {
+    let field = |key: &str| raw.get(key).and_then(Value::as_str);
+    let level = field("level")?;
+    (field("prefix")? == "ytdl_hook" && matches!(level, "error" | "warn" | "fatal"))
+        .then(|| field("text").map(|text| text.trim_end().to_owned()))
+        .flatten()
+}
+
+/// Why a link failed to open, from its hook's log, when the user can do something about it
+/// (cookies, an age limit, a sign-in): then playback stops with that instead of skipping on,
+/// since the next links would fail the same way.
+fn link_failure(log: &[String]) -> Option<links::LinkError> {
+    if log.is_empty() {
+        return None;
+    }
+    match links::ytdlp::failure(&log.join("\n")) {
+        links::LinkError::Failed(_) => None,
+        known => Some(known),
+    }
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -146,6 +181,9 @@ impl Player {
             load_waiting: AtomicBool::new(false),
             queue_dirty: AtomicBool::new(false),
             saved_playback: Mutex::new(String::new()),
+            hook_log: Mutex::new(Vec::new()),
+            level_wanted: AtomicBool::new(false),
+            level_running: AtomicBool::new(false),
         }))
     }
 
@@ -181,6 +219,35 @@ impl Player {
             .app
             .try_state::<LibraryService>()
             .map(|library| library.inner().clone())
+    }
+
+    fn lyrics(&self) -> Option<LyricsService> {
+        self.0
+            .app
+            .try_state::<LyricsService>()
+            .map(|lyrics| lyrics.inner().clone())
+    }
+
+    /// Tells the lyrics where playback is.
+    fn follow_lyrics(&self) {
+        let playing = {
+            let state = lock(&self.0.state);
+            state.track.as_ref().map(|track| (track.id, state.position))
+        };
+        if let (Some((id, position)), Some(lyrics)) = (playing, self.lyrics()) {
+            lyrics.position(id, position);
+        }
+    }
+
+    /// The playing track joined or left the library.
+    fn library_id_changed(&self) {
+        let track = lock(&self.0.state)
+            .track
+            .as_ref()
+            .map(|track| (track.id, track.library_id));
+        if let (Some((id, library_id)), Some(lyrics)) = (track, self.lyrics()) {
+            lyrics.library_id_changed(id, library_id);
+        }
     }
 
     pub fn queue(&self) -> QueueView {
@@ -258,6 +325,7 @@ impl Player {
         }
         if playing {
             self.emit_state();
+            self.library_id_changed();
         }
     }
 
@@ -285,12 +353,14 @@ impl Player {
         }
         if playing {
             self.emit_state();
+            self.library_id_changed();
         }
     }
 
-    /// Link tracks got more complete metadata or a cover (a playlist being filled in):
-    /// refresh their queue entries and, if one is playing, the current track.
-    pub fn remote_tracks_updated(&self, tracks: &[library::Track]) {
+    /// Library tracks got more complete metadata (a playlist of links being filled in) or a
+    /// cover (a link album's, one the user chose): refresh their queue entries and, if one
+    /// is playing, the current track.
+    pub fn library_tracks_updated(&self, tracks: &[library::Track]) {
         let queued = {
             let mut queue = lock(&self.0.queue);
             let mut changed = false;
@@ -574,6 +644,9 @@ impl Player {
         // A seek asked for while the previous track was loading doesn't apply to this one.
         *lock(&self.0.pending_seek) = None;
         self.emit_state();
+        if let Some(lyrics) = self.lyrics() {
+            lyrics.track_started(id, &entry.path, entry.track_id);
+        }
         self.read_metadata(id, PathBuf::from(&entry.path));
     }
 
@@ -812,6 +885,7 @@ impl Player {
         .await?;
         lock(&self.0.state).position = position;
         self.emit_position(true);
+        self.follow_lyrics();
         Ok(())
     }
 
@@ -878,28 +952,36 @@ impl Player {
     fn read_metadata(&self, id: u64, path: PathBuf) {
         let player = self.clone();
         tauri::async_runtime::spawn(async move {
+            // The cover the user chose for the album comes before the file's artwork.
+            let custom = player.custom_cover(&path.to_string_lossy()).await;
             let link = path.to_str().filter(|path| links::is_remote(path));
             let thumbnail = match link {
-                Some(url) => player.link_thumbnail(url).await,
-                None => None,
+                Some(url) if custom.is_none() => player.link_thumbnail(url).await,
+                _ => None,
             };
             let remote = link.is_some();
             let result = tauri::async_runtime::spawn_blocking(move || {
+                let custom = custom.map(|bytes| media::Artwork {
+                    bytes,
+                    mime: Some("image/jpeg".into()),
+                });
                 // A link has no file to read: its tags come with its queue entry, its
                 // artwork is its thumbnail.
                 if remote {
-                    let artwork = thumbnail.and_then(|bytes| {
-                        media::prepare_artwork(media::Artwork { bytes, mime: None })
-                            .inspect_err(|err| log::info!("thumbnail of a link: {err}"))
-                            .ok()
-                    });
+                    let artwork = custom
+                        .or_else(|| thumbnail.map(|bytes| media::Artwork { bytes, mime: None }))
+                        .and_then(|art| {
+                            media::prepare_artwork(art)
+                                .inspect_err(|err| log::info!("thumbnail of a link: {err}"))
+                                .ok()
+                        });
                     return (TrackMetadata::default(), artwork);
                 }
                 let info = media::read_track(&path)
                     .inspect_err(|err| log::info!("tags of {}: {err}", path.display()))
                     .unwrap_or_default();
-                let artwork = info
-                    .embedded_artwork
+                let artwork = custom
+                    .or(info.embedded_artwork)
                     .or_else(|| media::folder_artwork(&path))
                     .and_then(|art| {
                         media::prepare_artwork(art)
@@ -942,27 +1024,73 @@ impl Player {
             }
             player.emit_state();
             player.emit(TRACK_EVENT, &track);
+            if let Some(lyrics) = player.lyrics() {
+                lyrics.track_ready(TrackInfo {
+                    id: track.id,
+                    path: track.path,
+                    library_id: track.library_id,
+                    title: track.title,
+                    metadata: track.metadata,
+                });
+            }
         });
     }
 
-    /// A link's thumbnail: from a recent resolution, else the library's cached cover.
-    async fn link_thumbnail(&self, url: &str) -> Option<Vec<u8>> {
-        if let Some(links) = self.0.app.try_state::<LinkService>()
-            && let Some(bytes) = links.thumbnail(url)
-        {
-            return Some(bytes.as_ref().clone());
-        }
+    /// The cover the user chose for the album of the track at `path`.
+    async fn custom_cover(&self, path: &str) -> Option<Vec<u8>> {
         let library = self.library()?;
-        let url = url.to_owned();
+        let key = path.to_owned();
         let covers = library.covers_dir().to_path_buf();
         library
             .run(move |db| {
-                let cover = db.track_by_path(&url)?.and_then(|track| track.cover);
+                let cover = db.custom_album_cover(&key)?;
                 Ok(cover.and_then(|id| std::fs::read(covers.join(format!("{id}.jpg"))).ok()))
             })
             .await
             .ok()
             .flatten()
+    }
+
+    /// A link's artwork: its album's cover if the user put it in an album, else its thumbnail
+    /// from a recent resolution (full size), else the library's cached cover.
+    async fn link_thumbnail(&self, url: &str) -> Option<Vec<u8>> {
+        let recent = self
+            .0
+            .app
+            .try_state::<LinkService>()
+            .and_then(|links| links.thumbnail(url));
+        let stored = match self.library() {
+            Some(library) => {
+                let url = url.to_owned();
+                let covers = library.covers_dir().to_path_buf();
+                let wanted = recent.is_none();
+                library
+                    .run(move |db| {
+                        let Some(track) = db.track_by_path(&url)? else {
+                            return Ok(None);
+                        };
+                        // The library gives a corrected link in an album its album's cover.
+                        let albums = track.album_id.is_some() && db.link_edited(&url)?;
+                        if !albums && !wanted {
+                            return Ok(None);
+                        }
+                        let read = |id: String| std::fs::read(covers.join(format!("{id}.jpg")));
+                        Ok(track
+                            .cover
+                            .and_then(|id| read(id).ok())
+                            .map(|bytes| (bytes, albums)))
+                    })
+                    .await
+                    .ok()
+                    .flatten()
+            }
+            None => None,
+        };
+        match (stored, recent) {
+            (Some((bytes, true)), _) => Some(bytes),
+            (_, Some(recent)) => Some(recent.as_ref().clone()),
+            (stored, None) => stored.map(|(bytes, _)| bytes),
+        }
     }
 
     /// Internet radio names the song playing in its stream metadata (`icy-title`, usually
@@ -1059,6 +1187,7 @@ impl Player {
     async fn handle_event(&self, event: Event, client: &Client) {
         let mut apply = true;
         let mut stop = false;
+        let mut link_error = None;
         match &event {
             Event::FileLoaded => {
                 lock(&self.0.mirror).failures = 0;
@@ -1072,9 +1201,20 @@ impl Player {
                 }
                 self.fill_from_mpv_metadata(client).await;
             }
+            Event::Other { name, raw } if name == "log-message" => {
+                if let Some(line) = hook_line(raw) {
+                    let mut log = lock(&self.0.hook_log);
+                    if log.len() < HOOK_LOG_LINES {
+                        log.push(line);
+                    }
+                }
+                return;
+            }
+            Event::StartFile { .. } if lock(&self.0.mirror).halted => return,
             Event::StartFile {
                 playlist_entry_id: Some(entry),
             } => {
+                lock(&self.0.hook_log).clear();
                 let preloaded = {
                     let mut mirror = lock(&self.0.mirror);
                     // The first entry of an expanded playlist stands in for it.
@@ -1108,7 +1248,10 @@ impl Player {
                         EndReason::Eof if has_next => apply = false,
                         EndReason::Error => {
                             mirror.failures += 1;
-                            if mirror.failures >= MAX_SKIPS {
+                            link_error = link_failure(&lock(&self.0.hook_log));
+                            // A link the user has to do something about stops the queue
+                            // too: the next links would fail the same way.
+                            if link_error.is_some() || mirror.failures >= MAX_SKIPS {
                                 stop = has_next;
                             } else if has_next {
                                 // Skip unplayable files quietly, like other players do.
@@ -1126,14 +1269,31 @@ impl Player {
             _ => {}
         }
         if stop {
-            log::warn!("{MAX_SKIPS} files in a row failed to play; stopping");
-            *lock(&self.0.mirror) = Mirror::default();
+            match &link_error {
+                Some(err) => log::warn!("a link failed ({err}); stopping"),
+                None => log::warn!("{MAX_SKIPS} files in a row failed to play; stopping"),
+            }
+            *lock(&self.0.mirror) = Mirror {
+                halted: true,
+                ..Mirror::default()
+            };
             let _ = command(client, vec![json!("stop")]).await;
         }
         if !apply {
             return;
         }
-        let changes = lock(&self.0.state).apply(&event);
+        let changes = {
+            let mut state = lock(&self.0.state);
+            let mut changes = state.apply(&event);
+            // In place of mpv's "unrecognized file format": the windows translate it.
+            if let Some(err) = link_error {
+                state.error = Some(PlayerError::Playback {
+                    message: err.to_string(),
+                });
+                changes.state = true;
+            }
+            changes
+        };
         if changes.state {
             self.emit_state();
         } else if changes.position {
@@ -1141,6 +1301,7 @@ impl Player {
         }
         if changes.position {
             self.count_play();
+            self.follow_lyrics();
         }
     }
 
@@ -1173,6 +1334,11 @@ impl Player {
                 .await
                 .map_err(mpv_error)?;
         }
+        // The yt-dlp hook says why a link failed only in its log; `end-file` just has
+        // "unrecognized file format".
+        command(client, vec![json!("request_log_messages"), json!("warn")]).await?;
+        self.set_ytdl_options(client).await;
+        self.set_level_filter(client, false).await;
         let current = lock(&self.0.queue).current().cloned();
         let waiting = self.0.load_waiting.load(Ordering::Relaxed);
         if let (Status::Playing | Status::Paused | Status::Loading, Some(item), false) =
@@ -1182,6 +1348,95 @@ impl Player {
             self.load_with(client, &item).await?;
         }
         Ok(())
+    }
+
+    /// What mpv's yt-dlp hook passes on to yt-dlp: our JavaScript runtime and, when the user
+    /// chose one, the browser to take cookies from (age-restricted videos). The hook reads
+    /// them for every link it opens, so a change applies to the next one.
+    async fn set_ytdl_options(&self, client: &Client) {
+        let paths = sidecar::search_paths(&self.0.app);
+        let mut options = serde_json::Map::new();
+        if let Some(deno) = paths.locate(Sidecar::Deno) {
+            options.insert(
+                "js-runtimes".into(),
+                json!(format!("deno:{}", deno.path.display())),
+            );
+        }
+        let browser = self
+            .0
+            .app
+            .try_state::<SettingsStore>()
+            .and_then(|settings| settings.get().downloads.cookies_browser());
+        if let Some(browser) = browser {
+            options.insert("cookies-from-browser".into(), json!(browser));
+        }
+        let set = command(
+            client,
+            vec![
+                json!("set_property"),
+                json!("ytdl-raw-options"),
+                Value::Object(options),
+            ],
+        )
+        .await;
+        if let Err(err) = set {
+            log::warn!("cannot pass options to mpv's yt-dlp hook: {err}");
+        }
+    }
+
+    /// Whether the backdrop pulses with the music (the setting): the level filter is in
+    /// mpv's audio chain only then. Changing the chain can click, so it isn't touched for
+    /// a window being hidden; reading the level stops then instead ([`Self::set_level_meter`]).
+    fn backdrop_pulse(&self) -> bool {
+        self.0
+            .app
+            .try_state::<SettingsStore>()
+            .is_some_and(|settings| settings.get().appearance.backdrop_pulse)
+    }
+
+    /// Puts the level filter into mpv's audio chain if the setting is on; `replace` takes
+    /// out the one already there first (a fresh mpv has none).
+    async fn set_level_filter(&self, client: &Client, replace: bool) {
+        if replace {
+            let label = format!("@{}", level::FILTER_LABEL);
+            let _ = command(client, vec![json!("af"), json!("remove"), json!(label)]).await;
+        }
+        if self.backdrop_pulse()
+            && let Err(err) = command(
+                client,
+                vec![json!("af"), json!("add"), json!(level::filter())],
+            )
+            .await
+        {
+            log::warn!("cannot measure the audio level: {err}");
+        }
+    }
+
+    /// The backdrop-pulse setting changed.
+    pub fn backdrop_pulse_changed(&self) {
+        let Ok(client) = self.client() else {
+            return;
+        };
+        let player = self.clone();
+        tauri::async_runtime::spawn(async move { player.set_level_filter(&client, true).await });
+    }
+
+    /// A window starts or stops showing the pulse (it is visible, motion is on and so is
+    /// the setting). While one does, the level is read and sent as `player://level`.
+    pub fn set_level_meter(&self, wanted: bool) {
+        self.0.level_wanted.store(wanted, Ordering::Relaxed);
+        if wanted && !self.0.level_running.swap(true, Ordering::Relaxed) {
+            tauri::async_runtime::spawn(meter_level(self.clone()));
+        }
+    }
+
+    /// The link settings (cookies) changed.
+    pub fn links_settings_changed(&self) {
+        let Ok(client) = self.client() else {
+            return;
+        };
+        let player = self.clone();
+        tauri::async_runtime::spawn(async move { player.set_ytdl_options(&client).await });
     }
 
     fn fail(&self, error: PlayerError) {
@@ -1406,6 +1661,42 @@ fn mpv_args(with_newer_options: bool, helpers: &LinkHelpers) -> Vec<OsString> {
     args
 }
 
+/// Reads the audio level while a window wants it; quieter (less often) while nothing plays.
+async fn meter_level(player: Player) {
+    let mut envelope = level::Envelope::default();
+    let mut sent = 0.0_f64;
+    let property = format!("af-metadata/{}", level::FILTER_LABEL);
+    while player.0.level_wanted.load(Ordering::Relaxed) {
+        let playing = lock(&player.0.state).status == Status::Playing;
+        let reading = match player.client() {
+            Ok(client) if playing => client
+                .get_property::<Value>(&property)
+                .await
+                .ok()
+                .as_ref()
+                .and_then(level::rms_db),
+            _ => None,
+        };
+        let pulse = (envelope.next(reading) * 100.0).round() / 100.0;
+        if (pulse - sent).abs() >= 0.01 {
+            sent = pulse;
+            player.emit(level::LEVEL_EVENT, &pulse);
+        }
+        let pause = if playing || pulse > 0.0 {
+            level::POLL
+        } else {
+            level::IDLE_POLL
+        };
+        tokio::time::sleep(pause).await;
+    }
+    player.emit(level::LEVEL_EVENT, &0.0_f64);
+    player.0.level_running.store(false, Ordering::Relaxed);
+    // A window may have asked again just as this stopped.
+    if player.0.level_wanted.load(Ordering::Relaxed) {
+        player.set_level_meter(true);
+    }
+}
+
 async fn supervise(player: Player) {
     let paths = sidecar::search_paths(&player.0.app);
     let Some(mpv) = paths.locate(Sidecar::Mpv) else {
@@ -1494,6 +1785,35 @@ async fn supervise(player: Player) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_yt_dlp_hook_explains_failed_links() {
+        let message = |prefix: &str, level: &str, text: &str| json!({"event": "log-message", "prefix": prefix, "level": level, "text": text});
+        let cookies = "ERROR: [Errno 1] Operation not permitted: \
+            '/Users/me/Library/Containers/com.apple.Safari/Data/Library/Cookies/Cookies.binarycookies'\n";
+        let line = hook_line(&message("ytdl_hook", "error", cookies)).unwrap();
+        assert!(line.ends_with("Cookies.binarycookies'"), "trimmed: {line}");
+        // Other modules and chatter are left out.
+        assert_eq!(hook_line(&message("cplayer", "error", "boom")), None);
+        assert_eq!(hook_line(&message("ytdl_hook", "v", "status: 1")), None);
+
+        assert!(matches!(
+            link_failure(&[line]),
+            Some(links::LinkError::Cookies(_))
+        ));
+        let age = "ERROR: [youtube] abc: Sign in to confirm your age. This video may be \
+            inappropriate for some users."
+            .to_owned();
+        assert!(matches!(
+            link_failure(&[age]),
+            Some(links::LinkError::AgeRestricted)
+        ));
+        // Errors without a remedy keep the queue going.
+        assert!(
+            link_failure(&["ERROR: Unsupported URL: https://example.com".to_owned()]).is_none()
+        );
+        assert!(link_failure(&[]).is_none());
+    }
 
     #[test]
     fn titles_fall_back_to_the_file_name() {

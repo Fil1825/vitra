@@ -45,6 +45,11 @@
   padding: var(--vitra-space-4) var(--vitra-space-5) var(--vitra-space-5);
 }
 
+/* A link has no cover to edit here. */
+.body[data-link] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .coverColumn {
   display: grid;
   align-content: start;
@@ -175,6 +180,19 @@
 .secondary {
   background: color-mix(in srgb, var(--vitra-color-text) 10%, transparent);
   color: var(--vitra-color-text);
+}
+
+.secondary:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* Apart from Cancel and Save, at the start of the row. */
+.restore {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vitra-space-2);
+  margin-inline-end: auto;
 }
 
 @media (max-width: 560px) {

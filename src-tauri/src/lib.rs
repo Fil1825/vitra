@@ -4,6 +4,7 @@ mod drag;
 mod error;
 mod library;
 mod links;
+mod lyrics;
 mod player;
 mod settings;
 mod sidecar;
@@ -62,8 +63,18 @@ pub fn run() {
             effects.apply(&main, material);
             app.manage(effects);
 
-            let library = LibraryService::start(app.handle().clone(), &app.path().app_data_dir()?)?;
+            let data_dir = app.path().app_data_dir()?;
+            let library = LibraryService::start(app.handle().clone(), &data_dir)?;
+            // The settings file is the source of truth; the library keeps a copy for its
+            // scanner.
+            let splitting = app
+                .state::<settings::SettingsStore>()
+                .get()
+                .library
+                .artist_splitting;
+            library.set_artist_splitting(splitting);
             app.manage(library);
+            app.manage(lyrics::LyricsService::new(app.handle().clone(), &data_dir));
             let links = links::LinkService::new(app.handle().clone())?;
             links.warm_up();
             app.manage(links);
@@ -88,6 +99,7 @@ pub fn run() {
             window::window_effects,
             player::player_state,
             player::player_open,
+            player::player_level_meter,
             player::player_play,
             player::player_pause,
             player::player_toggle,
@@ -133,18 +145,34 @@ pub fn run() {
             library::tags_load,
             library::tags_save,
             library::artwork_preview,
+            library::artwork_original,
+            library::library_set_cover,
             links::link_resolve,
             links::link_play,
             links::link_import,
+            links::link_restore,
             links::link_download,
             links::downloads_list,
             links::downloads_add,
+            links::downloads_add_album,
+            links::links_cookies_access,
             links::downloads_cancel,
             links::downloads_retry,
+            links::downloads_cancel_group,
+            links::downloads_retry_group,
             links::downloads_clear,
             links::downloads_folder,
             links::ytdlp_info,
             links::ytdlp_update,
+            lyrics::lyrics_current,
+            lyrics::lyrics_set_offset,
+            lyrics::lyrics_search_online,
+            lyrics::lyrics_get,
+            lyrics::lyrics_parse,
+            lyrics::lyrics_serialize,
+            lyrics::lyrics_save,
+            lyrics::lyrics_import,
+            lyrics::lyrics_export,
             drag::drag_link,
         ])
         .build(tauri::generate_context!())

@@ -1,7 +1,9 @@
 import {
+  AlertTriangle,
   Heart,
   ListMusic,
   LoaderCircle,
+  MicVocal,
   Pause,
   Play,
   Repeat,
@@ -23,13 +25,14 @@ import { formatTime } from '../lib/format.ts';
 import { library } from '../lib/library.ts';
 import { artworkUrl, player } from '../lib/player.ts';
 import { hasNext, nextRepeat, queue } from '../lib/queue.ts';
-import { LibraryLink } from '../features/library/TrackLinks.tsx';
+import { ArtistLinks, LibraryLink } from '../features/library/TrackLinks.tsx';
 import { useCurrentLibraryTrack } from '../features/library/useCurrentTrack.ts';
-import { albumRoute, artistRoute, useNavigation } from '../stores/navigation.ts';
+import { albumRoute, useNavigation } from '../stores/navigation.ts';
 import { useLivePosition, usePlayer } from '../stores/player.ts';
 import { useQueue } from '../stores/queue.ts';
 import { useUi } from '../stores/ui.ts';
 import styles from './ControlBar.module.css';
+import { playerErrorText } from './playerError.ts';
 import { SpeedMenu } from './SpeedMenu.tsx';
 
 const report = (err: unknown) => console.error('Player command failed', err);
@@ -53,8 +56,11 @@ export function ControlBar({ className }: { className?: string }) {
   const { t } = useTranslation();
   const state = usePlayer((s) => s.state);
   const queueState = useQueue((s) => s.queue);
-  const queueOpen = useUi((s) => s.queueOpen);
-  const toggleQueue = useUi((s) => s.toggleQueue);
+  const sidePanel = useUi((s) => s.sidePanel);
+  const togglePanel = useUi((s) => s.togglePanel);
+  const viewArtwork = useUi((s) => s.viewArtwork);
+  const queueOpen = sidePanel === 'queue';
+  const lyricsOpen = sidePanel === 'lyrics';
   const go = useNavigation((s) => s.go);
   const libraryTrack = useCurrentLibraryTrack();
   const position = useLivePosition();
@@ -85,28 +91,53 @@ export function ControlBar({ className }: { className?: string }) {
       priority={3}
     >
       <div className={styles.track}>
-        <button
-          type="button"
-          className={styles.artworkButton}
-          aria-label={t('nav.nowPlaying')}
-          onClick={() => go({ view: 'nowPlaying' })}
-        >
-          {track?.artwork ? (
+        {track?.artwork ? (
+          <button
+            type="button"
+            className={styles.artworkButton}
+            aria-label={t('artwork.view')}
+            title={t('artwork.view')}
+            onClick={() =>
+              track.artwork &&
+              viewArtwork({
+                source: { kind: 'track', path: track.path },
+                preview: artworkUrl(track.artwork.id),
+              })
+            }
+          >
             <img className={styles.artwork} src={artworkUrl(track.artwork.id)} alt="" />
-          ) : (
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={styles.artworkButton}
+            aria-label={t('nav.nowPlaying')}
+            onClick={() => go({ view: 'nowPlaying' })}
+          >
             <div className={styles.artwork} aria-hidden="true" />
-          )}
-        </button>
+          </button>
+        )}
         <div className={styles.trackText}>
           <LibraryLink to={albumRoute(libraryTrack?.albumId)} className={styles.trackTitle}>
             {track?.title ?? t('player.notPlaying')}
           </LibraryLink>
-          {subtitle && (
+          {state.error ? (
+            // In place of the artist: a link that stopped playback says why, wherever the
+            // user is (Now Playing shows it in full).
+            <button
+              type="button"
+              className={styles.trackError}
+              role="alert"
+              title={playerErrorText(state.error, t)}
+              onClick={() => go({ view: 'nowPlaying' })}
+            >
+              <AlertTriangle size={12} aria-hidden="true" />
+              <span>{playerErrorText(state.error, t)}</span>
+            </button>
+          ) : subtitle ? (
             <span className={styles.trackSubtitle}>
               {track?.metadata.artist ? (
-                <LibraryLink to={artistRoute(libraryTrack?.artistId)}>
-                  {track.metadata.artist}
-                </LibraryLink>
+                <ArtistLinks artists={libraryTrack?.artists} fallback={track.metadata.artist} />
               ) : null}
               {track?.metadata.artist && track.metadata.album ? ' — ' : null}
               {track?.metadata.album ? (
@@ -115,7 +146,7 @@ export function ControlBar({ className }: { className?: string }) {
                 </LibraryLink>
               ) : null}
             </span>
-          )}
+          ) : null}
         </div>
         {libraryTrack && (
           <FavoriteButton trackId={libraryTrack.id} favorite={libraryTrack.favorite} />
@@ -217,10 +248,18 @@ export function ControlBar({ className }: { className?: string }) {
           onCommit={() => setVolume(null)}
         />
         <IconButton
+          label={t(lyricsOpen ? 'player.hideLyrics' : 'player.showLyrics')}
+          aria-pressed={lyricsOpen}
+          className={lyricsOpen ? styles.on : undefined}
+          onClick={() => togglePanel('lyrics')}
+        >
+          <MicVocal size={17} />
+        </IconButton>
+        <IconButton
           label={t(queueOpen ? 'player.hideQueue' : 'player.showQueue')}
           aria-pressed={queueOpen}
           className={queueOpen ? styles.on : undefined}
-          onClick={toggleQueue}
+          onClick={() => togglePanel('queue')}
         >
           <ListMusic size={17} />
         </IconButton>

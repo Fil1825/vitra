@@ -1,4 +1,5 @@
 import {
+  Disc3,
   Download,
   Link2,
   ListMusic,
@@ -16,7 +17,13 @@ import { useTranslation } from 'react-i18next';
 import { Glass } from '../../components/Glass/index.ts';
 import { IconButton } from '../../components/ui/IconButton.tsx';
 import { formatTime } from '../../lib/format.ts';
-import { links, type LinkPreview, type PlayMode, type PreviewTrack } from '../../lib/links.ts';
+import {
+  links,
+  type AlbumPreview,
+  type LinkPreview,
+  type PlayMode,
+  type PreviewTrack,
+} from '../../lib/links.ts';
 import { artworkUrl } from '../../lib/player.ts';
 import { useNavigation } from '../../stores/navigation.ts';
 import { linkError } from './errors.ts';
@@ -28,10 +35,10 @@ type Lookup =
   | { state: 'resolved'; preview: LinkPreview }
   | { state: 'failed'; message: string };
 
-function Thumbnail({ id, live }: { id: string | null; live?: boolean }) {
-  const Icon = live ? Radio : Link2;
+function Thumbnail({ id, live, album }: { id: string | null; live?: boolean; album?: boolean }) {
+  const Icon = live ? Radio : album ? Disc3 : Link2;
   return (
-    <div className={styles.thumbnail}>
+    <div className={styles.thumbnail} data-album={album || undefined}>
       {id ? <img src={artworkUrl(id)} alt="" draggable={false} /> : <Icon aria-hidden="true" />}
     </div>
   );
@@ -59,6 +66,61 @@ function TrackSummary({ track }: { track: PreviewTrack }) {
         </p>
       </div>
     </div>
+  );
+}
+
+/** An album: its cover, title, artist and year, and its numbered tracks. */
+function AlbumSummary({
+  album,
+  artwork,
+  tracks,
+}: {
+  album: AlbumPreview;
+  artwork: string | null;
+  tracks: PreviewTrack[];
+}) {
+  const { t } = useTranslation();
+  const total = tracks.reduce((sum, track) => sum + (track.duration ?? 0), 0);
+  const count = album.count ?? tracks.length;
+  const downloaded = tracks.length > 0 && tracks.every((track) => track.downloaded);
+  return (
+    <>
+      <div className={styles.summary} data-album>
+        <Thumbnail id={artwork} album />
+        <div className={styles.summaryText}>
+          <span className={styles.kind}>{t('library.album')}</span>
+          <h3 className={styles.name}>{album.title}</h3>
+          {album.artist && <p className={styles.details}>{album.artist}</p>}
+          <p className={styles.meta}>
+            {[album.year, t('library.songCount', { count }), total > 0 && formatTime(total)]
+              .filter(Boolean)
+              .join(' · ')}
+            {downloaded ? (
+              <span className={styles.badge}>{t('links.downloaded')}</span>
+            ) : (
+              album.albumId !== null && <span className={styles.badge}>{t('links.inLibrary')}</span>
+            )}
+          </p>
+        </div>
+      </div>
+      {tracks.length > 0 && (
+        <ol className={styles.entries}>
+          {tracks.map((track, index) => (
+            <li key={`${index}:${track.url}`} className={styles.entry}>
+              <span className={styles.entryNumber}>{track.trackNumber ?? index + 1}</span>
+              <span className={styles.entryTitle}>{track.title}</span>
+              {/* Only guests are named: the album artist is in the header. */}
+              <span className={styles.entryArtist}>
+                {track.artist !== album.artist ? track.artist : ''}
+              </span>
+              <span className={styles.entryTime}>
+                {track.duration !== null ? formatTime(track.duration) : ''}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </>
   );
 }
 
@@ -254,7 +316,62 @@ export function LinkDialog({ initial, onClose }: { initial: string; onClose(): v
                 </div>
               </>
             )}
-            {preview?.kind === 'playlist' && (
+            {preview?.kind === 'playlist' && preview.album !== null && (
+              <>
+                <AlbumSummary
+                  album={preview.album}
+                  artwork={preview.artwork ?? preview.tracks[0]?.artwork ?? null}
+                  tracks={preview.tracks}
+                />
+                <div className={styles.actions}>
+                  <button
+                    type="button"
+                    className={styles.primary}
+                    disabled={busy || preview.count === 0}
+                    onClick={play('play')}
+                  >
+                    <Play size={15} fill="currentColor" aria-hidden="true" />
+                    {t('links.listen')}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.secondary}
+                    disabled={busy || preview.count === 0}
+                    onClick={play('append')}
+                  >
+                    <ListPlus size={15} aria-hidden="true" />
+                    {t('library.addToQueue')}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.secondary}
+                    disabled={busy || preview.count === 0}
+                    onClick={download}
+                  >
+                    <Download size={15} aria-hidden="true" />
+                    {t('links.downloadAlbum')}
+                  </button>
+                  {preview.album.albumId !== null && (
+                    <button
+                      type="button"
+                      className={styles.secondary}
+                      disabled={busy}
+                      onClick={() => {
+                        const id = preview.album?.albumId;
+                        if (id != null) {
+                          useNavigation.getState().go({ view: 'album', id });
+                          onClose();
+                        }
+                      }}
+                    >
+                      <Disc3 size={15} aria-hidden="true" />
+                      {t('links.openAlbum')}
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+            {preview?.kind === 'playlist' && preview.album === null && (
               <>
                 <div className={styles.summary}>
                   <Thumbnail id={preview.artwork ?? preview.tracks[0]?.artwork ?? null} />

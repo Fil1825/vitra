@@ -1,5 +1,6 @@
 import type { LibraryChange, ScanStatus } from './library.ts';
 import type { DownloadJob } from './links.ts';
+import type { CurrentLyrics, LineUpdate } from './lyrics.ts';
 import type { Settings } from './settings.ts';
 import type { PlayerState, PositionUpdate, Track } from './player.ts';
 import type { QueueState } from './queue.ts';
@@ -23,12 +24,18 @@ export interface VitraEvents {
   'player:position': PositionUpdate;
   /** Metadata and artwork of the current track became available. */
   'player:track': Track;
+  /** The music's pulse (0..1) for the animated backdrop, while one asked for it. */
+  'player:level': number;
   'queue:changed': QueueState;
   /** Library data changed; views showing that kind of data refetch it. */
   'library:changed': LibraryChange;
   'library:scan': ScanStatus;
   /** The download queue changed (a job was added, progressed or finished). */
   'downloads:changed': DownloadJob[];
+  /** The playing track's lyrics (or their loading state, or the sync offset) changed. */
+  'lyrics:changed': CurrentLyrics;
+  /** Another line of the lyrics started playing. */
+  'lyrics:line': LineUpdate;
 }
 
 export type Handler<T> = (payload: T) => void;

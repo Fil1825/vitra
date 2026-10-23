@@ -42,6 +42,23 @@ impl ArtworkStore {
         id
     }
 
+    /// Stores an image as it is, without the downscaled copy and the backdrop thumbnail (for
+    /// the full-screen viewer); returns its id.
+    pub fn insert_original(&self, image: media::Artwork) -> String {
+        let mime = image
+            .mime
+            .clone()
+            .or_else(|| media::image_mime(&image.bytes));
+        self.insert(PreparedArtwork {
+            image: media::Artwork {
+                bytes: image.bytes,
+                mime,
+            },
+            thumbnail: Vec::new(),
+            palette: None,
+        })
+    }
+
     fn get(&self, id: &str) -> Option<Arc<PreparedArtwork>> {
         self.lock()
             .iter()

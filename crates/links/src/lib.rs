@@ -11,13 +11,19 @@ pub mod release;
 mod template;
 pub mod ytdlp;
 
-pub use ytdlp::YtDlp;
+pub use ytdlp::{COOKIE_BROWSERS, YtDlp};
 
 pub use classify::{Link, LinkKind, is_remote, link_title, parse_link};
 pub use download::{AudioFormat, DownloadOptions, DownloadStatus, MP3_BITRATES, download_args};
-pub use info::{LinkPlaylist, LinkTrack, Resolved, parse_entry, parse_info};
+pub use info::{
+    LinkAlbum, LinkPlaylist, LinkTrack, Resolved, is_album_link, parse_entry, parse_info,
+    place_in_album,
+};
 pub use progress::{DownloadEvent, parse_progress_line};
-pub use template::{DEFAULT_TEMPLATE, FileNameFields, file_stem, sanitize_file_name, unique_stem};
+pub use template::{
+    DEFAULT_ALBUM_TEMPLATE, DEFAULT_TEMPLATE, FileNameFields, file_stem, relative_path,
+    sanitize_file_name, unique_stem,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LinkError {
@@ -28,6 +34,16 @@ pub enum LinkError {
     /// yt-dlp failed; the message is its last error line.
     #[error("{0}")]
     Failed(String),
+    /// The site wants proof of age: only a signed-in browser's cookies get through.
+    #[error("the video is age-restricted")]
+    AgeRestricted,
+    /// The site wants a signed-in user (YouTube's "confirm you're not a bot", members-only).
+    #[error("the site asks to sign in")]
+    SignInRequired,
+    /// yt-dlp couldn't read the browser's cookies (no such browser, or macOS keeps Safari's
+    /// from the app without Full Disk Access).
+    #[error("cannot read the browser's cookies: {0}")]
+    Cookies(String),
     #[error("yt-dlp did not answer in time")]
     TimedOut,
     #[error("cancelled")]

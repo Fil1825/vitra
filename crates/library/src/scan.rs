@@ -29,7 +29,7 @@ pub const AUDIO_EXTENSIONS: &[&str] = &[
 ];
 
 /// Longer side of cached album covers: sharp in a grid tile on a 2x display.
-const COVER_SIZE: u32 = 512;
+pub(crate) const COVER_SIZE: u32 = 512;
 /// Tracks written per transaction: big enough to be fast, small enough that the UI sees
 /// the library fill up during a long first scan.
 const BATCH: usize = 250;
@@ -181,7 +181,14 @@ fn list(root: &Path, cancel: &AtomicBool) -> std::io::Result<Listing> {
 /// rather than taking the whole scan down.
 pub(crate) fn read_metadata(path: &Path) -> TrackMetadata {
     match std::panic::catch_unwind(|| media::read_track(path)) {
-        Ok(Ok(info)) => return info.metadata,
+        Ok(Ok(info)) => {
+            let mut metadata = info.metadata;
+            // Lyrics in a `.lrc` next to the file are searchable too.
+            if metadata.lyrics.is_none() {
+                metadata.lyrics = lyrics::read_lrc(path);
+            }
+            return metadata;
+        }
         Ok(Err(err)) => log::debug!("no tags for {}: {err}", path.display()),
         Err(_) => log::warn!("reading tags of {} panicked", path.display()),
     }
@@ -293,17 +300,28 @@ const STALE_PART: Duration = Duration::from_secs(600);
 
 /// Writes the cover thumbnail if it isn't cached yet; returns its id.
 pub(crate) fn cache_cover(bytes: &[u8], covers_dir: &Path) -> Option<String> {
+    let thumbnail = || {
+        media::cover_thumbnail(bytes, COVER_SIZE)
+            .inspect_err(|err| log::info!("cannot decode a cover: {err}"))
+            .ok()
+    };
+    write_cover(cover_id(bytes), covers_dir, thumbnail)
+}
+
+/// Writes the image under `id` in the covers folder unless it is there; `image` makes it.
+pub(crate) fn write_cover(
+    id: String,
+    covers_dir: &Path,
+    image: impl FnOnce() -> Option<Vec<u8>>,
+) -> Option<String> {
     // Albums sharing a cover get the same id and may be cached by two threads at once, so
     // each write uses its own temporary file.
     static NEXT_PART: AtomicU64 = AtomicU64::new(0);
-    let id = cover_id(bytes);
     let target = covers_dir.join(format!("{id}.jpg"));
     if target.is_file() {
         return Some(id);
     }
-    let thumbnail = media::cover_thumbnail(bytes, COVER_SIZE)
-        .inspect_err(|err| log::info!("cannot decode a cover: {err}"))
-        .ok()?;
+    let thumbnail = image()?;
     // Written under a temporary name first, so a half-written file is never served.
     let part = NEXT_PART.fetch_add(1, Ordering::Relaxed);
     let partial = covers_dir.join(format!("{id}.{}-{part}.part", std::process::id()));
@@ -464,6 +482,7 @@ impl Library {
             return Ok(());
         }
         let tx = self.conn.transaction()?;
+        let splitting = crate::artists::splitting(&tx)?;
         for (track, known) in batch.drain(..) {
             if known {
                 summary.updated += 1;
@@ -488,7 +507,7 @@ impl Library {
                 }
             }
             let added_at = dated.map_or(scan_time, |now| track.mtime.clamp(0, now));
-            let id = upsert_track(&tx, Some(folder_id), &track, added_at)?;
+            let id = upsert_track(&tx, Some(folder_id), &track, added_at, &splitting)?;
             let album: Option<i64> = tx
                 .query_row("SELECT album_id FROM tracks WHERE id = ?", [id], |row| {
                     row.get(0)
@@ -595,6 +614,7 @@ impl Library {
 
         let tx = self.conn.transaction()?;
         let at = now();
+        let splitting = crate::artists::splitting(&tx)?;
         for (job, metadata) in jobs.iter().zip(read) {
             let track = ScannedTrack {
                 path: job.key.clone(),
@@ -602,7 +622,7 @@ impl Library {
                 mtime: job.mtime,
                 metadata: metadata.unwrap_or_default(),
             };
-            let id = upsert_track(&tx, job.folder_id, &track, at)?;
+            let id = upsert_track(&tx, job.folder_id, &track, at, &splitting)?;
             let album: Option<i64> =
                 tx.query_row("SELECT album_id FROM tracks WHERE id = ?", [id], |row| {
                     row.get(0)
@@ -646,9 +666,15 @@ impl Library {
         // Albums may have been pruned since they were touched.
         let mut albums = Vec::with_capacity(album_ids.len());
         for &id in album_ids {
-            let paths = self.album_paths(id)?;
-            if !paths.is_empty() {
-                albums.push((id, paths));
+            let (downloads, files): (Vec<_>, Vec<_>) = self
+                .album_files(id)?
+                .into_iter()
+                .partition(|(_, downloaded)| *downloaded);
+            let paths = |list: Vec<(String, bool)>| -> Vec<String> {
+                list.into_iter().map(|(path, _)| path).collect()
+            };
+            if !files.is_empty() || !downloads.is_empty() {
+                albums.push((id, (paths(files), paths(downloads))));
             }
         }
         let total = albums.len();
@@ -658,7 +684,12 @@ impl Library {
         parallel(
             &albums,
             cancel,
-            |(_, paths)| find_cover(paths).and_then(|bytes| cache_cover(&bytes, covers_dir)),
+            // A downloaded link's art is a site's thumbnail: the album's own files come first.
+            |(_, (files, downloads))| {
+                find_cover(files)
+                    .or_else(|| find_cover(downloads))
+                    .and_then(|bytes| cache_cover(&bytes, covers_dir))
+            },
             |index, cover| {
                 covers.insert(albums[index].0, cover);
                 done += 1;
@@ -847,6 +878,42 @@ mod tests {
         }
         let track = s.library.tracks(&TrackFilter::All).unwrap();
         assert!(track.iter().any(|t| t.cover.is_some()));
+    }
+
+    #[test]
+    fn rescanning_keeps_the_cover_the_user_chose() {
+        let mut s = setup();
+        s.scan();
+        let album = s.library.albums(AlbumSort::Artist).unwrap().remove(0);
+        let automatic = album.cover.clone().unwrap();
+        let art = media::read_track(&fixtures().join("tagged.mp3"))
+            .unwrap()
+            .embedded_artwork
+            .unwrap();
+        let custom = s
+            .library
+            .set_custom_cover(
+                crate::CoverTarget::Album(album.id),
+                Some(&art.bytes),
+                &s.covers,
+            )
+            .unwrap()
+            .unwrap();
+        // Every file read again, and the covers looked for again.
+        s.library
+            .conn
+            .execute("UPDATE tracks SET file_mtime = 0", [])
+            .unwrap();
+        s.scan();
+        let after = s.library.album(album.id).unwrap().unwrap();
+        assert_eq!(after.cover.as_deref(), Some(custom.as_str()));
+        assert!(after.custom_cover);
+        assert!(s.covers.join(format!("{custom}.jpg")).is_file());
+        s.library
+            .set_custom_cover(crate::CoverTarget::Album(album.id), None, &s.covers)
+            .unwrap();
+        let reset = s.library.album(album.id).unwrap().unwrap();
+        assert_eq!(reset.cover, Some(automatic));
     }
 
     #[test]

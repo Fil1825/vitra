@@ -18,6 +18,7 @@ import { useSettings } from '../../stores/settings.ts';
 import { Diagnostics } from './Diagnostics.tsx';
 import { DownloadSettings } from './DownloadSettings.tsx';
 import { LibrarySettings } from './LibrarySettings.tsx';
+import { LyricsSettings } from './LyricsSettings.tsx';
 import styles from './SettingsPanel.module.css';
 import { ThemePicker } from './ThemePicker.tsx';
 
@@ -92,6 +93,11 @@ export function SettingsPanel({ onClose }: { onClose(): void }) {
           </section>
 
           <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>{t('settings.lyrics.title')}</h3>
+            <LyricsSettings />
+          </section>
+
+          <section className={styles.section}>
             <h3 className={styles.sectionTitle}>{t('settings.appearance')}</h3>
             <ThemePicker
               value={settings.appearance.theme}
@@ -150,6 +156,17 @@ export function SettingsPanel({ onClose }: { onClose(): void }) {
                 label={t('settings.artworkAccent')}
                 checked={settings.appearance.artworkAccent}
                 onChange={(artworkAccent) => setAppearance({ artworkAccent })}
+              />
+            </Row>
+            <Row
+              label={t('settings.backdropPulse')}
+              hint={t('settings.backdropPulseHint')}
+              layout="inline"
+            >
+              <Switch
+                label={t('settings.backdropPulse')}
+                checked={settings.appearance.backdropPulse}
+                onChange={(backdropPulse) => setAppearance({ backdropPulse })}
               />
             </Row>
             <Row

@@ -1,0 +1,17 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.title {
+  margin: 0 auto 0 var(--vitra-space-2);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.view {
+  flex: 1;
+  padding-top: var(--vitra-space-3);
+}

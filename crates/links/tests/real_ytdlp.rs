@@ -1,6 +1,7 @@
 //! Runs the real yt-dlp against pages served from this test (no internet needed).
 //! Opt-in: `VITRA_YTDLP=/path/to/yt-dlp cargo test -p links --test real_ytdlp`.
-//! FFmpeg is taken from `VITRA_FFMPEG` or `PATH`.
+//! FFmpeg is taken from `VITRA_FFMPEG` or `PATH`. Relative paths are taken from the
+//! workspace root (cargo runs the tests in `crates/links`).
 
 mod common;
 
@@ -18,19 +19,29 @@ const PNG: &[u8] = &[
     0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
 ];
 
+/// A path from the environment, relative ones from the workspace root.
+fn env_path(name: &str) -> Option<PathBuf> {
+    let path = PathBuf::from(std::env::var_os(name)?);
+    Some(if path.is_absolute() {
+        path
+    } else {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(path)
+    })
+}
+
 fn ytdlp() -> Option<YtDlp> {
-    let binary = std::env::var_os("VITRA_YTDLP")?;
-    let ffmpeg = std::env::var_os("VITRA_FFMPEG")
-        .map(PathBuf::from)
-        .or_else(|| {
-            std::env::split_paths(&std::env::var_os("PATH")?)
-                .map(|dir| dir.join("ffmpeg"))
-                .find(|path| path.is_file())
-        });
+    let binary = env_path("VITRA_YTDLP")?;
+    let ffmpeg = env_path("VITRA_FFMPEG").or_else(|| {
+        std::env::split_paths(&std::env::var_os("PATH")?)
+            .map(|dir| dir.join("ffmpeg"))
+            .find(|path| path.is_file())
+    });
     Some(YtDlp {
-        binary: binary.into(),
+        binary,
         ffmpeg,
-        deno: None,
+        ..YtDlp::default()
     })
 }
 
@@ -71,6 +82,22 @@ fn serve() -> String {
     })
 }
 
+/// yt-dlp writes nothing into the working folder (cargo's is `crates/links`).
+fn assert_no_images_here() {
+    let images: Vec<_> = std::fs::read_dir(".")
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| {
+            let name = name.to_ascii_lowercase();
+            [".png", ".jpg", ".webp", ".json"]
+                .iter()
+                .any(|ext| name.ends_with(ext))
+        })
+        .collect();
+    assert!(images.is_empty(), "left behind: {images:?}");
+}
+
 #[tokio::test]
 async fn resolves_a_page_with_its_thumbnail() {
     let Some(ytdlp) = ytdlp() else { return };
@@ -88,6 +115,7 @@ async fn resolves_a_page_with_its_thumbnail() {
     assert_eq!(thumbnail.as_deref(), Some(PNG));
     // Its scratch directory is gone.
     assert_eq!(std::fs::read_dir(scratch.path()).unwrap().count(), 0);
+    assert_no_images_here();
 }
 
 #[tokio::test]
@@ -96,10 +124,13 @@ async fn resolves_and_enriches_a_playlist() {
     let base = serve();
     let scratch = tempfile::tempdir().unwrap();
     let url = format!("{base}/album.html");
-    let (resolved, _) = ytdlp.resolve(&url, scratch.path()).await.unwrap();
+    let (resolved, thumbnail) = ytdlp.resolve(&url, scratch.path()).await.unwrap();
     let Resolved::Playlist(playlist) = resolved else {
         panic!("a playlist");
     };
+    // The playlist's own thumbnail comes back instead of landing in the working folder.
+    assert_eq!(thumbnail.as_deref(), Some(PNG));
+    assert_no_images_here();
     assert_eq!(playlist.title, "Two Songs");
     let urls: Vec<_> = playlist.tracks.iter().map(|t| t.url.clone()).collect();
     assert_eq!(
@@ -114,6 +145,8 @@ async fn resolves_and_enriches_a_playlist() {
         .unwrap();
     assert_eq!(count, 2);
     assert_eq!(seen.len(), 2);
+    assert_no_images_here();
+    assert_eq!(std::fs::read_dir(scratch.path()).unwrap().count(), 0);
 }
 
 #[tokio::test]

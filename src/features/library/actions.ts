@@ -10,6 +10,7 @@ import {
   type Playlist,
 } from '../../lib/library.ts';
 import { downloads, isRemotePath } from '../../lib/links.ts';
+import { coverMenu } from './covers.ts';
 import type { MenuEntry } from '../../lib/menu.ts';
 import { pickFolder } from '../../lib/openFiles.ts';
 import { queue } from '../../lib/queue.ts';
@@ -100,6 +101,11 @@ export function downloadTracks(tracks: LibraryTrack[]): void {
   }
 }
 
+/** Downloads an album's linked tracks as that album. */
+export function downloadAlbum(id: number): void {
+  downloads.addAlbum(id).catch(report('Downloading an album'));
+}
+
 export function copyText(text: string): void {
   navigator.clipboard.writeText(text).catch(report('Copying'));
 }
@@ -171,13 +177,22 @@ export function trackMenu(
   }
   if (single) {
     entries.push('separator');
-    // A link has no file to tag; its download gets tags.
-    if (!isRemotePath(single.path)) {
-      entries.push({
-        label: i18n.t('library.editTags'),
-        action: () => useUi.getState().editTags(single.path),
-      });
-    }
+    // A link has no file: its details are corrected in the library (and its download
+    // gets them as tags).
+    entries.push({
+      label: i18n.t('library.editTags'),
+      action: () => useUi.getState().editTags(single.path),
+    });
+    entries.push({
+      label: i18n.t('library.editLyrics'),
+      action: () =>
+        useUi.getState().editLyrics({
+          path: single.path,
+          libraryId: single.id,
+          title: single.title,
+          artist: single.artist,
+        }),
+    });
     const { sourceUrl } = single;
     if (sourceUrl !== null) {
       entries.push({ label: i18n.t('links.copyLink'), action: () => copyText(sourceUrl) });
@@ -189,7 +204,16 @@ export function trackMenu(
         action: () => go({ view: 'album', id: albumId }),
       });
     }
-    if (artistId !== null) {
+    const { artists } = single;
+    if (artists.length > 1) {
+      entries.push({
+        label: i18n.t('library.goToArtist'),
+        items: artists.map((artist) => ({
+          label: artist.name,
+          action: () => go({ view: 'artist', id: artist.id }),
+        })),
+      });
+    } else if (artistId !== null) {
       entries.push({
         label: i18n.t('library.goToArtist'),
         action: () => go({ view: 'artist', id: artistId }),
@@ -235,7 +259,15 @@ export function albumMenu(album: Album, allPlaylists: Playlist[]): MenuEntry[] {
     },
     'separator',
     addToPlaylistMenu(() => albumTrackIds(album.id), allPlaylists),
+    'separator',
+    ...coverMenu({ kind: 'album', id: album.id }, album.customCover),
   ];
+  if (album.linkCount > 0) {
+    entries.push('separator', {
+      label: i18n.t('links.downloadAlbum'),
+      action: () => downloadAlbum(album.id),
+    });
+  }
   const { artistId } = album;
   if (artistId !== null) {
     entries.push('separator', {

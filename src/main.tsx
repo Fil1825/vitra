@@ -7,6 +7,7 @@ import { startBackendBridge } from './lib/bridge.ts';
 import { initDownloads } from './stores/downloads.ts';
 import { initEnvironment } from './stores/environment.ts';
 import { initLibrary } from './stores/library.ts';
+import { initLyrics } from './stores/lyrics.ts';
 import { initPlayer } from './stores/player.ts';
 import { initQueue } from './stores/queue.ts';
 import { initSettings, useSettings } from './stores/settings.ts';
@@ -40,6 +41,7 @@ async function boot(root: HTMLElement): Promise<void> {
     initQueue(),
     initLibrary(),
     initDownloads(),
+    initLyrics(),
   ]);
   await initI18n(resolveLocale(useSettings.getState().settings.language, navigator.languages));
 

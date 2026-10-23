@@ -14,7 +14,11 @@ use crate::artwork::Artwork;
 #[serde(rename_all = "camelCase")]
 pub struct TrackMetadata {
     pub title: Option<String>,
+    /// The artist credit (the first artist value).
     pub artist: Option<String>,
+    /// Every artist when the tags list several (multiple `ARTIST` values, an ID3v2.4 `TPE1`
+    /// with null separators, an `ARTISTS` tag); empty otherwise.
+    pub artists: Vec<String>,
     pub album: Option<String>,
     pub album_artist: Option<String>,
     pub genre: Option<String>,
@@ -30,6 +34,9 @@ pub struct TrackMetadata {
     /// kbit/s.
     pub bitrate: Option<u32>,
     pub channels: Option<u8>,
+    /// Lyrics from the tags' lyrics field (often LRC), for search. Not sent to the windows.
+    #[serde(skip)]
+    pub lyrics: Option<String>,
 }
 
 /// What `read_track` found in a file.
@@ -64,12 +71,18 @@ pub fn read_track(path: &Path) -> Result<TrackInfo, MediaError> {
         };
         metadata.title = text(tag.title());
         metadata.artist = text(tag.artist());
+        metadata.artists = artist_values(tag);
         metadata.album = text(tag.album());
         metadata.genre = text(tag.genre());
         metadata.album_artist = text(tag.get_string(ItemKey::AlbumArtist).map(Into::into));
         metadata.year = tag.date().map(|date| date.year);
         metadata.track_number = tag.track();
         metadata.disc_number = tag.disk();
+        metadata.lyrics = text(
+            tag.get_string(ItemKey::Lyrics)
+                .or_else(|| tag.get_string(ItemKey::UnsyncLyrics))
+                .map(Into::into),
+        );
 
         let pictures = tag.pictures();
         let cover = pictures
@@ -86,6 +99,28 @@ pub fn read_track(path: &Path) -> Result<TrackInfo, MediaError> {
         metadata,
         embedded_artwork,
     })
+}
+
+/// The artists a tag lists, when it lists more than one: an `ARTISTS` tag (written by
+/// MusicBrainz Picard and by Vitra for MP4) first, else several artist values.
+pub(crate) fn artist_values(tag: &lofty::tag::Tag) -> Vec<String> {
+    let values = |key: ItemKey| -> Vec<String> {
+        tag.get_strings(key)
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .map(str::to_owned)
+            .collect()
+    };
+    let listed = values(ItemKey::TrackArtists);
+    if !listed.is_empty() {
+        return listed;
+    }
+    let artists = values(ItemKey::TrackArtist);
+    if artists.len() > 1 {
+        artists
+    } else {
+        Vec::new()
+    }
 }
 
 fn format_name(file_type: FileType) -> Option<&'static str> {

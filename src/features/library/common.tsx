@@ -6,7 +6,8 @@ import { playTracks, shuffleTracks } from './actions.ts';
 import styles from './Library.module.css';
 
 /** Play and Shuffle for a whole list. */
-export function PlayButtons({ ids }: { ids: number[] }) {
+/** Play and Shuffle, followed by `children` (more buttons of the page). */
+export function PlayButtons({ ids, children }: { ids: number[]; children?: ReactNode }) {
   const { t } = useTranslation();
   return (
     <div className={styles.actions}>
@@ -28,6 +29,7 @@ export function PlayButtons({ ids }: { ids: number[] }) {
         <Shuffle size={15} aria-hidden="true" />
         {t('library.shuffle')}
       </button>
+      {children}
     </div>
   );
 }

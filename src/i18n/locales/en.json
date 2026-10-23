@@ -15,7 +15,13 @@
     "clearSearch": "Clear search",
     "back": "Back",
     "forward": "Forward",
-    "downloads": "Downloads"
+    "downloads": "Downloads",
+    "sidebar": "Sidebar",
+    "sidebarNext": {
+      "expanded": "Show sidebar",
+      "rail": "Show icons only",
+      "hidden": "Hide sidebar"
+    }
   },
   "nowPlaying": {
     "label": "Now Playing",
@@ -55,7 +61,9 @@
     "favorite": "Add to Favorites",
     "unfavorite": "Remove from Favorites",
     "showQueue": "Show queue",
-    "hideQueue": "Hide queue"
+    "hideQueue": "Hide queue",
+    "showLyrics": "Show lyrics",
+    "hideLyrics": "Hide lyrics"
   },
   "settings": {
     "title": "Settings",
@@ -87,6 +95,8 @@
     "refractionUnsupported": "This engine can't render refraction, so glass uses blur and highlights instead.",
     "artworkAccent": "Accent from artwork",
     "artworkAccentHint": "Tints the interface with the cover of the playing track. Some themes keep their own accent.",
+    "backdropPulse": "Background moves with the music",
+    "backdropPulseHint": "The background swells gently with the music’s loudness and beats. Like all of its motion, it stops with Reduce Motion or power saving.",
     "powerSaving": "Power saving",
     "powerSavingHint": "Turns off blur, refraction and animations.",
     "windowMaterial": "Window material",
@@ -130,7 +140,11 @@
       "watchHint": "Folders are watched: new, changed and deleted files show up by themselves.",
       "insideFolder": "This folder is already in your library as part of “{{folder}}”.",
       "addOpenedFiles": "Add opened files to the library",
-      "addOpenedFilesHint": "Files you open or drop join the library as single songs, with favorites, history and playlists. A folder added later takes them in."
+      "addOpenedFilesHint": "Files you open or drop join the library as single songs, with favorites, history and playlists. A folder added later takes them in.",
+      "splitArtists": "Split artists",
+      "splitArtistsHint": "Credits like \"A feat. B\", \"A, B\", \"A & B\" or \"A x B\" become separate artists. Tags with several artist values are always taken as they are.",
+      "exceptions": "Names not to split",
+      "exceptionsHint": "One per line. Well-known names such as \"Tyler, The Creator\" and \"Simon & Garfunkel\" are kept whole anyway."
     },
     "downloads": {
       "title": "Downloads",
@@ -148,14 +162,27 @@
       },
       "bitrate": "MP3 bitrate, kbit/s",
       "template": "File name",
-      "templateHint": "Use {artist}, {title}, {album} and {year}; a missing value takes its separator with it.",
+      "templateHint": "Use {artist}, {title}, {album} and {year}; an empty value goes with its separator. / makes folders.",
       "update": "Update",
       "updating": "Updating…",
       "updated": "Updated to {{version}}",
       "updateFailed": "Couldn’t update: {{message}}",
       "ytDlpVersion": "Version {{version}}. Sites change often; update when links stop working.",
       "ytDlpMissing": "yt-dlp wasn’t found, so links can’t be played or downloaded.",
-      "ffmpegMissing": "FFmpeg wasn’t found: downloads need it."
+      "ffmpegMissing": "FFmpeg wasn’t found: downloads need it.",
+      "albumTemplate": "Album tracks",
+      "albumTemplateHint": "Also {album_artist} and {track} (two digits); / makes folders: {album_artist}/{album}/{track} {title}.",
+      "cookies": "Cookies from browser",
+      "cookiesHint": "For age-restricted and sign-in-only videos: yt-dlp acts as you, signed in to the site in this browser. Cookies are read on your computer and only sent to the site they belong to. On macOS, Safari's need Full Disk Access for Vitra; Chrome asks for Keychain access.",
+      "cookiesNone": "Off",
+      "cookiesNoAccess": "Vitra can't read Safari's cookies: macOS keeps them from apps without Full Disk Access. Allow Vitra in System Settings → Privacy & Security → Full Disk Access, then restart it."
+    },
+    "lyrics": {
+      "title": "Lyrics",
+      "online": "Find lyrics online",
+      "onlineHint": "When a song has no lyrics, look them up on LRCLIB (lrclib.net). The song’s title, artist, album and length are sent there.",
+      "translation": "Show translations",
+      "translationHint": "Lyrics sometimes carry a translation under each line."
     }
   },
   "library": {
@@ -219,7 +246,12 @@
     "streamed": "Plays from the web",
     "removeLinkConfirm": "Remove “{{title}}” from the library? Its play count and playlist entries are lost.",
     "removeLinksConfirm_one": "Remove {{count}} link from the library? Play counts and playlist entries are lost.",
-    "removeLinksConfirm_other": "Remove {{count}} links from the library? Play counts and playlist entries are lost."
+    "removeLinksConfirm_other": "Remove {{count}} links from the library? Play counts and playlist entries are lost.",
+    "editLyrics": "Edit Lyrics…",
+    "changeCover": "Change Cover…",
+    "resetCover": "Reset Cover",
+    "coverImages": "Images",
+    "coverFailed": "Couldn't change the cover: {{error}}"
   },
   "queue": {
     "title": "Queue",
@@ -253,12 +285,24 @@
     "saving": "Saving…",
     "notWritable": "Tags of this file format can't be edited.",
     "saveFailed": "Couldn't save the tags: {{message}}",
-    "yearInvalid": "Enter a year such as 1999, or leave it empty."
+    "yearInvalid": "Enter a year such as 1999, or leave it empty.",
+    "linkTitle": "Track Details",
+    "linkHint": "This is a link, not a file: your changes stay in Vitra's library, and what the site says about the track later won't replace them. Downloading it writes them into the file.",
+    "artistHint": "Several artists: separate them with “;”.",
+    "albumExisting": "Moves into the album “{{album}}” by {{artist}}.",
+    "albumNew": "Makes a new album, “{{album}}”.",
+    "restore": "Restore Site Details",
+    "restoring": "Asking the site…",
+    "restoreConfirm": "Drop your corrections and take the title, artists and album from the link's page again?",
+    "restoreFailed": "Couldn't get the details: {{message}}"
   },
   "dialog": {
     "cancel": "Cancel",
     "remove": "Remove",
-    "delete": "Delete"
+    "delete": "Delete",
+    "save": "Save",
+    "discard": "Discard",
+    "restore": "Restore"
   },
   "links": {
     "title": "Open Link",
@@ -285,8 +329,14 @@
       "ytDlpMissing": "yt-dlp wasn’t found. It plays links from YouTube, SoundCloud and other sites.",
       "timeout": "The site didn’t answer in time. Try again later.",
       "unsupported": "This site isn’t supported.",
-      "failed": "Couldn’t open the link: {{message}}"
-    }
+      "failed": "Couldn’t open the link: {{message}}",
+      "ageRestricted": "This video is age-restricted. To play it, sign in to the site in your browser and choose that browser in Settings → Downloads → Cookies from browser.",
+      "signIn": "The site asks to sign in. Sign in to it in your browser and choose that browser in Settings → Downloads → Cookies from browser.",
+      "cookies": "Couldn't read the browser's cookies. Check that the browser is installed and you are signed in; on macOS, Safari's cookies need Full Disk Access for Vitra (System Settings → Privacy & Security)."
+    },
+    "listen": "Listen",
+    "downloadAlbum": "Download Album",
+    "openAlbum": "Show Album"
   },
   "downloads": {
     "title": "Downloads",
@@ -302,6 +352,74 @@
     "failed": "Failed: {{message}}",
     "cancelled": "Cancelled",
     "retry": "Retry",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "albumProgress": "{{done}} of {{total}}",
+    "cancelAll": "Cancel All",
+    "retryAll": "Retry Failed",
+    "failedCount_one": "{{count}} failed",
+    "failedCount_other": "{{count}} failed",
+    "showTracks": "Show tracks",
+    "hideTracks": "Hide tracks"
+  },
+  "lyrics": {
+    "title": "Lyrics",
+    "nothingPlaying": "Lyrics of the playing song show up here.",
+    "searching": "Searching LRCLIB…",
+    "missing": "No lyrics",
+    "missingOffline": "Add them yourself, or look them up on LRCLIB.",
+    "missingOnline": "LRCLIB doesn’t have them either. You can add them yourself.",
+    "searchFailed": "LRCLIB couldn’t be reached.",
+    "add": "Add Lyrics",
+    "searchOnline": "Search LRCLIB",
+    "edit": "Edit lyrics",
+    "smaller": "Smaller text",
+    "larger": "Larger text",
+    "offset": "Sync offset",
+    "earlier": "Show lyrics earlier",
+    "later": "Show lyrics later",
+    "resetOffset": "Reset the sync offset",
+    "showTranslation": "Show translation",
+    "hideTranslation": "Hide translation",
+    "fromLrclib": "Lyrics from LRCLIB",
+    "editor": {
+      "title": "Lyrics",
+      "mode": "Editor mode",
+      "text": "Text",
+      "sync": "Sync",
+      "placeholder": "Paste or type the lyrics, one line per line. LRC with [mm:ss.xx] times works too.",
+      "import": "Import…",
+      "export": "Export…",
+      "lyricsFiles": "Lyrics",
+      "saveTo": "Save to",
+      "targets": {
+        "tags": "File tags",
+        "file": ".lrc file",
+        "library": "Vitra only"
+      },
+      "hints": {
+        "tags": "Written into the song file. A backup copy of the file is kept first.",
+        "file": "Saved as {{file}} next to the song.",
+        "library": "Kept in Vitra’s library; the file isn’t changed."
+      },
+      "confirmTags": "Write the lyrics into “{{file}}”? A backup copy of the file is kept in Vitra’s data folder.",
+      "saveFailed": "Couldn’t save the lyrics: {{message}}",
+      "discard": "Discard your changes to these lyrics?",
+      "untimed_one": "{{count}} line has no time yet and will be left out.",
+      "untimed_other": "{{count}} lines have no time yet and will be left out.",
+      "playToSync": "Syncing needs the song playing.",
+      "playTrack": "Play Song",
+      "syncHint": "Press Space as each line starts. Backspace takes the last tap back; ↑ and ↓ move the highlight. Click a line to start from it.",
+      "back5": "Back 5 seconds",
+      "undo": "Undo the last line",
+      "shiftAll": "Shift all",
+      "seekToLine": "Play from this line",
+      "break": "verse break",
+      "end": "End"
+    }
+  },
+  "artwork": {
+    "view": "Show artwork",
+    "close": "Close",
+    "missing": "No artwork"
   }
 }
