@@ -177,13 +177,12 @@ export function trackMenu(
   }
   if (single) {
     entries.push('separator');
-    // A link has no file to tag; its download gets tags.
-    if (!isRemotePath(single.path)) {
-      entries.push({
-        label: i18n.t('library.editTags'),
-        action: () => useUi.getState().editTags(single.path),
-      });
-    }
+    // A link has no file: its details are corrected in the library (and its download
+    // gets them as tags).
+    entries.push({
+      label: i18n.t('library.editTags'),
+      action: () => useUi.getState().editTags(single.path),
+    });
     entries.push({
       label: i18n.t('library.editLyrics'),
       action: () =>

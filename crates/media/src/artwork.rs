@@ -58,7 +58,8 @@ pub fn image_mime(bytes: &[u8]) -> Option<String> {
 pub struct PreparedArtwork {
     /// For display: the original, or a JPEG copy when the original is very large.
     pub image: Artwork,
-    /// A small JPEG for the blurred window background.
+    /// A small JPEG for the window background, already blurred and saturated (see
+    /// [`backdrop_image`]).
     pub thumbnail: Vec<u8>,
     pub palette: Option<Palette>,
 }
@@ -67,6 +68,10 @@ pub struct PreparedArtwork {
 const DISPLAY_MAX: u32 = 1200;
 /// The backdrop blurs heavily, so a tiny image looks the same and costs far less.
 const THUMBNAIL_MAX: u32 = 96;
+/// The backdrop's blur, in pixels of the 96 px image: about what `blur(56px)` was on a
+/// window-sized copy.
+const BACKDROP_BLUR: f32 = 4.0;
+const BACKDROP_SATURATION: f32 = 1.4;
 /// Enough pixels for stable dominant colors.
 const PALETTE_SAMPLE: u32 = 48;
 
@@ -93,7 +98,7 @@ pub fn prepare_artwork(artwork: Artwork) -> Result<PreparedArtwork, MediaError> 
         }
     };
 
-    let thumbnail = encode_jpeg(&decoded.thumbnail(THUMBNAIL_MAX, THUMBNAIL_MAX), 80)?;
+    let thumbnail = encode_jpeg(&backdrop_image(&decoded), 80)?;
     let sample = decoded.thumbnail(PALETTE_SAMPLE, PALETTE_SAMPLE).to_rgb8();
     let palette = extract_palette(sample.pixels().map(|p| p.0));
 
@@ -138,6 +143,24 @@ pub fn square_cover(bytes: &[u8]) -> Result<Vec<u8>, MediaError> {
     encode_jpeg(&cropped, 92)
 }
 
+/// The window background's image: small, blurred and saturated here once, so the window only
+/// moves and scales it. A CSS `filter` on a moving layer would be redone on every frame.
+fn backdrop_image(image: &DynamicImage) -> DynamicImage {
+    let small = image.thumbnail(THUMBNAIL_MAX, THUMBNAIL_MAX).to_rgb8();
+    let mut blurred = image::imageops::blur(&small, BACKDROP_BLUR);
+    for pixel in blurred.pixels_mut() {
+        let [r, g, b] = pixel.0.map(f32::from);
+        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        pixel.0 = [r, g, b].map(|c| {
+            // Clamped to a byte's range first, so the cast can't overflow.
+            (luma + (c - luma) * BACKDROP_SATURATION)
+                .round()
+                .clamp(0.0, 255.0) as u8
+        });
+    }
+    DynamicImage::ImageRgb8(blurred)
+}
+
 fn encode_jpeg(image: &DynamicImage, quality: u8) -> Result<Vec<u8>, MediaError> {
     let mut out = Cursor::new(Vec::new());
     JpegEncoder::new_with_quality(&mut out, quality).encode_image(&image.to_rgb8())?;
@@ -161,6 +184,25 @@ mod tests {
         .write_to(&mut out, image::ImageFormat::Png)
         .unwrap();
         out.into_inner()
+    }
+
+    #[test]
+    fn the_backdrop_image_comes_blurred() {
+        // Hard edges between the bars and the red middle...
+        let decoded = image::load_from_memory(&png(160, 90)).unwrap();
+        let backdrop = backdrop_image(&decoded).to_rgb8();
+        assert!(backdrop.width() <= THUMBNAIL_MAX && backdrop.height() <= THUMBNAIL_MAX);
+        // ...become a gradient: no two neighbours far apart.
+        let row: Vec<i32> = (0..backdrop.width())
+            .map(|x| i32::from(backdrop.get_pixel(x, backdrop.height() / 2).0[0]))
+            .collect();
+        let steepest = row.windows(2).map(|w| (w[0] - w[1]).abs()).max().unwrap();
+        assert!(steepest < 40, "{steepest}");
+        // And more saturated: red stands further from green than in the source (200 vs 40).
+        let middle = backdrop
+            .get_pixel(backdrop.width() / 2, backdrop.height() / 2)
+            .0;
+        assert!(middle[0] > middle[1] + 160, "{middle:?}");
     }
 
     #[test]

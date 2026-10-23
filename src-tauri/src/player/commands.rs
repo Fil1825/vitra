@@ -21,6 +21,12 @@ pub async fn player_open(player: State<'_, Player>, paths: Vec<PathBuf>) -> Resu
     player.open(paths).await
 }
 
+/// A window starts or stops showing the backdrop's pulse (see [`Player::set_level_meter`]).
+#[tauri::command]
+pub fn player_level_meter(player: State<'_, Player>, enabled: bool) {
+    player.set_level_meter(enabled);
+}
+
 #[tauri::command]
 pub async fn player_play(player: State<'_, Player>) -> Result<(), AppError> {
     player.play().await

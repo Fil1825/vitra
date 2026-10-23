@@ -24,6 +24,8 @@ export interface VitraEvents {
   'player:position': PositionUpdate;
   /** Metadata and artwork of the current track became available. */
   'player:track': Track;
+  /** The music's pulse (0..1) for the animated backdrop, while one asked for it. */
+  'player:level': number;
   'queue:changed': QueueState;
   /** Library data changed; views showing that kind of data refetch it. */
   'library:changed': LibraryChange;

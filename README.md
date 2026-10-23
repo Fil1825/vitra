@@ -27,6 +27,11 @@ Album links (YouTube Music albums, `OLAK5uy_…` playlists, Bandcamp albums) ope
 For age-restricted or sign-in-only videos, Settings → Downloads → **Cookies from browser**
 lets yt-dlp use the sign-in of a browser on this computer.
 
+Re-uploads often credit the channel instead of the artist and add "(Official Video)" to the
+title: **Edit Tags…** on a link corrects its title, artists and album (or moves it into an
+album you already have). The corrections stay in Vitra's library, survive opening the link
+again, and go into the file's tags when you download it.
+
 ## Library
 
 Vitra watches the folders you add and groups their songs by album and artist. Songs with
@@ -45,6 +50,12 @@ lyrics, syncs them as you tap Space at each line, and saves them into the file's
 making a backup copy), a `.lrc` file, or Vitra's library only. Lyrics can also be looked up on
 [LRCLIB](https://lrclib.net) — off by default; turning it on sends the song's title, artist,
 album and length there.
+
+## Look
+
+The window's background comes from the playing song's cover: blurred, slowly breathing and
+flowing, and gently pulsing with the music (Settings → Appearance → **Background moves with the
+music**). It holds still when the system asks for reduced motion or in power-saving mode.
 
 ## Building from source
 

@@ -344,7 +344,7 @@ pub async fn playlist_move(
     edit_playlists(&library, move |db| db.move_in_playlist(id, from, to)).await
 }
 
-/// The tag editor's form, read from the file itself.
+/// The tag editor's form, read from the file itself (a link's from the library).
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TagForm {
@@ -357,10 +357,51 @@ pub struct TagForm {
     pub cover: Option<String>,
     /// Whether the file's format can be tagged (lofty can read it).
     pub writable: bool,
+    /// A streamed link: no file, so the library keeps the corrections (no cover here).
+    pub link: bool,
+}
+
+/// The path of a streamed link, if `path` is one.
+fn link_url(path: &std::path::Path) -> Option<String> {
+    path.to_str()
+        .filter(|path| links::is_remote(path))
+        .map(str::to_owned)
 }
 
 #[tauri::command]
-pub async fn tags_load(player: State<'_, Player>, path: PathBuf) -> Result<TagForm, AppError> {
+pub async fn tags_load(
+    library: State<'_, LibraryService>,
+    player: State<'_, Player>,
+    path: PathBuf,
+) -> Result<TagForm, AppError> {
+    if let Some(url) = link_url(&path) {
+        let key = url.clone();
+        let track = library
+            .run(move |db| db.track_by_path(&key))
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("{url} is not in the library")))?;
+        // Several artists are edited as "A; B", like a file's.
+        let artist = if track.artists.len() > 1 {
+            track
+                .artists
+                .iter()
+                .map(|a| a.name.as_str())
+                .collect::<Vec<_>>()
+                .join(&format!("{} ", media::ARTIST_SEPARATOR))
+        } else {
+            track.artist.unwrap_or_default()
+        };
+        return Ok(TagForm {
+            title: track.title,
+            artist,
+            album: track.album.unwrap_or_default(),
+            album_artist: track.album_artist.unwrap_or_default(),
+            year: track.year.and_then(|year| u16::try_from(year).ok()),
+            cover: None,
+            writable: true,
+            link: true,
+        });
+    }
     let read = tauri::async_runtime::spawn_blocking(move || {
         media::read_track(&path).map(|info| {
             let cover = info
@@ -382,6 +423,7 @@ pub async fn tags_load(player: State<'_, Player>, path: PathBuf) -> Result<TagFo
                 year: None,
                 cover: None,
                 writable: false,
+                link: false,
             });
         }
     };
@@ -393,6 +435,7 @@ pub async fn tags_load(player: State<'_, Player>, path: PathBuf) -> Result<TagFo
         year: metadata.year,
         cover: cover.map(|art| player.artwork().insert(art)),
         writable: true,
+        link: false,
     })
 }
 
@@ -520,6 +563,25 @@ pub async fn tags_save(
     cover: CoverEdit,
 ) -> Result<(), AppError> {
     let library = library.inner().clone();
+    if let Some(url) = link_url(&path) {
+        // A link has no file: the library keeps the corrections, and a download writes them.
+        let non_empty = |value: &str| Some(value.trim().to_owned()).filter(|v| !v.is_empty());
+        let edit = library::LinkEdit {
+            title: values.title.clone(),
+            artists: media::artist_list(&values.artist)
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+            album: non_empty(&values.album),
+            album_artist: non_empty(&values.album_artist),
+            year: values.year,
+        };
+        let track = library.run(move |db| db.edit_link(&url, &edit)).await?;
+        library.changed(Change::Tracks);
+        library.changed(Change::Playlists);
+        player.library_tracks_updated(&[track]);
+        return Ok(());
+    }
     let target = path.clone();
     tauri::async_runtime::spawn_blocking(move || -> Result<(), AppError> {
         let cover = match cover {

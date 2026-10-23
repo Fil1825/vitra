@@ -167,6 +167,11 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     ALTER TABLE artists ADD COLUMN cover TEXT;
     ALTER TABLE playlists ADD COLUMN cover TEXT;
     ",
+    // 6: details of a link the user corrected (title, artists, album): yt-dlp's later
+    // descriptions of it (opening the link again, filling in its playlist) leave them alone.
+    r"
+    ALTER TABLE tracks ADD COLUMN edited INTEGER NOT NULL DEFAULT 0;
+    ",
 ];
 
 /// Brings the database up to the latest schema.

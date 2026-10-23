@@ -169,10 +169,25 @@ and an explicit list of checks that can only be done on a Mac.
   on a cover works on Retina (macOS drop positions are logical); "Download Album" on album
   pages and tiles; the fixture script finds the macOS folder build, writes recordings
   next to the hand-written fixtures and never truncates one when yt-dlp fails.
-- **Mac** for that round: the traffic lights over the sidebar's icon strip and next to the
+- **Mac** for round 3: the traffic lights over the sidebar's icon strip and next to the
   title bar with the sidebar hidden, cookies from Safari (needs Full Disk Access) and Chrome
   (Keychain prompt), how Apple Music / Finder show downloaded files with several artists,
   real album links and `scripts/record-ytdlp-fixtures.sh` (records album fixtures too).
+- Fourth round:
+  - Link details can be corrected ("Edit Tags" on a link: title, several artists, album,
+    album artist, year). They live in the library (migration 6, `tracks.edited`), so
+    opening the link again, refreshing its playlist or album never overwrite them; an
+    album name moves the track into that album or makes a new one; the link dialog and
+    playback show them; downloads write them into the file. A downloaded link edits its
+    file's tags as before.
+  - A live backdrop everywhere: the blurred cover (blurred once in Rust, so nothing moving
+    has a CSS filter) breathes and its copies drift over each other with the theme's
+    blobs, and with "Background moves with the music" (on by default) it swells softly with the
+    loudness and beats (mpv's `astats` filter, read ~14 times a second only while a
+    window shows it). Reduce Motion and power saving hold it still.
+- **Mac** for round 4: how the pulse feels on real music and what Activity Monitor shows
+  for Vitra's web content process with the backdrop moving (the Linux VM renders on the
+  CPU, so its numbers say nothing about a Mac's GPU), Reduce Motion stopping it.
 - **Mac**: how the view looks and scrolls (blur, karaoke fill, smooth scrolling in WebKit),
   Space in the sync view not pausing playback, saving into tags of an M4A (`©lyr`) and an MP3
   (`USLT`) and reading them back in Apple Music / Finder, the native save/import/export

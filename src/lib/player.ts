@@ -64,6 +64,8 @@ export interface PositionUpdate {
 export const PLAYER_STATE_EVENT = 'player://state';
 export const PLAYER_POSITION_EVENT = 'player://position';
 export const PLAYER_TRACK_EVENT = 'player://track-changed';
+/** The music's pulse for the backdrop, 0..1, while a window asked for it. */
+export const PLAYER_LEVEL_EVENT = 'player://level';
 
 export const INITIAL_PLAYER_STATE: PlayerState = {
   status: 'idle',
@@ -119,6 +121,8 @@ const call = <T = void>(command: string, args?: Record<string, unknown>) =>
 
 export const player = {
   state: () => call<PlayerState>('player_state'),
+  /** Starts or stops the music's pulse (`player://level`) for this window's backdrop. */
+  levelMeter: (enabled: boolean) => call('player_level_meter', { enabled }),
   /** Plays files and folders, replacing the queue. */
   open: (paths: string[]) => call('player_open', { paths }),
   play: () => call('player_play'),

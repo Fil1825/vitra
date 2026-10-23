@@ -8,7 +8,7 @@ use media::TrackMetadata;
 use rusqlite::{OptionalExtension, Transaction, params};
 
 use crate::artists::{ArtistSplitting, splitting};
-use crate::model::{Playlist, RemoteTrack, ScannedTrack, Track};
+use crate::model::{LinkEdit, Playlist, RemoteTrack, ScannedTrack, Track};
 use crate::playlists::{PLAYLIST_SELECT, playlist_from_row, write_items};
 use crate::scan::{cache_cover, mtime, read_metadata};
 use crate::tracks::{delete_tracks, prune, upsert_track};
@@ -23,16 +23,19 @@ fn store_remote(
     splitting: &ArtistSplitting,
 ) -> Result<i64> {
     // A downloaded copy comes first: playing a link the library has locally plays the file.
-    let known: Option<(i64, String)> = tx
+    let known: Option<(i64, String, bool)> = tx
         .query_row(
-            "SELECT id, path FROM tracks WHERE source_url = ?
+            "SELECT id, path, edited FROM tracks WHERE source_url = ?
              ORDER BY path = source_url LIMIT 1",
             [&track.url],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
         .optional()?;
     match known {
-        Some((id, path)) if path != track.url || !track.complete => return Ok(id),
+        // What the user corrected stays, whatever yt-dlp says now.
+        Some((id, path, edited)) if path != track.url || !track.complete || edited => {
+            return Ok(id);
+        }
         _ => {}
     }
     let scanned = ScannedTrack {
@@ -116,6 +119,50 @@ impl Library {
             Some(id) => self.track(id),
             None => Ok(None),
         }
+    }
+
+    /// Corrects a streamed link's details (it has no file to tag). They stay when yt-dlp
+    /// describes the link again; a download writes them into the file. The album moves the
+    /// track: an existing album's title and album artist put it there, others make a new one.
+    pub fn edit_link(&mut self, url: &str, edit: &LinkEdit) -> Result<Track> {
+        let current = self
+            .track_by_path(url)?
+            .filter(|track| track.source_url.as_deref() == Some(url))
+            .ok_or_else(|| Error::Invalid(format!("no streamed link {url}")))?;
+        let tx = self.conn.transaction()?;
+        let splitting = splitting(&tx)?;
+        // Several artists are taken as they are; one is a credit, split like a file's tag.
+        let (artists, artist) = match edit.artists.as_slice() {
+            [] => (Vec::new(), None),
+            [one] => (Vec::new(), Some(one.clone())),
+            several => (several.to_vec(), Some(several.join(", "))),
+        };
+        let scanned = ScannedTrack {
+            path: url.to_owned(),
+            size: 0,
+            mtime: 0,
+            metadata: TrackMetadata {
+                title: Some(edit.title.trim().to_owned()).filter(|t| !t.is_empty()),
+                artist,
+                artists,
+                album: edit.album.clone(),
+                album_artist: edit.album_artist.clone(),
+                year: edit.year,
+                track_number: current.track_number.and_then(|n| u32::try_from(n).ok()),
+                disc_number: current.disc_number.and_then(|n| u32::try_from(n).ok()),
+                duration: current.duration,
+                ..TrackMetadata::default()
+            },
+        };
+        let id = upsert_track(&tx, None, &scanned, now(), &splitting)?;
+        tx.execute(
+            "UPDATE tracks SET source_url = ?2, edited = 1 WHERE id = ?1",
+            params![id, url],
+        )?;
+        prune(&tx)?;
+        tx.commit()?;
+        self.track(id)?
+            .ok_or_else(|| Error::Invalid(format!("no streamed link {url}")))
     }
 
     /// Caches `image` as the track's own cover; returns the cover id (`None` if the image
@@ -377,6 +424,7 @@ impl Library {
 mod tests {
     use super::*;
     use crate::TrackFilter;
+    use crate::model::LinkEdit;
     use std::path::PathBuf;
 
     fn link(url: &str, title: &str, complete: bool) -> RemoteTrack {
@@ -747,6 +795,97 @@ mod tests {
             .unwrap()
             .unwrap();
         assert!(single.cover.is_some());
+    }
+
+    /// A reupload: the channel stands in for the artist and the title is "dirty".
+    #[test]
+    fn a_corrected_link_keeps_its_details() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut library = Library::open_in_memory().unwrap();
+        let upload = RemoteTrack {
+            url: "https://y/v1".into(),
+            title: "Real Artist - Song (Official Video)".into(),
+            artist: Some("Reupload Channel".into()),
+            duration: Some(200.0),
+            complete: true,
+            ..RemoteTrack::default()
+        };
+        let stored = library
+            .add_remote_tracks(std::slice::from_ref(&upload))
+            .unwrap()
+            .remove(0);
+        let other = RemoteTrack {
+            url: "https://y/v2".into(),
+            title: "Other".into(),
+            artist: Some("Real Artist".into()),
+            album: Some("Real Album".into()),
+            complete: true,
+            ..RemoteTrack::default()
+        };
+        let existing = library.add_remote_tracks(&[other]).unwrap().remove(0);
+
+        let edited = library
+            .edit_link(
+                &upload.url,
+                &LinkEdit {
+                    title: " Song ".into(),
+                    artists: vec!["Real Artist".into(), "Guest".into()],
+                    album: Some("Real Album".into()),
+                    album_artist: None,
+                    year: Some(2020),
+                },
+            )
+            .unwrap();
+        assert_eq!(edited.id, stored.id);
+        assert_eq!(edited.title, "Song");
+        let names: Vec<_> = edited.artists.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(names, ["Real Artist", "Guest"]);
+        assert_eq!(
+            edited.album_id, existing.album_id,
+            "into the existing album"
+        );
+        assert_eq!(edited.duration, Some(200.0));
+        assert_eq!(edited.year, Some(2020));
+        // The channel isn't anyone's artist any more.
+        let artists = library.artists().unwrap();
+        assert!(artists.iter().all(|a| a.name != "Reupload Channel"));
+
+        // yt-dlp describing it again, on its own or as a playlist entry, changes nothing.
+        library
+            .add_remote_tracks(std::slice::from_ref(&upload))
+            .unwrap();
+        library
+            .store_enriched(&upload, None, false, tmp.path())
+            .unwrap();
+        let again = library.track(stored.id).unwrap().unwrap();
+        assert_eq!(
+            (again.title.as_str(), again.album_id),
+            ("Song", existing.album_id)
+        );
+
+        // A new album name makes a new album; the old one keeps its other track.
+        let moved = library
+            .edit_link(
+                &upload.url,
+                &LinkEdit {
+                    title: "Song".into(),
+                    artists: vec!["Real Artist feat. Guest".into()],
+                    album: Some("Singles".into()),
+                    ..LinkEdit::default()
+                },
+            )
+            .unwrap();
+        assert_ne!(moved.album_id, existing.album_id);
+        assert_eq!(moved.album.as_deref(), Some("Singles"));
+        // One credit is split like a file's tag.
+        assert_eq!(moved.artists.len(), 2);
+        assert!(library.album(existing.album_id.unwrap()).unwrap().is_some());
+
+        // Files are the tag editor's.
+        assert!(matches!(
+            library.edit_link("/music/song.flac", &LinkEdit::default()),
+            Err(Error::Invalid(_))
+        ));
     }
 
     #[test]

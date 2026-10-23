@@ -159,6 +159,17 @@ export function SettingsPanel({ onClose }: { onClose(): void }) {
               />
             </Row>
             <Row
+              label={t('settings.backdropPulse')}
+              hint={t('settings.backdropPulseHint')}
+              layout="inline"
+            >
+              <Switch
+                label={t('settings.backdropPulse')}
+                checked={settings.appearance.backdropPulse}
+                onChange={(backdropPulse) => setAppearance({ backdropPulse })}
+              />
+            </Row>
+            <Row
               label={t('settings.powerSaving')}
               hint={t('settings.powerSavingHint')}
               layout="inline"

@@ -95,6 +95,8 @@
     "refractionUnsupported": "This engine can't render refraction, so glass uses blur and highlights instead.",
     "artworkAccent": "Accent from artwork",
     "artworkAccentHint": "Tints the interface with the cover of the playing track. Some themes keep their own accent.",
+    "backdropPulse": "Background moves with the music",
+    "backdropPulseHint": "The background swells gently with the music’s loudness and beats. Like all of its motion, it stops with Reduce Motion or power saving.",
     "powerSaving": "Power saving",
     "powerSavingHint": "Turns off blur, refraction and animations.",
     "windowMaterial": "Window material",
@@ -283,7 +285,12 @@
     "saving": "Saving…",
     "notWritable": "Tags of this file format can't be edited.",
     "saveFailed": "Couldn't save the tags: {{message}}",
-    "yearInvalid": "Enter a year such as 1999, or leave it empty."
+    "yearInvalid": "Enter a year such as 1999, or leave it empty.",
+    "linkTitle": "Track Details",
+    "linkHint": "This is a link, not a file: your changes stay in Vitra's library, and what the site says about the track later won't replace them. Downloading it writes them into the file.",
+    "artistHint": "Several artists: separate them with “;”.",
+    "albumExisting": "Moves into the album “{{album}}” by {{artist}}.",
+    "albumNew": "Makes a new album, “{{album}}”."
   },
   "dialog": {
     "cancel": "Cancel",

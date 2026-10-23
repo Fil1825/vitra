@@ -164,6 +164,9 @@ pub struct Appearance {
     /// Tint the accent color from the playing track's artwork (themes can still pin it).
     #[serde(deserialize_with = "or_true")]
     pub artwork_accent: bool,
+    /// The animated backdrop swells with the music (its loudness, a kick on beats).
+    #[serde(deserialize_with = "or_true")]
+    pub backdrop_pulse: bool,
 }
 
 impl Default for Appearance {
@@ -176,6 +179,7 @@ impl Default for Appearance {
             power_saving: false,
             window_material: WindowMaterial::Vibrancy,
             artwork_accent: true,
+            backdrop_pulse: true,
         }
     }
 }
@@ -374,6 +378,11 @@ pub fn set_settings(
     {
         player.links_settings_changed();
     }
+    if saved.appearance.backdrop_pulse != previous.appearance.backdrop_pulse
+        && let Some(player) = app.try_state::<Player>()
+    {
+        player.backdrop_pulse_changed();
+    }
     // Turning online lyrics on looks the playing track up right away.
     if saved.lyrics.online
         && !previous.lyrics.online
@@ -453,7 +462,8 @@ mod tests {
                     "refraction": "auto",
                     "powerSaving": false,
                     "windowMaterial": "vibrancy",
-                    "artworkAccent": true
+                    "artworkAccent": true,
+                    "backdropPulse": true
                 },
                 "library": {
                     "addOpenedFiles": true,

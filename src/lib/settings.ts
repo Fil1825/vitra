@@ -21,6 +21,8 @@ export interface AppearanceSettings {
   windowMaterial: WindowMaterial;
   /** Take the accent color from the playing track's artwork (a theme may pin its own). */
   artworkAccent: boolean;
+  /** The animated backdrop swells with the music. */
+  backdropPulse: boolean;
 }
 
 /** How a credit like "A feat. B" or "A, B" is split into artists. */
@@ -92,6 +94,7 @@ export const DEFAULT_SETTINGS: Settings = {
     powerSaving: false,
     windowMaterial: 'vibrancy',
     artworkAccent: true,
+    backdropPulse: true,
   },
   library: { addOpenedFiles: true, artistSplitting: { enabled: true, exceptions: [] } },
   downloads: {

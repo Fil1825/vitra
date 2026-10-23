@@ -91,14 +91,16 @@ index.html              main window entry (mini player gets mini.html in stage 6
 src/                    React + TypeScript frontend
   main.tsx              boot: backend bridge → settings, environment, player, queue, library,
                         downloads, lyrics stores → i18n → render
-  app/                  shell layout (TitleBar, Sidebar, NowPlaying, ControlBar) and
+  app/                  shell layout (TitleBar, Sidebar, NowPlaying, ControlBar),
                         useAppearanceController (theme vars, effect flags, window theme, language)
+                        and useLevelMeter (asks for the backdrop's music pulse)
   components/           shared UI: Glass/ (glass surface, layer budget, refraction), Backdrop/,
                         ArtworkViewer/ (full-screen artwork), ui/ (IconButton,
                         SegmentedControl, Switch, Slider)
   features/<feature>/   feature UI: library/ (views, TrackTable, AlbumGrid, actions + menus,
                         HeroCover + covers.ts: covers the user chooses),
-                        queue/ (QueuePanel), tags/ (TagEditor), links/ (LinkDialog,
+                        queue/ (QueuePanel), tags/ (TagEditor, files and links; album.ts:
+                        which album a title + artist means), links/ (LinkDialog,
                         DownloadsView, download groups), lyrics/ (LyricsView, LyricsPanel, LyricsEditor +
                         SyncPane, tap-sync model sync.ts), settings/
   stores/               zustand stores: settings (mirror of Rust), environment, appearance,
@@ -117,7 +119,8 @@ src-tauri/              Tauri app crate (`vitra`, lib `vitra_lib`)
   src/sidecar.rs        locating mpv / yt-dlp / ffmpeg / ffprobe / deno
   src/player/           mpv supervisor, queue mirroring and commands (mod.rs, commands.rs),
                         PlayerState reducer (state.rs), play queue (queue.rs, pure),
-                        session save/restore (session.rs), artwork:// scheme (artwork.rs)
+                        session save/restore (session.rs), artwork:// scheme (artwork.rs),
+                        loudness for the backdrop pulse (level.rs)
   src/library/          LibraryService: DB connection, scanner thread, folder watcher
                         (watch.rs), library/playlist/tag-editor commands (commands.rs)
   src/links/            LinkService (resolve, play, import + background enrich, yt-dlp
@@ -217,6 +220,21 @@ themes/                 (stage 7) example themes
 7. **Accent & backdrop from artwork**: themes opt in with `background.useArtwork` (blurred
    thumbnail + palette-colored gradient) and `accentFromArtwork`; the user can turn the accent
    off (`appearance.artworkAccent`). `theme/accent.ts` adjusts the color per light/dark.
+   - The backdrop moves (`components/Backdrop`): the cover breathes, three copies of it drift
+     and turn over each other (the third a soft round patch, `mask-image`), the theme's blobs
+     drift on top. The 96 px thumbnail comes blurred and saturated from Rust
+     (`media::artwork::backdrop_image`), so no moving layer has a CSS `filter`, and only
+     `transform`/`opacity` animate. `data-backdrop-animation='off'` pauses it all.
+   - Pulse (`appearance.backdropPulse`, on by default): while it is on, mpv's audio chain
+     has `@vitralevel:lavfi=[astats=…RMS_level]` (`player/level.rs`; added when mpv starts,
+     never touched for visibility changes, which could click). While a window wants it
+     (`player_level_meter` from `useLevelMeter`: setting on, motion on, window visible) the
+     player reads `af-metadata/vitralevel` every 70 ms and emits `player://level` (0..1: a
+     smoothed loudness plus a kick when it rises above the recent average). `Backdrop` sets
+     `--vitra-pulse` on its own element (on `<html>` it would restyle the whole window
+     a dozen times a second): a slight scale and a glow from the middle.
+   - WebKitGTK under Xvfb composites on the CPU: any moving backdrop under the glass (and
+     the progress bar's repaints) cost a lot there; that says nothing about a Mac's GPU.
 8. **Frontend**: React 19, TypeScript 6.0 (strict), Vite 8, CSS Modules. Every visual value is
    a CSS custom property (`--vitra-*`), so a theme is just a set of variables. Zustand for
    stores, Motion for animation, Lucide icons — each added in the stage that first needs it.
@@ -319,6 +337,13 @@ artist_id, position)`; `tracks.artist_id` stays the first (main) one, and an alb
       (`media::square_cover`, `Library::set_album_artwork`); album tracks get no covers of
       their own. Enrichment keeps the placement (`Placement`), so `yt-dlp -j` can't move a
       track to another album.
+    - Corrections: the tag editor edits a streamed link's title, artists, album, album artist
+      and year in the library (`Library::edit_link`, `TagForm.link`); the album is found by
+      title + album artist (or made), like a file's. `tracks.edited` (migration 6) makes
+      `store_remote` keep them against every later description (opening the link, playlist
+      enrichment, album placement). The link dialog and playback take a known link's
+      library details; downloads take the track's album values before the group's. A
+      downloaded link is a file: the editor writes its tags.
     - An album's listing often has no thumbnail: then the first entry thumbnail enrichment
       brings covers it (`Library::store_enriched` → `cover_bare_album`). Opening an album
       page whose album still has no cover (`library_album`) looks for one in the background

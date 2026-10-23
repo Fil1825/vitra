@@ -20,20 +20,90 @@
   opacity: 1;
 }
 
+.pulse {
+  position: absolute;
+  inset: 0;
+  /* The music's pulse (set by Backdrop from `player:level`); the transition eases between
+     readings, which come a dozen times a second. */
+  transform: scale(calc(1 + var(--vitra-pulse, 0) * 0.06));
+  transition: transform 180ms ease-out;
+  will-change: transform;
+}
+
 .artwork {
   position: absolute;
-  inset: -15%;
-  background-position: center;
-  background-size: cover;
-  /* A 96 px thumbnail scaled up and blurred: cheap, and indistinguishable from the original. */
-  filter: blur(56px) saturate(1.4);
+  inset: -20%;
   opacity: var(--vitra-backdrop-artwork-opacity);
-  animation: artwork-in calc(var(--vitra-motion-duration) * 4) ease-out;
+  animation:
+    artwork-in calc(var(--vitra-motion-duration) * 4) ease-out,
+    breathe calc(var(--vitra-backdrop-duration) / 8) ease-in-out infinite alternate;
+  will-change: transform;
 }
 
 @keyframes artwork-in {
   from {
     opacity: 0;
+  }
+}
+
+/* A slow breath of the whole cover. */
+@keyframes breathe {
+  to {
+    transform: scale(1.07);
+  }
+}
+
+/* Three copies of the (already blurred) cover drifting and turning over each other: its
+   colors seem to flow into one another. */
+.piece {
+  position: absolute;
+  inset: 0;
+  background-image: var(--_artwork);
+  background-position: center;
+  background-size: cover;
+  animation: flow-a var(--vitra-backdrop-duration) ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.piece:nth-child(2) {
+  opacity: 0.55;
+  animation-name: flow-b;
+  animation-delay: calc(var(--vitra-backdrop-duration) / -2);
+}
+
+/* A smaller copy wandering around: its edges would show, so it is a soft round patch. The
+   mask never changes, so the compositor still only moves the layer. */
+.piece:nth-child(3) {
+  opacity: 0.4;
+  mask-image: radial-gradient(closest-side, #000 35%, transparent);
+  animation-name: flow-c;
+  animation-delay: calc(var(--vitra-backdrop-duration) / -4);
+}
+
+@keyframes flow-a {
+  from {
+    transform: rotate(-6deg) scale(1.05);
+  }
+  to {
+    transform: translate(4%, 3%) rotate(6deg) scale(1.12);
+  }
+}
+
+@keyframes flow-b {
+  from {
+    transform: rotate(170deg) scaleX(-1) scale(1.1);
+  }
+  to {
+    transform: translate(-6%, 4%) rotate(200deg) scaleX(-1) scale(1.2);
+  }
+}
+
+@keyframes flow-c {
+  from {
+    transform: translate(18%, -14%) rotate(40deg) scale(0.7);
+  }
+  to {
+    transform: translate(-16%, 12%) rotate(80deg) scale(0.85);
   }
 }
 
@@ -75,8 +145,22 @@
   animation-delay: calc(var(--vitra-backdrop-duration) / -1.5);
 }
 
-:root[data-backdrop-animation='off'] .blob {
+/* A light from the middle on loud passages and beats. */
+.glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 60%, var(--vitra-backdrop-2) 0%, transparent 65%);
+  opacity: calc(var(--vitra-pulse, 0) * 0.3);
+  transition: opacity 180ms ease-out;
+}
+
+/* Reduce Motion and power saving: everything holds still. */
+:root[data-backdrop-animation='off'] :is(.blob, .piece, .artwork) {
   animation-play-state: paused;
+}
+
+:root[data-backdrop-animation='off'] :is(.pulse, .glow) {
+  transition: none;
 }
 
 @keyframes drift-a {

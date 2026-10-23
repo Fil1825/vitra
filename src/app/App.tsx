@@ -27,6 +27,7 @@ import { Sidebar } from './Sidebar.tsx';
 import { TitleBar } from './TitleBar.tsx';
 import { useAppearanceController } from './useAppearanceController.ts';
 import { useFileDrop } from './useFileDrop.ts';
+import { useLevelMeter } from './useLevelMeter.ts';
 import { useLinkInput } from './useLinkInput.ts';
 import { usePlayerShortcuts } from './usePlayerShortcuts.ts';
 
@@ -34,6 +35,7 @@ export function App() {
   useAppearanceController();
   usePlayerShortcuts();
   useLinkInput();
+  useLevelMeter();
   const { t } = useTranslation();
   const motionEnabled = useAppearance((s) => s.effects.motion);
   const useArtwork = useAppearance((s) => s.theme.background.useArtwork);

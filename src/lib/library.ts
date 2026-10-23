@@ -146,6 +146,8 @@ export interface TagForm {
   /** Artwork id of the current cover. */
   cover: string | null;
   writable: boolean;
+  /** A streamed link: no file, so Vitra's library keeps the changes (no cover here). */
+  link: boolean;
 }
 
 export interface TagValues {

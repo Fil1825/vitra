@@ -169,12 +169,16 @@ fn tagging(track: &Track, album: Option<&LinkAlbum>, album_year: Option<i64>) ->
     Tagging {
         title: track.title.clone(),
         artists,
-        album: album
-            .map(|a| a.title.clone())
-            .or_else(|| track.album.clone()),
-        album_artist: album
-            .and_then(|a| a.artist.clone())
-            .or_else(|| track.album_artist.clone()),
+        // The library's values first: the user may have corrected them (see
+        // `Library::edit_link`); the link's album only fills in what the track lacks.
+        album: track
+            .album
+            .clone()
+            .or_else(|| album.map(|a| a.title.clone())),
+        album_artist: track
+            .album_artist
+            .clone()
+            .or_else(|| album.and_then(|a| a.artist.clone())),
         year,
         track: album.and_then(|a| {
             let number = track.track_number.and_then(|n| u32::try_from(n).ok())?;
@@ -751,6 +755,17 @@ mod tests {
         let (dir, stem) = placement(base, &settings, &tags, true);
         assert_eq!(dir, base.join("Aurora Collective").join("Polar Lights"));
         assert_eq!(stem, "02 Ice Fields");
+        // What the user corrected wins over the link's album.
+        let corrected = Track {
+            album: Some("Northern Lights".into()),
+            album_artist: Some("Glass Harbor".into()),
+            ..track()
+        };
+        let tags = tagging(&corrected, Some(&album), None);
+        assert_eq!(
+            (tags.album.as_deref(), tags.album_artist.as_deref()),
+            (Some("Northern Lights"), Some("Glass Harbor"))
+        );
         // On its own, the same track goes by the single-track template.
         let single = tagging(&track(), None, None);
         assert_eq!(single.track, None);

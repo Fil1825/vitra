@@ -20,6 +20,7 @@ import { SETTINGS_CHANGED_EVENT, type Settings } from './settings.ts';
 import {
   PLAYER_POSITION_EVENT,
   PLAYER_STATE_EVENT,
+  PLAYER_LEVEL_EVENT,
   PLAYER_TRACK_EVENT,
   type PlayerState,
   type PositionUpdate,
@@ -46,6 +47,7 @@ export async function startBackendBridge(): Promise<UnlistenFn> {
       bus.emit('player:position', event.payload),
     ),
     listen<Track>(PLAYER_TRACK_EVENT, (event) => bus.emit('player:track', event.payload)),
+    listen<number>(PLAYER_LEVEL_EVENT, (event) => bus.emit('player:level', event.payload)),
     listen<QueueState>(QUEUE_CHANGED_EVENT, (event) => bus.emit('queue:changed', event.payload)),
     listen<LibraryChange>(LIBRARY_CHANGED_EVENT, (event) =>
       bus.emit('library:changed', event.payload),

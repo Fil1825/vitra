@@ -185,6 +185,36 @@ mod tests {
     }
 
     #[test]
+    fn migration_6_lets_links_stored_before_it_be_corrected() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("library.db");
+        {
+            let conn = Connection::open(&path).unwrap();
+            for sql in &schema::MIGRATIONS[..5] {
+                conn.execute_batch(sql).unwrap();
+            }
+            conn.pragma_update(None, "user_version", 5).unwrap();
+            conn.execute_batch(
+                "DELETE FROM session;
+                 INSERT INTO tracks (id, path, title, added_at, source_url)
+                     VALUES (1, 'https://y/1', 'Artist - Song (Official Video)', 1, 'https://y/1');",
+            )
+            .unwrap();
+        }
+        let mut library = Library::open(&path).unwrap();
+        assert_eq!(library.schema_version().unwrap(), schema::version());
+        let edit = LinkEdit {
+            title: "Song".into(),
+            artists: vec!["Artist".into()],
+            ..LinkEdit::default()
+        };
+        assert_eq!(
+            library.edit_link("https://y/1", &edit).unwrap().title,
+            "Song"
+        );
+    }
+
+    #[test]
     fn migration_5_adds_custom_covers_and_keeps_the_automatic_ones() {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("library.db");

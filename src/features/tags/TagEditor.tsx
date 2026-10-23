@@ -5,20 +5,30 @@ import { useTranslation } from 'react-i18next';
 
 import { Glass } from '../../components/Glass/index.ts';
 import { IconButton } from '../../components/ui/IconButton.tsx';
-import { tags, type CoverEdit, type TagForm, type TagValues } from '../../lib/library.ts';
+import {
+  library,
+  tags,
+  type Album,
+  type CoverEdit,
+  type TagForm,
+  type TagValues,
+} from '../../lib/library.ts';
 import { pickImage } from '../../lib/openFiles.ts';
 import { artworkUrl } from '../../lib/player.ts';
 import styles from './TagEditor.module.css';
+import { albumTarget } from './album.ts';
 import { parseYear } from './year.ts';
 
 type Fields = Omit<TagValues, 'year'> & { year: string };
 
 const FIELDS = ['title', 'artist', 'album', 'albumArtist', 'year'] as const;
 
-/** The basic tag editor: title, artist, album, album artist, year and cover. */
+/** The basic tag editor: title, artist, album, album artist, year and cover. A link has no
+ * file: its details are kept by the library (without a cover). */
 export function TagEditor({ path, onClose }: { path: string; onClose(): void }) {
   const { t } = useTranslation();
   const [form, setForm] = useState<TagForm | null>(null);
+  const [albums, setAlbums] = useState<Album[]>([]);
   const [fields, setFields] = useState<Fields | null>(null);
   const [cover, setCover] = useState<CoverEdit>({ kind: 'keep' });
   const [preview, setPreview] = useState<string | null>(null);
@@ -47,6 +57,14 @@ export function TagEditor({ path, onClose }: { path: string; onClose(): void }) 
       cancelled = true;
     };
   }, [path]);
+
+  // The library's albums, to move the track into one.
+  useEffect(() => {
+    library
+      .albums('artist')
+      .then(setAlbums)
+      .catch((err: unknown) => console.error('Listing albums failed', err));
+  }, []);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -90,7 +108,24 @@ export function TagEditor({ path, onClose }: { path: string; onClose(): void }) 
     }
   };
 
-  const fileName = path.split(/[\\/]/).pop() ?? path;
+  const link = form?.link === true;
+  const fileName = link ? path : (path.split(/[\\/]/).pop() ?? path);
+  const albumChanged = fields !== null && form !== null && fields.album.trim() !== form.album;
+  const target = fields && albumChanged ? albumTarget(fields, albums) : null;
+  // Picking an album of the library fills in its artist, so the track goes into it.
+  const setAlbum = (value: string) =>
+    setFields((current) => {
+      if (!current) {
+        return current;
+      }
+      const matches = albums.filter((a) => a.title.toLowerCase() === value.trim().toLowerCase());
+      const only = matches.length === 1 ? matches[0] : undefined;
+      return {
+        ...current,
+        album: value,
+        albumArtist: only?.artist ?? current.albumArtist,
+      };
+    });
 
   return (
     <div className={styles.backdrop} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -111,7 +146,7 @@ export function TagEditor({ path, onClose }: { path: string; onClose(): void }) 
           <header className={styles.header}>
             <div>
               <h2 id="tag-editor-title" className={styles.title}>
-                {t('tags.title')}
+                {link ? t('tags.linkTitle') : t('tags.title')}
               </h2>
               <p className={styles.file} title={path}>
                 {fileName}
@@ -122,39 +157,45 @@ export function TagEditor({ path, onClose }: { path: string; onClose(): void }) 
             </IconButton>
           </header>
 
-          <form className={styles.body} onSubmit={(event) => void submit(event)}>
-            <div className={styles.coverColumn}>
-              <div className={styles.cover}>
-                {preview ? (
-                  <img src={artworkUrl(preview)} alt="" />
-                ) : (
-                  <span className={styles.noCover}>{t('tags.noCover')}</span>
-                )}
+          <form
+            className={styles.body}
+            data-link={link || undefined}
+            onSubmit={(event) => void submit(event)}
+          >
+            {!link && (
+              <div className={styles.coverColumn}>
+                <div className={styles.cover}>
+                  {preview ? (
+                    <img src={artworkUrl(preview)} alt="" />
+                  ) : (
+                    <span className={styles.noCover}>{t('tags.noCover')}</span>
+                  )}
+                </div>
+                <div className={styles.coverButtons}>
+                  <button
+                    type="button"
+                    className={styles.smallButton}
+                    disabled={!form?.writable}
+                    onClick={() => void chooseCover()}
+                  >
+                    <ImagePlus size={14} aria-hidden="true" />
+                    {t('tags.chooseCover')}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.smallButton}
+                    disabled={!form?.writable || preview === null}
+                    onClick={() => {
+                      setPreview(null);
+                      setCover({ kind: 'remove' });
+                    }}
+                  >
+                    <Trash2 size={14} aria-hidden="true" />
+                    {t('tags.removeCover')}
+                  </button>
+                </div>
               </div>
-              <div className={styles.coverButtons}>
-                <button
-                  type="button"
-                  className={styles.smallButton}
-                  disabled={!form?.writable}
-                  onClick={() => void chooseCover()}
-                >
-                  <ImagePlus size={14} aria-hidden="true" />
-                  {t('tags.chooseCover')}
-                </button>
-                <button
-                  type="button"
-                  className={styles.smallButton}
-                  disabled={!form?.writable || preview === null}
-                  onClick={() => {
-                    setPreview(null);
-                    setCover({ kind: 'remove' });
-                  }}
-                >
-                  <Trash2 size={14} aria-hidden="true" />
-                  {t('tags.removeCover')}
-                </button>
-              </div>
-            </div>
+            )}
 
             <div className={styles.fields}>
               {FIELDS.map((name) => (
@@ -166,14 +207,36 @@ export function TagEditor({ path, onClose }: { path: string; onClose(): void }) 
                     disabled={!form?.writable || saving}
                     inputMode={name === 'year' ? 'numeric' : undefined}
                     aria-invalid={name === 'year' && year === undefined}
+                    list={name === 'album' ? 'tag-editor-albums' : undefined}
                     onChange={(event) =>
-                      setFields((current) =>
-                        current ? { ...current, [name]: event.target.value } : current,
-                      )
+                      name === 'album'
+                        ? setAlbum(event.target.value)
+                        : setFields((current) =>
+                            current ? { ...current, [name]: event.target.value } : current,
+                          )
                     }
                   />
+                  {name === 'artist' && <span className={styles.hint}>{t('tags.artistHint')}</span>}
+                  {name === 'album' && target !== null && fields && (
+                    <span className={styles.hint}>
+                      {target === 'new'
+                        ? t('tags.albumNew', { album: fields.album.trim() })
+                        : t('tags.albumExisting', {
+                            album: target.title,
+                            artist: target.artist ?? t('library.unknownArtist'),
+                          })}
+                    </span>
+                  )}
                 </label>
               ))}
+              <datalist id="tag-editor-albums">
+                {albums.map((album) => (
+                  <option key={album.id} value={album.title}>
+                    {album.artist ?? ''}
+                  </option>
+                ))}
+              </datalist>
+              {link && <p className={styles.hint}>{t('tags.linkHint')}</p>}
               {year === undefined && <p className={styles.hint}>{t('tags.yearInvalid')}</p>}
               {form && !form.writable && <p className={styles.hint}>{t('tags.notWritable')}</p>}
               {error && (

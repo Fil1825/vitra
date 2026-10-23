@@ -133,6 +133,18 @@ pub struct ScannedTrack {
     pub metadata: TrackMetadata,
 }
 
+/// What the user corrected about a link, which has no file to tag.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LinkEdit {
+    pub title: String,
+    /// Several artists are kept as they are; one is a credit ("A feat. B"), split like a
+    /// file's single artist tag.
+    pub artists: Vec<String>,
+    pub album: Option<String>,
+    pub album_artist: Option<String>,
+    pub year: Option<u16>,
+}
+
 /// A track that plays from a link, as yt-dlp described it.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct RemoteTrack {

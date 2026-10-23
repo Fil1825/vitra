@@ -11,6 +11,7 @@
 
 mod artwork;
 mod commands;
+mod level;
 mod queue;
 mod session;
 mod state;
@@ -125,6 +126,9 @@ struct Inner {
     saved_playback: Mutex<String>,
     /// What mpv's yt-dlp hook logged while opening the current link (see [`hook_line`]).
     hook_log: Mutex<Vec<String>>,
+    /// A window shows the backdrop's pulse: read the audio level (see [`level`]).
+    level_wanted: AtomicBool,
+    level_running: AtomicBool,
 }
 
 /// Lines of the hook's log kept per link: its errors are a few lines of yt-dlp's stderr.
@@ -178,6 +182,8 @@ impl Player {
             queue_dirty: AtomicBool::new(false),
             saved_playback: Mutex::new(String::new()),
             hook_log: Mutex::new(Vec::new()),
+            level_wanted: AtomicBool::new(false),
+            level_running: AtomicBool::new(false),
         }))
     }
 
@@ -1310,6 +1316,7 @@ impl Player {
         // "unrecognized file format".
         command(client, vec![json!("request_log_messages"), json!("warn")]).await?;
         self.set_ytdl_options(client).await;
+        self.set_level_filter(client, false).await;
         let current = lock(&self.0.queue).current().cloned();
         let waiting = self.0.load_waiting.load(Ordering::Relaxed);
         if let (Status::Playing | Status::Paused | Status::Loading, Some(item), false) =
@@ -1352,6 +1359,52 @@ impl Player {
         .await;
         if let Err(err) = set {
             log::warn!("cannot pass options to mpv's yt-dlp hook: {err}");
+        }
+    }
+
+    /// Whether the backdrop pulses with the music (the setting): the level filter is in
+    /// mpv's audio chain only then. Changing the chain can click, so it isn't touched for
+    /// a window being hidden; reading the level stops then instead ([`Self::set_level_meter`]).
+    fn backdrop_pulse(&self) -> bool {
+        self.0
+            .app
+            .try_state::<SettingsStore>()
+            .is_some_and(|settings| settings.get().appearance.backdrop_pulse)
+    }
+
+    /// Puts the level filter into mpv's audio chain if the setting is on; `replace` takes
+    /// out the one already there first (a fresh mpv has none).
+    async fn set_level_filter(&self, client: &Client, replace: bool) {
+        if replace {
+            let label = format!("@{}", level::FILTER_LABEL);
+            let _ = command(client, vec![json!("af"), json!("remove"), json!(label)]).await;
+        }
+        if self.backdrop_pulse()
+            && let Err(err) = command(
+                client,
+                vec![json!("af"), json!("add"), json!(level::filter())],
+            )
+            .await
+        {
+            log::warn!("cannot measure the audio level: {err}");
+        }
+    }
+
+    /// The backdrop-pulse setting changed.
+    pub fn backdrop_pulse_changed(&self) {
+        let Ok(client) = self.client() else {
+            return;
+        };
+        let player = self.clone();
+        tauri::async_runtime::spawn(async move { player.set_level_filter(&client, true).await });
+    }
+
+    /// A window starts or stops showing the pulse (it is visible, motion is on and so is
+    /// the setting). While one does, the level is read and sent as `player://level`.
+    pub fn set_level_meter(&self, wanted: bool) {
+        self.0.level_wanted.store(wanted, Ordering::Relaxed);
+        if wanted && !self.0.level_running.swap(true, Ordering::Relaxed) {
+            tauri::async_runtime::spawn(meter_level(self.clone()));
         }
     }
 
@@ -1584,6 +1637,42 @@ fn mpv_args(with_newer_options: bool, helpers: &LinkHelpers) -> Vec<OsString> {
         args.extend(extra.split_whitespace().map(OsString::from));
     }
     args
+}
+
+/// Reads the audio level while a window wants it; quieter (less often) while nothing plays.
+async fn meter_level(player: Player) {
+    let mut envelope = level::Envelope::default();
+    let mut sent = 0.0_f64;
+    let property = format!("af-metadata/{}", level::FILTER_LABEL);
+    while player.0.level_wanted.load(Ordering::Relaxed) {
+        let playing = lock(&player.0.state).status == Status::Playing;
+        let reading = match player.client() {
+            Ok(client) if playing => client
+                .get_property::<Value>(&property)
+                .await
+                .ok()
+                .as_ref()
+                .and_then(level::rms_db),
+            _ => None,
+        };
+        let pulse = (envelope.next(reading) * 100.0).round() / 100.0;
+        if (pulse - sent).abs() >= 0.01 {
+            sent = pulse;
+            player.emit(level::LEVEL_EVENT, &pulse);
+        }
+        let pause = if playing || pulse > 0.0 {
+            level::POLL
+        } else {
+            level::IDLE_POLL
+        };
+        tokio::time::sleep(pause).await;
+    }
+    player.emit(level::LEVEL_EVENT, &0.0_f64);
+    player.0.level_running.store(false, Ordering::Relaxed);
+    // A window may have asked again just as this stopped.
+    if player.0.level_wanted.load(Ordering::Relaxed) {
+        player.set_level_meter(true);
+    }
 }
 
 async fn supervise(player: Player) {

@@ -383,8 +383,9 @@ impl LinkService {
         })
     }
 
+    /// A link the library has shows the library's details: the user may have corrected them.
     async fn preview_track(&self, track: &LinkTrack, known: Option<&Track>) -> PreviewTrack {
-        PreviewTrack {
+        let mut preview = PreviewTrack {
             url: track.url.clone(),
             title: track.title.clone(),
             artist: track.artist.clone(),
@@ -396,7 +397,14 @@ impl LinkService {
             artwork: self.artwork_id(&track.url).await,
             track_id: known.map(|t| t.id),
             downloaded: known.is_some_and(|t| !links::is_remote(&t.path)),
+        };
+        if let Some(known) = known {
+            preview.title.clone_from(&known.title);
+            preview.artist.clone_from(&known.artist);
+            preview.artists = known.artists.iter().map(|a| a.name.clone()).collect();
+            preview.album.clone_from(&known.album);
         }
+        preview
     }
 
     /// An album's cover: the playlist's thumbnail, else its first track's, cut square (see
@@ -518,7 +526,21 @@ impl LinkService {
                 .into_iter()
                 .map(entry_from_track)
                 .collect(),
-            Resolved::Track(track) => vec![link_entry(&track)],
+            Resolved::Track(track) => {
+                // A link the library has already plays as that track, corrections included.
+                let known = match self.library() {
+                    Ok(library) => {
+                        let url = track.url.clone();
+                        library
+                            .run(move |db| db.track_by_source(&url))
+                            .await
+                            .ok()
+                            .flatten()
+                    }
+                    Err(_) => None,
+                };
+                vec![known.map_or_else(|| link_entry(&track), entry_from_track)]
+            }
             Resolved::Playlist(playlist) if playlist.album.is_some() => self
                 .store_album(&playlist)
                 .await?
