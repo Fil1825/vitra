@@ -138,12 +138,17 @@ export const links = {
   import: (url: string) => call<{ id: number; name: string }>('link_import', { url }),
   /** Downloads a link (each entry, for a playlist); resolves with how many were queued. */
   download: (url: string) => call<number>('link_download', { url }),
+  /** Whether Vitra can read the browser's cookies (only Safari's can be checked). */
+  cookiesAccess: (browser: string) =>
+    call<'ok' | 'noAccess' | 'unknown'>('links_cookies_access', { browser }),
 };
 
 export const downloads = {
   list: () => call<DownloadJob[]>('downloads_list'),
   /** Downloads library tracks that are links; resolves with how many were queued. */
   add: (trackIds: number[]) => call<number>('downloads_add', { trackIds }),
+  /** Downloads a library album's linked tracks as that album (folders, tags, one cover). */
+  addAlbum: (albumId: number) => call<number>('downloads_add_album', { albumId }),
   cancel: (id: number) => call('downloads_cancel', { id }),
   retry: (id: number) => call('downloads_retry', { id }),
   /** Cancels every unfinished download of an album or playlist. */

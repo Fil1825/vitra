@@ -3,6 +3,7 @@
 use library::{Playlist, TrackFilter};
 use tauri::{AppHandle, State};
 
+use super::cookies::{self, CookiesAccess};
 use super::downloads::{self, Job};
 use super::{Downloads, LinkPreview, LinkService, PlayMode, YtDlpInfo};
 use crate::error::AppError;
@@ -40,6 +41,23 @@ pub async fn link_download(
     url: String,
 ) -> Result<usize, AppError> {
     let (tracks, group) = links.tracks_for_download(&url).await?;
+    Ok(downloads.add(tracks, group))
+}
+
+/// Whether Vitra can read `browser`'s cookies (see [`cookies::access`]).
+#[tauri::command]
+pub fn links_cookies_access(browser: String) -> CookiesAccess {
+    cookies::access(&browser)
+}
+
+/// Downloads a library album's streamed tracks as that album; returns how many were queued.
+#[tauri::command]
+pub async fn downloads_add_album(
+    links: State<'_, LinkService>,
+    downloads: State<'_, Downloads>,
+    album_id: i64,
+) -> Result<usize, AppError> {
+    let (tracks, group) = links.album_for_download(album_id).await?;
     Ok(downloads.add(tracks, group))
 }
 

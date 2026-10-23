@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   Heart,
   ListMusic,
   LoaderCircle,
@@ -31,6 +32,7 @@ import { useLivePosition, usePlayer } from '../stores/player.ts';
 import { useQueue } from '../stores/queue.ts';
 import { useUi } from '../stores/ui.ts';
 import styles from './ControlBar.module.css';
+import { playerErrorText } from './playerError.ts';
 import { SpeedMenu } from './SpeedMenu.tsx';
 
 const report = (err: unknown) => console.error('Player command failed', err);
@@ -119,7 +121,20 @@ export function ControlBar({ className }: { className?: string }) {
           <LibraryLink to={albumRoute(libraryTrack?.albumId)} className={styles.trackTitle}>
             {track?.title ?? t('player.notPlaying')}
           </LibraryLink>
-          {subtitle && (
+          {state.error ? (
+            // In place of the artist: a link that stopped playback says why, wherever the
+            // user is (Now Playing shows it in full).
+            <button
+              type="button"
+              className={styles.trackError}
+              role="alert"
+              title={playerErrorText(state.error, t)}
+              onClick={() => go({ view: 'nowPlaying' })}
+            >
+              <AlertTriangle size={12} aria-hidden="true" />
+              <span>{playerErrorText(state.error, t)}</span>
+            </button>
+          ) : subtitle ? (
             <span className={styles.trackSubtitle}>
               {track?.metadata.artist ? (
                 <ArtistLinks artists={libraryTrack?.artists} fallback={track.metadata.artist} />
@@ -131,7 +146,7 @@ export function ControlBar({ className }: { className?: string }) {
                 </LibraryLink>
               ) : null}
             </span>
-          )}
+          ) : null}
         </div>
         {libraryTrack && (
           <FavoriteButton trackId={libraryTrack.id} favorite={libraryTrack.favorite} />

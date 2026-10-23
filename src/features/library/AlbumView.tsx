@@ -1,9 +1,11 @@
+import { Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { coverUrl, library } from '../../lib/library.ts';
 import { useLibraryData } from '../../lib/useLibraryData.ts';
 import { useNavigation } from '../../stores/navigation.ts';
 import { useUi } from '../../stores/ui.ts';
+import { downloadAlbum } from './actions.ts';
 import { EmptyState, LoadError, PlayButtons } from './common.tsx';
 import { HeroCover } from './HeroCover.tsx';
 import styles from './Library.module.css';
@@ -70,7 +72,18 @@ export function AlbumView({ id }: { id: number }) {
               {[data.year, summary(data.trackCount, data.duration)].filter(Boolean).join(' · ')}
             </p>
           )}
-          <PlayButtons ids={list.map((track) => track.id)} />
+          <PlayButtons ids={list.map((track) => track.id)}>
+            {(data?.linkCount ?? 0) > 0 && (
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => downloadAlbum(id)}
+              >
+                <Download size={15} aria-hidden="true" />
+                {t('links.downloadAlbum')}
+              </button>
+            )}
+          </PlayButtons>
         </div>
       </header>
       <TrackTable tracks={list} columns={columns} />

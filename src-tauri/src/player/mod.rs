@@ -94,6 +94,9 @@ struct Mirror {
     /// The playing entry was a playlist (a radio station's `.m3u`/`.pls`) that mpv replaced
     /// with its entries: the next `start-file` is the same queue item.
     redirected: bool,
+    /// Playback stopped on an error: mpv may already be starting the preloaded file, which
+    /// must not replace the error with a loading state. Cleared by the next load.
+    halted: bool,
 }
 
 struct Inner {
@@ -120,6 +123,33 @@ struct Inner {
     queue_dirty: AtomicBool,
     /// The playback values last saved (JSON), to skip writing unchanged ones.
     saved_playback: Mutex<String>,
+    /// What mpv's yt-dlp hook logged while opening the current link (see [`hook_line`]).
+    hook_log: Mutex<Vec<String>>,
+}
+
+/// Lines of the hook's log kept per link: its errors are a few lines of yt-dlp's stderr.
+const HOOK_LOG_LINES: usize = 40;
+
+/// The text of a `log-message` event from mpv's yt-dlp hook (warnings and errors).
+fn hook_line(raw: &Value) -> Option<String> {
+    let field = |key: &str| raw.get(key).and_then(Value::as_str);
+    let level = field("level")?;
+    (field("prefix")? == "ytdl_hook" && matches!(level, "error" | "warn" | "fatal"))
+        .then(|| field("text").map(|text| text.trim_end().to_owned()))
+        .flatten()
+}
+
+/// Why a link failed to open, from its hook's log, when the user can do something about it
+/// (cookies, an age limit, a sign-in): then playback stops with that instead of skipping on,
+/// since the next links would fail the same way.
+fn link_failure(log: &[String]) -> Option<links::LinkError> {
+    if log.is_empty() {
+        return None;
+    }
+    match links::ytdlp::failure(&log.join("\n")) {
+        links::LinkError::Failed(_) => None,
+        known => Some(known),
+    }
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -147,6 +177,7 @@ impl Player {
             load_waiting: AtomicBool::new(false),
             queue_dirty: AtomicBool::new(false),
             saved_playback: Mutex::new(String::new()),
+            hook_log: Mutex::new(Vec::new()),
         }))
     }
 
@@ -1128,6 +1159,7 @@ impl Player {
     async fn handle_event(&self, event: Event, client: &Client) {
         let mut apply = true;
         let mut stop = false;
+        let mut link_error = None;
         match &event {
             Event::FileLoaded => {
                 lock(&self.0.mirror).failures = 0;
@@ -1141,9 +1173,20 @@ impl Player {
                 }
                 self.fill_from_mpv_metadata(client).await;
             }
+            Event::Other { name, raw } if name == "log-message" => {
+                if let Some(line) = hook_line(raw) {
+                    let mut log = lock(&self.0.hook_log);
+                    if log.len() < HOOK_LOG_LINES {
+                        log.push(line);
+                    }
+                }
+                return;
+            }
+            Event::StartFile { .. } if lock(&self.0.mirror).halted => return,
             Event::StartFile {
                 playlist_entry_id: Some(entry),
             } => {
+                lock(&self.0.hook_log).clear();
                 let preloaded = {
                     let mut mirror = lock(&self.0.mirror);
                     // The first entry of an expanded playlist stands in for it.
@@ -1177,7 +1220,10 @@ impl Player {
                         EndReason::Eof if has_next => apply = false,
                         EndReason::Error => {
                             mirror.failures += 1;
-                            if mirror.failures >= MAX_SKIPS {
+                            link_error = link_failure(&lock(&self.0.hook_log));
+                            // A link the user has to do something about stops the queue
+                            // too: the next links would fail the same way.
+                            if link_error.is_some() || mirror.failures >= MAX_SKIPS {
                                 stop = has_next;
                             } else if has_next {
                                 // Skip unplayable files quietly, like other players do.
@@ -1195,14 +1241,31 @@ impl Player {
             _ => {}
         }
         if stop {
-            log::warn!("{MAX_SKIPS} files in a row failed to play; stopping");
-            *lock(&self.0.mirror) = Mirror::default();
+            match &link_error {
+                Some(err) => log::warn!("a link failed ({err}); stopping"),
+                None => log::warn!("{MAX_SKIPS} files in a row failed to play; stopping"),
+            }
+            *lock(&self.0.mirror) = Mirror {
+                halted: true,
+                ..Mirror::default()
+            };
             let _ = command(client, vec![json!("stop")]).await;
         }
         if !apply {
             return;
         }
-        let changes = lock(&self.0.state).apply(&event);
+        let changes = {
+            let mut state = lock(&self.0.state);
+            let mut changes = state.apply(&event);
+            // In place of mpv's "unrecognized file format": the windows translate it.
+            if let Some(err) = link_error {
+                state.error = Some(PlayerError::Playback {
+                    message: err.to_string(),
+                });
+                changes.state = true;
+            }
+            changes
+        };
         if changes.state {
             self.emit_state();
         } else if changes.position {
@@ -1243,6 +1306,9 @@ impl Player {
                 .await
                 .map_err(mpv_error)?;
         }
+        // The yt-dlp hook says why a link failed only in its log; `end-file` just has
+        // "unrecognized file format".
+        command(client, vec![json!("request_log_messages"), json!("warn")]).await?;
         self.set_ytdl_options(client).await;
         let current = lock(&self.0.queue).current().cloned();
         let waiting = self.0.load_waiting.load(Ordering::Relaxed);
@@ -1608,6 +1674,35 @@ async fn supervise(player: Player) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_yt_dlp_hook_explains_failed_links() {
+        let message = |prefix: &str, level: &str, text: &str| json!({"event": "log-message", "prefix": prefix, "level": level, "text": text});
+        let cookies = "ERROR: [Errno 1] Operation not permitted: \
+            '/Users/me/Library/Containers/com.apple.Safari/Data/Library/Cookies/Cookies.binarycookies'\n";
+        let line = hook_line(&message("ytdl_hook", "error", cookies)).unwrap();
+        assert!(line.ends_with("Cookies.binarycookies'"), "trimmed: {line}");
+        // Other modules and chatter are left out.
+        assert_eq!(hook_line(&message("cplayer", "error", "boom")), None);
+        assert_eq!(hook_line(&message("ytdl_hook", "v", "status: 1")), None);
+
+        assert!(matches!(
+            link_failure(&[line]),
+            Some(links::LinkError::Cookies(_))
+        ));
+        let age = "ERROR: [youtube] abc: Sign in to confirm your age. This video may be \
+            inappropriate for some users."
+            .to_owned();
+        assert!(matches!(
+            link_failure(&[age]),
+            Some(links::LinkError::AgeRestricted)
+        ));
+        // Errors without a remedy keep the queue going.
+        assert!(
+            link_failure(&["ERROR: Unsupported URL: https://example.com".to_owned()]).is_none()
+        );
+        assert!(link_failure(&[]).is_none());
+    }
 
     #[test]
     fn titles_fall_back_to_the_file_name() {

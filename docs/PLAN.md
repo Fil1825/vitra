@@ -162,6 +162,13 @@ and an explicit list of checks that can only be done on a Mac.
     the page's cover, the context menus, or an image file dropped on the cover; "Reset"
     goes back to the automatic one. They come first everywhere (grids, search, sidebar,
     track rows, queue, Now Playing) and stay in Vitra's library (not written to tags).
+- Third round (Mac check of the second): playlist thumbnails no longer land in the app's
+  working folder (`pl_thumbnail:`); a link that fails on cookies, an age limit or a sign-in
+  stops playback with a readable error (read from mpv's yt-dlp hook log) instead of being
+  skipped silently, and Settings warn when Safari's cookies can't be read; dropping an image
+  on a cover works on Retina (macOS drop positions are logical); "Download Album" on album
+  pages and tiles; the fixture script finds the macOS folder build, writes recordings
+  next to the hand-written fixtures and never truncates one when yt-dlp fails.
 - **Mac** for that round: the traffic lights over the sidebar's icon strip and next to the
   title bar with the sidebar hidden, cookies from Safari (needs Full Disk Access) and Chrome
   (Keychain prompt), how Apple Music / Finder show downloaded files with several artists,

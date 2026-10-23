@@ -45,8 +45,9 @@ pub struct YtDlp {
     pub cookies_from_browser: Option<String>,
 }
 
-/// What a failed run means, from its stderr: errors with a remedy get their own kind.
-fn failure(stderr: &str) -> LinkError {
+/// What a failed run means, from its stderr: errors with a remedy get their own kind. mpv's
+/// yt-dlp hook logs the same text, so the player reads its errors with this too.
+pub fn failure(stderr: &str) -> LinkError {
     let message = error_message(stderr);
     let lower = message.to_lowercase();
     let cookie_store = lower.contains("cookie");
@@ -134,10 +135,20 @@ async fn forward_lines(
     }
 }
 
-fn thumbnail_template(dir: &Path) -> OsString {
-    let mut template = OsString::from("thumbnail:");
-    template.push(dir.join("%(id)s.%(ext)s"));
-    template
+/// `-o` templates that put every thumbnail into `dir`, named by id: the entries' and the
+/// playlist's own (yt-dlp writes that one by `pl_thumbnail:`, else into its working folder).
+fn thumbnail_templates(dir: &Path) -> [OsString; 4] {
+    let template = |kind: &str| {
+        let mut template = OsString::from(kind);
+        template.push(dir.join("%(id)s.%(ext)s"));
+        template
+    };
+    [
+        "-o".into(),
+        template("thumbnail:"),
+        "-o".into(),
+        template("pl_thumbnail:"),
+    ]
 }
 
 impl YtDlp {
@@ -209,8 +220,9 @@ impl YtDlp {
             .args(["-J", "--flat-playlist", "--no-playlist"])
             // Print the JSON *and* write the thumbnail, in one run.
             .args(["--no-simulate", "--skip-download", "--write-thumbnail"])
-            .arg("-o")
-            .arg(thumbnail_template(&dir))
+            .args(thumbnail_templates(&dir))
+            // Whatever else it writes lands in the scratch folder, not the app's.
+            .current_dir(&dir)
             .arg("--")
             .arg(url);
         let result = Self::output(command, RESOLVE_TIMEOUT)
@@ -241,8 +253,8 @@ impl YtDlp {
                 "--write-thumbnail",
             ])
             .args(["--ignore-errors", "--yes-playlist"])
-            .arg("-o")
-            .arg(thumbnail_template(&dir))
+            .args(thumbnail_templates(&dir))
+            .current_dir(&dir)
             .arg("--")
             .arg(url);
         let mut child = command.spawn().map_err(Self::spawn_error)?;

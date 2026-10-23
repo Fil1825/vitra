@@ -6,6 +6,7 @@ import { coverKey, isCoverImage, parseCoverKey } from '../features/library/cover
 import type { CoverTarget } from '../lib/library.ts';
 import { dragLink } from '../lib/links.ts';
 import { isAudioFile } from '../lib/player.ts';
+import { useEnvironment } from '../stores/environment.ts';
 import { useUi } from '../stores/ui.ts';
 
 /**
@@ -14,10 +15,26 @@ import { useUi } from '../stores/ui.ts';
  */
 export type DropKind = 'files' | 'link' | 'cover';
 
-/** The cover (marked with `data-cover-drop`) under a point Tauri reports in physical pixels. */
-function coverAt(position: { x: number; y: number }): CoverTarget | null {
-  const ratio = window.devicePixelRatio || 1;
-  const element = document.elementFromPoint(position.x / ratio, position.y / ratio);
+interface Point {
+  x: number;
+  y: number;
+}
+
+/**
+ * Tauri's drop position in CSS pixels. Tauri calls it physical, but only Windows reports
+ * physical pixels (WebView2 converts the screen point with `ScreenToClient`); macOS
+ * (WKWebView's `draggingLocation`, in points) and Linux (GTK widget coordinates) report
+ * logical ones, which are CSS pixels already.
+ */
+export function dropPoint(position: Point, platform: string, ratio: number): Point {
+  const scale = platform === 'windows' && ratio > 0 ? ratio : 1;
+  return { x: position.x / scale, y: position.y / scale };
+}
+
+/** The cover (marked with `data-cover-drop`) under a drop position. */
+export function coverAt(position: Point, platform: string, ratio: number): CoverTarget | null {
+  const { x, y } = dropPoint(position, platform, ratio);
+  const element = document.elementFromPoint(x, y);
   const key = element?.closest<HTMLElement>('[data-cover-drop]')?.dataset.coverDrop;
   return key ? parseCoverKey(key) : null;
 }
@@ -57,6 +74,8 @@ export function useFileDrop(
     let unlisten: (() => void) | undefined;
     let disposed = false;
     const report = (err: unknown) => console.error('Reading a dragged link failed', err);
+    const coverUnder = (position: Point) =>
+      coverAt(position, useEnvironment.getState().platform, window.devicePixelRatio);
     const hover = (target: CoverTarget | null) => {
       const key = target ? coverKey(target) : null;
       if (useUi.getState().coverDrop !== key) {
@@ -73,7 +92,7 @@ export function useFileDrop(
             image.current =
               single !== undefined && others.length === 0 && isCoverImage(single) ? single : null;
             if (image.current !== null) {
-              setActive(hover(coverAt(payload.position)) ? 'cover' : null);
+              setActive(hover(coverUnder(payload.position)) ? 'cover' : null);
             } else if (payload.paths.length > 0) {
               setActive(payload.paths.some(isPlayableDrop) ? 'files' : null);
             } else {
@@ -86,7 +105,7 @@ export function useFileDrop(
           }
           case 'over':
             if (image.current !== null) {
-              setActive(hover(coverAt(payload.position)) ? 'cover' : null);
+              setActive(hover(coverUnder(payload.position)) ? 'cover' : null);
             }
             break;
           case 'leave':
@@ -97,7 +116,7 @@ export function useFileDrop(
             break;
           case 'drop': {
             drag.current++;
-            const target = image.current !== null ? coverAt(payload.position) : null;
+            const target = image.current !== null ? coverUnder(payload.position) : null;
             image.current = null;
             hover(null);
             setActive(null);

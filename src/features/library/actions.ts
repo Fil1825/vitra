@@ -101,6 +101,11 @@ export function downloadTracks(tracks: LibraryTrack[]): void {
   }
 }
 
+/** Downloads an album's linked tracks as that album. */
+export function downloadAlbum(id: number): void {
+  downloads.addAlbum(id).catch(report('Downloading an album'));
+}
+
 export function copyText(text: string): void {
   navigator.clipboard.writeText(text).catch(report('Copying'));
 }
@@ -258,6 +263,12 @@ export function albumMenu(album: Album, allPlaylists: Playlist[]): MenuEntry[] {
     'separator',
     ...coverMenu({ kind: 'album', id: album.id }, album.customCover),
   ];
+  if (album.linkCount > 0) {
+    entries.push('separator', {
+      label: i18n.t('links.downloadAlbum'),
+      action: () => downloadAlbum(album.id),
+    });
+  }
   const { artistId } = album;
   if (artistId !== null) {
     entries.push('separator', {

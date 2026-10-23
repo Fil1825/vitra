@@ -624,6 +624,51 @@ mod tests {
         assert_eq!(playlist("youtube-playlist.json").album, None);
     }
 
+    /// Recordings of real pages (scripts/record-ytdlp-fixtures.sh), checked for what doesn't
+    /// depend on which video or set was recorded.
+    #[test]
+    fn recorded_pages_parse_like_the_hand_written_ones() {
+        let track_of = |name: &str, requested: &str| {
+            let json = recorded(name)?;
+            match parse_info(&json, requested).unwrap() {
+                Resolved::Track(track) => Some(track),
+                other => panic!("{name}: expected a track, got {other:?}"),
+            }
+        };
+        if let Some(video) = track_of("youtube-video-recorded.json", "https://youtu.be/x") {
+            assert!(
+                video.url.starts_with("https://www.youtube.com/watch?v="),
+                "{}",
+                video.url
+            );
+            assert!(!video.title.is_empty());
+            assert!(video.artist.is_some(), "{video:?}");
+            assert!(video.duration.is_some_and(|d| d > 0.0), "{video:?}");
+            assert!(!video.live);
+        }
+        // A track of an "Artist - Topic" channel comes with its music tags.
+        if let Some(music) = track_of(
+            "youtube-music-recorded.json",
+            "https://music.youtube.com/watch?v=x",
+        ) {
+            assert!(!music.artists.is_empty(), "{music:?}");
+            assert_eq!(music.artist, Some(music.artists.join(", ")));
+            assert!(music.album.is_some(), "{music:?}");
+            assert!(!music.title.is_empty());
+        }
+        if let Some(sound) = track_of(
+            "soundcloud-track-recorded.json",
+            "https://soundcloud.com/a/b",
+        ) {
+            assert!(!sound.title.is_empty());
+            assert!(sound.artist.is_some(), "{sound:?}");
+        }
+        if let Some(json) = recorded("soundcloud-set-recorded.json") {
+            let set = playlist_from(&json, "https://soundcloud.com/a/sets/b");
+            assert_eq!(set.album, None, "a set is a playlist");
+        }
+    }
+
     #[test]
     fn a_recorded_album_track_lists_its_artists() {
         let Some(json) = recorded("youtube-album-entry-recorded.json") else {

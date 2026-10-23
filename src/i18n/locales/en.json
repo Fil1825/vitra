@@ -172,7 +172,8 @@
       "albumTemplateHint": "Also {album_artist} and {track} (two digits); / makes folders: {album_artist}/{album}/{track} {title}.",
       "cookies": "Cookies from browser",
       "cookiesHint": "For age-restricted and sign-in-only videos: yt-dlp acts as you, signed in to the site in this browser. Cookies are read on your computer and only sent to the site they belong to. On macOS, Safari's need Full Disk Access for Vitra; Chrome asks for Keychain access.",
-      "cookiesNone": "Off"
+      "cookiesNone": "Off",
+      "cookiesNoAccess": "Vitra can't read Safari's cookies: macOS keeps them from apps without Full Disk Access. Allow Vitra in System Settings → Privacy & Security → Full Disk Access, then restart it."
     },
     "lyrics": {
       "title": "Lyrics",

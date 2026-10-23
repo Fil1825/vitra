@@ -5,6 +5,7 @@
 //! so favorites, playlists and history work for them; mpv plays them through its yt-dlp hook.
 
 mod commands;
+mod cookies;
 mod downloads;
 
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -737,6 +738,57 @@ impl LinkService {
                 Ok((tracks, Some(group)))
             }
         }
+    }
+
+    /// The streamed tracks of a library album, to download as that album: into the album
+    /// template's folders, with album tags and one cover. The cover is found the way a
+    /// link album's is when it has none (the first track's thumbnail, else the art yt-dlp
+    /// embeds): a cover the user chose stays in the library.
+    pub async fn album_for_download(
+        &self,
+        album_id: i64,
+    ) -> Result<(Vec<Track>, Option<GroupSpec>), AppError> {
+        let library = self.library()?;
+        let (album, tracks) = library
+            .run(move |db| {
+                Ok((
+                    db.album(album_id)?,
+                    db.tracks(&library::TrackFilter::Album(album_id))?,
+                ))
+            })
+            .await?;
+        let album = album.ok_or_else(|| AppError::NotFound(format!("no album {album_id}")))?;
+        // "3 of 12": the album's last number, or how many tracks it has.
+        let count = tracks
+            .iter()
+            .filter_map(|t| t.track_number)
+            .max()
+            .unwrap_or(0)
+            .max(i64::try_from(tracks.len()).unwrap_or(i64::MAX));
+        let streamed: Vec<Track> = tracks
+            .into_iter()
+            .filter(|t| t.source_url.as_deref() == Some(t.path.as_str()))
+            .collect();
+        let Some(first) = streamed.first() else {
+            return Ok((Vec::new(), None));
+        };
+        let group = GroupSpec {
+            // Only identifies the group: an album of the library has no link of its own.
+            url: format!("vitra:album/{album_id}"),
+            kind: GroupKind::Album,
+            title: album.title.clone(),
+            artist: album.artist.clone(),
+            cover_id: album.cover.clone(),
+            album: Some(LinkAlbum {
+                title: album.title,
+                artist: album.artist,
+                year: album.year.and_then(|year| u16::try_from(year).ok()),
+                count: u32::try_from(count).ok(),
+            }),
+            cover: None,
+            first_track: Some(first.path.clone()),
+        };
+        Ok((streamed, Some(group)))
     }
 
     pub async fn ytdlp_info(&self) -> YtDlpInfo {

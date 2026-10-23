@@ -82,7 +82,8 @@ pub(crate) fn track_from_row(row: &Row<'_>) -> rusqlite::Result<Track> {
 /// shows one of its tracks' covers.
 pub(crate) const ALBUM_SELECT: &str = "SELECT al.id, al.title, ar.name, al.artist_id, al.year,
         COALESCE(al.custom_cover, al.cover, MAX(t.cover)), al.custom_cover IS NOT NULL,
-        COUNT(t.id), COALESCE(SUM(t.duration), 0), MAX(t.added_at)
+        COUNT(t.id), COALESCE(SUM(t.path = t.source_url), 0), COALESCE(SUM(t.duration), 0),
+        MAX(t.added_at)
     FROM albums al
     LEFT JOIN artists ar ON ar.id = al.artist_id
     JOIN tracks t ON t.album_id = al.id";
@@ -97,8 +98,9 @@ pub(crate) fn album_from_row(row: &Row<'_>) -> rusqlite::Result<Album> {
         cover: row.get(5)?,
         custom_cover: row.get(6)?,
         track_count: row.get(7)?,
-        duration: row.get(8)?,
-        added_at: row.get(9)?,
+        link_count: row.get(8)?,
+        duration: row.get(9)?,
+        added_at: row.get(10)?,
     })
 }
 

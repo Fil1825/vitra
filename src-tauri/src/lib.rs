@@ -152,6 +152,8 @@ pub fn run() {
             links::link_download,
             links::downloads_list,
             links::downloads_add,
+            links::downloads_add_album,
+            links::links_cookies_access,
             links::downloads_cancel,
             links::downloads_retry,
             links::downloads_cancel_group,

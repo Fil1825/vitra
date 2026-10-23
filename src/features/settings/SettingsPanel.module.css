@@ -70,6 +70,15 @@
   font-size: 12px;
 }
 
+.warning {
+  margin: 0;
+  padding: var(--vitra-space-2) var(--vitra-space-3);
+  border-radius: var(--vitra-radius-sm);
+  background: color-mix(in srgb, var(--vitra-color-danger) 16%, transparent);
+  color: var(--vitra-color-text);
+  font-size: 12px;
+}
+
 .themes {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

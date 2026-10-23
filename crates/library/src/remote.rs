@@ -650,6 +650,10 @@ mod tests {
         assert_eq!(stored[1].track_number, Some(2));
         let album = library.album(album_id).unwrap().unwrap();
         assert_eq!(album.artist.as_deref(), Some("Aurora Collective"));
+        assert_eq!(
+            album.link_count, 2,
+            "both stream, so both can be downloaded"
+        );
         let cover = library
             .set_album_artwork(album_id, &artwork(), &covers)
             .unwrap()

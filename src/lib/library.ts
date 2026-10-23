@@ -56,6 +56,8 @@ export interface Album {
   /** `cover` is one the user chose. */
   customCover: boolean;
   trackCount: number;
+  /** Tracks that stream from links (and can be downloaded). */
+  linkCount: number;
   duration: number;
   addedAt: number;
 }

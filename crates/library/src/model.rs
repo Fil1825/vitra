@@ -71,6 +71,8 @@ pub struct Album {
     /// `cover` is one the user chose.
     pub custom_cover: bool,
     pub track_count: i64,
+    /// Tracks that stream from links (and can be downloaded).
+    pub link_count: i64,
     pub duration: f64,
     pub added_at: i64,
 }

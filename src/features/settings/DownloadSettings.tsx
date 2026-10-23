@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { SegmentedControl, type SegmentedOption } from '../../components/ui/SegmentedControl.tsx';
 import {
   downloads,
+  links,
   MP3_BITRATES,
   ytdlp,
   type AudioFormat,
@@ -251,7 +252,36 @@ export function DownloadSettings() {
         </select>
       </label>
 
+      <CookiesAccess browser={values.cookiesFromBrowser} />
       <YtDlpUpdate />
     </div>
+  );
+}
+
+/** Warns when Vitra can't read the chosen browser's cookies (Safari without Full Disk
+ * Access), before a link fails because of it. */
+function CookiesAccess({ browser }: { browser: string }) {
+  const { t } = useTranslation();
+  const [denied, setDenied] = useState<string | null>(null);
+  useEffect(() => {
+    if (!browser) {
+      return;
+    }
+    let current = true;
+    links
+      .cookiesAccess(browser)
+      .then((access) => current && setDenied(access === 'noAccess' ? browser : null))
+      .catch(report('Checking cookie access'));
+    return () => {
+      current = false;
+    };
+  }, [browser]);
+  if (!browser || denied !== browser) {
+    return null;
+  }
+  return (
+    <p className={styles.warning} role="alert">
+      {t('settings.downloads.cookiesNoAccess')}
+    </p>
   );
 }

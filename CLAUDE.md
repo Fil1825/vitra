@@ -42,8 +42,10 @@ npm run check:all          # both of the above — must pass before every PR
 npm run check:cross        # clippy for aarch64-apple-darwin + x86_64-pc-windows-msvc from Linux
 VITRA_MPV_TESTS=1 cargo test -p mpv-ipc   # also run the tests against a real mpv (on PATH)
 VITRA_YTDLP=src-tauri/sidecars/<triple>/yt-dlp cargo test -p links --test real_ytdlp
-                                          # real yt-dlp against a local HTTP server (FFmpeg on PATH)
-scripts/record-ytdlp-fixtures.sh          # re-record yt-dlp fixtures (needs the sites reachable)
+                                          # real yt-dlp against a local HTTP server (FFmpeg on PATH;
+                                          # relative paths are from the repo root; macOS:
+                                          # .../<triple>/yt-dlp/yt-dlp_macos)
+scripts/record-ytdlp-fixtures.sh          # record real pages as *-recorded.json fixtures
 ```
 
 Debugging playback: `VITRA_MPV_ARGS="--ao=null --log-file=/tmp/mpv.log" npm run tauri dev` passes
@@ -298,7 +300,10 @@ artist_id, position)`; `tracks.artist_id` stays the first (main) one, and an alb
       `--js-runtimes deno:<path>` when Deno is found.
     - Pages are resolved with `yt-dlp -J --flat-playlist --no-playlist`, writing the thumbnail
       in the same run (`--no-simulate --skip-download --write-thumbnail`); direct audio files
-      and radio (`.m3u`/`.pls`/HLS) skip yt-dlp. No HTTP client of our own.
+      and radio (`.m3u`/`.pls`/HLS) skip yt-dlp. No HTTP client of our own. Thumbnails go to
+      a scratch folder by `-o thumbnail:` **and** `-o pl_thumbnail:` (a playlist's own
+      thumbnail, which otherwise lands in the working folder), and resolve/enrich run with
+      that folder as their working directory.
     - A link is a library track whose path is its page URL (`tracks.source_url`, migration 2);
       its thumbnail is the track's own cover (`tracks.cover`, shown before the album's).
       Listings (`complete: false`) never overwrite what a full description stored. Links
@@ -325,7 +330,15 @@ artist_id, position)`; `tracks.artist_id` stays the first (main) one, and an alb
       `--cookies-from-browser` to every yt-dlp run and to mpv's hook (`ytdl-raw-options`
       is set as a JSON map after each mpv start and when the setting changes).
     - mpv plays links through its own yt-dlp hook: `--script-opts-append=ytdl_hook-ytdl_path=`
-      and `--ytdl-raw-options-append=js-runtimes=deno:` point it at our binaries. Radio
+      and `--ytdl-raw-options-append=js-runtimes=deno:` point it at our binaries. A failed
+      link's `end-file` only says "unrecognized file format", so the player asks mpv for its
+      log (`request_log_messages warn`), keeps the `ytdl_hook` lines of the current link and
+      reads them with `ytdlp::failure`: cookies, age limits and sign-ins stop playback with
+      that error (`PlayerError::Playback` carrying the `LinkError` text, which the UI
+      translates; the control bar shows it too), since the next links would fail the same
+      way; other failures are skipped as before. `Mirror::halted` keeps the preloaded file
+      mpv starts meanwhile from clearing the error. Settings warn up front when Safari's
+      cookie file can't be opened (`links/cookies.rs`; macOS needs Full Disk Access). Radio
       playlists end in `end-file reason=redirect`, after which the next `start-file` is the
       same queue item; `metadata` is observed for `icy-title`.
     - Downloads: `-f bestaudio/best -x` (+ `--audio-format mp3|flac`), `--embed-metadata`,
@@ -341,7 +354,10 @@ artist_id, position)`; `tracks.artist_id` stays the first (main) one, and an alb
       number/total and year, and all get the same cover (the album's, else the first
       track's thumbnail). Tags are re-read from the library when a job starts, so
       enrichment that finished meanwhile is used. "Download All" on a playlist is a group
-      without album tags.
+      without album tags. An album page or tile of the library downloads its streamed
+      tracks as such a group too (`downloads_add_album`, group url `vitra:album/<id>`;
+      `Album.linkCount` says whether there is anything to download); its cover comes from
+      the first track's thumbnail or the art yt-dlp embeds, never the user's own cover.
     - "Update yt-dlp": on macOS `links::release::install_zip_release` downloads the latest
       `yt-dlp_macos.zip` and `SHA2-256SUMS` with `curl`, checks the hash (`sha2`), unpacks
       with `ditto` and swaps the folder into `<app data>/sidecars/yt-dlp/` (a
@@ -402,8 +418,7 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
     512 px copy of the same image). Only the library keeps them; tags are the tag editor's.
     UI: `HeroCover` on album/artist/playlist pages (button on hover, context menu, an image
     file dropped on it: `useFileDrop` finds the `[data-cover-drop]` element under Tauri's
-    drop position, which is in physical pixels), plus entries in the album, artist and
-    playlist menus. The sidebar shows a playlist's chosen cover in place of its icon.
+    drop position), plus entries in the album, artist and playlist menus. The sidebar shows a playlist's chosen cover in place of its icon.
 
 ## Conventions
 
@@ -453,6 +468,10 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
   reads the macOS drag pasteboard (`public.url`, legacy `NSURLPboardType`, plain text).
   Windows and Linux report nothing for links; paste works there. Don't turn off
   `dragDropEnabled`: file and folder drops need its real paths.
+- Tauri types drop positions as `PhysicalPosition`, but only Windows reports physical pixels
+  (WebView2, `ScreenToClient`); macOS (`draggingLocation`, points) and Linux (GTK widget
+  coordinates) report logical ones. `useFileDrop.dropPoint` divides by `devicePixelRatio`
+  on Windows only.
 - lofty can't write `ItemKey::Lyrics` to ID3v2; use `ItemKey::UnsyncLyrics` (USLT) there.
   lofty also warns about every odd MP3 frame; the app logs `lofty` at error level only.
 - The macOS mpv tarball carries code-signature xattrs; `fetch-sidecars` moves extracted files

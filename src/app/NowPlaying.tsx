@@ -12,6 +12,7 @@ import { albumRoute } from '../stores/navigation.ts';
 import { usePlayer } from '../stores/player.ts';
 import { useUi } from '../stores/ui.ts';
 import styles from './NowPlaying.module.css';
+import { playerErrorText } from './playerError.ts';
 
 /** "FLAC · 44.1 kHz · 24-bit" — whatever is known. */
 function technicalLine(m: TrackMetadata): string {
@@ -27,12 +28,7 @@ function technicalLine(m: TrackMetadata): string {
 
 function ErrorBanner({ error }: { error: PlayerError }) {
   const { t } = useTranslation();
-  const message =
-    error.kind === 'mpvMissing'
-      ? t('player.errors.mpvMissing')
-      : error.kind === 'mpvFailed'
-        ? t('player.errors.mpvFailed', { message: error.message })
-        : t('player.errors.playback', { message: error.message });
+  const message = playerErrorText(error, t);
   return (
     <p className={styles.error} role="alert">
       <AlertTriangle size={16} aria-hidden="true" />
