@@ -11,6 +11,7 @@ import { initQueue } from '../../stores/queue.ts';
 import { initSettings, useSettings } from '../../stores/settings.ts';
 import { initThemes } from '../../stores/themes.ts';
 import '../../styles/global.css';
+import '../../styles/icons.css';
 import './mini.css';
 import { MiniApp } from './MiniApp.tsx';
 

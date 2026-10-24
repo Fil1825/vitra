@@ -36,5 +36,7 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.mjs'],
     environment: 'node',
+    // Stylesheets reach tests empty, except the icons' motions (a test checks them).
+    css: { include: [/styles\/icons\.css/] },
   },
 });

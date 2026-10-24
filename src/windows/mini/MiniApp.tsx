@@ -168,9 +168,9 @@ function Transport() {
         {loading ? (
           <LoaderCircle size="1.25em" className={styles.spin} />
         ) : playing ? (
-          <Pause size="1.25em" fill="currentColor" />
+          <Pause size="1.25em" fill="currentColor" data-morph="" />
         ) : (
-          <Play size="1.25em" fill="currentColor" />
+          <Play size="1.25em" fill="currentColor" data-morph="" />
         )}
       </IconButton>
       <IconButton

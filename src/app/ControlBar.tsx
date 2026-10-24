@@ -189,9 +189,9 @@ export function ControlBar({ className }: { className?: string }) {
             {loading ? (
               <LoaderCircle size={22} className={styles.spin} />
             ) : playing ? (
-              <Pause size={22} fill="currentColor" />
+              <Pause size={22} fill="currentColor" data-morph="" />
             ) : (
-              <Play size={22} fill="currentColor" />
+              <Play size={22} fill="currentColor" data-morph="" />
             )}
           </IconButton>
           <IconButton

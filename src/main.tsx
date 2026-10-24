@@ -15,6 +15,7 @@ import { initQueue } from './stores/queue.ts';
 import { initSettings, useSettings } from './stores/settings.ts';
 import { initThemes } from './stores/themes.ts';
 import './styles/global.css';
+import './styles/icons.css';
 
 async function boot(root: HTMLElement): Promise<void> {
   suppressWebViewMenu();
