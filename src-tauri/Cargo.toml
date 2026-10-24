@@ -37,9 +37,20 @@ tokio = { version = "1.54", features = ["sync", "time", "macros"] }
 # The OS version (Liquid Glass), the drag pasteboard (links dropped from a browser), and for
 # the mini player the keyboard and mouse state, spaces, the backdrop's alpha and its rounded
 # shape (a layer); all already in the tree via window-vibrancy, tao and wry.
-objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSProcessInfo", "NSString"] }
-objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSPasteboard", "NSEvent", "NSResponder", "NSView", "NSWindow", "objc2-core-foundation", "objc2-quartz-core"] }
+objc2 = { version = "0.6.2", default-features = false, features = ["std"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSData", "NSDictionary", "NSGeometry", "NSObject", "NSProcessInfo", "NSString", "NSValue", "objc2-core-foundation"] }
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSImage", "NSPasteboard", "NSEvent", "NSResponder", "NSView", "NSWindow", "objc2-core-foundation", "objc2-quartz-core"] }
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFCGTypes"] }
 objc2-quartz-core = { version = "0.3.2", default-features = false, features = ["std", "CALayer"] }
+# The system's Now Playing (MPNowPlayingInfoCenter, MPRemoteCommandCenter): the same objc2
+# family as above, plus its blocks for the command handlers.
+objc2-media-player = { version = "0.3.2", default-features = false, features = ["std", "block2", "objc2-app-kit", "objc2-core-foundation", "MPMediaItem", "MPNowPlayingInfoCenter", "MPRemoteCommand", "MPRemoteCommandCenter", "MPRemoteCommandEvent"] }
+block2 = { version = "0.6.2", default-features = false, features = ["std"] }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+# The system's media controls on Windows (SMTC) and Linux (MPRIS, through libdbus); macOS
+# has its own above.
+souvlaki = "0.8.3"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 # The state of Alt and the mouse button for the mini player, and its rounded corners

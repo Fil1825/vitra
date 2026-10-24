@@ -36,6 +36,7 @@ use crate::error::AppError;
 use crate::library::{LibraryService, entry_from_track};
 use crate::links::LinkService;
 use crate::lyrics::{LyricsService, TrackInfo};
+use crate::now_playing::NowPlaying;
 use crate::settings::{AudioMeters, SettingsStore};
 use crate::sidecar::{self, Sidecar};
 
@@ -45,8 +46,8 @@ pub use artwork::{
 pub use commands::*;
 pub use queue::{Entry, QueueView, Repeat};
 use queue::{Queue, QueueItem};
-pub use state::PlayerState;
-use state::{ArtworkInfo, OBSERVED, PlayerError, Status, Track};
+use state::{ArtworkInfo, OBSERVED, PlayerError, Track};
+pub use state::{PlayerState, Status};
 
 pub const STATE_EVENT: &str = "player://state";
 pub const POSITION_EVENT: &str = "player://position";
@@ -1468,6 +1469,14 @@ impl Player {
         let state = self.state();
         *lock(&self.0.last_position_emit) = Instant::now();
         self.emit(STATE_EVENT, &state);
+        self.show_now_playing(&state);
+    }
+
+    /// Tells the system's Now Playing (it sends only what changed).
+    fn show_now_playing(&self, state: &PlayerState) {
+        if let Some(now_playing) = self.0.app.try_state::<NowPlaying>() {
+            now_playing.update(state, &self.0.artwork);
+        }
     }
 
     fn emit_position(&self, force: bool) {
@@ -1478,14 +1487,14 @@ impl Player {
             }
             *last = Instant::now();
         }
-        let update = {
-            let state = lock(&self.0.state);
-            PositionUpdate {
-                position: state.position,
-                duration: state.duration,
-            }
+        let state = self.state();
+        let update = PositionUpdate {
+            position: state.position,
+            duration: state.duration,
         };
         self.emit(POSITION_EVENT, &update);
+        // A seek shows up here as a jump in the position.
+        self.show_now_playing(&state);
     }
 
     fn emit_queue(&self) {

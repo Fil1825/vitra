@@ -7,6 +7,7 @@ mod library;
 mod links;
 mod lyrics;
 mod mini;
+mod now_playing;
 mod player;
 mod settings;
 mod shortcuts;
@@ -129,6 +130,8 @@ pub fn run() {
             app.manage(links);
             app.manage(links::Downloads::new(app.handle().clone())?);
 
+            // Before the player, so its first state reaches the system.
+            app.manage(now_playing::NowPlaying::new(app.handle()));
             let player = Player::new(app.handle().clone());
             player.start();
             // Files passed on the command line ("Open with" on Windows and Linux).
