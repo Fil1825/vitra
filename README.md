@@ -9,10 +9,10 @@ An open-source desktop music player with a **Liquid Glass** look — fully theme
 virtually any audio format, streams audio from links (YouTube, SoundCloud and hundreds of other
 sites) and shows synced lyrics. Runs on macOS, Windows and Linux.
 
-> **Status:** early development (stage 7 of the [plan](docs/PLAN.md)): local playback, the
+> **Status:** early development (stage 8 of the [plan](docs/PLAN.md)): local playback, the
 > music library, the play queue, playing and downloading links, lyrics, the mini player,
-> themes and the layout work; sound settings, system integration and releases come later.
-> Nothing to install yet.
+> themes, the layout, sound settings and system integration work; importing playlists from
+> other services and releases come later. Nothing to install yet.
 
 ## Links
 
@@ -62,6 +62,25 @@ playing line of the lyrics. Drag it anywhere (it snaps to the screen's edges) or
 to resize it; right-click for its mode, size, background opacity, always on top and
 click-through (hold ⌥ / Alt over it to use it then). Settings → Mini Player has the rest.
 
+## Sound
+
+Settings → Sound has a ten-band equalizer with the usual presets (Rock, Jazz, Bass Booster…)
+and your own (shape the curve, then **Save as Preset**), **Normalization** that plays every
+song about as loud as the next — by its ReplayGain tags, or by Vitra's own measurement for
+songs without them, made once per song (per album in Album mode) — and **Crossfade**: songs
+blend into each other over up to 12 seconds, except songs of one album, which follow each
+other without a gap as recorded.
+
+## In the system
+
+Vitra shows what plays where the system shows it: Control Center and the lock screen on macOS,
+the media overlay on Windows, the desktop's media controls on Linux (MPRIS), with the cover and
+the progress. The keyboard's media keys and the buttons on your headphones control it while
+another app is in front, also with only the mini player open. The icon in the menu bar (the
+notification area on Windows) has the track, the transport buttons, the mini player and Quit.
+Playback and the mini player can also get shortcuts that work in every app (Settings → Keyboard
+Shortcuts, the second column).
+
 ## Look
 
 The window's background comes from the playing song's cover: blurred, slowly breathing and
@@ -88,7 +107,8 @@ between two modules to resize; the layout button in the title bar (or Settings �
 lets you drag modules between places, hide them, and save layouts you like. The level meter
 shows the music's spectrum as bars, mirrored bars or a wave (right-click it).
 
-Every keyboard shortcut can be changed in Settings → Keyboard Shortcuts.
+Every keyboard shortcut can be changed in Settings → Keyboard Shortcuts. Icons move a little
+under the pointer, each in its own way (not with reduced motion).
 
 ## Building from source
 

@@ -24,7 +24,7 @@ the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
 | 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | accepted (PR #6)  |
 | 6   | Mini player                                            | accepted (PR #7)  |
 | 7   | Customization: theme editor, `.vitratheme`, layout     | accepted (PR #8)  |
-| 8   | Sound & system: EQ, crossfade, media keys, tray        | in progress       |
+| 8   | Sound & system: EQ, crossfade, media keys, tray        | in review (PR #9) |
 | 9   | Playlist import: Spotify, Yandex, VK, Apple Music…     | not started       |
 | 10  | My Wave: mood analysis, endless mood-based queue       | not started       |
 | 11  | Integrations, i18n, CI builds, README, first release   | not started       |
@@ -98,14 +98,15 @@ src/                    React + TypeScript frontend
                         i18n → render
   app/                  the window's parts (TitleBar, Sidebar, NowPlaying, ControlBar),
                         useAppearanceController (theme vars, user theme CSS, effect flags,
-                        window theme, language) and useLevelMeter (asks for the pulse and the
-                        spectrum)
+                        window theme, language), useLevelMeter (asks for the pulse and the
+                        spectrum) and useTrayLabels (the tray menu's words)
   layout/               modular layout: model.ts (zones, modules, normalize; pure), state.ts
                         (in the settings, customize mode), Workspace (zones, resizing, dnd-kit),
                         Palette (customize mode), presets.ts, modules/ (ArtworkPanel,
                         LevelMeter: the spectrum on a canvas; spectrum.ts: its motion, pure)
   shortcuts/            keyboard shortcuts: keys.ts (combinations, labels, focus rules; pure),
-                        actions.ts (actions, defaults, rebinding; pure), run.ts, useShortcuts
+                        actions.ts (actions, defaults, rebinding in the window and in every
+                        app; pure), run.ts, useShortcuts
   components/           shared UI: Glass/ (glass surface, layer budget, refraction), Backdrop/,
                         ArtworkViewer/ (full-screen artwork), CoverArt/ (the player's covers:
                         records, their spin clock spin.ts, the no-cover placeholder), ui/ (IconButton,
@@ -116,8 +117,11 @@ src/                    React + TypeScript frontend
                         which album a title + artist means), links/ (LinkDialog,
                         DownloadsView, download groups), lyrics/ (LyricsView, LyricsPanel, LyricsEditor +
                         SyncPane, tap-sync model sync.ts, Karaoke + clock.ts shared with the
-                        mini player), settings/ (+ ShortcutSettings), themes/ (ThemeEditor,
-                        fields, editor.ts: the draft; actions.ts: import, export, duplicate)
+                        mini player), settings/ (SettingsPanel: pages listed in sections.ts
+                        with the search; a component per page, Row/Group; about.ts: the
+                        owner's words and donation link), sound/ (equalizer presets.ts),
+                        themes/ (ThemeEditor, fields, editor.ts: the draft; actions.ts:
+                        import, export, duplicate)
   stores/               zustand stores: settings (mirror of Rust), environment, appearance,
                         player, queue, library (scan status), downloads, lyrics, navigation
                         (routes), ui (dialogs, Settings, artwork viewer), themes (installed),
@@ -126,8 +130,10 @@ src/                    React + TypeScript frontend
                         CSS vars, effects, user themes (user.ts), custom.css cleaning (css.ts),
                         color helpers, artwork.ts (whether covers are records)
   i18n/                 i18next setup, locales/en.json + ru.json (typed keys)
-  lib/                  IPC wrappers, event bus + backend bridge, hooks, pure helpers
+  lib/                  IPC wrappers (system.ts: tray and shortcuts in every app; browser.ts),
+                        event bus + backend bridge, hooks, pure helpers
   styles/global.css     base document styles, the Vitra Sans @font-face rules
+  styles/icons.css      every icon's motion under the pointer (key decision 39)
   assets/fonts/         Vitra Sans: Outfit (Latin) + Onest (Cyrillic) woff2, their OFL.txt
   windows/mini/         the mini player window: boot (main.tsx), MiniApp (three modes),
                         context menu (menu.ts)
@@ -136,6 +142,15 @@ src-tauri/              Tauri app crate (`vitra`, lib `vitra_lib`)
   src/settings.rs       Settings struct, JSON persistence, get/set commands
   src/layout.rs         the layout in the settings (normalized like the frontend's), presets
   src/shortcuts.rs      the user's shortcut changes in the settings (kept tidy)
+  src/global_shortcuts.rs  shortcuts in every app: registered with the system, run in Rust
+  src/tray.rs           the menu-bar / notification-area icon and its menu
+  src/now_playing/      the system's Now Playing and media keys: what changed (mod.rs, pure
+                        Publisher), macOS MediaPlayer (macos.rs), souvlaki elsewhere
+                        (controls.rs)
+  src/sound/            SoundSettings + equalizer filter (mod.rs), loudness gains, R128
+                        parsing and the links' integrator (loudness.rs, pure), FFmpeg
+                        measurements in the background (measure.rs)
+  src/browser.rs        opens web pages (About) in the default browser
   src/themes.rs         ThemeStore: installed themes, theme:// scheme, import/export commands
   src/window.rs         window creation from config, vibrancy / Mica / Acrylic
   src/error.rs          AppError (serializes to a message for the frontend)
@@ -147,7 +162,7 @@ src-tauri/              Tauri app crate (`vitra`, lib `vitra_lib`)
                         PlayerState reducer (state.rs), play queue (queue.rs, pure),
                         session save/restore (session.rs), artwork:// scheme (artwork.rs),
                         loudness for the backdrop pulse (level.rs), the level meter's
-                        spectrum (spectrum.rs)
+                        spectrum (spectrum.rs), crossfade timing and curves (crossfade.rs)
   src/library/          LibraryService: DB connection, scanner thread, folder watcher
                         (watch.rs), library/playlist/tag-editor commands (commands.rs)
   src/links/            LinkService (resolve, play, import + background enrich, yt-dlp
@@ -166,7 +181,7 @@ crates/                 pure-Rust crates testable without WebKit
                         search, playlists, history, session, incremental folder scanner,
                         links as tracks (remote.rs), saved lyrics + offsets (lyrics.rs),
                         several artists per track and credit splitting (artists.rs),
-                        covers the user chose (covers.rs)
+                        covers the user chose (covers.rs), measured loudness (loudness.rs)
   lyrics/               LRC / enhanced LRC parser and writer, SYLT conversion, .lrc files
                         and their encodings, LRCLIB URLs and result matching (pure)
   links/                URL classification, yt-dlp -J parsing (albums included), file name
@@ -613,7 +628,8 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
       text fields, and editing chords (arrows, ⌘A/C/V/X/Z) not in text fields (`firesIn`); a
       key a component already handled (`defaultPrevented`) is left alone; held keys repeat
       only seeking and volume. The recorder in Settings captures keys first and pauses the
-      listener. Global (system-wide) shortcuts come with stage 8.
+      listener.
+    - Shortcuts in every app: key decision 37.
 33. **Covers and records** (`components/CoverArt`, `theme/artwork.ts`, theme `artwork`,
     settings `appearance.vinyl`):
     - The theme's `artwork.shape` sets `--vitra-artwork-radius` (`square` = `initial`, so
@@ -638,6 +654,74 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
     `size-adjust: 92%`, so lowercase heights meet and mixed lines read evenly. Both SIL OFL,
     subset with their license names kept; bundled by Vite (CSP `font-src 'self'`), never
     fetched. Themes still name their own fonts first.
+35. **Now Playing and media keys** (`src-tauri/src/now_playing`):
+    - The player tells `NowPlaying` its state on every state and position emit; the pure
+      `Publisher` passes on only what changed (the track, or the playback when it starts,
+      stops, changes rate or jumps more than 1 s from where the system extrapolates it).
+      MPRIS and SMTC don't move the position along, so they get it every second while
+      playing. mpv's own media controls stay off (key decision 5).
+    - macOS: `MPNowPlayingInfoCenter` (a dictionary kept on the main thread; title, artist,
+      album, duration, elapsed time, rate, `playbackState`, artwork from the artwork store
+      as an `NSImage`) and `MPRemoteCommandCenter` handlers (play, pause, toggle, stop,
+      next, previous, change position). Windows / Linux: `souvlaki` (SMTC needs the main
+      window's HWND; MPRIS through libdbus, bus name `vitra`), covers as files in
+      `<cache>/now-playing/` for their URLs; Raise shows the main window.
+36. **Sound** (`src-tauri/src/sound`, `player/crossfade.rs`, `features/settings/SoundSettings`,
+    settings `sound`):
+    - Equalizer: one filter `@vitraeq` (a lavfi graph of `equalizer@b0` … `@b9`, 32 Hz to
+      16 kHz an octave wide, and `volume@pre`) before the meters. mpv rebuilds its lavfi
+      graph for every file and seek, so `af-command` only previews a band being dragged
+      (`sound_preview_equalizer`); a kept change replaces the filter in place (`af add`
+      with the same label). Presets: built-in ids (`features/sound/presets.ts`) or
+      `user:<name>` from `sound.presets`.
+    - Normalization (`off | track | album`): mpv's `replaygain` with a +4 dB preamp (from
+      ReplayGain's −18 LUFS to Vitra's −14) and `replaygain-clip`; files without tags get
+      their measured gain as the per-file `replaygain-fallback` option of `loadfile` (mpv
+      uses it exactly when there are no tags; set at runtime it applies from the next file,
+      the UI says so). Files are measured once by the FFmpeg sidecar (`ebur128=peak=true`,
+      `LoudnessMeter`, newest wishes first), links while they play by the
+      `@vitraloud:lavfi=[ebur128=metadata=1]` filter (momentary readings integrated with
+      R128's gates, `Integrator`); results go to the library's `loudness` table (migration
+      8, keyed by path + size + mtime). Album mode averages the album's tracks' energy.
+      Boosts stop at the measured peak (−1 dBTP) and +12 dB, unknown peaks at +3 dB.
+    - Crossfade (`sound.crossfade`, 0–12 s, 0 = gapless as before): a second mpv, the
+      _standby deck_ (`Decks`, started only while crossfade is on), loads the next track
+      paused at volume 0. `crossfade_tick` starts it `C` s before the end (when the track is
+      at least `2C + 1` s long); it becomes the active deck at once (queue, Now Playing,
+      events follow) and both volumes cross equal-power on one wall clock (30 ms steps,
+      mpv's cubic volume, paused time doesn't count). A seek or another track ends a fade
+      at once; pause pauses both decks. Same-album neighbours (`same_album`: album name and
+      artist, folder or both links), the same item again and radio stay gapless on one
+      deck. Volume, mute, speed, EQ and normalization go to both decks; the standby deck
+      prepares again whenever it (re)starts. Only the active deck's events drive the state.
+37. **Menu-bar icon and shortcuts in every app** (`tray.rs`, `global_shortcuts.rs`,
+    settings `system.trayIcon`, `globalShortcuts`):
+    - The tray icon is built at setup on the main thread (a Linux desktop without the
+      AppIndicator library panics inside tray-icon: caught, the icon is then unavailable
+      and Settings says so) and only shown or hidden afterwards. macOS gets
+      `icons/tray-template.png` (mono.svg, a template image; see `assets/brand/README.md`),
+      the others the app icon; Windows opens the window on a left click. Its menu ids start
+      with `tray:` (every menu event reaches every handler); the main window sends the
+      words (`tray_labels`), Rust follows the player (`Player::emit_state`).
+    - Shortcuts in every app: `globalShortcuts` (action id → combination, none by default)
+      for playback and the mini player; Rust converts our combinations (`Mod` = ⌘ / Ctrl)
+      to the plugin's, refuses plain keys that type (function and media keys are fine),
+      registers them and runs the actions itself. A combination another app holds is
+      reported (`global_shortcuts_failed`). Taking a combination in every app takes it from
+      a window shortcut of another action too (the system would catch it first), and the
+      other way round. On Linux they need X11 (XWayland apps on Wayland).
+38. **Settings pages** (`features/settings`): a panel over the window with a list of pages
+    (`sections.ts`: icon, title, the keys of what's on them) and a search that matches every
+    word in a page's title or contents (lower case, ё = е); below 600 px the list keeps
+    only icons. `ui.settingsSection` opens a page (`showSettings(true, 'shortcuts')`).
+    About: version, the owner's note and donation link (`about.ts`, empty until written),
+    source, license, credits, diagnostics.
+39. **Icon motions** (`styles/icons.css`): every Lucide icon (`.lucide-<name>`) or part of it
+    names a motion in the non-inheriting `--vi` / `--vi-time` / `--vi-delay` (`@property`);
+    one rule plays it once when the button, link, tab or menu item around it is hovered;
+    `:active` adds `scale: 0.9`; the play/pause icon (`data-morph`) turns into the other.
+    Only `transform` moves; nothing with Reduce Motion; the spinner keeps its own spin.
+    `styles/icons.test.ts` fails when an imported icon has no motion.
 
 ## Conventions
 
