@@ -27,6 +27,13 @@ const VERSION_TIMEOUT: Duration = Duration::from_secs(120);
 const ERROR_LINES: usize = 20;
 const IMAGE_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp"];
 
+/// YouTube Music's search for `query`, its "Songs" section (yt-dlp's
+/// `youtube:music:search_url` reads the section from the fragment).
+pub fn music_search_url(query: &str) -> String {
+    let query: String = url::form_urlencoded::byte_serialize(query.trim().as_bytes()).collect();
+    format!("https://music.youtube.com/search?q={query}#songs")
+}
+
 /// Browsers yt-dlp can take cookies from (`--cookies-from-browser`).
 pub const COOKIE_BROWSERS: &[&str] = &[
     "safari", "chrome", "firefox", "edge", "brave", "chromium", "opera", "vivaldi",
@@ -235,6 +242,40 @@ impl YtDlp {
         result
     }
 
+    /// The songs YouTube Music finds for `query`, best first: its "Songs" results (the
+    /// labels' audio tracks, not videos), listed without opening each one, so they have a
+    /// title and a link only ([`Self::describe`] tells the rest).
+    pub async fn search(&self, query: &str, limit: usize) -> Result<Vec<LinkTrack>> {
+        let url = music_search_url(query);
+        let mut command = self.command();
+        command
+            .args(["-J", "--flat-playlist", "--playlist-end"])
+            .arg(limit.max(1).to_string())
+            .arg("--")
+            .arg(&url);
+        let output = Self::output(command, RESOLVE_TIMEOUT).await?;
+        Ok(
+            match parse_info(&String::from_utf8_lossy(&output.stdout), &url)? {
+                Resolved::Playlist(playlist) => playlist.tracks,
+                Resolved::Track(track) => vec![track],
+            },
+        )
+    }
+
+    /// One track's complete metadata (artists, album, length), without its thumbnail.
+    pub async fn describe(&self, url: &str) -> Result<LinkTrack> {
+        let mut command = self.command();
+        command
+            .args(["-J", "--no-playlist", "--skip-download"])
+            .arg("--")
+            .arg(url);
+        let output = Self::output(command, RESOLVE_TIMEOUT).await?;
+        match parse_info(&String::from_utf8_lossy(&output.stdout), url)? {
+            Resolved::Track(track) => Ok(track),
+            Resolved::Playlist(_) => Err(LinkError::Failed("a list, not a track".into())),
+        }
+    }
+
     /// Complete metadata and the thumbnail of every entry of `url`, one at a time as yt-dlp
     /// gets them (a playlist listing only has titles). Entries that fail are skipped.
     pub async fn enrich(
@@ -375,6 +416,18 @@ impl YtDlp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn music_search_urls() {
+        assert_eq!(
+            music_search_url(" Кино Группа крови "),
+            "https://music.youtube.com/search?q=%D0%9A%D0%B8%D0%BD%D0%BE+%D0%93%D1%80%D1%83%D0%BF%D0%BF%D0%B0+%D0%BA%D1%80%D0%BE%D0%B2%D0%B8#songs"
+        );
+        assert_eq!(
+            music_search_url("AC/DC & co #1"),
+            "https://music.youtube.com/search?q=AC%2FDC+%26+co+%231#songs"
+        );
+    }
 
     #[test]
     fn error_messages_prefer_error_lines() {
