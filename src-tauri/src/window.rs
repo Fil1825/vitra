@@ -84,6 +84,9 @@ impl WindowEffectsState {
     /// Applies a system backdrop; must run on the main thread (AppKit).
     pub fn apply(&self, window: &WebviewWindow, backdrop: Backdrop) {
         let vibrancy = apply_backdrop(window, backdrop);
+        if backdrop.radius > 0.0 {
+            mini::platform::round_window(window, backdrop.radius);
+        }
         log::info!("window '{}': backdrop {vibrancy:?}", window.label());
         self.0
             .lock()

@@ -92,3 +92,56 @@ pub fn set_backdrop_alpha(window: &WebviewWindow, alpha: f64) {
         vibrancy.setAlphaValue(alpha);
     }
 }
+
+/// Gives the borderless window its rounded shape everywhere, not just in the page. macOS
+/// clips the window's content to `radius` and works out its shadow again from what is drawn
+/// now: a transparent window takes its shadow (and the thin edge drawn with it) from its
+/// pixels when first shown, and before the page has painted, or after a resize, that is a
+/// rectangle whose corners and edges show dark around the rounded glass. Windows 11 rounds
+/// the window itself (8 px, which the page matches). Runs on the main thread.
+pub fn round_window(window: &WebviewWindow, radius: f64) {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2_app_kit::NSWindow;
+        let Ok(pointer) = window.ns_window() else {
+            return;
+        };
+        // SAFETY: Tauri hands out the window's live `NSWindow`, and we are on the main thread.
+        #[allow(unsafe_code)]
+        let ns_window: &NSWindow = unsafe { &*pointer.cast::<NSWindow>() };
+        if let Some(content) = ns_window.contentView() {
+            content.setWantsLayer(true);
+            if let Some(layer) = content.layer() {
+                layer.setCornerRadius(radius);
+                layer.setMasksToBounds(true);
+            }
+        }
+        ns_window.invalidateShadow();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use windows_sys::Win32::Graphics::Dwm::{
+            DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND, DwmSetWindowAttribute,
+        };
+        let _ = radius;
+        let Ok(hwnd) = window.hwnd() else {
+            return;
+        };
+        let preference = DWMWCP_ROUND;
+        // SAFETY: a live window handle and a pointer to a value of the size given. Windows 10
+        // doesn't know the attribute and returns an error, which changes nothing.
+        #[allow(unsafe_code)]
+        unsafe {
+            DwmSetWindowAttribute(
+                hwnd.0,
+                DWMWA_WINDOW_CORNER_PREFERENCE as u32,
+                std::ptr::from_ref(&preference).cast(),
+                size_of_val(&preference) as u32,
+            );
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = (window, radius);
+    }
+}

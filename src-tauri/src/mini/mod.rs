@@ -144,6 +144,7 @@ impl MiniPlayer {
         }
         window.show()?;
         window.set_focus()?;
+        self.reshadow_after_paint(&window);
         if settings.hide_main_window
             && let Some(main) = self.main()
         {
@@ -406,6 +407,7 @@ impl MiniPlayer {
     }
 
     fn resized(&self, window: &WebviewWindow) {
+        self.reshadow(window);
         let settings = self.settings();
         let (Ok(size), Ok(scale)) = (window.inner_size(), window.scale_factor()) else {
             return;
@@ -422,6 +424,32 @@ impl MiniPlayer {
             self.save();
         }
         self.keep_on_screen(window);
+    }
+
+    /// Has the window's rounded shape and shadow follow what it shows now (see
+    /// [`platform::round_window`]).
+    fn reshadow(&self, window: &WebviewWindow) {
+        let window = window.clone();
+        let result = self
+            .0
+            .app
+            .run_on_main_thread(move || platform::round_window(&window, RADIUS));
+        if let Err(err) = result {
+            log::warn!("cannot round the mini player: {err}");
+        }
+    }
+
+    /// A window just shown has its shadow from before the page painted: work it out again
+    /// once the page is there.
+    fn reshadow_after_paint(&self, window: &WebviewWindow) {
+        let mini = self.clone();
+        let window = window.clone();
+        tauri::async_runtime::spawn(async move {
+            for wait in [150, 600] {
+                tokio::time::sleep(std::time::Duration::from_millis(wait)).await;
+                mini.reshadow(&window);
+            }
+        });
     }
 
     /// A window that grew past the screen's edge comes back inside.
