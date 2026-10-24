@@ -1,0 +1,58 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fil1825/vitra/main/docs/theme.schema.json",
+  "schemaVersion": 1,
+  "id": "paper",
+  "name": "Paper",
+  "author": "Vitra",
+  "appearance": "light",
+  "colors": {
+    "background": "#F4F1EA",
+    "text": "#1F1D1A",
+    "textSecondary": "#1F1D1AA6",
+    "textTertiary": "#1F1D1A6B",
+    "accent": "#2F5D8A",
+    "accentContrast": "#FFFFFF",
+    "separator": "#1F1D1A1A",
+    "danger": "#B3261E"
+  },
+  "glass": {
+    "blur": 8,
+    "saturation": 1,
+    "tint": "#FBF9F4",
+    "opacity": 0.88,
+    "border": "#1F1D1A17",
+    "borderWidth": 1,
+    "highlight": 0.1,
+    "highlightColor": "#FFFFFF",
+    "refraction": 0,
+    "shadow": "#1F1D1A1F",
+    "shadowBlur": 18
+  },
+  "typography": {
+    "fontFamily": "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    "fontSize": 14,
+    "fonts": [{ "family": "Noto Serif", "src": "assets/noto-serif.woff2", "weight": "400 700" }]
+  },
+  "radius": {
+    "small": 4,
+    "medium": 6,
+    "large": 10
+  },
+  "spacing": {
+    "unit": 4
+  },
+  "background": {
+    "baseOpacity": 1,
+    "gradient": ["#E8E2D4", "#D9D2C1"],
+    "gradientOpacity": 0.2,
+    "artworkOpacity": 0,
+    "useArtwork": false,
+    "image": { "src": "assets/paper.png", "opacity": 0.6, "fit": "tile" }
+  },
+  "accentFromArtwork": false,
+  "motion": {
+    "duration": 180,
+    "easing": "standard",
+    "backgroundSpeed": 0
+  }
+}

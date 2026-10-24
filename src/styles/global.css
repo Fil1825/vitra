@@ -1,6 +1,32 @@
 /* Base document styles. Every color and size comes from theme variables (src/theme/tokens.ts). */
+
+/*
+ * Vitra Sans, the app's own typeface (bundled, never fetched): Outfit for Latin text and
+ * Onest for Cyrillic, which Outfit lacks. Onest is drawn 8% smaller so the two meet in the
+ * middle (Outfit's lowercase is lower, its capitals taller), and mixed lines read evenly.
+ * Both are variable fonts under the SIL Open Font License (src/assets/fonts/OFL-*.txt).
+ */
+@font-face {
+  font-family: 'Vitra Sans';
+  src: url('../assets/fonts/vitra-sans-latin.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+  unicode-range:
+    U+0000-017F, U+02BB-02DC, U+2000-206F, U+20AC, U+2122, U+2190-2193, U+2212, U+2215, U+FEFF,
+    U+FFFD;
+}
+
+@font-face {
+  font-family: 'Vitra Sans';
+  src: url('../assets/fonts/vitra-sans-cyrillic.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+  size-adjust: 92%;
+  unicode-range: U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
 :root {
-  font-family: var(--vitra-font-family, system-ui, sans-serif);
+  font-family: var(--vitra-font-family, 'Vitra Sans', system-ui, sans-serif);
   font-size: var(--vitra-font-size, 14px);
   line-height: 1.45;
   color: var(--vitra-color-text);

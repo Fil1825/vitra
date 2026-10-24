@@ -85,8 +85,14 @@
   gap: var(--vitra-space-2);
 }
 
+/* A theme's card, with its menu button in the corner (a button can't hold another). */
+.themeCell {
+  position: relative;
+}
+
 .themeCard {
   display: grid;
+  width: 100%;
   gap: var(--vitra-space-2);
   padding: var(--vitra-space-2);
   border: 0;
@@ -122,8 +128,45 @@
 }
 
 .themeName {
+  overflow: hidden;
   padding: 0 2px;
   font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.themeMore {
+  position: absolute;
+  top: calc(var(--vitra-space-2) + 4px);
+  right: calc(var(--vitra-space-2) + 4px);
+  width: 24px;
+  height: 24px;
+  background: color-mix(in srgb, var(--vitra-color-background) 70%, transparent);
+  opacity: 0;
+  transition: opacity var(--vitra-motion-duration) var(--vitra-motion-easing);
+}
+
+.themeCell:hover .themeMore,
+.themeMore:focus-visible {
+  opacity: 1;
+}
+
+.themeActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vitra-space-2);
+}
+
+.brokenTheme {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--vitra-space-2);
+  padding: var(--vitra-space-2) var(--vitra-space-3);
+  border-radius: var(--vitra-radius-sm);
+  background: color-mix(in srgb, var(--vitra-color-danger) 12%, transparent);
+  font-size: 13px;
+  white-space: pre-line;
 }
 
 .facts {
@@ -206,7 +249,8 @@
   white-space: nowrap;
 }
 
-.addFolder {
+.addFolder,
+.textButton {
   display: inline-flex;
   justify-self: start;
   align-items: center;
@@ -221,7 +265,8 @@
   cursor: pointer;
 }
 
-.addFolder:disabled {
+.addFolder:disabled,
+.textButton:disabled {
   cursor: default;
   opacity: 0.5;
 }
@@ -263,4 +308,70 @@
   min-height: 64px;
   resize: vertical;
   line-height: 1.4;
+}
+
+/* Keyboard shortcuts: the action, its keys, and buttons to remove or reset them. */
+.shortcutGroup {
+  display: grid;
+  gap: 2px;
+}
+
+.shortcutGroupTitle {
+  margin: var(--vitra-space-2) 0 var(--vitra-space-1);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.shortcutRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 56px;
+  align-items: center;
+  gap: var(--vitra-space-2);
+  min-height: 32px;
+}
+
+.shortcutName {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.keycap {
+  min-width: 64px;
+  padding: 3px var(--vitra-space-2);
+  border: 1px solid var(--vitra-color-separator);
+  border-radius: var(--vitra-radius-sm);
+  background: color-mix(in srgb, var(--vitra-color-text) 6%, transparent);
+  color: var(--vitra-color-text);
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  cursor: pointer;
+}
+
+.keycap:hover {
+  background: color-mix(in srgb, var(--vitra-color-text) 12%, transparent);
+}
+
+.keycap[data-empty] {
+  color: var(--vitra-color-text-tertiary);
+}
+
+.keycap[data-recording] {
+  border-color: var(--vitra-color-accent);
+  background: color-mix(in srgb, var(--vitra-color-accent) 16%, transparent);
+  color: var(--vitra-color-accent);
+}
+
+.shortcutButtons {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.shortcutNote {
+  grid-column: 1 / -1;
+  color: var(--vitra-color-text-secondary);
+  font-size: 12px;
 }

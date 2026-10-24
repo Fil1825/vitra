@@ -16,6 +16,8 @@ import type { Theme } from '../theme/schema.ts';
 export interface VitraEvents {
   'settings:changed': Settings;
   'theme:changed': Theme;
+  /** A theme was installed, saved or removed (in any window). */
+  'themes:changed': null;
   'effects:changed': Effects;
   /** The native backdrop of this window changed (e.g. Liquid Glass was switched on). */
   'window:effects': WindowEffects;
@@ -26,6 +28,8 @@ export interface VitraEvents {
   'player:track': Track;
   /** The music's pulse (0..1) for the animated backdrop, while one asked for it. */
   'player:level': number;
+  /** The spectrum (bands low to high, 0..1; empty: nothing plays) for the level meter. */
+  'player:spectrum': number[];
   'queue:changed': QueueState;
   /** Library data changed; views showing that kind of data refetch it. */
   'library:changed': LibraryChange;

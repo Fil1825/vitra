@@ -204,7 +204,7 @@ and an explicit list of checks that can only be done on a Mac.
 - Settings: always on top / normal, opacity, size, snap to screen edges, remember position,
   optional click-through. Uses the current theme and `<Glass>`.
 - **Mac-only checks**: always-on-top over full-screen apps, click-through.
-- Done (PR #7), with the owner's choices: click-through is left by holding ⌥ (Alt) over the
+- Done and accepted (PR #7), with the owner's choices: click-through is left by holding ⌥ (Alt) over the
   mini player; opening it hides the main window (a setting); size presets plus dragging, a
   size per mode; the opacity fades only the background. Also: ⌥⌘M switches windows, it
   reopens at launch if it was open, "over full-screen apps" on macOS drops the Dock icon
@@ -230,6 +230,55 @@ and an explicit list of checks that can only be done on a Mac.
   lyrics panel, big artwork, control bar, volume meter); presets, optionally part of a theme.
 - Rebindable in-app hotkeys.
 - Docs: `docs/THEMES.md`.
+- The owner's choices: the layout is **zones and panels** (left and right columns, top and
+  bottom bars around the main view; modules move between zones, columns resize), not a
+  free grid; the theme editor is a **panel over the window**, so the whole app is the
+  live preview.
+- Done and accepted (PR #8; the owner checked it on a Mac, including the review round below):
+  - Themes: the schema gained fonts, a background picture and a layout; `.vitratheme`
+    import (drop or button; the CSS is cleaned and what was taken out is shown; a theme's
+    layout is offered, not forced), export, duplicate, delete; `crates/themes` reads
+    packages defensively and `theme://` serves installed themes' assets.
+  - The editor: colors, glass, type and fonts, corners and spacing, background (gradient,
+    artwork, picture), motion, `custom.css`, assets; every change shows at once.
+  - Layout: modules in zones (left/right columns, top/bottom bars), resizing columns and
+    the split between modules, customize mode with dnd-kit, built-in and saved presets;
+    two new modules, a big artwork panel and a level meter.
+  - Rebindable shortcuts for every action in Settings, by key position (any keyboard
+    layout); a few new actions (queue, lyrics, shuffle, repeat, customize layout).
+  - Examples in `themes/` (Dunes, Neon Grid, Paper) and `docs/THEMES.md`.
+- **Mac** for stage 7: the glass, refraction fallback and backdrop picture under real
+  vibrancy / Liquid Glass; theme fonts and `theme://` assets in a release build (CSP);
+  the traffic lights next to the top bar or the main view when the sidebar moves; ⌘-based
+  shortcuts and the macOS menu's own (⌘Q, ⌘W, ⌘H, ⌘M stay the system's); dragging modules
+  with a trackpad.
+- Review round (the owner's notes after checking it on a Mac):
+  - The level meter is a real spectrum: twenty bands from 40 Hz to 16 kHz measured in mpv's
+    audio chain (files and links alike, nothing measured while the module is hidden), drawn
+    on a canvas sixty times a second with fast rise, slow fall and falling peak caps; bars,
+    mirrored bars or a wave (its context menu), a quiet wave while nothing plays, still with
+    Reduce Motion.
+  - Covers: `artwork.shape` (square, rounded, round) and `artwork.vinyl` in the theme and the
+    editor; records turn at 33⅓ rpm while music plays (the big cover, the artwork module,
+    the control bar, the mini player, the queue's current track), with grooves, a sheen and
+    a label; the user can force them on or off (Settings, the disc button on the big cover).
+  - Vitra Sans: Outfit (Latin) with Onest (Cyrillic), bundled, the built-in themes' font.
+  - The no-cover placeholder is the mono Vitra symbol in the theme's color (or its own,
+    `artwork.placeholderColor`), everywhere a cover shows.
+  - Fixes: the mini player's dark edges (its content is clipped to its rounded corners and
+    the window shadow redrawn); the backdrop's diagonal edge on wide screens (its moving
+    pieces are big squares now).
+- **Mac** for the review round:
+  - The spectrum with real music and a link: bars move with what you hear (no lag or lead),
+    CPU stays low (Activity Monitor: mpv and Vitra), nothing measured with the module hidden.
+  - Records: the spin looks smooth, starts and stops gently with play/pause, stops in place;
+    Reduce Motion (System Settings → Accessibility → Display) keeps them still.
+  - Vitra Sans in a release build (CSP), Latin and Cyrillic mixed on one line look even.
+  - The mini player's edges and corners are clean on light and dark themes, with vibrancy
+    and Liquid Glass, faded and not, and its shadow follows the rounded shape. (Windows 11:
+    rounded corners.)
+  - The backdrop on a 2K (2560×1440) and an ultrawide (21:9) screen in full screen, on the
+    lyrics view too: no edge or diagonal line.
 
 ## Stage 8 — Sound & system
 

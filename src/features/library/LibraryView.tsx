@@ -1,9 +1,10 @@
 import { NowPlaying } from '../../app/NowPlaying.tsx';
+import { isShown } from '../../layout/model.ts';
+import { useLayout } from '../../layout/state.ts';
 import { useLyrics } from '../../stores/lyrics.ts';
 import { useNavigation } from '../../stores/navigation.ts';
 import { usePlayer } from '../../stores/player.ts';
 import { useSettings } from '../../stores/settings.ts';
-import { useUi } from '../../stores/ui.ts';
 import { DownloadsView } from '../links/DownloadsView.tsx';
 import { LyricsView } from '../lyrics/LyricsView.tsx';
 import { AlbumsView } from './AlbumsView.tsx';
@@ -51,7 +52,7 @@ export function LibraryView() {
 function NowPlayingStage() {
   const trackId = usePlayer((s) => s.state.track?.id ?? null);
   const hasLyrics = useLyrics((s) => s.current.trackId === trackId && s.current.status === 'ready');
-  const panelShowsLyrics = useUi((s) => s.sidePanel === 'lyrics');
+  const panelShowsLyrics = isShown(useLayout(), 'lyrics');
   const visible = useSettings((s) => s.settings.lyrics.visible);
   const showLyrics = trackId !== null && hasLyrics && visible && !panelShowsLyrics;
   return (

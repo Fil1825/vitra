@@ -16,10 +16,12 @@ use serde::{Deserialize, Deserializer, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::error::AppError;
+use crate::layout::{Layout, LayoutPreset, Module, sanitize_presets};
 use crate::library::LibraryService;
 use crate::lyrics::LyricsService;
 use crate::mini::{MiniPlayer, Mode, SizePreset};
 use crate::player::Player;
+use crate::shortcuts::{self, Shortcuts};
 use crate::window;
 
 /// Emitted to every window with the new [`Settings`] after a change.
@@ -40,6 +42,57 @@ pub struct Settings {
     pub lyrics: LyricsSettings,
     #[serde(deserialize_with = "or_default")]
     pub mini_player: MiniPlayerSettings,
+    /// The main window's modules and where they are (see `layout.rs`).
+    #[serde(deserialize_with = "or_default")]
+    pub layout: Layout,
+    /// Layouts saved under a name.
+    #[serde(deserialize_with = "or_default")]
+    pub layout_presets: Vec<LayoutPreset>,
+    /// Keyboard shortcuts the user changed (see `shortcuts.rs`).
+    #[serde(deserialize_with = "or_default")]
+    pub shortcuts: Shortcuts,
+    /// The level meter module.
+    #[serde(deserialize_with = "or_default")]
+    pub meter: MeterSettings,
+}
+
+/// The level meter module.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct MeterSettings {
+    #[serde(deserialize_with = "or_default")]
+    pub style: MeterStyle,
+}
+
+/// How the level meter draws the spectrum.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MeterStyle {
+    /// Bars rising from the bottom.
+    #[default]
+    Bars,
+    /// Bars growing both ways from the middle.
+    Mirror,
+    /// A smooth line over the bands.
+    Wave,
+}
+
+/// What mpv's audio chain measures for the windows (see `player::level`, `player::spectrum`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AudioMeters {
+    /// The loudness, for the backdrop's pulse.
+    pub pulse: bool,
+    /// The spectrum, for the level meter on screen.
+    pub spectrum: bool,
+}
+
+impl Settings {
+    pub fn audio_meters(&self) -> AudioMeters {
+        AudioMeters {
+            pulse: self.appearance.backdrop_pulse,
+            spectrum: self.layout.shows(Module::Level),
+        }
+    }
 }
 
 /// The mini player window.
@@ -227,6 +280,9 @@ pub struct Appearance {
     /// The animated backdrop swells with the music (its loudness, a kick on beats).
     #[serde(deserialize_with = "or_true")]
     pub backdrop_pulse: bool,
+    /// Covers as spinning records: as the theme says (`auto`), or always / never.
+    #[serde(deserialize_with = "or_default")]
+    pub vinyl: Switch,
 }
 
 impl Default for Appearance {
@@ -240,6 +296,7 @@ impl Default for Appearance {
             window_material: WindowMaterial::Vibrancy,
             artwork_accent: true,
             backdrop_pulse: true,
+            vinyl: Switch::Auto,
         }
     }
 }
@@ -331,6 +388,8 @@ impl Settings {
         if !Path::new(downloads.folder.trim()).is_absolute() {
             downloads.folder.clear();
         }
+        self.layout_presets = sanitize_presets(std::mem::take(&mut self.layout_presets));
+        self.shortcuts = shortcuts::sanitize(std::mem::take(&mut self.shortcuts));
         let scale = &mut self.lyrics.font_scale;
         *scale = if scale.is_finite() && *scale > 0.0 {
             scale.clamp(*FONT_SCALES.start(), *FONT_SCALES.end())
@@ -444,10 +503,10 @@ pub fn set_settings(
     {
         player.links_settings_changed();
     }
-    if saved.appearance.backdrop_pulse != previous.appearance.backdrop_pulse
+    if saved.audio_meters() != previous.audio_meters()
         && let Some(player) = app.try_state::<Player>()
     {
-        player.backdrop_pulse_changed();
+        player.meter_filters_changed();
     }
     if saved.mini_player != previous.mini_player
         && let Some(mini) = app.try_state::<MiniPlayer>()
@@ -487,6 +546,7 @@ mod tests {
             appearance: Appearance {
                 theme: "aurora-night".into(),
                 power_saving: true,
+                vinyl: Switch::On,
                 ..Appearance::default()
             },
             library: LibrarySettings {
@@ -524,6 +584,25 @@ mod tests {
                 click_through: true,
                 hide_main_window: false,
             },
+            layout: serde_json::from_value(serde_json::json!({
+                "zones": { "right": ["sidebar"], "left": ["queue"], "top": ["controls"] },
+                "hidden": [],
+                "widths": { "left": 300, "right": 250 },
+                "weights": { "queue": 2 },
+                "sidebar": "rail"
+            }))
+            .unwrap(),
+            layout_presets: vec![LayoutPreset {
+                name: "Focus".into(),
+                layout: Layout::default(),
+            }],
+            shortcuts: Shortcuts::from([
+                ("mute".to_owned(), None),
+                ("play-pause".to_owned(), Some("KeyK".to_owned())),
+            ]),
+            meter: MeterSettings {
+                style: MeterStyle::Mirror,
+            },
         };
 
         store_in(tmp.path()).set(settings.clone()).unwrap();
@@ -546,7 +625,8 @@ mod tests {
                     "powerSaving": false,
                     "windowMaterial": "vibrancy",
                     "artworkAccent": true,
-                    "backdropPulse": true
+                    "backdropPulse": true,
+                    "vinyl": "auto"
                 },
                 "library": {
                     "addOpenedFiles": true,
@@ -576,7 +656,22 @@ mod tests {
                     "rememberPosition": true,
                     "clickThrough": false,
                     "hideMainWindow": true
-                }
+                },
+                "layout": {
+                    "zones": {
+                        "left": ["sidebar"],
+                        "right": ["queue", "lyrics", "artwork"],
+                        "top": [],
+                        "bottom": ["controls", "level"]
+                    },
+                    "hidden": ["queue", "lyrics", "artwork", "level"],
+                    "widths": { "left": 232.0, "right": 320.0 },
+                    "weights": {},
+                    "sidebar": "expanded"
+                },
+                "layoutPresets": [],
+                "shortcuts": {},
+                "meter": { "style": "bars" }
             })
         );
     }
@@ -733,5 +828,65 @@ mod tests {
         assert_eq!(store_in(tmp.path()).get(), Settings::default());
         assert!(tmp.path().join("settings.json.bak").exists());
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn the_pulse_and_the_spectrum_are_measured_when_shown() {
+        let mut settings = Settings::default();
+        assert_eq!(
+            settings.audio_meters(),
+            AudioMeters {
+                pulse: true,
+                spectrum: false
+            }
+        );
+        settings.appearance.backdrop_pulse = false;
+        settings
+            .layout
+            .hidden
+            .retain(|module| *module != Module::Level);
+        assert_eq!(
+            settings.audio_meters(),
+            AudioMeters {
+                pulse: false,
+                spectrum: true
+            }
+        );
+    }
+
+    #[test]
+    fn a_broken_layout_still_gives_every_module() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("settings.json"),
+            r#"{ "layout": { "zones": "nope" }, "layoutPresets": [{ "name": " ", "layout": {} }] }"#,
+        )
+        .unwrap();
+        let settings = store_in(tmp.path()).get();
+        assert_eq!(settings.layout, Layout::default());
+        assert!(settings.layout_presets.is_empty());
+    }
+
+    #[test]
+    fn broken_shortcuts_are_dropped() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("settings.json"),
+            r#"{ "shortcuts": { "mute": 5, "next": "Mod+KeyN" } }"#,
+        )
+        .unwrap();
+        // A value of the wrong type spoils the whole map for serde: none of it is used.
+        assert!(store_in(tmp.path()).get().shortcuts.is_empty());
+        let store = store_in(tmp.path());
+        let mut settings = store.get();
+        settings.shortcuts = Shortcuts::from([
+            ("next".to_owned(), Some("Mod+KeyN".to_owned())),
+            ("Bad Id".to_owned(), None),
+        ]);
+        let saved = store.set(settings).unwrap();
+        assert_eq!(
+            saved.shortcuts,
+            Shortcuts::from([("next".to_owned(), Some("Mod+KeyN".to_owned()))])
+        );
     }
 }

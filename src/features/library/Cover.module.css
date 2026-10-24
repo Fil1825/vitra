@@ -2,7 +2,7 @@
   display: block;
   width: 100%;
   aspect-ratio: 1;
-  border-radius: var(--vitra-radius-sm);
+  border-radius: var(--vitra-artwork-radius, var(--vitra-radius-sm));
   object-fit: cover;
   background: color-mix(in srgb, var(--vitra-color-text) 6%, transparent);
   box-shadow: inset 0 0 0 1px var(--vitra-color-separator);
@@ -15,15 +15,28 @@
 .placeholder {
   display: grid;
   place-items: center;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--vitra-backdrop-1) 70%, transparent),
-    color-mix(in srgb, var(--vitra-backdrop-3) 70%, transparent)
-  );
+  background: color-mix(in srgb, var(--vitra-color-text) 7%, transparent);
 }
 
 .icon {
   width: 38%;
   height: 38%;
   color: color-mix(in srgb, var(--vitra-color-text) 55%, transparent);
+}
+
+/* Like the player's covers: the symbol in the placeholder color. */
+.symbol {
+  display: block;
+  width: 52%;
+  height: 52%;
+  color: var(
+    --vitra-artwork-placeholder,
+    color-mix(in srgb, var(--vitra-color-text) 38%, transparent)
+  );
+}
+
+.symbol svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }

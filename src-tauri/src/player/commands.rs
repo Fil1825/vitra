@@ -21,10 +21,11 @@ pub async fn player_open(player: State<'_, Player>, paths: Vec<PathBuf>) -> Resu
     player.open(paths).await
 }
 
-/// A window starts or stops showing the backdrop's pulse (see [`Player::set_level_meter`]).
+/// A window starts or stops showing the backdrop's pulse or the spectrum (see
+/// [`Player::set_meters`]).
 #[tauri::command]
-pub fn player_level_meter(player: State<'_, Player>, enabled: bool) {
-    player.set_level_meter(enabled);
+pub fn player_meters(player: State<'_, Player>, pulse: bool, spectrum: bool) {
+    player.set_meters(pulse, spectrum);
 }
 
 #[tauri::command]

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fil1825/vitra/main/docs/theme.schema.json",
+  "schemaVersion": 1,
+  "id": "dunes",
+  "name": "Dunes",
+  "author": "Vitra",
+  "appearance": "light",
+  "colors": {
+    "background": "#F6EBDD",
+    "text": "#2B1E14",
+    "textSecondary": "#2B1E14A6",
+    "textTertiary": "#2B1E1470",
+    "accent": "#B8492F",
+    "accentContrast": "#FFF8F0",
+    "separator": "#2B1E1424",
+    "danger": "#B3261E"
+  },
+  "glass": {
+    "blur": 28,
+    "saturation": 1.3,
+    "tint": "#FFF4E8",
+    "opacity": 0.55,
+    "border": "#FFFFFF73",
+    "borderWidth": 1,
+    "highlight": 0.6,
+    "highlightColor": "#FFFFFF",
+    "refraction": 0.3,
+    "shadow": "#5A3A1E38",
+    "shadowBlur": 40
+  },
+  "typography": {
+    "fontFamily": "'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif",
+    "fontSize": 14,
+    "fonts": [{ "family": "Manrope", "src": "assets/manrope.woff2", "weight": "200 800" }]
+  },
+  "radius": {
+    "small": 10,
+    "medium": 16,
+    "large": 24
+  },
+  "spacing": {
+    "unit": 4
+  },
+  "background": {
+    "baseOpacity": 0.5,
+    "gradient": ["#F2A65A", "#E07A5F", "#F4D6A0"],
+    "gradientOpacity": 0.3,
+    "artworkOpacity": 0.3,
+    "useArtwork": true,
+    "image": { "src": "assets/dunes.jpg", "opacity": 0.8, "fit": "cover" }
+  },
+  "accentFromArtwork": false,
+  "motion": {
+    "duration": 280,
+    "easing": "standard",
+    "backgroundSpeed": 0.5
+  },
+  "layout": {
+    "zones": {
+      "left": ["sidebar", "artwork"],
+      "right": ["queue", "lyrics"],
+      "top": [],
+      "bottom": ["controls", "level"]
+    },
+    "hidden": ["queue", "lyrics", "level"],
+    "widths": { "left": 260, "right": 320 },
+    "weights": { "artwork": 0.8 },
+    "sidebar": "expanded"
+  }
+}

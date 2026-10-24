@@ -9,6 +9,7 @@ import { initLyrics } from '../../stores/lyrics.ts';
 import { initPlayer } from '../../stores/player.ts';
 import { initQueue } from '../../stores/queue.ts';
 import { initSettings, useSettings } from '../../stores/settings.ts';
+import { initThemes } from '../../stores/themes.ts';
 import '../../styles/global.css';
 import './mini.css';
 import { MiniApp } from './MiniApp.tsx';
@@ -17,7 +18,14 @@ import { MiniApp } from './MiniApp.tsx';
 async function boot(root: HTMLElement): Promise<void> {
   suppressWebViewMenu();
   await startBackendBridge();
-  await Promise.all([initSettings(), initEnvironment(), initPlayer(), initQueue(), initLyrics()]);
+  await Promise.all([
+    initSettings(),
+    initEnvironment(),
+    initPlayer(),
+    initQueue(),
+    initLyrics(),
+    initThemes(),
+  ]);
   await initI18n(resolveLocale(useSettings.getState().settings.language, navigator.languages));
 
   createRoot(root).render(

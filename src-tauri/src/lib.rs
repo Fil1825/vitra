@@ -2,13 +2,16 @@
 
 mod drag;
 mod error;
+mod layout;
 mod library;
 mod links;
 mod lyrics;
 mod mini;
 mod player;
 mod settings;
+mod shortcuts;
 mod sidecar;
+mod themes;
 mod window;
 
 use std::path::PathBuf;
@@ -54,8 +57,26 @@ pub fn run() {
                 });
             },
         )
+        // Pictures and fonts of installed themes.
+        .register_asynchronous_uri_scheme_protocol(
+            themes::THEME_SCHEME,
+            |ctx, request, responder| {
+                let app = ctx.app_handle().clone();
+                let path = request.uri().path().to_owned();
+                tauri::async_runtime::spawn_blocking(move || {
+                    let response = app.try_state::<themes::ThemeStore>().map_or_else(
+                        || player::http_status(StatusCode::SERVICE_UNAVAILABLE),
+                        |store| store.respond(&path),
+                    );
+                    responder.respond(response);
+                });
+            },
+        )
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
+            app.manage(themes::ThemeStore::new(
+                app.path().app_data_dir()?.join("themes"),
+            ));
             let settings = settings::SettingsStore::load(config_dir.join("settings.json"));
             let material = settings.get().appearance.window_material;
             app.manage(settings);
@@ -127,7 +148,7 @@ pub fn run() {
             window::window_effects,
             player::player_state,
             player::player_open,
-            player::player_level_meter,
+            player::player_meters,
             player::player_play,
             player::player_pause,
             player::player_toggle,
@@ -207,6 +228,15 @@ pub fn run() {
             mini::mini_toggle,
             mini::mini_expand,
             mini::app_quit,
+            themes::themes_list,
+            themes::theme_open,
+            themes::theme_install,
+            themes::theme_discard,
+            themes::theme_save,
+            themes::theme_duplicate,
+            themes::theme_add_asset,
+            themes::theme_export,
+            themes::theme_remove,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Vitra");

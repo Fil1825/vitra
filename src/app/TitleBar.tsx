@@ -2,19 +2,27 @@ import {
   ChevronLeft,
   ChevronRight,
   FolderOpen,
+  LayoutDashboard,
   Link2,
   PanelLeftClose,
   PanelLeftOpen,
   Settings2,
 } from 'lucide-react';
-import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { IconButton } from '../components/ui/IconButton.tsx';
+import {
+  nextSidebarMode,
+  setCustomizing,
+  setSidebarMode,
+  sidebarMode,
+  useCustomizing,
+  useLayout,
+} from '../layout/state.ts';
 import { pickAndPlay } from '../lib/openFiles.ts';
-import { useEnvironment } from '../stores/environment.ts';
+import { useShortcutLabel, withShortcut } from '../shortcuts/useShortcuts.ts';
 import { useNavigation } from '../stores/navigation.ts';
-import { nextSidebarMode, useUi } from '../stores/ui.ts';
+import { useUi } from '../stores/ui.ts';
 import styles from './TitleBar.module.css';
 
 export interface TitleBarProps {
@@ -29,76 +37,73 @@ export function TitleBar({ className, onOpenSettings }: TitleBarProps) {
   const canGoForward = useNavigation((s) => s.forward.length > 0);
   const goBack = useNavigation((s) => s.goBack);
   const goForward = useNavigation((s) => s.goForward);
-  const sidebar = useUi((s) => s.sidebar);
-  const setSidebar = useUi((s) => s.setSidebar);
-  const mac = useEnvironment((s) => s.platform === 'macos');
+  const sidebar = sidebarMode(useLayout());
+  const customizing = useCustomizing((s) => s.on);
   const nextSidebar = nextSidebarMode(sidebar);
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const command = event.metaKey || event.ctrlKey;
-      // Cmd+Option+S / Ctrl+Alt+S. Option changes `key` on macOS (ß), so match the key itself.
-      if (command && event.altKey && !event.shiftKey && event.code === 'KeyS') {
-        event.preventDefault();
-        const ui = useUi.getState();
-        ui.setSidebar(nextSidebarMode(ui.sidebar));
-        return;
-      }
-      if (command && !event.altKey && event.key.toLowerCase() === 'f') {
-        event.preventDefault();
-        useUi.getState().focusSearch();
-        return;
-      }
-      // Cmd+[ / Cmd+] (macOS) and Alt+←/→ (elsewhere), like a browser.
-      const back =
-        ((event.metaKey || event.ctrlKey) && event.key === '[') ||
-        (event.altKey && event.key === 'ArrowLeft');
-      const forward =
-        ((event.metaKey || event.ctrlKey) && event.key === ']') ||
-        (event.altKey && event.key === 'ArrowRight');
-      const typing = event.target instanceof HTMLInputElement;
-      if ((back || forward) && !typing) {
-        event.preventDefault();
-        if (back) {
-          useNavigation.getState().goBack();
-        } else {
-          useNavigation.getState().goForward();
-        }
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  const shortcut = {
+    sidebar: useShortcutLabel('sidebar'),
+    back: useShortcutLabel('back'),
+    forward: useShortcutLabel('forward'),
+    open: useShortcutLabel('open-files'),
+    link: useShortcutLabel('open-link'),
+    customize: useShortcutLabel('customize-layout'),
+    settings: useShortcutLabel('settings'),
+  };
 
   return (
-    <header className={`${styles.titleBar} ${className ?? ''}`} data-tauri-drag-region>
+    <header
+      className={`${styles.titleBar} ${className ?? ''}`}
+      data-part="header"
+      data-tauri-drag-region
+    >
       <div className={styles.history}>
         <IconButton
-          label={`${t(`nav.sidebarNext.${nextSidebar}`)} (${mac ? '⌥⌘S' : 'Ctrl+Alt+S'})`}
-          onClick={() => setSidebar(nextSidebar)}
+          label={withShortcut(t(`nav.sidebarNext.${nextSidebar}`), shortcut.sidebar)}
+          onClick={() => setSidebarMode(nextSidebar)}
         >
           {sidebar === 'hidden' ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
         </IconButton>
-        <IconButton label={t('nav.back')} disabled={!canGoBack} onClick={goBack}>
+        <IconButton
+          label={withShortcut(t('nav.back'), shortcut.back)}
+          disabled={!canGoBack}
+          onClick={goBack}
+        >
           <ChevronLeft size={20} />
         </IconButton>
-        <IconButton label={t('nav.forward')} disabled={!canGoForward} onClick={goForward}>
+        <IconButton
+          label={withShortcut(t('nav.forward'), shortcut.forward)}
+          disabled={!canGoForward}
+          onClick={goForward}
+        >
           <ChevronRight size={20} />
         </IconButton>
       </div>
       <div className={styles.actions}>
         <IconButton
-          label={t('player.open')}
+          label={withShortcut(t('player.open'), shortcut.open)}
           onClick={() =>
             pickAndPlay().catch((err: unknown) => console.error('Opening files failed', err))
           }
         >
           <FolderOpen size={18} />
         </IconButton>
-        <IconButton label={t('links.openLink')} onClick={() => useUi.getState().openLink('')}>
+        <IconButton
+          label={withShortcut(t('links.openLink'), shortcut.link)}
+          onClick={() => useUi.getState().openLink('')}
+        >
           <Link2 size={18} />
         </IconButton>
-        <IconButton label={t('settings.open')} onClick={onOpenSettings}>
+        <IconButton
+          label={withShortcut(t('layout.customize'), shortcut.customize)}
+          aria-pressed={customizing}
+          onClick={() => setCustomizing(!customizing)}
+        >
+          <LayoutDashboard size={18} />
+        </IconButton>
+        <IconButton
+          label={withShortcut(t('settings.open'), shortcut.settings)}
+          onClick={onOpenSettings}
+        >
           <Settings2 size={18} />
         </IconButton>
       </div>

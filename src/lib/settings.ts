@@ -1,5 +1,6 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
+import { DEFAULT_LAYOUT, type Layout } from '../layout/model.ts';
 import type { AudioFormat } from './links.ts';
 import type { MiniMode, MiniSize } from './mini.ts';
 
@@ -24,6 +25,18 @@ export interface AppearanceSettings {
   artworkAccent: boolean;
   /** The animated backdrop swells with the music. */
   backdropPulse: boolean;
+  /** Covers as spinning records: as the theme says (`auto`), always or never. */
+  vinyl: Switch;
+}
+
+/** How the level meter draws the spectrum. */
+export type MeterStyle = 'bars' | 'mirror' | 'wave';
+
+export const METER_STYLES: readonly MeterStyle[] = ['bars', 'mirror', 'wave'];
+
+/** The level meter module. */
+export interface MeterSettings {
+  style: MeterStyle;
 }
 
 /** How a credit like "A feat. B" or "A, B" is split into artists. */
@@ -93,6 +106,12 @@ export interface MiniPlayerSettings {
   hideMainWindow: boolean;
 }
 
+/** A layout saved under a name. */
+export interface LayoutPreset {
+  name: string;
+  layout: Layout;
+}
+
 export interface Settings {
   language: Language;
   appearance: AppearanceSettings;
@@ -100,6 +119,12 @@ export interface Settings {
   downloads: DownloadSettings;
   lyrics: LyricsSettings;
   miniPlayer: MiniPlayerSettings;
+  /** The main window's modules and where they are (normalized by the backend). */
+  layout: Layout;
+  layoutPresets: LayoutPreset[];
+  /** Keyboard shortcuts the user changed: action id → combination, `null` for none. */
+  shortcuts: Record<string, string | null>;
+  meter: MeterSettings;
 }
 
 /** The range of the mini player's background opacity. */
@@ -119,6 +144,7 @@ export const DEFAULT_SETTINGS: Settings = {
     windowMaterial: 'vibrancy',
     artworkAccent: true,
     backdropPulse: true,
+    vinyl: 'auto',
   },
   library: { addOpenedFiles: true, artistSplitting: { enabled: true, exceptions: [] } },
   downloads: {
@@ -141,6 +167,10 @@ export const DEFAULT_SETTINGS: Settings = {
     clickThrough: false,
     hideMainWindow: true,
   },
+  layout: DEFAULT_LAYOUT,
+  layoutPresets: [],
+  shortcuts: {},
+  meter: { style: 'bars' },
 };
 
 /** Tauri event carrying the new settings after any window changed them. */

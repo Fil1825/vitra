@@ -1,0 +1,70 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fil1825/vitra/main/docs/theme.schema.json",
+  "schemaVersion": 1,
+  "id": "neon-grid",
+  "name": "Neon Grid",
+  "author": "Vitra",
+  "appearance": "dark",
+  "colors": {
+    "background": "#0B0614",
+    "text": "#F5E9FF",
+    "textSecondary": "#F5E9FFA8",
+    "textTertiary": "#F5E9FF66",
+    "accent": "#FF3EA5",
+    "accentContrast": "#12041F",
+    "separator": "#F5E9FF1F",
+    "danger": "#FF5470"
+  },
+  "glass": {
+    "blur": 24,
+    "saturation": 1.8,
+    "tint": "#1A0B2E",
+    "opacity": 0.55,
+    "border": "#FF3EA54D",
+    "borderWidth": 1,
+    "highlight": 0.7,
+    "highlightColor": "#7DF9FF",
+    "refraction": 0.6,
+    "shadow": "#FF3EA533",
+    "shadowBlur": 56
+  },
+  "typography": {
+    "fontFamily": "'Exo 2', system-ui, -apple-system, 'Segoe UI', sans-serif",
+    "fontSize": 14,
+    "fonts": [{ "family": "Exo 2", "src": "assets/exo2.woff2", "weight": "100 900" }]
+  },
+  "radius": {
+    "small": 6,
+    "medium": 10,
+    "large": 16
+  },
+  "spacing": {
+    "unit": 4
+  },
+  "background": {
+    "baseOpacity": 0.85,
+    "gradient": ["#FF3EA5", "#7B2FF7", "#00E5FF"],
+    "gradientOpacity": 0.4,
+    "artworkOpacity": 0.3,
+    "useArtwork": true,
+    "image": { "src": "assets/neon-grid.jpg", "opacity": 0.65, "fit": "cover" }
+  },
+  "accentFromArtwork": false,
+  "motion": {
+    "duration": 220,
+    "easing": "emphasized",
+    "backgroundSpeed": 1.2
+  },
+  "layout": {
+    "zones": {
+      "left": ["sidebar"],
+      "right": ["queue", "lyrics", "artwork"],
+      "top": ["controls", "level"],
+      "bottom": []
+    },
+    "hidden": ["queue", "lyrics", "artwork"],
+    "widths": { "left": 232, "right": 320 },
+    "weights": {},
+    "sidebar": "rail"
+  }
+}

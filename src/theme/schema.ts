@@ -1,8 +1,10 @@
 import { z } from 'zod';
 
+import { layoutSchema } from '../layout/model.ts';
+
 // A theme is plain data: it is turned into CSS custom properties and never executed.
-// This schema is the single source for built-in themes and, from stage 7, imported
-// `.vitratheme` files (docs/theme.schema.json will be generated from it).
+// This schema is the single source for built-in themes and imported `.vitratheme` files;
+// docs/theme.schema.json is generated from it (`npm run theme-schema`).
 
 const hexColor = z
   .string()
@@ -22,6 +24,18 @@ const fontStack = z
   .max(300)
   .regex(/^[\w\s,'"-]+$/, 'Only font names, quotes, commas, spaces and hyphens are allowed');
 
+/** Image files a theme may carry in its `assets/` folder (no SVG: it can hold scripts). */
+export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif'] as const;
+/** Font files a theme may carry. */
+export const FONT_EXTENSIONS = ['woff2', 'woff', 'ttf', 'otf'] as const;
+
+const assetPath = (extensions: readonly string[]) =>
+  z.string().regex(
+    // No flags: the pattern goes into the JSON Schema as it is.
+    new RegExp(`^assets/[A-Za-z0-9][A-Za-z0-9._-]{0,63}\\.(?:${extensions.join('|')})$`),
+    `A file in the theme's assets folder: assets/<name>.${extensions.join('|')}`,
+  );
+
 /** Named easings themes can pick from; free-form timing functions are not accepted. */
 export const EASINGS = {
   standard: 'cubic-bezier(0.2, 0, 0, 1)',
@@ -32,6 +46,8 @@ export const EASINGS = {
 const easingName = z.enum(['standard', 'emphasized', 'linear']);
 
 export const themeSchema = z.object({
+  /** Where an editor finds this schema (docs/theme.schema.json); Vitra ignores it. */
+  $schema: z.string().max(300).optional(),
   schemaVersion: z.literal(1),
   id: z.string().regex(/^[a-z0-9-]{1,64}$/, 'Lowercase letters, digits and hyphens only'),
   name: z.string().min(1).max(64),
@@ -71,6 +87,26 @@ export const themeSchema = z.object({
   typography: z.object({
     fontFamily: fontStack,
     fontSize: z.number().min(11).max(20),
+    /** Font files the theme brings; `fontFamily` names them like any installed font. */
+    fonts: z
+      .array(
+        z.object({
+          family: z
+            .string()
+            .min(1)
+            .max(64)
+            .regex(/^[\w -]+$/, 'Letters, digits, spaces, underscores and hyphens only'),
+          src: assetPath(FONT_EXTENSIONS),
+          /** A weight (400) or a range for variable fonts ("100 900"). */
+          weight: z
+            .string()
+            .regex(/^[1-9]00(?: [1-9]00)?$/, 'A weight such as 400, or a range such as 100 900')
+            .optional(),
+          style: z.enum(['normal', 'italic']).optional(),
+        }),
+      )
+      .max(8)
+      .optional(),
   }),
   radius: z.object({ small: radius, medium: radius, large: radius }),
   spacing: z.object({ unit: z.number().min(2).max(8) }),
@@ -84,9 +120,29 @@ export const themeSchema = z.object({
     artworkOpacity: fraction,
     /** Replace the gradient with colors from the playing track's artwork. */
     useArtwork: z.boolean(),
+    /** A picture from the theme behind everything, under the artwork while a track plays. */
+    image: z
+      .object({
+        src: assetPath(IMAGE_EXTENSIONS),
+        opacity: fraction,
+        /** `cover` fills the window, `tile` repeats the picture at its own size. */
+        fit: z.enum(['cover', 'contain', 'tile']),
+      })
+      .optional(),
   }),
   /** Take the accent color from the playing track's artwork. */
   accentFromArtwork: z.boolean(),
+  /** How covers look. Left out: square, still, the placeholder in a soft text color. */
+  artwork: z
+    .object({
+      /** Square (the theme's corner radii), well rounded, or round. */
+      shape: z.enum(['square', 'rounded', 'circle']),
+      /** The playing track's covers are records: round, with grooves, turning while it plays. */
+      vinyl: z.boolean(),
+      /** The color of the symbol shown where a track has no cover. */
+      placeholderColor: hexColor.optional(),
+    })
+    .optional(),
   motion: z.object({
     /** Base transition duration in ms. */
     duration: z.number().int().min(0).max(2000),
@@ -94,6 +150,8 @@ export const themeSchema = z.object({
     /** Speed of the background gradient flow; 0 stops it. */
     backgroundSpeed: z.number().min(0).max(4),
   }),
+  /** A layout the theme suggests; applying it is the user's choice. */
+  layout: layoutSchema.optional(),
 });
 
 export type Theme = z.infer<typeof themeSchema>;

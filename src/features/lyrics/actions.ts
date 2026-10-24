@@ -1,3 +1,5 @@
+import { isShown } from '../../layout/model.ts';
+import { setModuleShown, toggleModule } from '../../layout/state.ts';
 import type { Track } from '../../lib/player.ts';
 import { useSettings } from '../../stores/settings.ts';
 import { useUi } from '../../stores/ui.ts';
@@ -21,4 +23,18 @@ export function setLyricsVisible(visible: boolean): void {
     .getState()
     .update((s) => ({ ...s, lyrics: { ...s.lyrics, visible } }))
     .catch((err: unknown) => console.error('Showing or hiding lyrics failed', err));
+}
+
+/**
+ * The lyrics button and shortcut: shows the lyrics module, or hides it. Lyrics hidden
+ * everywhere come back in their module, wherever they were hidden.
+ */
+export function toggleLyrics(): void {
+  const { settings } = useSettings.getState();
+  if (!settings.lyrics.visible) {
+    setLyricsVisible(true);
+    if (!isShown(settings.layout, 'lyrics')) setModuleShown('lyrics', true);
+  } else {
+    toggleModule('lyrics');
+  }
 }

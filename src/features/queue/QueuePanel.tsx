@@ -2,15 +2,18 @@ import { AudioLines, GripVertical, X } from 'lucide-react';
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { CoverArt } from '../../components/CoverArt/index.ts';
 import { Glass } from '../../components/Glass/index.ts';
 import { IconButton } from '../../components/ui/IconButton.tsx';
 import { SegmentedControl } from '../../components/ui/SegmentedControl.tsx';
 import { formatTime } from '../../lib/format.ts';
-import { library } from '../../lib/library.ts';
+import { coverUrl, library } from '../../lib/library.ts';
+import { artworkUrl } from '../../lib/player.ts';
 import { queue, type QueueItem } from '../../lib/queue.ts';
 import { useRowDrag } from '../../lib/reorder.ts';
 import { useLibraryData } from '../../lib/useLibraryData.ts';
 import { useVirtualRange } from '../../lib/virtual.ts';
+import { usePlayer } from '../../stores/player.ts';
 import { useQueue } from '../../stores/queue.ts';
 import { playTracks, report } from '../library/actions.ts';
 import { Cover } from '../library/Cover.tsx';
@@ -48,10 +51,20 @@ export function QueuePanel({ className }: { className?: string }) {
 
 function Row({ item, playing }: { item: QueueItem; playing?: boolean }) {
   const { t } = useTranslation();
+  // The playing track's own artwork when the library has no cover for it (a file opened
+  // from elsewhere).
+  const artwork = usePlayer((s) => s.state.track?.artwork?.id ?? null);
   return (
     <>
       <span className={styles.art}>
-        <Cover id={item.cover} />
+        {playing ? (
+          <CoverArt
+            src={item.cover ? coverUrl(item.cover) : artwork ? artworkUrl(artwork) : null}
+            live
+          />
+        ) : (
+          <Cover id={item.cover} />
+        )}
         {playing && (
           <span className={styles.playingBadge}>
             <AudioLines size={14} aria-label={t('queue.playing')} />
