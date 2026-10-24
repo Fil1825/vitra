@@ -234,7 +234,7 @@ and an explicit list of checks that can only be done on a Mac.
   bottom bars around the main view; modules move between zones, columns resize), not a
   free grid; the theme editor is a **panel over the window**, so the whole app is the
   live preview.
-- Done (PR #8, in review):
+- Done and accepted (PR #8; the owner checked it on a Mac, including the review round below):
   - Themes: the schema gained fonts, a background picture and a layout; `.vitratheme`
     import (drop or button; the CSS is cleaned and what was taken out is shown; a theme's
     layout is offered, not forced), export, duplicate, delete; `crates/themes` reads
