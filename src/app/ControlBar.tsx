@@ -19,6 +19,7 @@ import {
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { CoverArt } from '../components/CoverArt/index.ts';
 import { Glass } from '../components/Glass/index.ts';
 import { IconButton } from '../components/ui/IconButton.tsx';
 import { Slider } from '../components/ui/Slider.tsx';
@@ -113,7 +114,7 @@ export function ControlBar({ className }: { className?: string }) {
               })
             }
           >
-            <img className={styles.artwork} src={artworkUrl(track.artwork.id)} alt="" />
+            <CoverArt src={artworkUrl(track.artwork.id)} live className={styles.artwork} />
           </button>
         ) : (
           <button
@@ -122,7 +123,7 @@ export function ControlBar({ className }: { className?: string }) {
             aria-label={t('nav.nowPlaying')}
             onClick={() => go({ view: 'nowPlaying' })}
           >
-            <div className={styles.artwork} aria-hidden="true" />
+            <CoverArt src={null} live={track !== null} className={styles.artwork} />
           </button>
         )}
         <div className={styles.trackText}>

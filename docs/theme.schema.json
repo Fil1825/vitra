@@ -283,6 +283,24 @@
     "accentFromArtwork": {
       "type": "boolean"
     },
+    "artwork": {
+      "type": "object",
+      "properties": {
+        "shape": {
+          "type": "string",
+          "enum": ["square", "rounded", "circle"]
+        },
+        "vinyl": {
+          "type": "boolean"
+        },
+        "placeholderColor": {
+          "type": "string",
+          "pattern": "^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+        }
+      },
+      "required": ["shape", "vinyl"],
+      "additionalProperties": false
+    },
     "motion": {
       "type": "object",
       "properties": {

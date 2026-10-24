@@ -38,6 +38,11 @@
   --glass-radius: 0px;
 }
 
+/* Windows 11 rounds the window itself, by 8 px (see `platform::round_window`). */
+:root[data-platform='windows'] .mini {
+  --glass-radius: 8px;
+}
+
 .mini[data-mode='slim'] {
   --_rows: 3.6;
   --_cols: 24;
@@ -95,19 +100,18 @@
 }
 
 .artwork {
+  --cover-radius: 0.45em;
+
   flex: none;
   align-self: center;
-  /* Both sides set: an image would otherwise take its own size. */
+  /* Both sides set (see Gotchas: percentages don't resolve here on macOS). */
   width: var(--_cover);
   height: var(--_cover);
-  border-radius: 0.45em;
-  object-fit: cover;
-  background: color-mix(in srgb, var(--vitra-color-text) 10%, transparent);
   box-shadow: 0 0.15em 0.6em rgb(0 0 0 / 25%);
 }
 
 .mini[data-mode='slim'] .artwork {
-  border-radius: 0.3em;
+  --cover-radius: 0.3em;
 }
 
 /*

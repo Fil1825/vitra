@@ -5,6 +5,9 @@ const px = (value: number) => `${value}px`;
 /** Spacing steps exposed as `--vitra-space-N` (N × theme spacing unit). */
 export const SPACE_STEPS = [1, 2, 3, 4, 5, 6, 8, 10, 12] as const;
 
+/** Corner radius of covers per artwork shape (a share of the cover, so every size matches). */
+export const ARTWORK_RADIUS = { square: 'initial', rounded: '22%', circle: '50%' } as const;
+
 /** Number of color stops the backdrop uses; shorter gradients repeat their colors. */
 export const BACKDROP_COLORS = 3;
 
@@ -55,6 +58,11 @@ export function themeToCssVars(theme: Theme): Record<string, string> {
 
     '--vitra-motion-duration': `${motion.duration}ms`,
     '--vitra-motion-easing': EASINGS[motion.easing],
+
+    // `initial` leaves each place its own fallback (square covers keep their corners, the
+    // placeholder its soft text color), and clears the last theme's value.
+    '--vitra-artwork-radius': ARTWORK_RADIUS[theme.artwork?.shape ?? 'square'],
+    '--vitra-artwork-placeholder': theme.artwork?.placeholderColor ?? 'initial',
   };
 
   for (const step of SPACE_STEPS) {

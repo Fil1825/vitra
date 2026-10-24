@@ -17,24 +17,16 @@
   flex: none;
   padding: 0;
   border: 0;
-  border-radius: var(--vitra-radius-sm);
+  border-radius: var(--vitra-artwork-radius, var(--vitra-radius-sm));
   background: transparent;
   cursor: pointer;
 }
 
 .artwork {
-  display: block;
-  flex: none;
-  width: 48px;
-  height: 48px;
-  border-radius: var(--vitra-radius-sm);
-  object-fit: cover;
-  background: linear-gradient(135deg, var(--vitra-backdrop-1), var(--vitra-backdrop-3));
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--vitra-color-background) 45%, transparent);
-}
+  --cover-radius: var(--vitra-radius-sm);
 
-div.artwork {
-  opacity: 0.6;
+  width: 48px;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--vitra-color-background) 45%, transparent);
 }
 
 .trackText {

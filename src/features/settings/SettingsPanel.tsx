@@ -175,6 +175,18 @@ export function SettingsPanel({ onClose }: { onClose(): void }) {
                 onChange={(refraction) => setAppearance({ refraction })}
               />
             </Row>
+            <Row label={t('settings.vinyl')} hint={t('settings.vinylHint')}>
+              <SegmentedControl
+                label={t('settings.vinyl')}
+                value={settings.appearance.vinyl}
+                options={[
+                  { value: 'auto', label: t('settings.vinylAuto') },
+                  { value: 'on', label: t('settings.switch.on') },
+                  { value: 'off', label: t('settings.switch.off') },
+                ]}
+                onChange={(vinyl) => setAppearance({ vinyl })}
+              />
+            </Row>
             <Row
               label={t('settings.artworkAccent')}
               hint={t('settings.artworkAccentHint')}

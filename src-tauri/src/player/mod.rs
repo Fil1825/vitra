@@ -14,6 +14,7 @@ mod commands;
 mod level;
 mod queue;
 mod session;
+mod spectrum;
 mod state;
 
 use std::collections::VecDeque;
@@ -35,7 +36,7 @@ use crate::error::AppError;
 use crate::library::{LibraryService, entry_from_track};
 use crate::links::LinkService;
 use crate::lyrics::{LyricsService, TrackInfo};
-use crate::settings::SettingsStore;
+use crate::settings::{AudioMeters, SettingsStore};
 use crate::sidecar::{self, Sidecar};
 
 pub use artwork::{
@@ -126,9 +127,11 @@ struct Inner {
     saved_playback: Mutex<String>,
     /// What mpv's yt-dlp hook logged while opening the current link (see [`hook_line`]).
     hook_log: Mutex<Vec<String>>,
-    /// A window shows the backdrop's pulse: read the audio level (see [`level`]).
-    level_wanted: AtomicBool,
-    level_running: AtomicBool,
+    /// A window shows the backdrop's pulse (see [`level`]) or the spectrum (see
+    /// [`spectrum`]): read them from mpv while one does.
+    pulse_wanted: AtomicBool,
+    spectrum_wanted: AtomicBool,
+    meters_running: AtomicBool,
 }
 
 /// Lines of the hook's log kept per link: its errors are a few lines of yt-dlp's stderr.
@@ -182,8 +185,9 @@ impl Player {
             queue_dirty: AtomicBool::new(false),
             saved_playback: Mutex::new(String::new()),
             hook_log: Mutex::new(Vec::new()),
-            level_wanted: AtomicBool::new(false),
-            level_running: AtomicBool::new(false),
+            pulse_wanted: AtomicBool::new(false),
+            spectrum_wanted: AtomicBool::new(false),
+            meters_running: AtomicBool::new(false),
         }))
     }
 
@@ -1338,7 +1342,7 @@ impl Player {
         // "unrecognized file format".
         command(client, vec![json!("request_log_messages"), json!("warn")]).await?;
         self.set_ytdl_options(client).await;
-        self.set_level_filter(client, false).await;
+        self.set_meter_filters(client, false).await;
         let current = lock(&self.0.queue).current().cloned();
         let waiting = self.0.load_waiting.load(Ordering::Relaxed);
         if let (Status::Playing | Status::Paused | Status::Loading, Some(item), false) =
@@ -1384,50 +1388,61 @@ impl Player {
         }
     }
 
-    /// Whether something shows the music's level: the backdrop's pulse (the setting) or the
-    /// level meter in the window's layout. The level filter is in mpv's audio chain only
-    /// then. Changing the chain can click, so it isn't touched for a window being hidden;
-    /// reading the level stops then instead ([`Self::set_level_meter`]).
-    fn measures_level(&self) -> bool {
-        self.0
-            .app
-            .try_state::<SettingsStore>()
-            .is_some_and(|settings| settings.get().measures_level())
+    /// What the settings ask mpv's audio chain to measure: the loudness while the backdrop's
+    /// pulse is on, the spectrum while the level meter is in the window's layout. Changing
+    /// the chain can click, so it isn't touched for a window being hidden; reading stops
+    /// then instead ([`Self::set_meters`]).
+    fn audio_meters(&self) -> AudioMeters {
+        self.0.app.try_state::<SettingsStore>().map_or(
+            AudioMeters {
+                pulse: false,
+                spectrum: false,
+            },
+            |settings| settings.get().audio_meters(),
+        )
     }
 
-    /// Puts the level filter into mpv's audio chain if anything shows the level; `replace`
-    /// takes out the one already there first (a fresh mpv has none).
-    async fn set_level_filter(&self, client: &Client, replace: bool) {
+    /// Puts the measuring filters the settings ask for into mpv's audio chain; `replace` takes
+    /// out the ones already there first (a fresh mpv has none).
+    async fn set_meter_filters(&self, client: &Client, replace: bool) {
         if replace {
-            let label = format!("@{}", level::FILTER_LABEL);
-            let _ = command(client, vec![json!("af"), json!("remove"), json!(label)]).await;
+            for label in [level::FILTER_LABEL, spectrum::FILTER_LABEL] {
+                let label = format!("@{label}");
+                let _ = command(client, vec![json!("af"), json!("remove"), json!(label)]).await;
+            }
         }
-        if self.measures_level()
-            && let Err(err) = command(
-                client,
-                vec![json!("af"), json!("add"), json!(level::filter())],
-            )
-            .await
-        {
-            log::warn!("cannot measure the audio level: {err}");
+        let meters = self.audio_meters();
+        let filters = [
+            (meters.pulse, level::filter()),
+            (meters.spectrum, spectrum::filter()),
+        ];
+        for (wanted, filter) in filters {
+            if wanted
+                && let Err(err) =
+                    command(client, vec![json!("af"), json!("add"), json!(filter)]).await
+            {
+                log::warn!("cannot measure the audio: {err}");
+            }
         }
     }
 
     /// The backdrop pulse was switched, or the level meter shown or hidden.
-    pub fn level_filter_changed(&self) {
+    pub fn meter_filters_changed(&self) {
         let Ok(client) = self.client() else {
             return;
         };
         let player = self.clone();
-        tauri::async_runtime::spawn(async move { player.set_level_filter(&client, true).await });
+        tauri::async_runtime::spawn(async move { player.set_meter_filters(&client, true).await });
     }
 
-    /// A window starts or stops showing the pulse (it is visible, motion is on and so is
-    /// the setting). While one does, the level is read and sent as `player://level`.
-    pub fn set_level_meter(&self, wanted: bool) {
-        self.0.level_wanted.store(wanted, Ordering::Relaxed);
-        if wanted && !self.0.level_running.swap(true, Ordering::Relaxed) {
-            tauri::async_runtime::spawn(meter_level(self.clone()));
+    /// What a window shows: the pulse (it is visible, motion is on and so is the setting)
+    /// and the spectrum (the level meter is on screen). While one of them is wanted, they are
+    /// read and sent as `player://level` and `player://spectrum`.
+    pub fn set_meters(&self, pulse: bool, spectrum: bool) {
+        self.0.pulse_wanted.store(pulse, Ordering::Relaxed);
+        self.0.spectrum_wanted.store(spectrum, Ordering::Relaxed);
+        if (pulse || spectrum) && !self.0.meters_running.swap(true, Ordering::Relaxed) {
+            tauri::async_runtime::spawn(read_meters(self.clone()));
         }
     }
 
@@ -1662,28 +1677,73 @@ fn mpv_args(with_newer_options: bool, helpers: &LinkHelpers) -> Vec<OsString> {
     args
 }
 
-/// Reads the audio level while a window wants it; quieter (less often) while nothing plays.
-async fn meter_level(player: Player) {
+/// Reads the pulse and the spectrum while a window wants them; quieter (less often) while
+/// nothing plays.
+async fn read_meters(player: Player) {
     let mut envelope = level::Envelope::default();
-    let mut sent = 0.0_f64;
-    let property = format!("af-metadata/{}", level::FILTER_LABEL);
-    while player.0.level_wanted.load(Ordering::Relaxed) {
+    let mut sent_pulse = 0.0_f64;
+    let mut waiting = spectrum::DelayLine::default();
+    // The windows were last told that nothing plays (an empty spectrum).
+    let mut spectrum_idle = false;
+    let level_property = format!("af-metadata/{}", level::FILTER_LABEL);
+    let spectrum_property = format!("af-metadata/{}", spectrum::FILTER_LABEL);
+    loop {
+        let pulse_wanted = player.0.pulse_wanted.load(Ordering::Relaxed);
+        let spectrum_wanted = player.0.spectrum_wanted.load(Ordering::Relaxed);
+        if !pulse_wanted && !spectrum_wanted {
+            break;
+        }
         let playing = lock(&player.0.state).status == Status::Playing;
-        let reading = match player.client() {
-            Ok(client) if playing => client
-                .get_property::<Value>(&property)
-                .await
-                .ok()
-                .as_ref()
-                .and_then(level::rms_db),
-            _ => None,
-        };
-        let pulse = (envelope.next(reading) * 100.0).round() / 100.0;
-        if (pulse - sent).abs() >= 0.01 {
-            sent = pulse;
+        let client = player.client().ok().filter(|_| playing);
+
+        let mut pulse = 0.0;
+        if pulse_wanted {
+            let reading = match &client {
+                Some(client) => client
+                    .get_property::<Value>(&level_property)
+                    .await
+                    .ok()
+                    .as_ref()
+                    .and_then(level::rms_db),
+                None => None,
+            };
+            pulse = (envelope.next(reading) * 100.0).round() / 100.0;
+        }
+        if (pulse - sent_pulse).abs() >= 0.01 {
+            sent_pulse = pulse;
             player.emit(level::LEVEL_EVENT, &pulse);
         }
-        let pause = if playing || pulse > 0.0 {
+
+        if spectrum_wanted {
+            match &client {
+                Some(client) => {
+                    let now = Instant::now();
+                    if let Some(values) = client
+                        .get_property::<Value>(&spectrum_property)
+                        .await
+                        .ok()
+                        .as_ref()
+                        .and_then(spectrum::reading)
+                    {
+                        waiting.push(now, values);
+                    }
+                    if let Some(values) = waiting.take(now) {
+                        player.emit(spectrum::SPECTRUM_EVENT, &values);
+                        spectrum_idle = false;
+                    }
+                }
+                None if !spectrum_idle => {
+                    waiting.clear();
+                    player.emit(spectrum::SPECTRUM_EVENT, &Vec::<f32>::new());
+                    spectrum_idle = true;
+                }
+                None => {}
+            }
+        }
+
+        let pause = if playing && spectrum_wanted {
+            spectrum::POLL
+        } else if playing || pulse > 0.0 {
             level::POLL
         } else {
             level::IDLE_POLL
@@ -1691,10 +1751,13 @@ async fn meter_level(player: Player) {
         tokio::time::sleep(pause).await;
     }
     player.emit(level::LEVEL_EVENT, &0.0_f64);
-    player.0.level_running.store(false, Ordering::Relaxed);
+    player.emit(spectrum::SPECTRUM_EVENT, &Vec::<f32>::new());
+    player.0.meters_running.store(false, Ordering::Relaxed);
     // A window may have asked again just as this stopped.
-    if player.0.level_wanted.load(Ordering::Relaxed) {
-        player.set_level_meter(true);
+    let pulse = player.0.pulse_wanted.load(Ordering::Relaxed);
+    let spectrum = player.0.spectrum_wanted.load(Ordering::Relaxed);
+    if pulse || spectrum {
+        player.set_meters(pulse, spectrum);
     }
 }
 

@@ -51,13 +51,47 @@ pub struct Settings {
     /// Keyboard shortcuts the user changed (see `shortcuts.rs`).
     #[serde(deserialize_with = "or_default")]
     pub shortcuts: Shortcuts,
+    /// The level meter module.
+    #[serde(deserialize_with = "or_default")]
+    pub meter: MeterSettings,
+}
+
+/// The level meter module.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct MeterSettings {
+    #[serde(deserialize_with = "or_default")]
+    pub style: MeterStyle,
+}
+
+/// How the level meter draws the spectrum.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MeterStyle {
+    /// Bars rising from the bottom.
+    #[default]
+    Bars,
+    /// Bars growing both ways from the middle.
+    Mirror,
+    /// A smooth line over the bands.
+    Wave,
+}
+
+/// What mpv's audio chain measures for the windows (see `player::level`, `player::spectrum`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AudioMeters {
+    /// The loudness, for the backdrop's pulse.
+    pub pulse: bool,
+    /// The spectrum, for the level meter on screen.
+    pub spectrum: bool,
 }
 
 impl Settings {
-    /// Whether mpv's audio chain needs the level filter: for the backdrop's pulse or for the
-    /// level meter on screen.
-    pub fn measures_level(&self) -> bool {
-        self.appearance.backdrop_pulse || self.layout.shows(Module::Level)
+    pub fn audio_meters(&self) -> AudioMeters {
+        AudioMeters {
+            pulse: self.appearance.backdrop_pulse,
+            spectrum: self.layout.shows(Module::Level),
+        }
     }
 }
 
@@ -246,6 +280,9 @@ pub struct Appearance {
     /// The animated backdrop swells with the music (its loudness, a kick on beats).
     #[serde(deserialize_with = "or_true")]
     pub backdrop_pulse: bool,
+    /// Covers as spinning records: as the theme says (`auto`), or always / never.
+    #[serde(deserialize_with = "or_default")]
+    pub vinyl: Switch,
 }
 
 impl Default for Appearance {
@@ -259,6 +296,7 @@ impl Default for Appearance {
             window_material: WindowMaterial::Vibrancy,
             artwork_accent: true,
             backdrop_pulse: true,
+            vinyl: Switch::Auto,
         }
     }
 }
@@ -465,10 +503,10 @@ pub fn set_settings(
     {
         player.links_settings_changed();
     }
-    if saved.measures_level() != previous.measures_level()
+    if saved.audio_meters() != previous.audio_meters()
         && let Some(player) = app.try_state::<Player>()
     {
-        player.level_filter_changed();
+        player.meter_filters_changed();
     }
     if saved.mini_player != previous.mini_player
         && let Some(mini) = app.try_state::<MiniPlayer>()
@@ -508,6 +546,7 @@ mod tests {
             appearance: Appearance {
                 theme: "aurora-night".into(),
                 power_saving: true,
+                vinyl: Switch::On,
                 ..Appearance::default()
             },
             library: LibrarySettings {
@@ -561,6 +600,9 @@ mod tests {
                 ("mute".to_owned(), None),
                 ("play-pause".to_owned(), Some("KeyK".to_owned())),
             ]),
+            meter: MeterSettings {
+                style: MeterStyle::Mirror,
+            },
         };
 
         store_in(tmp.path()).set(settings.clone()).unwrap();
@@ -583,7 +625,8 @@ mod tests {
                     "powerSaving": false,
                     "windowMaterial": "vibrancy",
                     "artworkAccent": true,
-                    "backdropPulse": true
+                    "backdropPulse": true,
+                    "vinyl": "auto"
                 },
                 "library": {
                     "addOpenedFiles": true,
@@ -627,7 +670,8 @@ mod tests {
                     "sidebar": "expanded"
                 },
                 "layoutPresets": [],
-                "shortcuts": {}
+                "shortcuts": {},
+                "meter": { "style": "bars" }
             })
         );
     }
@@ -787,16 +831,27 @@ mod tests {
     }
 
     #[test]
-    fn the_level_is_measured_for_the_pulse_or_the_meter() {
+    fn the_pulse_and_the_spectrum_are_measured_when_shown() {
         let mut settings = Settings::default();
-        assert!(settings.measures_level());
+        assert_eq!(
+            settings.audio_meters(),
+            AudioMeters {
+                pulse: true,
+                spectrum: false
+            }
+        );
         settings.appearance.backdrop_pulse = false;
-        assert!(!settings.measures_level());
         settings
             .layout
             .hidden
             .retain(|module| *module != Module::Level);
-        assert!(settings.measures_level());
+        assert_eq!(
+            settings.audio_meters(),
+            AudioMeters {
+                pulse: false,
+                spectrum: true
+            }
+        );
     }
 
     #[test]

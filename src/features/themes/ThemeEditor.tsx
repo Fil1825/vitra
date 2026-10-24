@@ -10,7 +10,7 @@ import { SegmentedControl } from '../../components/ui/SegmentedControl.tsx';
 import { Switch } from '../../components/ui/Switch.tsx';
 import { useSettings } from '../../stores/settings.ts';
 import type { ThemeDraft } from '../../stores/themeEditor.ts';
-import { percent } from '../../theme/color.ts';
+import { joinColor, percent } from '../../theme/color.ts';
 import { sanitizeCss } from '../../theme/css.ts';
 import { FONT_EXTENSIONS, IMAGE_EXTENSIONS, type Theme } from '../../theme/schema.ts';
 import { exportTheme } from './actions.ts';
@@ -30,6 +30,7 @@ const report = (what: string) => (err: unknown) => console.error(`${what} failed
 
 /** Font stacks offered by name; anything else is typed. */
 const FONT_PRESETS = {
+  vitra: "'Vitra Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
   system: "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif",
   rounded: "ui-rounded, 'SF Pro Rounded', system-ui, sans-serif",
   serif: "ui-serif, 'New York', Georgia, 'Times New Roman', serif",
@@ -267,6 +268,10 @@ export function ThemeEditor({ draft }: { draft: ThemeDraft }) {
             />
           </Section>
 
+          <Section title={t('themeEditor.artwork')}>
+            <ArtworkFields theme={theme} />
+          </Section>
+
           <Section title={t('themeEditor.backdrop')}>
             <BackgroundFields theme={theme} setBackground={setBackground} />
           </Section>
@@ -391,7 +396,7 @@ function FontFields({ theme }: { theme: Theme }) {
             if (value !== 'custom') setFamily(FONT_PRESETS[value]);
           }}
         >
-          {(['system', 'rounded', 'serif', 'mono', 'custom'] as const).map((key) => (
+          {(['vitra', 'system', 'rounded', 'serif', 'mono', 'custom'] as const).map((key) => (
             <option key={key} value={key}>
               {t(`themeEditor.fontPresets.${key}`)}
             </option>
@@ -655,6 +660,59 @@ function CssField({ draft }: { draft: ThemeDraft }) {
         <p className={styles.warning} role="status">
           {t('themeEditor.cssRemoved', { list: removed.slice(0, 4).join('; ') })}
         </p>
+      )}
+    </>
+  );
+}
+
+/** Covers: their shape, records that turn, the placeholder's color. */
+function ArtworkFields({ theme }: { theme: Theme }) {
+  const { t } = useTranslation();
+  const artwork = theme.artwork ?? { shape: 'square' as const, vinyl: false };
+  const setArtwork = (change: Partial<NonNullable<Theme['artwork']>>) =>
+    updateTheme((th) => ({
+      ...th,
+      artwork: { shape: 'square', vinyl: false, ...th.artwork, ...change },
+    }));
+  return (
+    <>
+      <Field label={t('themeEditor.artworkShape')}>
+        <SegmentedControl
+          label={t('themeEditor.artworkShape')}
+          value={artwork.shape}
+          options={[
+            { value: 'square', label: t('themeEditor.artworkShapes.square') },
+            { value: 'rounded', label: t('themeEditor.artworkShapes.rounded') },
+            { value: 'circle', label: t('themeEditor.artworkShapes.circle') },
+          ]}
+          onChange={(shape) => setArtwork({ shape })}
+        />
+      </Field>
+      <Field label={t('themeEditor.vinyl')}>
+        <Switch
+          label={t('themeEditor.vinyl')}
+          checked={artwork.vinyl}
+          onChange={(vinyl) => setArtwork({ vinyl })}
+        />
+      </Field>
+      <p className={styles.hint}>{t('themeEditor.vinylHint')}</p>
+      <Field label={t('themeEditor.ownPlaceholderColor')}>
+        <Switch
+          label={t('themeEditor.ownPlaceholderColor')}
+          checked={artwork.placeholderColor !== undefined}
+          onChange={(own) =>
+            setArtwork({
+              placeholderColor: own ? joinColor(theme.colors.text, 0.4) : undefined,
+            })
+          }
+        />
+      </Field>
+      {artwork.placeholderColor !== undefined && (
+        <ColorField
+          label={t('themeEditor.placeholderColor')}
+          value={artwork.placeholderColor}
+          onChange={(placeholderColor) => setArtwork({ placeholderColor })}
+        />
       )}
     </>
   );

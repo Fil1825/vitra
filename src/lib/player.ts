@@ -66,6 +66,11 @@ export const PLAYER_POSITION_EVENT = 'player://position';
 export const PLAYER_TRACK_EVENT = 'player://track-changed';
 /** The music's pulse for the backdrop, 0..1, while a window asked for it. */
 export const PLAYER_LEVEL_EVENT = 'player://level';
+/**
+ * The spectrum for the level meter: twenty bands from 40 Hz to 16 kHz, low to high, each
+ * 0..1; empty while nothing plays. Sent as readings change (a few times a second).
+ */
+export const PLAYER_SPECTRUM_EVENT = 'player://spectrum';
 
 export const INITIAL_PLAYER_STATE: PlayerState = {
   status: 'idle',
@@ -121,8 +126,11 @@ const call = <T = void>(command: string, args?: Record<string, unknown>) =>
 
 export const player = {
   state: () => call<PlayerState>('player_state'),
-  /** Starts or stops the music's pulse (`player://level`) for this window's backdrop. */
-  levelMeter: (enabled: boolean) => call('player_level_meter', { enabled }),
+  /**
+   * What this window shows: the music's pulse (`player://level`) for its backdrop and the
+   * spectrum (`player://spectrum`) for its level meter. Reading stops when neither is.
+   */
+  meters: (pulse: boolean, spectrum: boolean) => call('player_meters', { pulse, spectrum }),
   /** Plays files and folders, replacing the queue. */
   open: (paths: string[]) => call('player_open', { paths }),
   play: () => call('player_play'),

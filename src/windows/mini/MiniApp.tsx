@@ -14,6 +14,7 @@ import { useCallback, useEffect, useState, type CSSProperties, type PointerEvent
 import { useTranslation } from 'react-i18next';
 
 import { useAppearanceController } from '../../app/useAppearanceController.ts';
+import { CoverArt } from '../../components/CoverArt/index.ts';
 import { Glass } from '../../components/Glass/index.ts';
 import { IconButton } from '../../components/ui/IconButton.tsx';
 import { Slider } from '../../components/ui/Slider.tsx';
@@ -186,10 +187,13 @@ function Transport() {
 
 function Artwork() {
   const artwork = usePlayer((s) => s.state.track?.artwork ?? null);
-  return artwork ? (
-    <img className={styles.artwork} src={artworkUrl(artwork.id)} alt="" draggable={false} />
-  ) : (
-    <div className={styles.artwork} aria-hidden="true" />
+  const track = usePlayer((s) => s.state.track !== null);
+  return (
+    <CoverArt
+      src={artwork ? artworkUrl(artwork.id) : null}
+      live={track}
+      className={styles.artwork}
+    />
   );
 }
 

@@ -13,9 +13,11 @@ import { useSettings } from '../stores/settings.ts';
 import { useThemeEditor } from '../stores/themeEditor.ts';
 import { useThemes } from '../stores/themes.ts';
 import { accentFor } from '../theme/accent.ts';
+import { vinylOn } from '../theme/artwork.ts';
 import { applyTheme, applyThemeStyleSheet } from '../theme/apply.ts';
 import { resolveEffects } from '../theme/effects.ts';
 import { AUTO_THEME_ID, resolveTheme } from '../theme/themes.ts';
+import { ARTWORK_RADIUS } from '../theme/tokens.ts';
 import { themeStyleSheet, type UserTheme } from '../theme/user.ts';
 
 const onOff = (value: boolean) => (value ? 'on' : 'off');
@@ -78,6 +80,17 @@ export function useAppearanceController(): void {
   }, [theme]);
 
   useLayoutEffect(() => applyThemeStyleSheet(styleSheet), [styleSheet]);
+
+  // Records are round, whatever shape the theme gives covers (after the theme's own value).
+  const vinyl = vinylOn(theme, appearance.vinyl);
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.dataset.vinyl = onOff(vinyl);
+    root.style.setProperty(
+      '--vitra-artwork-radius',
+      vinyl ? ARTWORK_RADIUS.circle : ARTWORK_RADIUS[theme.artwork?.shape ?? 'square'],
+    );
+  }, [vinyl, theme]);
 
   // Runs after the theme effect, so it overrides (or restores) the theme's accent.
   useLayoutEffect(() => {

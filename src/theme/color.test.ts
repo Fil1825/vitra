@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { joinColor, splitColor } from './color.ts';
+import { joinColor, mixColors, splitColor } from './color.ts';
 
 describe('theme colors', () => {
   it('splits every hex form into a color and an opacity', () => {
@@ -18,5 +18,12 @@ describe('theme colors', () => {
     expect(joinColor('#000000', 0)).toBe('#00000000');
     expect(joinColor('#fff', 2)).toBe('#FFFFFF');
     expect(joinColor('nope', 0.5)).toBe('#00000080');
+  });
+
+  it('mixes two colors', () => {
+    expect(mixColors('#000000', '#FFFFFF', 0.5)).toBe('#808080');
+    expect(mixColors('#ff0000', '#0000ff80', 0.25)).toBe('#bf0040');
+    expect(mixColors('#123', '#123456', 0)).toBe('#112233');
+    expect(mixColors('red', '#fff', 0.5)).toBe('red');
   });
 });

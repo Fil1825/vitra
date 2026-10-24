@@ -148,7 +148,7 @@ pub fn run() {
             window::window_effects,
             player::player_state,
             player::player_open,
-            player::player_level_meter,
+            player::player_meters,
             player::player_play,
             player::player_pause,
             player::player_toggle,

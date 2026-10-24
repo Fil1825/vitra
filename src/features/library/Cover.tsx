@@ -1,4 +1,6 @@
-import { Disc3, User } from 'lucide-react';
+import { User } from 'lucide-react';
+
+import { ArtworkPlaceholder } from '../../components/CoverArt/index.ts';
 
 import { coverUrl } from '../../lib/library.ts';
 import styles from './Cover.module.css';
@@ -10,7 +12,7 @@ export interface CoverProps {
   className?: string;
 }
 
-/** A cached album cover, or a placeholder in theme colors. */
+/** A cached album cover in the theme's shape, or Vitra's symbol in its place. */
 export function Cover({ id, shape = 'square', className }: CoverProps) {
   const classes = [styles.cover, shape === 'round' && styles.round, className]
     .filter(Boolean)
@@ -27,10 +29,13 @@ export function Cover({ id, shape = 'square', className }: CoverProps) {
       />
     );
   }
-  const Icon = shape === 'round' ? User : Disc3;
   return (
     <div className={`${classes} ${styles.placeholder}`} aria-hidden="true">
-      <Icon className={styles.icon} />
+      {shape === 'round' ? (
+        <User className={styles.icon} />
+      ) : (
+        <ArtworkPlaceholder className={styles.symbol} />
+      )}
     </div>
   );
 }

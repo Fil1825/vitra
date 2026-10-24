@@ -132,6 +132,17 @@ export const themeSchema = z.object({
   }),
   /** Take the accent color from the playing track's artwork. */
   accentFromArtwork: z.boolean(),
+  /** How covers look. Left out: square, still, the placeholder in a soft text color. */
+  artwork: z
+    .object({
+      /** Square (the theme's corner radii), well rounded, or round. */
+      shape: z.enum(['square', 'rounded', 'circle']),
+      /** The playing track's covers are records: round, with grooves, turning while it plays. */
+      vinyl: z.boolean(),
+      /** The color of the symbol shown where a track has no cover. */
+      placeholderColor: hexColor.optional(),
+    })
+    .optional(),
   motion: z.object({
     /** Base transition duration in ms. */
     duration: z.number().int().min(0).max(2000),

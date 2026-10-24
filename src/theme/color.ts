@@ -33,3 +33,22 @@ export function joinColor(rgb: string, alpha: number): string {
 
 /** An opacity as a percentage. */
 export const percent = (value: number) => `${Math.round(value * 100)}%`;
+
+/**
+ * `a` mixed with `share` of `b` (both hex; their opacities are left out), as `#rrggbb`;
+ * `a` itself when either isn't a hex color.
+ */
+export function mixColors(a: string, b: string, share: number): string {
+  const from = splitColor(a)?.rgb;
+  const to = splitColor(b)?.rgb;
+  if (!from || !to) return a;
+  const channel = (hex: string, at: number) => parseInt(hex.slice(at, at + 2), 16);
+  const t = Math.min(1, Math.max(0, share));
+  return `#${[1, 3, 5]
+    .map((at) =>
+      Math.round(channel(from, at) * (1 - t) + channel(to, at) * t)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}`;
+}
