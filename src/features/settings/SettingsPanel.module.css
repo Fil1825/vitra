@@ -4,14 +4,119 @@
   top: var(--vitra-space-2);
   right: var(--vitra-space-2);
   bottom: var(--vitra-space-2);
-  width: min(380px, calc(100vw - 2 * var(--vitra-space-2)));
+  width: min(780px, calc(100vw - 2 * var(--vitra-space-2)));
 }
 
+/* Two panes: the list of pages, then the page. */
 .panel {
   display: flex;
-  flex-direction: column;
   height: 100%;
   overflow: hidden;
+  container-type: inline-size;
+}
+
+.nav {
+  display: flex;
+  flex: 0 0 210px;
+  flex-direction: column;
+  gap: var(--vitra-space-2);
+  min-height: 0;
+  padding: var(--vitra-space-4) var(--vitra-space-2) var(--vitra-space-3);
+  border-right: 1px solid var(--vitra-color-separator);
+}
+
+.title {
+  margin: 0;
+  padding: 0 var(--vitra-space-2);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--vitra-space-2);
+  margin: 0 var(--vitra-space-1);
+  padding: 4px var(--vitra-space-2);
+  border-radius: var(--vitra-radius-sm);
+  background: color-mix(in srgb, var(--vitra-color-text) 7%, transparent);
+  color: var(--vitra-color-text-tertiary);
+}
+
+.search input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--vitra-color-text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  user-select: text;
+}
+
+.search:focus-within {
+  box-shadow: inset 0 0 0 1px var(--vitra-color-accent);
+}
+
+.navList {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: var(--vitra-space-2);
+  padding: 6px var(--vitra-space-2);
+  border: 0;
+  border-radius: var(--vitra-radius-sm);
+  background: transparent;
+  color: var(--vitra-color-text-secondary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.navItem:hover {
+  background: color-mix(in srgb, var(--vitra-color-text) 7%, transparent);
+  color: var(--vitra-color-text);
+}
+
+.navItem[aria-current='page'] {
+  background: color-mix(in srgb, var(--vitra-color-accent) 22%, transparent);
+  color: var(--vitra-color-text);
+}
+
+.navItem[aria-current='page'] svg {
+  color: var(--vitra-color-accent);
+}
+
+.navLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.noMatch {
+  margin: 0;
+  padding: 0 var(--vitra-space-2);
+  color: var(--vitra-color-text-tertiary);
+  font-size: 12px;
+}
+
+.page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .header {
@@ -21,31 +126,193 @@
   padding: var(--vitra-space-4) var(--vitra-space-3) var(--vitra-space-2) var(--vitra-space-5);
 }
 
-.title {
+.pageTitle {
   margin: 0;
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 17px;
+  font-weight: 650;
 }
 
 .content {
   display: grid;
-  gap: var(--vitra-space-6);
+  flex: 1;
+  align-content: start;
+  gap: var(--vitra-space-4);
+  min-height: 0;
   padding: var(--vitra-space-2) var(--vitra-space-5) var(--vitra-space-6);
   overflow-y: auto;
 }
 
-.section {
+/* Settings that belong together. */
+.group {
   display: grid;
   gap: var(--vitra-space-3);
+  padding: var(--vitra-space-3) var(--vitra-space-4);
+  border-radius: var(--vitra-radius-md);
+  background: color-mix(in srgb, var(--vitra-color-text) 4%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--vitra-color-separator) 60%, transparent);
 }
 
-.sectionTitle {
+.group p {
+  margin: 0;
+}
+
+.groupTitle {
   margin: 0;
   color: var(--vitra-color-text-tertiary);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+/* A narrow window: the list keeps only its icons. */
+@container (max-width: 600px) {
+  .nav {
+    flex-basis: 52px;
+    align-items: center;
+    padding-inline: var(--vitra-space-1);
+  }
+
+  .title,
+  .search,
+  .navLabel,
+  .noMatch {
+    display: none;
+  }
+
+  .navItem {
+    justify-content: center;
+    padding: 8px;
+  }
+}
+
+/* The equalizer: the preamp, a gap, then ten bands standing side by side. */
+.eqBoard {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 2px;
+  padding: var(--vitra-space-2) 0;
+  transition: opacity var(--vitra-motion-duration) var(--vitra-motion-easing);
+}
+
+.eqBoard[data-off] {
+  opacity: 0.5;
+}
+
+.eqBand {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--vitra-space-1);
+  min-width: 0;
+}
+
+.eqGain,
+.eqName {
+  color: var(--vitra-color-text-secondary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.eqName {
+  color: var(--vitra-color-text-tertiary);
+}
+
+/* A range input turned upright: it stays a native, keyboard-friendly control. */
+.eqTrack {
+  position: relative;
+  width: 100%;
+  height: 140px;
+}
+
+.eqTrack .eqSlider {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 140px;
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+
+.eqDivider {
+  flex: 0 0 1px;
+  margin: var(--vitra-space-4) var(--vitra-space-1);
+  background: var(--vitra-color-separator);
+}
+
+.inlineForm {
+  display: flex;
+  gap: var(--vitra-space-2);
+}
+
+.sliderRow {
+  display: flex;
+  align-items: center;
+  gap: var(--vitra-space-3);
+}
+
+.sliderRow > input {
+  flex: 1;
+}
+
+.sliderValue {
+  min-width: 96px;
+  color: var(--vitra-color-text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.accentButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vitra-space-2);
+  padding: 6px var(--vitra-space-4);
+  border: 0;
+  border-radius: 999px;
+  background: var(--vitra-color-accent);
+  color: var(--vitra-color-accent-contrast);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.about {
+  display: flex;
+  align-items: center;
+  gap: var(--vitra-space-4);
+}
+
+.aboutLogo {
+  flex: none;
+  border-radius: 22%;
+}
+
+.aboutText {
+  display: grid;
+  gap: 2px;
+}
+
+.aboutName {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.aboutTagline {
+  color: var(--vitra-color-text-secondary);
+  font-size: 13px;
+}
+
+.aboutNote {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-line;
+  user-select: text;
 }
 
 .row {
@@ -81,7 +348,7 @@
 
 .themes {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: var(--vitra-space-2);
 }
 

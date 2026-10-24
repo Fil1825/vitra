@@ -1,70 +1,95 @@
-import { LayoutDashboard, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Glass } from '../../components/Glass/index.ts';
 import { IconButton } from '../../components/ui/IconButton.tsx';
-import { SegmentedControl, type SegmentedOption } from '../../components/ui/SegmentedControl.tsx';
-import { Switch } from '../../components/ui/Switch.tsx';
-import { setCustomizing } from '../../layout/state.ts';
-import type {
-  AppearanceSettings,
-  Language,
-  Preference,
-  Switch as Toggle,
-  WindowMaterial,
-} from '../../lib/settings.ts';
-import { useEnvironment } from '../../stores/environment.ts';
-import { useSettings } from '../../stores/settings.ts';
-import { Diagnostics } from './Diagnostics.tsx';
+import { useUi } from '../../stores/ui.ts';
+import { AboutSettings } from './AboutSettings.tsx';
+import { AppearanceSettings } from './AppearanceSettings.tsx';
 import { DownloadSettings } from './DownloadSettings.tsx';
+import { GeneralSettings } from './GeneralSettings.tsx';
+import { LayoutSettings } from './LayoutSettings.tsx';
 import { LibrarySettings } from './LibrarySettings.tsx';
 import { LyricsSettings } from './LyricsSettings.tsx';
 import { MiniPlayerSettings } from './MiniPlayerSettings.tsx';
-import { ShortcutSettings } from './ShortcutSettings.tsx';
+import { Group } from './Row.tsx';
+import { SECTIONS, SECTION_IDS, matchingSections, type SettingsSection } from './sections.ts';
 import styles from './SettingsPanel.module.css';
-import { ThemePicker } from './ThemePicker.tsx';
+import { ShortcutSettings } from './ShortcutSettings.tsx';
+import { SoundSettings } from './SoundSettings.tsx';
 
+function page(section: SettingsSection, onClose: () => void): ReactNode {
+  switch (section) {
+    case 'general':
+      return <GeneralSettings />;
+    case 'appearance':
+      return <AppearanceSettings />;
+    case 'sound':
+      return <SoundSettings />;
+    case 'library':
+      return (
+        <Group>
+          <LibrarySettings />
+        </Group>
+      );
+    case 'links':
+      return (
+        <Group>
+          <DownloadSettings />
+        </Group>
+      );
+    case 'lyrics':
+      return (
+        <Group>
+          <LyricsSettings />
+        </Group>
+      );
+    case 'mini':
+      return (
+        <Group>
+          <MiniPlayerSettings />
+        </Group>
+      );
+    case 'layout':
+      return <LayoutSettings onClose={onClose} />;
+    case 'shortcuts':
+      return (
+        <Group>
+          <ShortcutSettings />
+        </Group>
+      );
+    case 'about':
+      return <AboutSettings />;
+  }
+}
+
+/**
+ * Settings: a list of pages on the left (with a search over what is on them), the chosen
+ * page on the right. It slides over the window like a sheet; the page shown is kept while
+ * the window is open, and other parts of the app can open a given page (`showSettings`).
+ */
 export function SettingsPanel({ onClose }: { onClose(): void }) {
   const { t } = useTranslation();
-  const settings = useSettings((s) => s.settings);
-  const update = useSettings((s) => s.update);
-  const supportsRefraction = useEnvironment((s) => s.supportsRefraction);
-  const platform = useEnvironment((s) => s.platform);
-  const vibrancy = useEnvironment((s) => s.vibrancy);
-  const liquidGlassSupported = useEnvironment((s) => s.liquidGlassSupported);
+  const chosen = useUi((s) => s.settingsSection);
+  const showSettings = useUi((s) => s.showSettings);
+  const [query, setQuery] = useState('');
 
-  const setAppearance = (change: Partial<AppearanceSettings>) =>
-    void update((current) => ({ ...current, appearance: { ...current.appearance, ...change } }));
-
-  const preferences: { value: Preference; label: string }[] = [
-    { value: 'system', label: t('settings.preference.system') },
-    { value: 'reduce', label: t('settings.preference.reduce') },
-    { value: 'full', label: t('settings.preference.full') },
-  ];
-  const materials: SegmentedOption<WindowMaterial>[] = [
-    { value: 'vibrancy', label: t('settings.materials.vibrancy') },
-    {
-      value: 'liquidGlass',
-      label: t('settings.materials.liquidGlass'),
-      disabled: !liquidGlassSupported,
-    },
-  ];
-  const materialHint = !liquidGlassSupported
-    ? t('settings.liquidGlassUnsupported')
-    : settings.appearance.windowMaterial === 'liquidGlass' && vibrancy !== 'liquidGlass'
-      ? t('settings.liquidGlassFallback')
-      : undefined;
-  const toggles: { value: Toggle; label: string }[] = [
-    { value: 'auto', label: t('settings.switch.auto') },
-    { value: 'on', label: t('settings.switch.on') },
-    { value: 'off', label: t('settings.switch.off') },
-  ];
-  const languages: { value: Language; label: string }[] = [
-    { value: 'system', label: t('settings.languages.system') },
-    { value: 'en', label: t('settings.languages.en') },
-    { value: 'ru', label: t('settings.languages.ru') },
-  ];
+  const texts = useMemo(
+    () =>
+      Object.fromEntries(
+        SECTION_IDS.map((id) => [
+          id,
+          [SECTIONS[id].title, ...SECTIONS[id].keywords].map((key) => t(key)),
+        ]),
+      ) as Record<SettingsSection, string[]>,
+    [t],
+  );
+  const listed = matchingSections(query, texts);
+  // While searching, the page shown is one that matches.
+  const section = listed.includes(chosen) ? chosen : (listed[0] ?? chosen);
+  const info = SECTIONS[section];
 
   return (
     // Only transform is animated: opacity on an ancestor would cut the glass off from the
@@ -83,186 +108,59 @@ export function SettingsPanel({ onClose }: { onClose(): void }) {
         aria-label={t('settings.title')}
         priority={4}
       >
-        <header className={styles.header}>
+        <nav className={styles.nav} aria-label={t('settings.title')}>
           <h2 className={styles.title}>{t('settings.title')}</h2>
-          <IconButton label={t('settings.close')} onClick={onClose}>
-            <X size={18} />
-          </IconButton>
-        </header>
-
-        <div className={styles.content}>
-          <section className={styles.section}>
-            <h3 className={styles.sectionTitle}>{t('settings.library.title')}</h3>
-            <LibrarySettings />
-          </section>
-
-          <section className={styles.section}>
-            <h3 className={styles.sectionTitle}>{t('settings.downloads.title')}</h3>
-            <DownloadSettings />
-          </section>
-
-          <section className={styles.section}>
-            <h3 className={styles.sectionTitle}>{t('settings.lyrics.title')}</h3>
-            <LyricsSettings />
-          </section>
-
-          <section className={styles.section}>
-            <h3 className={styles.sectionTitle}>{t('settings.mini.title')}</h3>
-            <MiniPlayerSettings />
-          </section>
-
-          <section className={styles.section}>
-            <h3 className={styles.sectionTitle}>{t('settings.appearance')}</h3>
-            <ThemePicker
-              value={settings.appearance.theme}
-              onChange={(theme) => setAppearance({ theme })}
+          <label className={styles.search}>
+            <Search size={14} aria-hidden="true" />
+            <input
+              type="search"
+              placeholder={t('settings.search')}
+              aria-label={t('settings.search')}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape' && query) {
+                  // Clears the search rather than closing Settings.
+                  event.preventDefault();
+                  setQuery('');
+                }
+              }}
             />
+          </label>
+          <ul className={styles.navList}>
+            {listed.map((id) => {
+              const Icon = SECTIONS[id].icon;
+              return (
+                <li key={id}>
+                  <button
+                    type="button"
+                    className={styles.navItem}
+                    aria-current={id === section ? 'page' : undefined}
+                    title={t(SECTIONS[id].title)}
+                    onClick={() => showSettings(true, id)}
+                  >
+                    <Icon size={16} aria-hidden="true" />
+                    <span className={styles.navLabel}>{t(SECTIONS[id].title)}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {listed.length === 0 && <p className={styles.noMatch}>{t('settings.noMatch')}</p>}
+        </nav>
 
-            <Row label={t('layout.title')} hint={t('layout.hint')}>
-              <button
-                type="button"
-                className={styles.textButton}
-                onClick={() => {
-                  onClose();
-                  setCustomizing(true);
-                }}
-              >
-                <LayoutDashboard size={14} aria-hidden="true" />
-                {t('layout.customizeButton')}
-              </button>
-            </Row>
-
-            {/* Window materials are a macOS feature; elsewhere the backdrop is fixed. */}
-            {platform === 'macos' && (
-              <Row label={t('settings.windowMaterial')} hint={materialHint}>
-                <SegmentedControl
-                  label={t('settings.windowMaterial')}
-                  value={settings.appearance.windowMaterial}
-                  options={materials}
-                  onChange={(windowMaterial) => setAppearance({ windowMaterial })}
-                />
-              </Row>
-            )}
-
-            <Row label={t('settings.motion')}>
-              <SegmentedControl
-                label={t('settings.motion')}
-                value={settings.appearance.motion}
-                options={preferences}
-                onChange={(motion) => setAppearance({ motion })}
-              />
-            </Row>
-            <Row label={t('settings.transparency')}>
-              <SegmentedControl
-                label={t('settings.transparency')}
-                value={settings.appearance.transparency}
-                options={preferences}
-                onChange={(transparency) => setAppearance({ transparency })}
-              />
-            </Row>
-            <Row
-              label={t('settings.refraction')}
-              hint={t(
-                supportsRefraction
-                  ? 'settings.refractionSupported'
-                  : 'settings.refractionUnsupported',
-              )}
-            >
-              <SegmentedControl
-                label={t('settings.refraction')}
-                value={settings.appearance.refraction}
-                options={toggles}
-                onChange={(refraction) => setAppearance({ refraction })}
-              />
-            </Row>
-            <Row label={t('settings.vinyl')} hint={t('settings.vinylHint')}>
-              <SegmentedControl
-                label={t('settings.vinyl')}
-                value={settings.appearance.vinyl}
-                options={[
-                  { value: 'auto', label: t('settings.vinylAuto') },
-                  { value: 'on', label: t('settings.switch.on') },
-                  { value: 'off', label: t('settings.switch.off') },
-                ]}
-                onChange={(vinyl) => setAppearance({ vinyl })}
-              />
-            </Row>
-            <Row
-              label={t('settings.artworkAccent')}
-              hint={t('settings.artworkAccentHint')}
-              layout="inline"
-            >
-              <Switch
-                label={t('settings.artworkAccent')}
-                checked={settings.appearance.artworkAccent}
-                onChange={(artworkAccent) => setAppearance({ artworkAccent })}
-              />
-            </Row>
-            <Row
-              label={t('settings.backdropPulse')}
-              hint={t('settings.backdropPulseHint')}
-              layout="inline"
-            >
-              <Switch
-                label={t('settings.backdropPulse')}
-                checked={settings.appearance.backdropPulse}
-                onChange={(backdropPulse) => setAppearance({ backdropPulse })}
-              />
-            </Row>
-            <Row
-              label={t('settings.powerSaving')}
-              hint={t('settings.powerSavingHint')}
-              layout="inline"
-            >
-              <Switch
-                label={t('settings.powerSaving')}
-                checked={settings.appearance.powerSaving}
-                onChange={(powerSaving) => setAppearance({ powerSaving })}
-              />
-            </Row>
-          </section>
-
-          <section className={styles.section}>
-            <h3 className={styles.sectionTitle}>{t('shortcuts.title')}</h3>
-            <ShortcutSettings />
-          </section>
-
-          <section className={styles.section}>
-            <h3 className={styles.sectionTitle}>{t('settings.language')}</h3>
-            <SegmentedControl
-              label={t('settings.language')}
-              value={settings.language}
-              options={languages}
-              onChange={(language) => void update((current) => ({ ...current, language }))}
-            />
-          </section>
-
-          <section className={styles.section}>
-            <h3 className={styles.sectionTitle}>{t('settings.diagnostics')}</h3>
-            <Diagnostics />
-          </section>
+        <div className={styles.page}>
+          <header className={styles.header}>
+            <h3 className={styles.pageTitle}>{t(info.title)}</h3>
+            <IconButton label={t('settings.close')} onClick={onClose}>
+              <X size={18} />
+            </IconButton>
+          </header>
+          <div key={section} className={styles.content} data-scroll-container>
+            {listed.length > 0 && page(section, onClose)}
+          </div>
         </div>
       </Glass>
     </motion.div>
-  );
-}
-
-interface RowProps {
-  label: string;
-  hint?: string;
-  /** `inline` puts the control next to the label (switches); `stacked` below it. */
-  layout?: 'inline' | 'stacked';
-  children: React.ReactNode;
-}
-
-function Row({ label, hint, layout = 'stacked', children }: RowProps) {
-  return (
-    <div className={layout === 'inline' ? styles.inlineRow : styles.row}>
-      <div className={styles.rowText}>
-        <span>{label}</span>
-        {hint && <span className={styles.hint}>{hint}</span>}
-      </div>
-      {children}
-    </div>
   );
 }
