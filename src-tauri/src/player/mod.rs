@@ -11,6 +11,7 @@
 
 mod artwork;
 mod commands;
+mod crossfade;
 mod level;
 mod queue;
 mod session;
@@ -36,8 +37,11 @@ use crate::error::AppError;
 use crate::library::{LibraryService, entry_from_track};
 use crate::links::LinkService;
 use crate::lyrics::{LyricsService, TrackInfo};
+use crate::now_playing::NowPlaying;
 use crate::settings::{AudioMeters, SettingsStore};
 use crate::sidecar::{self, Sidecar};
+use crate::sound::{self, Equalizer, LoudnessMeter, Normalization, SoundSettings, loudness};
+use crate::tray::Tray;
 
 pub use artwork::{
     ArtworkStore, COVER_PREFIX, SCHEME as ARTWORK_SCHEME, respond_cover, status as http_status,
@@ -45,8 +49,8 @@ pub use artwork::{
 pub use commands::*;
 pub use queue::{Entry, QueueView, Repeat};
 use queue::{Queue, QueueItem};
-pub use state::PlayerState;
-use state::{ArtworkInfo, OBSERVED, PlayerError, Status, Track};
+use state::{ArtworkInfo, OBSERVED, PlayerError, Track};
+pub use state::{PlayerState, Status};
 
 pub const STATE_EVENT: &str = "player://state";
 pub const POSITION_EVENT: &str = "player://position";
@@ -104,7 +108,9 @@ struct Mirror {
 struct Inner {
     app: AppHandle,
     state: Mutex<PlayerState>,
-    client: RwLock<Option<Arc<Client>>>,
+    /// The mpv instances: the one playing the current track, and a second one for
+    /// crossfades (see [`crossfade`]).
+    decks: RwLock<Decks>,
     artwork: ArtworkStore,
     next_track_id: AtomicU64,
     last_position_emit: Mutex<Instant>,
@@ -112,8 +118,11 @@ struct Inner {
     pending_seek: Mutex<Option<f64>>,
     /// Signalled whenever a new mpv connection becomes available.
     ready: Notify,
-    shutdown: Notify,
-    supervisor: Mutex<Option<JoinHandle<()>>>,
+    /// Stops a deck's supervisor (the app quits, or crossfades were turned off).
+    stop: [Notify; 2],
+    /// Which decks should be running.
+    wanted: [AtomicBool; 2],
+    supervisors: Mutex<[Option<JoinHandle<()>>; 2]>,
     queue: Mutex<Queue>,
     mirror: Mutex<Mirror>,
     /// Serializes operations that change what plays, so two quick clicks can't interleave
@@ -132,6 +141,47 @@ struct Inner {
     pulse_wanted: AtomicBool,
     spectrum_wanted: AtomicBool,
     meters_running: AtomicBool,
+    /// The equalizer in each deck's chain now (default: none).
+    equalizer: Mutex<[Equalizer; 2]>,
+    /// Equalizer changes wait for each other.
+    equalizer_turn: tokio::sync::Mutex<()>,
+    fade: Mutex<Fade>,
+}
+
+/// The mpv instances, by deck number.
+#[derive(Default)]
+struct Decks {
+    /// The deck playing the current track.
+    active: usize,
+    clients: [Option<Arc<Client>>; 2],
+}
+
+/// A crossfade on its way.
+#[derive(Debug, Default)]
+struct Fade {
+    /// The next track, loaded paused and silent on the other deck.
+    prep: Option<Prep>,
+    /// The deck still fading the previous track out.
+    outgoing: Option<usize>,
+    /// The volumes are being ramped: their changes are not the user's.
+    ramping: bool,
+    /// A track the other deck couldn't open: it follows gapless instead.
+    failed: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Prep {
+    deck: usize,
+    uid: u64,
+    /// mpv's playlist entry of the loaded file.
+    entry: Option<i64>,
+    /// The file is loaded.
+    ready: bool,
+    /// Its start is scheduled.
+    armed: bool,
+    /// The playing track ended before the crossfade began: start as soon as possible, at
+    /// full volume.
+    due: bool,
 }
 
 /// Lines of the hook's log kept per link: its errors are a few lines of yt-dlp's stderr.
@@ -170,14 +220,15 @@ impl Player {
         Self(Arc::new(Inner {
             app,
             state: Mutex::new(PlayerState::default()),
-            client: RwLock::new(None),
+            decks: RwLock::new(Decks::default()),
             artwork: ArtworkStore::default(),
             next_track_id: AtomicU64::new(1),
             last_position_emit: Mutex::new(Instant::now()),
             pending_seek: Mutex::new(None),
             ready: Notify::new(),
-            shutdown: Notify::new(),
-            supervisor: Mutex::new(None),
+            stop: [Notify::new(), Notify::new()],
+            wanted: [AtomicBool::new(true), AtomicBool::new(false)],
+            supervisors: Mutex::new([None, None]),
             queue: Mutex::new(Queue::default()),
             mirror: Mutex::new(Mirror::default()),
             transport: tokio::sync::Mutex::new(()),
@@ -188,24 +239,54 @@ impl Player {
             pulse_wanted: AtomicBool::new(false),
             spectrum_wanted: AtomicBool::new(false),
             meters_running: AtomicBool::new(false),
+            equalizer: Mutex::new([Equalizer::default(), Equalizer::default()]),
+            equalizer_turn: tokio::sync::Mutex::new(()),
+            fade: Mutex::new(Fade::default()),
         }))
     }
 
     /// Restores the last session and starts mpv in the background.
     pub fn start(&self) {
         self.restore_session();
-        let handle = tauri::async_runtime::spawn(supervise(self.clone()));
-        *lock(&self.0.supervisor) = Some(handle);
+        self.spawn_deck(0);
+        self.crossfade_changed();
         tauri::async_runtime::spawn(session::autosave(self.clone()));
+    }
+
+    fn spawn_deck(&self, deck: usize) {
+        self.0.wanted[deck].store(true, Ordering::Relaxed);
+        let mut supervisors = lock(&self.0.supervisors);
+        if supervisors[deck]
+            .as_ref()
+            .is_some_and(|handle| !handle.inner().is_finished())
+        {
+            return;
+        }
+        supervisors[deck] = Some(tauri::async_runtime::spawn(supervise(self.clone(), deck)));
+    }
+
+    /// Crossfades need the second deck; without them it isn't worth its memory.
+    fn crossfade_changed(&self) {
+        let wanted = self.crossfade_seconds() > 0.0;
+        let standby = 1 - self.active_deck();
+        if wanted {
+            self.spawn_deck(standby);
+        } else if self.0.wanted[standby].swap(false, Ordering::Relaxed) {
+            self.cancel_crossfade();
+            self.0.stop[standby].notify_one();
+        }
     }
 
     /// Saves the session and quits mpv; called when the app exits so no orphaned mpv keeps
     /// running.
     pub async fn shutdown(&self) {
         self.save_session(true);
-        self.0.shutdown.notify_one();
-        let handle = lock(&self.0.supervisor).take();
-        if let Some(handle) = handle {
+        for deck in 0..2 {
+            self.0.wanted[deck].store(false, Ordering::Relaxed);
+            self.0.stop[deck].notify_one();
+        }
+        let handles = std::mem::take(&mut *lock(&self.0.supervisors));
+        for handle in handles.into_iter().flatten() {
             let _ = tokio::time::timeout(Duration::from_secs(3), handle).await;
         }
     }
@@ -651,11 +732,13 @@ impl Player {
         if let Some(lyrics) = self.lyrics() {
             lyrics.track_started(id, &entry.path, entry.track_id);
         }
+        self.measure_link(id, &entry.path);
         self.read_metadata(id, PathBuf::from(&entry.path));
     }
 
     /// Plays a queue item from the start.
     async fn load(&self, item: &QueueItem) -> Result<(), AppError> {
+        self.cancel_crossfade();
         self.begin_track(item);
         // Files opened at launch arrive before mpv is up.
         self.0.load_waiting.store(true, Ordering::Relaxed);
@@ -673,24 +756,36 @@ impl Player {
     /// Makes `item` mpv's playing file and preloads the one after it.
     async fn load_with(&self, client: &Client, item: &QueueItem) -> Result<(), AppError> {
         *lock(&self.0.mirror) = Mirror::default();
-        let reply = command_value(
-            client,
-            vec![json!("loadfile"), json!(item.entry.path), json!("replace")],
-        )
-        .await?;
+        let options = self.file_options(&item.entry.path).await;
+        let reply = loadfile(client, &item.entry.path, "replace", options).await?;
         lock(&self.0.mirror).current = entry_id(&reply).map(|id| (id, item.uid));
         self.sync_next(client, true).await
     }
 
-    /// Mirrors the queue's next item into mpv's playlist (unless it's there already).
+    /// Mirrors the queue's next item into mpv's playlist (unless it's there already), or,
+    /// when the two tracks are to be blended, loads it on the other deck instead.
     async fn sync_next(&self, client: &Client, force: bool) -> Result<(), AppError> {
-        let wanted = lock(&self.0.queue).peek_next().cloned();
+        let (current, wanted) = {
+            let queue = lock(&self.0.queue);
+            (queue.current().cloned(), queue.peek_next().cloned())
+        };
+        if lock(&self.0.mirror).current.is_none() {
+            // Nothing playing, nothing to preload.
+            return Ok(());
+        }
+        if let (Some(current), Some(next)) = (&current, &wanted)
+            && self.crossfades(current, next)
+        {
+            // mpv mustn't move on by itself: its playlist keeps only the playing file.
+            if lock(&self.0.mirror).next.take().is_some() {
+                command(client, vec![json!("playlist-clear")]).await?;
+            }
+            self.prepare_crossfade(next).await;
+            return Ok(());
+        }
+        self.drop_prep();
         {
             let mirror = lock(&self.0.mirror);
-            // Nothing playing, nothing to preload.
-            if mirror.current.is_none() {
-                return Ok(());
-            }
             if !force && mirror.next.map(|(_, uid)| uid) == wanted.as_ref().map(|i| i.uid) {
                 return Ok(());
             }
@@ -699,11 +794,8 @@ impl Player {
         command(client, vec![json!("playlist-clear")]).await?;
         lock(&self.0.mirror).next = None;
         if let Some(item) = wanted {
-            let reply = command_value(
-                client,
-                vec![json!("loadfile"), json!(item.entry.path), json!("append")],
-            )
-            .await?;
+            let options = self.file_options(&item.entry.path).await;
+            let reply = loadfile(client, &item.entry.path, "append", options).await?;
             lock(&self.0.mirror).next = entry_id(&reply).map(|id| (id, item.uid));
         }
         Ok(())
@@ -845,11 +937,24 @@ impl Player {
                 None => Ok(()),
             };
         }
-        self.set_property("pause", json!(false)).await
+        self.set_pause(false).await
     }
 
     pub async fn pause(&self) -> Result<(), AppError> {
-        self.set_property("pause", json!(true)).await
+        self.set_pause(true).await
+    }
+
+    /// Pauses or resumes, the track fading out too while a crossfade runs.
+    async fn set_pause(&self, pause: bool) -> Result<(), AppError> {
+        let outgoing = lock(&self.0.fade).outgoing;
+        if let Some(client) = outgoing.and_then(|deck| self.deck_client(deck)) {
+            let _ = command(
+                &client,
+                vec![json!("set_property"), json!("pause"), json!(pause)],
+            )
+            .await;
+        }
+        self.set_property("pause", json!(pause)).await
     }
 
     pub async fn toggle(&self) -> Result<(), AppError> {
@@ -882,6 +987,8 @@ impl Player {
             return Ok(());
         }
         let client = self.client()?;
+        // A seek ends a crossfade at once.
+        self.end_fade().await;
         command(
             &client,
             vec![json!("seek"), json!(position), json!("absolute+exact")],
@@ -894,17 +1001,44 @@ impl Player {
     }
 
     pub async fn set_volume(&self, volume: f64) -> Result<(), AppError> {
-        self.set_property("volume", json!(volume.clamp(0.0, 100.0)))
-            .await
+        let volume = volume.clamp(0.0, 100.0);
+        if lock(&self.0.fade).ramping {
+            // The ramp sets the decks' volumes from this as it goes.
+            lock(&self.0.state).volume = volume;
+            self.emit_state();
+            return Ok(());
+        }
+        // Only the playing deck: the other waits silent with the next track, and takes the
+        // volume when it starts.
+        self.set_property("volume", json!(volume)).await
     }
 
     pub async fn set_muted(&self, muted: bool) -> Result<(), AppError> {
-        self.set_property("mute", json!(muted)).await
+        self.set_on_every_deck("mute", json!(muted)).await
     }
 
     pub async fn set_speed(&self, speed: f64) -> Result<(), AppError> {
-        self.set_property("speed", json!(speed.clamp(0.25, 4.0)))
+        self.set_on_every_deck("speed", json!(speed.clamp(0.25, 4.0)))
             .await
+    }
+
+    /// Volume, mute and speed belong to the player, not to one deck.
+    async fn set_on_every_deck(&self, name: &str, value: Value) -> Result<(), AppError> {
+        let active = self.active_deck();
+        let mut result = Err(AppError::Player(
+            "the playback engine is not running".into(),
+        ));
+        for (deck, client) in self.clients() {
+            let set = command(
+                &client,
+                vec![json!("set_property"), json!(name), value.clone()],
+            )
+            .await;
+            if deck == active {
+                result = set;
+            }
+        }
+        result
     }
 
     async fn set_property(&self, name: &str, value: Value) -> Result<(), AppError> {
@@ -912,13 +1046,36 @@ impl Player {
         command(&client, vec![json!("set_property"), json!(name), value]).await
     }
 
-    fn client(&self) -> Result<Arc<Client>, AppError> {
+    fn decks(&self) -> std::sync::RwLockReadGuard<'_, Decks> {
         self.0
-            .client
+            .decks
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// The deck playing the current track.
+    fn active_deck(&self) -> usize {
+        self.decks().active
+    }
+
+    /// The mpv of the deck playing the current track.
+    fn client(&self) -> Result<Arc<Client>, AppError> {
+        let decks = self.decks();
+        decks.clients[decks.active]
             .clone()
             .ok_or_else(|| AppError::Player("the playback engine is not running".into()))
+    }
+
+    fn deck_client(&self, deck: usize) -> Option<Arc<Client>> {
+        self.decks().clients[deck].clone()
+    }
+
+    /// Every running mpv, for what all decks share (volume, filters, link options).
+    fn clients(&self) -> Vec<(usize, Arc<Client>)> {
+        let decks = self.decks();
+        (0..2)
+            .filter_map(|deck| decks.clients[deck].clone().map(|client| (deck, client)))
+            .collect()
     }
 
     async fn wait_for_client(&self) -> Result<Arc<Client>, AppError> {
@@ -939,14 +1096,18 @@ impl Player {
         }
     }
 
-    fn set_client(&self, client: Option<Arc<Client>>) {
+    fn set_client(&self, deck: usize, client: Option<Arc<Client>>) {
         let connected = client.is_some();
-        *self
-            .0
-            .client
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = client;
-        if connected {
+        let active = {
+            let mut decks = self
+                .0
+                .decks
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            decks.clients[deck] = client;
+            decks.active == deck
+        };
+        if connected && active {
             self.0.ready.notify_waiters();
         }
     }
@@ -1188,10 +1349,21 @@ impl Player {
         self.emit_state();
     }
 
-    async fn handle_event(&self, event: Event, client: &Client) {
+    async fn handle_event(&self, deck: usize, event: Event, client: &Client) {
+        if deck != self.active_deck() {
+            self.offstage_event(deck, &event).await;
+            return;
+        }
+        // The ramp moves the volume; the user's stays as it was.
+        if lock(&self.0.fade).ramping
+            && matches!(&event, Event::PropertyChange { name, .. } if name == "volume")
+        {
+            return;
+        }
         let mut apply = true;
         let mut stop = false;
         let mut link_error = None;
+        let mut crossfade_due = false;
         match &event {
             Event::FileLoaded => {
                 lock(&self.0.mirror).failures = 0;
@@ -1245,7 +1417,9 @@ impl Player {
                     .current
                     .is_some_and(|(id, _)| Some(id) == *playlist_entry_id);
                 if is_current {
-                    let has_next = mirror.next.is_some();
+                    // Ended before its crossfade began (the next track was slow to load): the
+                    // prepared deck takes over as soon as it can.
+                    let has_next = mirror.next.is_some() || lock(&self.0.fade).prep.is_some();
                     match reason {
                         EndReason::Redirect => mirror.redirected = true,
                         // mpv goes straight on to the preloaded file: no idle in between.
@@ -1265,12 +1439,21 @@ impl Player {
                         }
                         _ => {}
                     }
+                    crossfade_due = matches!(reason, EndReason::Eof | EndReason::Error)
+                        && mirror.next.is_none()
+                        && lock(&self.0.fade).prep.is_some();
                     if apply && matches!(reason, EndReason::Eof | EndReason::Error) {
                         mirror.current = None;
                     }
                 }
             }
             _ => {}
+        }
+        if crossfade_due {
+            if let Some(prep) = lock(&self.0.fade).prep.as_mut() {
+                prep.due = true;
+            }
+            self.crossfade_tick();
         }
         if stop {
             match &link_error {
@@ -1306,12 +1489,31 @@ impl Player {
         if changes.position {
             self.count_play();
             self.follow_lyrics();
+            self.crossfade_tick();
+        }
+        // A length learnt late can make the next transition a crossfade.
+        if matches!(&event, Event::PropertyChange { name, .. } if name == "duration")
+            && self.crossfade_seconds() > 0.0
+            && lock(&self.0.fade).prep.is_none()
+        {
+            let player = self.clone();
+            let client = self.client();
+            tauri::async_runtime::spawn(async move {
+                let _transport = player.0.transport.lock().await;
+                if let Ok(client) = client
+                    && let Err(err) = player.sync_next(&client, false).await
+                {
+                    log::warn!("cannot prepare the next track: {err}");
+                }
+            });
         }
     }
 
-    /// Sets up a freshly started mpv: observers, volume/speed, and the track it was playing.
-    async fn attach(&self, client: &Client) -> Result<(), AppError> {
+    /// Sets up a freshly started mpv: observers, volume/speed, its filters and, on the active
+    /// deck, the track it was playing. The other deck waits paused.
+    async fn attach(&self, deck: usize, client: &Client) -> Result<(), AppError> {
         let state = self.state();
+        let active = deck == self.active_deck();
         command(
             client,
             vec![json!("set_property"), json!("volume"), json!(state.volume)],
@@ -1329,7 +1531,11 @@ impl Player {
         .await?;
         command(
             client,
-            vec![json!("set_property"), json!("pause"), json!(state.paused)],
+            vec![
+                json!("set_property"),
+                json!("pause"),
+                json!(state.paused || !active),
+            ],
         )
         .await?;
         for (id, name) in OBSERVED.iter().enumerate() {
@@ -1343,6 +1549,32 @@ impl Player {
         command(client, vec![json!("request_log_messages"), json!("warn")]).await?;
         self.set_ytdl_options(client).await;
         self.set_meter_filters(client, false).await;
+        self.add_equalizer(deck, client).await;
+        self.apply_normalization(client).await;
+        if !active {
+            // A deck that restarted lost the track it had prepared or was fading out.
+            {
+                let mut fade = lock(&self.0.fade);
+                if fade.prep.is_some_and(|prep| prep.deck == deck) {
+                    fade.prep = None;
+                }
+                if fade.outgoing == Some(deck) {
+                    fade.outgoing = None;
+                }
+            }
+            // The track playing may blend into the next one now that this deck is up (it
+            // usually comes up after the first track started).
+            let player = self.clone();
+            tauri::async_runtime::spawn(async move {
+                let _transport = player.0.transport.lock().await;
+                if let Ok(client) = player.client()
+                    && let Err(err) = player.sync_next(&client, false).await
+                {
+                    log::warn!("cannot prepare the next track: {err}");
+                }
+            });
+            return Ok(());
+        }
         let current = lock(&self.0.queue).current().cloned();
         let waiting = self.0.load_waiting.load(Ordering::Relaxed);
         if let (Status::Playing | Status::Paused | Status::Loading, Some(item), false) =
@@ -1426,13 +1658,639 @@ impl Player {
         }
     }
 
-    /// The backdrop pulse was switched, or the level meter shown or hidden.
-    pub fn meter_filters_changed(&self) {
+    /// Puts the equalizer into a fresh mpv's audio chain, first, if it changes the sound.
+    async fn add_equalizer(&self, deck: usize, client: &Client) {
+        let Some(settings) = self.0.app.try_state::<SettingsStore>() else {
+            return;
+        };
+        // A fresh mpv has no equalizer: whatever the last one had is gone.
+        lock(&self.0.equalizer)[deck] = Equalizer::default();
+        self.apply_equalizer(deck, client, settings.get().sound.equalizer, false)
+            .await;
+    }
+
+    /// Makes a deck's equalizer `to`. While a band is dragged (`live`), the change goes to
+    /// that band's filter (`af-command`), so the music plays on undisturbed. mpv builds the
+    /// chain afresh for every file and seek from the filter as it was added, so the curve to
+    /// keep replaces the filter (in place, by its label); switching the equalizer on or off
+    /// adds or removes it.
+    async fn apply_equalizer(&self, deck: usize, client: &Client, to: Equalizer, live: bool) {
+        let from = std::mem::replace(&mut lock(&self.0.equalizer)[deck], to.clone());
+        let result = match (from.active(), to.active()) {
+            (true, true) if !live => {
+                command(client, vec![json!("af"), json!("add"), json!(to.filter())]).await
+            }
+            (true, true) => {
+                let mut result = Ok(());
+                for [name, value, target] in to.commands(&from) {
+                    let args = vec![
+                        json!("af-command"),
+                        json!(sound::EQ_LABEL),
+                        json!(name),
+                        json!(value),
+                        json!(target),
+                    ];
+                    result = result.and(command(client, args).await);
+                }
+                result
+            }
+            (false, true) => {
+                command(client, vec![json!("af"), json!("pre"), json!(to.filter())]).await
+            }
+            (true, false) => {
+                let label = format!("@{}", sound::EQ_LABEL);
+                command(client, vec![json!("af"), json!("remove"), json!(label)]).await
+            }
+            (false, false) => Ok(()),
+        };
+        if let Err(err) = result {
+            log::warn!("cannot change the equalizer: {err}");
+        }
+    }
+
+    fn crossfade_seconds(&self) -> f64 {
+        self.0
+            .app
+            .try_state::<SettingsStore>()
+            .map_or(0.0, |settings| settings.get().sound.crossfade)
+    }
+
+    /// Whether `current` blends into `next`: crossfade is on, the other deck is up, the
+    /// tracks aren't neighbours on one album (or the same item again), and `current` is
+    /// long enough (a radio stream, of unknown length, isn't blended).
+    fn crossfades(&self, current: &QueueItem, next: &QueueItem) -> bool {
+        let seconds = self.crossfade_seconds();
+        let duration = lock(&self.0.state).duration.or(current.entry.duration);
+        seconds > 0.0
+            && next.uid != current.uid
+            && lock(&self.0.fade).failed != Some(next.uid)
+            && !crossfade::same_album(&current.entry, &next.entry)
+            && duration.is_some_and(|d| crossfade::start_at(d, seconds).is_some())
+            && self.deck_client(1 - self.active_deck()).is_some()
+    }
+
+    /// Loads `item` on the other deck, paused and silent, to start when the playing track
+    /// is about to end. A deck still fading the last track out is busy: the ramp's end comes
+    /// back here.
+    async fn prepare_crossfade(&self, item: &QueueItem) {
+        let standby = 1 - self.active_deck();
+        {
+            let mut fade = lock(&self.0.fade);
+            if fade.outgoing == Some(standby)
+                || fade
+                    .prep
+                    .is_some_and(|prep| prep.uid == item.uid && prep.deck == standby)
+            {
+                return;
+            }
+            fade.prep = Some(Prep {
+                deck: standby,
+                uid: item.uid,
+                entry: None,
+                ready: false,
+                armed: false,
+                due: false,
+            });
+        }
+        let Some(client) = self.deck_client(standby) else {
+            lock(&self.0.fade).prep = None;
+            return;
+        };
+        let state = self.state();
+        let quiet = [
+            ("pause", json!(true)),
+            ("volume", json!(0)),
+            ("mute", json!(state.muted)),
+            ("speed", json!(state.speed)),
+        ];
+        for (name, value) in quiet {
+            let _ = command(&client, vec![json!("set_property"), json!(name), value]).await;
+        }
+        let options = self.file_options(&item.entry.path).await;
+        match loadfile(&client, &item.entry.path, "replace", options).await {
+            Ok(reply) => {
+                let mut fade = lock(&self.0.fade);
+                if let Some(prep) = fade.prep.as_mut().filter(|prep| prep.uid == item.uid) {
+                    prep.entry = entry_id(&reply);
+                }
+            }
+            Err(err) => {
+                log::warn!("cannot load the next track on the other deck: {err}");
+                let mut fade = lock(&self.0.fade);
+                fade.prep = None;
+                fade.failed = Some(item.uid);
+            }
+        }
+    }
+
+    /// Forgets a prepared crossfade (the next track changed, or follows gapless now).
+    fn drop_prep(&self) {
+        let prep = lock(&self.0.fade).prep.take();
+        if let Some(client) = prep.and_then(|prep| self.deck_client(prep.deck)) {
+            tauri::async_runtime::spawn(async move {
+                let _ = command(&client, vec![json!("stop")]).await;
+            });
+        }
+    }
+
+    /// Ends a crossfade at once: the track fading out stops, the new one plays at full
+    /// volume (a seek).
+    async fn end_fade(&self) {
+        let outgoing = {
+            let mut fade = lock(&self.0.fade);
+            if !fade.ramping && fade.outgoing.is_none() {
+                return;
+            }
+            fade.ramping = false;
+            fade.outgoing.take()
+        };
+        let volume = lock(&self.0.state).volume;
+        if let Some(client) = outgoing.and_then(|deck| self.deck_client(deck)) {
+            let _ = command(&client, vec![json!("stop")]).await;
+            let _ = command(
+                &client,
+                vec![json!("set_property"), json!("volume"), json!(volume)],
+            )
+            .await;
+        }
+        if let Ok(client) = self.client() {
+            let _ = command(
+                &client,
+                vec![json!("set_property"), json!("volume"), json!(volume)],
+            )
+            .await;
+        }
+    }
+
+    /// Calls a crossfade off: something else plays now (the user chose another track).
+    fn cancel_crossfade(&self) {
+        self.drop_prep();
+        let player = self.clone();
+        tauri::async_runtime::spawn(async move { player.end_fade().await });
+    }
+
+    /// The playing track moved on: schedules the prepared crossfade's start once it is close
+    /// (or at once, if the track already ended or passed the point).
+    fn crossfade_tick(&self) {
+        let (position, duration, speed, status) = {
+            let state = lock(&self.0.state);
+            (state.position, state.duration, state.speed, state.status)
+        };
+        let seconds = self.crossfade_seconds();
+        let due = lock(&self.0.fade).prep.is_some_and(|prep| prep.due);
+        let wait = match (
+            status,
+            duration.and_then(|d| crossfade::start_at(d, seconds)),
+        ) {
+            _ if due => 0.0,
+            (Status::Idle, _) => 0.0,
+            (Status::Playing, Some(at)) => (at - position) / speed.max(0.25),
+            _ => return,
+        };
+        if wait > 1.0 {
+            return;
+        }
+        let uid = {
+            let mut fade = lock(&self.0.fade);
+            let Some(prep) = fade.prep.as_mut().filter(|prep| prep.ready && !prep.armed) else {
+                return;
+            };
+            prep.armed = true;
+            prep.uid
+        };
+        let player = self.clone();
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(Duration::from_secs_f64(wait.max(0.0))).await;
+            player.start_crossfade(uid).await;
+        });
+    }
+
+    /// The other deck starts the next track and becomes the player's; the volumes cross.
+    async fn start_crossfade(&self, uid: u64) {
+        let _transport = self.0.transport.lock().await;
+        let prep = {
+            let mut fade = lock(&self.0.fade);
+            match fade.prep {
+                Some(prep) if prep.uid == uid && prep.ready => fade.prep.take(),
+                _ => None,
+            }
+        };
+        let Some(prep) = prep else {
+            return;
+        };
+        let next = lock(&self.0.queue).peek_next().map(|item| item.uid);
+        let Some(incoming) = self.deck_client(prep.deck).filter(|_| next == Some(uid)) else {
+            return;
+        };
+        let outgoing = self.active_deck();
+        let (playing, volume) = {
+            let state = lock(&self.0.state);
+            (state.status == Status::Playing, state.volume)
+        };
+        // After the last track ended there is nothing to blend with: full volume at once.
+        let fading_out = playing && !prep.due;
+        if !fading_out {
+            let _ = command(
+                &incoming,
+                vec![json!("set_property"), json!("volume"), json!(volume)],
+            )
+            .await;
+        }
+        if let Err(err) = command(
+            &incoming,
+            vec![json!("set_property"), json!("pause"), json!(false)],
+        )
+        .await
+        {
+            log::warn!("cannot start the next track: {err}");
+            return;
+        }
+        self.0
+            .decks
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .active = prep.deck;
+        {
+            let mut fade = lock(&self.0.fade);
+            fade.outgoing = fading_out.then_some(outgoing);
+            fade.ramping = fading_out;
+        }
+        *lock(&self.0.mirror) = Mirror {
+            current: prep.entry.map(|entry| (entry, uid)),
+            ..Mirror::default()
+        };
+        let item = lock(&self.0.queue).jump(uid).cloned();
+        if let Some(item) = &item {
+            self.begin_track(item);
+        }
+        // The file is loaded already: it plays from here.
+        let duration = incoming
+            .get_property::<f64>("duration")
+            .await
+            .ok()
+            .filter(|d| d.is_finite() && *d > 0.0);
+        {
+            let mut state = lock(&self.0.state);
+            state.status = Status::Playing;
+            state.paused = false;
+            state.duration = duration.or(state.duration);
+        }
+        self.emit_state();
+        self.emit_queue();
+        self.fill_from_mpv_metadata(&incoming).await;
+        let player = self.clone();
+        if fading_out {
+            tauri::async_runtime::spawn(async move { player.ramp(prep.deck, outgoing).await });
+        } else {
+            // The old deck is free: prepare what follows.
+            if let Some(client) = self.deck_client(outgoing) {
+                let _ = command(&client, vec![json!("stop")]).await;
+            }
+            tauri::async_runtime::spawn(async move {
+                let _transport = player.0.transport.lock().await;
+                if let Ok(client) = player.client()
+                    && let Err(err) = player.sync_next(&client, true).await
+                {
+                    log::warn!("cannot prepare the next track: {err}");
+                }
+            });
+        }
+    }
+
+    /// Crosses the two decks' volumes over the crossfade's length (paused time doesn't
+    /// count), then stops the old track and prepares the next crossfade.
+    async fn ramp(&self, incoming: usize, outgoing: usize) {
+        let speed = lock(&self.0.state).speed.max(0.25);
+        let length = (self.crossfade_seconds() / speed).max(0.1);
+        let mut elapsed = 0.0;
+        let mut last = Instant::now();
+        loop {
+            tokio::time::sleep(crossfade::RAMP_STEP).await;
+            let now = Instant::now();
+            let (paused, volume) = {
+                let state = lock(&self.0.state);
+                (state.paused, state.volume)
+            };
+            if !paused {
+                elapsed += now.duration_since(last).as_secs_f64();
+            }
+            last = now;
+            // Called off (a seek, another track).
+            if !lock(&self.0.fade).ramping || self.active_deck() != incoming {
+                break;
+            }
+            let progress = elapsed / length;
+            let (rise, fall) = crossfade::curves(progress);
+            let moves = [
+                (incoming, crossfade::deck_volume(volume, rise)),
+                (outgoing, crossfade::deck_volume(volume, fall)),
+            ];
+            for (deck, value) in moves {
+                if let Some(client) = self.deck_client(deck) {
+                    let _ = command(
+                        &client,
+                        vec![json!("set_property"), json!("volume"), json!(value)],
+                    )
+                    .await;
+                }
+            }
+            if progress >= 1.0 {
+                break;
+            }
+        }
+        self.end_fade().await;
+        // The other deck is free again: the next crossfade can be prepared on it.
+        let _transport = self.0.transport.lock().await;
+        if let Ok(client) = self.client()
+            && let Err(err) = self.sync_next(&client, true).await
+        {
+            log::warn!("cannot prepare the next track: {err}");
+        }
+    }
+
+    /// An event of the deck that isn't playing the current track: the next track loaded (or
+    /// failed to) on it, or the track fading out ended.
+    async fn offstage_event(&self, deck: usize, event: &Event) {
+        match event {
+            Event::FileLoaded => {
+                let ready = {
+                    let mut fade = lock(&self.0.fade);
+                    match fade.prep.as_mut().filter(|prep| prep.deck == deck) {
+                        Some(prep) => {
+                            prep.ready = true;
+                            true
+                        }
+                        None => false,
+                    }
+                };
+                if ready {
+                    self.crossfade_tick();
+                }
+            }
+            Event::EndFile {
+                reason: EndReason::Error,
+                ..
+            } => {
+                let failed = {
+                    let mut fade = lock(&self.0.fade);
+                    let prep = fade.prep.filter(|prep| prep.deck == deck);
+                    if let Some(prep) = prep {
+                        fade.prep = None;
+                        fade.failed = Some(prep.uid);
+                    }
+                    prep.is_some()
+                };
+                // The next track follows gapless on this deck instead (or is skipped there
+                // like any file that can't play).
+                if failed && let Ok(client) = self.client() {
+                    let player = self.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let _transport = player.0.transport.lock().await;
+                        if let Err(err) = player.sync_next(&client, true).await {
+                            log::warn!("cannot queue the next track: {err}");
+                        }
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn normalization(&self) -> Normalization {
+        self.0
+            .app
+            .try_state::<SettingsStore>()
+            .map_or(Normalization::Off, |settings| {
+                settings.get().sound.normalization
+            })
+    }
+
+    /// How mpv evens out loudness: ReplayGain tags (track or album gains), moved to Vitra's
+    /// target by the preamp, with clipping prevented. Applies from the next file.
+    async fn apply_normalization(&self, client: &Client) {
+        let mode = match self.normalization() {
+            Normalization::Off => "no",
+            Normalization::Track => "track",
+            Normalization::Album => "album",
+        };
+        let properties = [
+            ("replaygain", json!(mode)),
+            ("replaygain-preamp", json!(loudness::REPLAYGAIN_PREAMP)),
+            ("replaygain-clip", json!(true)),
+        ];
+        for (name, value) in properties {
+            if let Err(err) = command(client, vec![json!("set_property"), json!(name), value]).await
+            {
+                log::warn!("cannot set {name}: {err}");
+            }
+        }
+        // Links are measured while they play (see `measure_link`).
+        let label = format!("@{}", sound::LOUDNESS_LABEL);
+        let _ = command(client, vec![json!("af"), json!("remove"), json!(label)]).await;
+        if mode != "no"
+            && let Err(err) = command(
+                client,
+                vec![json!("af"), json!("add"), json!(sound::loudness_filter())],
+            )
+            .await
+        {
+            log::warn!("cannot measure loudness: {err}");
+        }
+    }
+
+    /// Measures a link's loudness while it plays (it can't be measured ahead without
+    /// downloading it), from the R128 filter's momentary readings; stored when the track
+    /// ends, if enough of it was heard, for the next time it plays.
+    fn measure_link(&self, id: u64, path: &str) {
+        if !links::is_remote(path) || self.normalization() == Normalization::Off {
+            return;
+        }
+        let Some(library) = self.library() else {
+            return;
+        };
+        let player = self.clone();
+        let key = path.to_owned();
+        tauri::async_runtime::spawn(async move {
+            let known = {
+                let key = key.clone();
+                library.run(move |db| db.loudness(&key, None)).await
+            };
+            if matches!(known, Ok(Some(_))) {
+                return;
+            }
+            let property = format!("af-metadata/{}", sound::LOUDNESS_LABEL);
+            let mut integrator = loudness::Integrator::default();
+            let mut duration = None;
+            loop {
+                tokio::time::sleep(loudness::READING_INTERVAL).await;
+                let (current, status) = {
+                    let state = lock(&player.0.state);
+                    duration = state.duration.or(duration);
+                    (state.track.as_ref().map(|track| track.id), state.status)
+                };
+                if current != Some(id) || status == Status::Idle {
+                    break;
+                }
+                if status != Status::Playing {
+                    continue;
+                }
+                let Ok(client) = player.client() else {
+                    continue;
+                };
+                let reading = client.get_property::<Value>(&property).await.ok();
+                let momentary = reading
+                    .as_ref()
+                    .and_then(|data| data.get("lavfi.r128.M"))
+                    .and_then(Value::as_str)
+                    .and_then(|text| text.parse::<f64>().ok());
+                if let Some(momentary) = momentary {
+                    integrator.push(momentary);
+                }
+            }
+            let Some(integrated) = integrator.integrated(duration) else {
+                return;
+            };
+            let loudness = library::Loudness {
+                integrated,
+                peak: None,
+            };
+            let stored = {
+                let key = key.clone();
+                library
+                    .run(move |db| db.set_loudness(&key, None, loudness))
+                    .await
+            };
+            match stored {
+                Ok(()) => log::info!("loudness of {key}: {integrated:.1} LUFS (while playing)"),
+                Err(err) => log::warn!("cannot store the loudness of {key}: {err}"),
+            }
+        });
+    }
+
+    /// Options for one file: with normalization on, the gain from Vitra's measurement for a
+    /// file without ReplayGain tags (mpv uses `replaygain-fallback` only then; 0 when it
+    /// wasn't measured yet, which also asks for a measurement).
+    async fn file_options(&self, path: &str) -> serde_json::Map<String, Value> {
+        let mut options = serde_json::Map::new();
+        let mode = self.normalization();
+        if mode == Normalization::Off {
+            return options;
+        }
+        let local = !links::is_remote(path);
+        let stamp = if local {
+            sound::measure::file_stamp(Path::new(path))
+        } else {
+            None
+        };
+        let measured = match self.library() {
+            Some(library) if !local || stamp.is_some() => {
+                let key = path.to_owned();
+                library
+                    .run(move |db| {
+                        let own = db.loudness(&key, stamp)?;
+                        let album = match mode {
+                            Normalization::Album if own.is_some() => db.album_loudness(&key)?,
+                            _ => None,
+                        };
+                        Ok(album.or(own))
+                    })
+                    .await
+                    .unwrap_or_else(|err| {
+                        log::warn!("cannot read the loudness of {path}: {err}");
+                        None
+                    })
+            }
+            _ => None,
+        };
+        if measured.is_none()
+            && local
+            && let Some(meter) = self.0.app.try_state::<LoudnessMeter>()
+        {
+            meter.want(Path::new(path));
+        }
+        let gain = measured.map_or(0.0, loudness::gain);
+        options.insert("replaygain-fallback".into(), json!(format!("{gain:.1}")));
+        options
+    }
+
+    /// A file was measured: if it is the one waiting to play next, it is handed to mpv again
+    /// with its gain.
+    pub fn loudness_measured(&self, path: &str) {
+        let next = lock(&self.0.mirror).next.map(|(_, uid)| uid);
+        let waiting = lock(&self.0.queue)
+            .peek_next()
+            .filter(|item| Some(item.uid) == next && item.entry.path == path)
+            .is_some();
+        if !waiting {
+            return;
+        }
         let Ok(client) = self.client() else {
             return;
         };
         let player = self.clone();
-        tauri::async_runtime::spawn(async move { player.set_meter_filters(&client, true).await });
+        tauri::async_runtime::spawn(async move {
+            let _transport = player.0.transport.lock().await;
+            if let Err(err) = player.sync_next(&client, true).await {
+                log::warn!("cannot queue the next file again: {err}");
+            }
+        });
+    }
+
+    /// The sound settings changed.
+    pub fn sound_changed(&self, previous: &SoundSettings, next: &SoundSettings) {
+        if previous.equalizer != next.equalizer {
+            self.set_equalizer(next.equalizer.clone(), false);
+        }
+        if previous.crossfade != next.crossfade {
+            self.crossfade_changed();
+        }
+        if previous.normalization != next.normalization || previous.crossfade != next.crossfade {
+            let normalization = previous.normalization != next.normalization;
+            let player = self.clone();
+            tauri::async_runtime::spawn(async move {
+                if normalization {
+                    for (_, client) in player.clients() {
+                        player.apply_normalization(&client).await;
+                    }
+                }
+                // The next file goes to mpv again (with its gain, or to the other deck).
+                let _transport = player.0.transport.lock().await;
+                if let Ok(client) = player.client()
+                    && let Err(err) = player.sync_next(&client, true).await
+                {
+                    log::warn!("cannot queue the next file again: {err}");
+                }
+            });
+        }
+    }
+
+    /// Plays with `equalizer` without saving it (a band being dragged); the settings bring
+    /// the one to keep.
+    pub fn preview_equalizer(&self, equalizer: Equalizer) {
+        self.set_equalizer(equalizer, true);
+    }
+
+    fn set_equalizer(&self, equalizer: Equalizer, live: bool) {
+        let player = self.clone();
+        tauri::async_runtime::spawn(async move {
+            // One change at a time, so quick moves reach mpv in order.
+            let _turn = player.0.equalizer_turn.lock().await;
+            for (deck, client) in player.clients() {
+                player
+                    .apply_equalizer(deck, &client, equalizer.clone(), live)
+                    .await;
+            }
+        });
+    }
+
+    /// The backdrop pulse was switched, or the level meter shown or hidden.
+    pub fn meter_filters_changed(&self) {
+        let player = self.clone();
+        tauri::async_runtime::spawn(async move {
+            for (_, client) in player.clients() {
+                player.set_meter_filters(&client, true).await;
+            }
+        });
     }
 
     /// What a window shows: the pulse (it is visible, motion is on and so is the setting)
@@ -1448,11 +2306,12 @@ impl Player {
 
     /// The link settings (cookies) changed.
     pub fn links_settings_changed(&self) {
-        let Ok(client) = self.client() else {
-            return;
-        };
         let player = self.clone();
-        tauri::async_runtime::spawn(async move { player.set_ytdl_options(&client).await });
+        tauri::async_runtime::spawn(async move {
+            for (_, client) in player.clients() {
+                player.set_ytdl_options(&client).await;
+            }
+        });
     }
 
     fn fail(&self, error: PlayerError) {
@@ -1468,6 +2327,17 @@ impl Player {
         let state = self.state();
         *lock(&self.0.last_position_emit) = Instant::now();
         self.emit(STATE_EVENT, &state);
+        self.show_now_playing(&state);
+        if let Some(tray) = self.0.app.try_state::<Tray>() {
+            tray.update(&state);
+        }
+    }
+
+    /// Tells the system's Now Playing (it sends only what changed).
+    fn show_now_playing(&self, state: &PlayerState) {
+        if let Some(now_playing) = self.0.app.try_state::<NowPlaying>() {
+            now_playing.update(state, &self.0.artwork);
+        }
     }
 
     fn emit_position(&self, force: bool) {
@@ -1478,14 +2348,14 @@ impl Player {
             }
             *last = Instant::now();
         }
-        let update = {
-            let state = lock(&self.0.state);
-            PositionUpdate {
-                position: state.position,
-                duration: state.duration,
-            }
+        let state = self.state();
+        let update = PositionUpdate {
+            position: state.position,
+            duration: state.duration,
         };
         self.emit(POSITION_EVENT, &update);
+        // A seek shows up here as a jump in the position.
+        self.show_now_playing(&state);
     }
 
     fn emit_queue(&self) {
@@ -1513,6 +2383,27 @@ async fn command_value(client: &Client, args: Vec<Value>) -> Result<Value, AppEr
 }
 
 /// The playlist entry id `loadfile` reports (mpv 0.33+).
+/// `loadfile` with its arguments named (their order changed in mpv 0.38) and options that
+/// apply to that file only.
+async fn loadfile(
+    client: &Client,
+    path: &str,
+    flags: &str,
+    options: serde_json::Map<String, Value>,
+) -> Result<Value, AppError> {
+    let mut command = serde_json::Map::new();
+    command.insert("name".into(), json!("loadfile"));
+    command.insert("url".into(), json!(path));
+    command.insert("flags".into(), json!(flags));
+    if !options.is_empty() {
+        command.insert("options".into(), Value::Object(options));
+    }
+    match tokio::time::timeout(COMMAND_TIMEOUT, client.command_named(command)).await {
+        Ok(result) => result.map_err(mpv_error),
+        Err(_) => Err(AppError::Player("mpv did not answer in time".into())),
+    }
+}
+
 fn entry_id(reply: &Value) -> Option<i64> {
     let id = reply.get("playlist_entry_id").and_then(Value::as_i64);
     if id.is_none() {
@@ -1761,61 +2652,73 @@ async fn read_meters(player: Player) {
     }
 }
 
-async fn supervise(player: Player) {
+/// Runs one deck's mpv: starts it, hands its events to the player, and restarts it after a
+/// crash (giving up after too many), until the deck isn't wanted any more.
+async fn supervise(player: Player, deck: usize) {
     let paths = sidecar::search_paths(&player.0.app);
     let Some(mpv) = paths.locate(Sidecar::Mpv) else {
         log::error!("mpv not found");
         player.fail(PlayerError::MpvMissing);
         return;
     };
-    log::info!("using mpv at {} ({:?})", mpv.path.display(), mpv.source);
+    log::info!(
+        "deck {deck}: using mpv at {} ({:?})",
+        mpv.path.display(),
+        mpv.source
+    );
     let helpers = LinkHelpers {
         ytdlp: paths.locate(Sidecar::YtDlp).map(|found| found.path),
         deno: paths.locate(Sidecar::Deno).map(|found| found.path),
     };
+    let stop = &player.0.stop[deck];
+    let wanted = || player.0.wanted[deck].load(Ordering::Relaxed);
 
     let mut newer_options = true;
     let mut failures: VecDeque<Instant> = VecDeque::new();
-    loop {
+    while wanted() {
         let spawned = MpvProcess::spawn(SpawnOptions {
             binary: mpv.path.clone(),
             args: mpv_args(newer_options, &helpers),
-            pipe_prefix: "vitra-mpv".into(),
+            pipe_prefix: format!("vitra-mpv{deck}"),
             startup_timeout: STARTUP_TIMEOUT,
         })
         .await;
 
         let error = match spawned {
             Ok((mut process, client, mut events)) => {
-                log::info!("{} started", process.version());
+                log::info!("deck {deck}: {} started", process.version());
                 let client = Arc::new(client);
-                if let Err(err) = player.attach(&client).await {
+                if let Err(err) = player.attach(deck, &client).await {
                     log::warn!("setting up mpv failed: {err}");
                 }
-                player.set_client(Some(Arc::clone(&client)));
-                {
-                    let mut state = lock(&player.0.state);
-                    if matches!(state.error, Some(PlayerError::MpvFailed { .. })) {
-                        state.error = None;
+                player.set_client(deck, Some(Arc::clone(&client)));
+                if deck == player.active_deck() {
+                    {
+                        let mut state = lock(&player.0.state);
+                        if matches!(state.error, Some(PlayerError::MpvFailed { .. })) {
+                            state.error = None;
+                        }
                     }
+                    player.emit_state();
                 }
-                player.emit_state();
 
                 let reason = loop {
                     tokio::select! {
                         event = events.recv() => match event {
-                            Some(event) => player.handle_event(event, &client).await,
+                            Some(event) => player.handle_event(deck, event, &client).await,
                             None => break "lost the IPC connection".to_owned(),
                         },
                         status = process.wait() => break format!("exited ({status:?})"),
-                        () = player.0.shutdown.notified() => {
-                            player.set_client(None);
-                            process.shutdown(&client, Duration::from_secs(2)).await;
-                            return;
+                        () = stop.notified() => {
+                            if !wanted() {
+                                player.set_client(deck, None);
+                                process.shutdown(&client, Duration::from_secs(2)).await;
+                                return;
+                            }
                         }
                     }
                 };
-                player.set_client(None);
+                player.set_client(deck, None);
                 reason
             }
             Err(mpv_ipc::Error::Exited(status)) if newer_options => {
@@ -1826,7 +2729,10 @@ async fn supervise(player: Player) {
             Err(err) => err.to_string(),
         };
 
-        log::warn!("mpv stopped: {error}");
+        log::warn!("deck {deck}: mpv stopped: {error}");
+        if !wanted() {
+            return;
+        }
         let now = Instant::now();
         failures.push_back(now);
         while failures
@@ -1836,12 +2742,14 @@ async fn supervise(player: Player) {
             failures.pop_front();
         }
         if failures.len() >= MAX_FAILURES {
-            player.fail(PlayerError::MpvFailed { message: error });
+            if deck == player.active_deck() {
+                player.fail(PlayerError::MpvFailed { message: error });
+            }
             return;
         }
         tokio::select! {
             () = tokio::time::sleep(Duration::from_secs(failures.len() as u64)) => {}
-            () = player.0.shutdown.notified() => return,
+            () = stop.notified() => {}
         }
     }
 }

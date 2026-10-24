@@ -59,7 +59,7 @@ impl ArtworkStore {
         })
     }
 
-    fn get(&self, id: &str) -> Option<Arc<PreparedArtwork>> {
+    pub fn get(&self, id: &str) -> Option<Arc<PreparedArtwork>> {
         self.lock()
             .iter()
             .find(|(key, _)| key == id)

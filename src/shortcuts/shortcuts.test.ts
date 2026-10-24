@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { ACTION_IDS, ACTIONS, rebind, resetAction, resolveBindings } from './actions.ts';
+import {
+  ACTION_IDS,
+  ACTIONS,
+  globalAllowed,
+  isGlobalAction,
+  rebind,
+  rebindGlobal,
+  rebindInWindow,
+  resetAction,
+  resolveBindings,
+} from './actions.ts';
 import {
   comboFromEvent,
   comboLabel,
@@ -135,5 +145,49 @@ describe('bindings', () => {
   it('removing a shortcut is kept; choosing the default again is not', () => {
     expect(rebind({}, 'mute', null, false).overrides).toEqual({ mute: null });
     expect(rebind({ mute: 'KeyK' }, 'mute', 'KeyM', false).overrides).toEqual({});
+  });
+});
+
+describe('shortcuts in every app', () => {
+  it('are for playback and the mini player', () => {
+    expect(isGlobalAction('play-pause')).toBe(true);
+    expect(isGlobalAction('mini-player')).toBe(true);
+    expect(isGlobalAction('search')).toBe(false);
+  });
+
+  it('need a modifier that doesn’t type, unless the key types nothing', () => {
+    expect(globalAllowed('Mod+Alt+KeyP')).toBe(true);
+    expect(globalAllowed('Ctrl+KeyP')).toBe(true);
+    expect(globalAllowed('KeyP')).toBe(false);
+    expect(globalAllowed('Shift+KeyP')).toBe(false);
+    expect(globalAllowed('Space')).toBe(false);
+    expect(globalAllowed('F13')).toBe(true);
+    expect(globalAllowed('Shift+F8')).toBe(true);
+  });
+
+  it('take the combination from other actions, in every app and in the window', () => {
+    const globals = { next: 'Mod+Alt+KeyN' };
+    const taken = rebindGlobal({}, globals, 'previous', 'Mod+Alt+KeyN', true);
+    expect(taken.globals).toEqual({ previous: 'Mod+Alt+KeyN' });
+    expect(taken.displaced).toEqual(['next']);
+    // ⌥⌘S is the sidebar's in the window: the system would catch it first.
+    const window = rebindGlobal({}, {}, 'mini-player', 'Mod+Alt+KeyS', true);
+    expect(window.globals).toEqual({ 'mini-player': 'Mod+Alt+KeyS' });
+    expect(window.overrides).toEqual({ sidebar: null });
+    expect(window.displaced).toEqual(['sidebar']);
+    // The action's own window shortcut may be the same.
+    const own = rebindGlobal({}, {}, 'next', 'Mod+ArrowRight', true);
+    expect(own.overrides).toEqual({});
+    expect(own.displaced).toEqual([]);
+    expect(rebindGlobal({}, own.globals, 'next', null, true).globals).toEqual({});
+  });
+
+  it('give way to a window shortcut set later for another action', () => {
+    const result = rebindInWindow({}, { next: 'Mod+KeyK' }, 'mute', 'Mod+KeyK', true);
+    expect(result.overrides).toEqual({ mute: 'Mod+KeyK' });
+    expect(result.globals).toEqual({});
+    expect(result.displaced).toEqual(['next']);
+    const same = rebindInWindow({}, { mute: 'Mod+KeyK' }, 'mute', 'Mod+KeyK', true);
+    expect(same.globals).toEqual({ mute: 'Mod+KeyK' });
   });
 });

@@ -1,5 +1,7 @@
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core';
 
+import type { Equalizer } from './settings.ts';
+
 // Mirrors src-tauri/src/player/state.rs and crates/media.
 
 export type PlaybackStatus = 'idle' | 'loading' | 'playing' | 'paused';
@@ -131,6 +133,8 @@ export const player = {
    * spectrum (`player://spectrum`) for its level meter. Reading stops when neither is.
    */
   meters: (pulse: boolean, spectrum: boolean) => call('player_meters', { pulse, spectrum }),
+  /** Plays with an equalizer that isn't saved (a band being dragged); saving it follows. */
+  previewEqualizer: (equalizer: Equalizer) => call('sound_preview_equalizer', { equalizer }),
   /** Plays files and folders, replacing the queue. */
   open: (paths: string[]) => call('player_open', { paths }),
   play: () => call('player_play'),

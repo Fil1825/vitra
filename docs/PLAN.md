@@ -302,6 +302,54 @@ and an explicit list of checks that can only be done on a Mac.
 - **Mac-only checks**: the Now Playing widget in Control Center and on the lock screen
   (track, artwork, progress, the buttons, scrubbing), media keys and headphone buttons with
   the app in the background, both while only the mini player is open, menu-bar icon.
+- The owner's additions: an animation of its own for every icon; Settings split into pages
+  (it had grown cluttered); an **About** page with the owner's words and a donation link
+  (to be filled in: `features/settings/about.ts`).
+- The owner's choices: each icon moves in its own way (hover and press, under half a
+  second, nothing with Reduce Motion); Settings in **two columns** (a list of pages with a
+  search, still a panel over the window); crossfade **0–12 s on automatic transitions
+  only**, neighbours on one album stay gapless, skipping switches at once; normalization
+  **like Sound Check**: measured once, applied as a gain, ReplayGain tags first.
+- Done and accepted (PR #9; the owner checked it on a Mac, in a `.app` bundle):
+  - Now Playing: `MPNowPlayingInfoCenter` + `MPRemoteCommandCenter` on macOS
+    (`objc2-media-player`), `souvlaki` on Windows (SMTC) and Linux (MPRIS); track,
+    artists, album, artwork, duration, position and rate from Rust's player state, sent
+    only when they change; play, pause, toggle, next, previous, stop and scrubbing back.
+  - Equalizer: ten bands (32 Hz–16 kHz, ±12 dB) and a preamp as one lavfi graph in mpv's
+    chain; twenty-two built-in presets (Flat included) and the user's own; dragging
+    previews live, a kept change replaces the filter in place.
+  - Loudness: ReplayGain tags (track or album) with a preamp to −14 LUFS; tracks without
+    tags are measured once (FFmpeg's EBU R128 for files, ahead of play; mpv's own `ebur128`
+    while a link plays) and get that gain, kept in the library (migration 8); album mode
+    uses the album's measured tracks together.
+  - Crossfade: two mpv decks, an equal-power volume crossing on one clock; same-album
+    neighbours, repeats of one track and short tracks stay gapless on one deck.
+  - Menu-bar / tray icon (a template image of `mono.svg` on macOS) with the track,
+    Play/Pause, Next, Previous, Show Vitra, Mini Player and Quit; Settings → General
+    turns it off.
+  - Shortcuts in every app (`tauri-plugin-global-shortcut`), none by default, for playback
+    and the mini player, recorded in Settings → Keyboard Shortcuts' second column.
+  - Settings: pages with icons and a search (Russian ё = е), General, Sound and About new.
+  - Icons: a motion of its own for each (`src/styles/icons.css`), a morph of play/pause.
+- **Mac** for stage 8:
+  - Control Center → Now Playing and the lock screen: title, artist, album, cover, the
+    progress moving; play/pause, next, previous and dragging the progress work; the same
+    for a link (YouTube) and while only the mini player is open (also with _Over full-screen
+    apps_, when Vitra has no Dock icon).
+  - F7/F8/F9 (or the Touch Bar) and AirPods / headphone buttons (one press: play/pause,
+    two: next, three: previous) with another app in front; the AirPods menu in the menu
+    bar shows Vitra's track.
+  - The menu-bar icon: a template that follows light/dark menu bars and wallpaper tinting,
+    sharp on Retina; its menu in the app's language, Play/Pause following the player;
+    Show Vitra and Mini Player while the other window is in use; Quit; turning it off in
+    Settings → General.
+  - A shortcut in every app (say ⌥⌘P for play/pause) works while Safari is in front;
+    one another app already has shows the warning.
+  - Equalizer, loudness and crossfade by ear with real music: the EQ's live dragging has no
+    clicks; Normalization on with loud and quiet tracks in a row; a crossfade between two
+    albums and none inside one album; CPU stays low with crossfade on (two mpv processes
+    in Activity Monitor, the second idle).
+  - The icons' motions in WebKit (Safari 17 / macOS 14 and later) and with Reduce Motion on.
 
 ## Stage 9 — Playlist import from other services
 
@@ -517,6 +565,14 @@ original spec. Each part is its own commit (or a few), testable on its own.
 - `README.md` (+ screenshots/GIF), `README.ru.md`, `CONTRIBUTING.md`, issue/PR templates,
   disclaimer that users are responsible for complying with the terms of sites they play from.
 - First release.
+- Before the release (the owner's notes after stage 8):
+  - **Sidecars inside `Vitra.app`.** A plain `tauri build` bundle has no mpv, yt-dlp,
+    FFmpeg or Deno: a debug build finds them through `CARGO_MANIFEST_DIR`
+    (`src-tauri/sidecars/<triple>/`), a release bundle on another Mac can't play.
+    `npm run bundle` copies them in (key decision 6); the release workflow must build that
+    way (or fetch them on first use, open question 1) and be checked on a clean Mac.
+  - **About**: remind the owner to write their note and donation link
+    (`src/features/settings/about.ts`, `AUTHOR_NOTE`, `DONATE_URL`).
 
 ## Post-v1 roadmap
 

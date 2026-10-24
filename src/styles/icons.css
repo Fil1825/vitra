@@ -1,0 +1,715 @@
+/*
+ * Icons come alive under the pointer: each one moves in its own way, once, when the button
+ * (link, tab, menu item…) it sits in is hovered, and gives a little when pressed.
+ *
+ * An icon (Lucide's `<svg class="lucide lucide-<name>">`) or one of its parts names its
+ * motion in `--vi` (a keyframes name), with `--vi-time` and `--vi-delay` to taste; one rule
+ * below plays them. The properties don't inherit, so a part moves only when it says so.
+ * Only `transform` moves (never `opacity` or `filter`, see the Gotchas on glass); with
+ * Reduce Motion nothing plays.
+ */
+
+@property --vi {
+  syntax: '*';
+  inherits: false;
+}
+
+@property --vi-time {
+  syntax: '<time>';
+  inherits: false;
+  initial-value: 0.45s;
+}
+
+@property --vi-delay {
+  syntax: '<time>';
+  inherits: false;
+  initial-value: 0s;
+}
+
+/* Parts turn and grow around their own middle, unless they say otherwise. */
+.lucide > * {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@media (hover: hover) {
+  :root:not([data-motion='reduce'])
+    :is(
+      button,
+      a[href],
+      summary,
+      [role='button'],
+      [role='tab'],
+      [role='radio'],
+      [role='switch'],
+      [role='option'],
+      [role='menuitem']
+    ):not(:disabled, [aria-disabled='true']):hover
+    :is(.lucide:not(.lucide-loader-circle, [data-morph]), .lucide:not(.lucide-loader-circle) > *) {
+    /* Longhands: in the shorthand, a `none` would be read as the fill mode. */
+    animation-name: var(--vi, none);
+    animation-duration: var(--vi-time);
+    animation-timing-function: cubic-bezier(0.3, 0.7, 0.4, 1.3);
+    animation-delay: var(--vi-delay);
+    animation-fill-mode: both;
+  }
+}
+
+/* Pressed: the icon gives a little (`scale` adds to whatever the motion does). */
+:root:not([data-motion='reduce'])
+  :is(button, a[href], [role='button'], [role='tab'], [role='radio'], [role='menuitem']):not(
+    :disabled
+  ):active
+  .lucide {
+  scale: 0.9;
+}
+
+.lucide {
+  transition: scale 0.12s ease-out;
+}
+
+/*
+ * The play button's icon turns into the other one rather than just swapping (its parts
+ * still move under the pointer; a spinner keeps its own spin).
+ */
+:root:not([data-motion='reduce']) .lucide[data-morph] {
+  animation: vi-morph 0.28s cubic-bezier(0.3, 0.7, 0.4, 1.3);
+}
+
+/* ——— Playback ——— */
+
+.lucide-play > * {
+  --vi: vi-nudge-right;
+}
+
+.lucide-pause > * {
+  --vi: vi-squeeze;
+}
+
+.lucide-pause > :nth-child(2) {
+  --vi-delay: 0.08s;
+}
+
+.lucide-skip-forward {
+  --vi: vi-dash-right;
+}
+
+.lucide-skip-back {
+  --vi: vi-dash-left;
+}
+
+.lucide-shuffle > :nth-child(1) {
+  --vi: vi-nudge-right;
+}
+
+.lucide-shuffle > :nth-child(2) {
+  --vi: vi-nudge-right;
+  --vi-delay: 0.08s;
+}
+
+.lucide-repeat,
+.lucide-repeat-1 {
+  --vi: vi-half-turn;
+  --vi-time: 0.55s;
+}
+
+.lucide-volume-1 > :nth-child(2),
+.lucide-volume-2 > :nth-child(2),
+.lucide-volume-2 > :nth-child(3) {
+  --vi: vi-wave;
+  transform-origin: left center;
+}
+
+.lucide-volume-2 > :nth-child(3) {
+  --vi-delay: 0.1s;
+}
+
+.lucide-volume-x > :nth-child(n + 2) {
+  --vi: vi-quarter;
+}
+
+.lucide-heart,
+.lucide-hand-heart {
+  --vi: vi-beat;
+  --vi-time: 0.6s;
+}
+
+.lucide-mic-vocal {
+  --vi: vi-sing;
+  --vi-time: 0.6s;
+}
+
+.lucide-audio-lines > *,
+.lucide-audio-waveform {
+  --vi: vi-bar;
+}
+
+.lucide-audio-lines > :nth-child(2) {
+  --vi-delay: 0.05s;
+}
+
+.lucide-audio-lines > :nth-child(3) {
+  --vi-delay: 0.1s;
+}
+
+.lucide-audio-lines > :nth-child(4) {
+  --vi-delay: 0.15s;
+}
+
+.lucide-audio-lines > :nth-child(5) {
+  --vi-delay: 0.2s;
+}
+
+.lucide-audio-lines > :nth-child(6) {
+  --vi-delay: 0.25s;
+}
+
+.lucide-disc-3 {
+  --vi: vi-spin;
+  --vi-time: 0.8s;
+}
+
+.lucide-eighth-notes,
+.lucide-eighth-note,
+.lucide-list-music > :nth-child(n + 4) {
+  --vi: vi-hop;
+}
+
+.lucide-radio > :nth-child(-n + 4) {
+  --vi: vi-pop;
+}
+
+.lucide-radio > :nth-child(2),
+.lucide-radio > :nth-child(3) {
+  --vi-delay: 0.08s;
+}
+
+.lucide-picture-in-picture-2 > :nth-child(2) {
+  --vi: vi-pop;
+  transform-origin: right bottom;
+}
+
+.lucide-maximize-2 > :nth-child(-n + 2) {
+  --vi: vi-out-up-right;
+}
+
+.lucide-maximize-2 > :nth-child(n + 3) {
+  --vi: vi-out-down-left;
+}
+
+/* ——— Files, folders, links ——— */
+
+.lucide-folder-open {
+  --vi: vi-open;
+  transform-origin: left bottom;
+}
+
+.lucide-folder-plus > :nth-child(-n + 2),
+.lucide-list-plus > :nth-child(n + 4),
+.lucide-image-plus > :nth-child(-n + 2) {
+  --vi: vi-quarter;
+}
+
+.lucide-link-2 > :nth-child(1) {
+  --vi: vi-apart-left;
+}
+
+.lucide-link-2 > :nth-child(2) {
+  --vi: vi-apart-right;
+}
+
+.lucide-code-xml > :nth-child(1) {
+  --vi: vi-apart-right;
+}
+
+.lucide-code-xml > :nth-child(2) {
+  --vi: vi-apart-left;
+}
+
+.lucide-download > :nth-child(1),
+.lucide-download > :nth-child(3),
+.lucide-file-down > :nth-child(n + 3) {
+  --vi: vi-drop;
+}
+
+.lucide-file-up > :nth-child(n + 3),
+.lucide-share > :nth-child(-n + 2) {
+  --vi: vi-rise;
+}
+
+.lucide-save {
+  --vi: vi-press;
+}
+
+.lucide-trash > :nth-child(4),
+.lucide-trash > :nth-child(5) {
+  --vi: vi-lid;
+  transform-box: view-box;
+  transform-origin: 3px 6px;
+}
+
+.lucide-pencil {
+  --vi: vi-write;
+  --vi-time: 0.55s;
+}
+
+.lucide-image-off,
+.lucide-triangle-alert {
+  --vi: vi-shake;
+}
+
+.lucide-list-start > :nth-child(4) {
+  --vi: vi-nudge-left;
+}
+
+.lucide-move-right {
+  --vi: vi-nudge-right;
+}
+
+/* ——— Windows, layout, navigation ——— */
+
+.lucide-settings-2 > :nth-child(3) {
+  --vi: vi-slide-left;
+}
+
+.lucide-settings-2 > :nth-child(4) {
+  --vi: vi-slide-right;
+}
+
+.lucide-sliders-horizontal > :nth-child(3) {
+  --vi: vi-slide-left;
+}
+
+.lucide-sliders-horizontal > :nth-child(4) {
+  --vi: vi-slide-right;
+}
+
+.lucide-sliders-horizontal > :nth-child(8) {
+  --vi: vi-slide-right;
+  --vi-delay: 0.06s;
+}
+
+.lucide-panel-left > :nth-child(2),
+.lucide-panel-left-close > :nth-child(n + 2) {
+  --vi: vi-nudge-left;
+}
+
+.lucide-panel-left-open > :nth-child(n + 2) {
+  --vi: vi-nudge-right;
+}
+
+.lucide-layout-dashboard > *,
+.lucide-layout-template > * {
+  --vi: vi-pop;
+  --vi-time: 0.4s;
+}
+
+.lucide-layout-dashboard > :nth-child(2),
+.lucide-layout-template > :nth-child(2) {
+  --vi-delay: 0.05s;
+}
+
+.lucide-layout-dashboard > :nth-child(3),
+.lucide-layout-template > :nth-child(3) {
+  --vi-delay: 0.1s;
+}
+
+.lucide-layout-dashboard > :nth-child(4) {
+  --vi-delay: 0.15s;
+}
+
+.lucide-palette {
+  --vi: vi-wiggle;
+  --vi-time: 0.6s;
+}
+
+.lucide-search {
+  --vi: vi-look;
+  --vi-time: 0.6s;
+}
+
+.lucide-x,
+.lucide-plus {
+  --vi: vi-quarter;
+}
+
+.lucide-minus {
+  --vi: vi-squeeze-x;
+}
+
+.lucide-check {
+  --vi: vi-pop;
+}
+
+.lucide-rotate-ccw {
+  --vi: vi-spin-back;
+  --vi-time: 0.6s;
+}
+
+.lucide-undo-2 {
+  --vi: vi-swing-left;
+}
+
+.lucide-refresh-cw {
+  --vi: vi-spin;
+  --vi-time: 0.6s;
+}
+
+.lucide-chevron-right {
+  --vi: vi-nudge-right;
+}
+
+.lucide-chevron-left {
+  --vi: vi-nudge-left;
+}
+
+.lucide-chevron-down {
+  --vi: vi-drop;
+}
+
+.lucide-ellipsis > * {
+  --vi: vi-hop;
+  --vi-time: 0.4s;
+}
+
+.lucide-ellipsis > :nth-child(1) {
+  --vi-delay: 0.06s;
+}
+
+.lucide-ellipsis > :nth-child(2) {
+  --vi-delay: 0.12s;
+}
+
+.lucide-grip-vertical > :nth-child(odd) {
+  --vi: vi-hop;
+}
+
+.lucide-eye-off {
+  --vi: vi-blink;
+}
+
+.lucide-clock-3 > :nth-child(2) {
+  --vi: vi-spin;
+  --vi-time: 0.7s;
+  transform-box: view-box;
+  transform-origin: 12px 12px;
+}
+
+.lucide-globe > :nth-child(2) {
+  --vi: vi-squeeze-x;
+  --vi-time: 0.6s;
+}
+
+.lucide-languages,
+.lucide-type {
+  --vi: vi-pop;
+}
+
+.lucide-a-arrow-up > :nth-child(-n + 2) {
+  --vi: vi-rise;
+}
+
+.lucide-a-arrow-down > :nth-child(-n + 2) {
+  --vi: vi-drop;
+}
+
+.lucide-info > :nth-child(n + 2) {
+  --vi: vi-hop;
+}
+
+.lucide-keyboard > :nth-child(-n + 8) {
+  --vi: vi-key;
+  --vi-time: 0.3s;
+}
+
+.lucide-keyboard > :nth-child(2n) {
+  --vi-delay: 0.08s;
+}
+
+.lucide-library > :nth-child(1) {
+  --vi: vi-tip;
+  transform-origin: left bottom;
+}
+
+.lucide-user,
+.lucide-users {
+  --vi: vi-hop;
+}
+
+/* ——— The motions ——— */
+
+@keyframes vi-morph {
+  from {
+    transform: scale(0.6) rotate(-30deg);
+  }
+}
+
+@keyframes vi-nudge-right {
+  50% {
+    transform: translateX(3px);
+  }
+}
+
+@keyframes vi-nudge-left {
+  50% {
+    transform: translateX(-3px);
+  }
+}
+
+@keyframes vi-dash-right {
+  40% {
+    transform: translateX(4px);
+  }
+
+  41% {
+    transform: translateX(-4px);
+  }
+}
+
+@keyframes vi-dash-left {
+  40% {
+    transform: translateX(-4px);
+  }
+
+  41% {
+    transform: translateX(4px);
+  }
+}
+
+@keyframes vi-drop {
+  50% {
+    transform: translateY(3px);
+  }
+}
+
+@keyframes vi-rise {
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes vi-hop {
+  35% {
+    transform: translateY(-3px);
+  }
+
+  70% {
+    transform: translateY(0);
+  }
+
+  85% {
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes vi-beat {
+  20% {
+    transform: scale(1.25);
+  }
+
+  40% {
+    transform: scale(0.95);
+  }
+
+  60% {
+    transform: scale(1.12);
+  }
+}
+
+@keyframes vi-pop {
+  45% {
+    transform: scale(1.2);
+  }
+}
+
+@keyframes vi-press {
+  40% {
+    transform: translateY(1.5px) scale(0.9);
+  }
+}
+
+@keyframes vi-squeeze {
+  45% {
+    transform: scaleY(0.7);
+  }
+}
+
+@keyframes vi-squeeze-x {
+  45% {
+    transform: scaleX(0.6);
+  }
+}
+
+@keyframes vi-bar {
+  30% {
+    transform: scaleY(0.45);
+  }
+
+  65% {
+    transform: scaleY(1.15);
+  }
+}
+
+@keyframes vi-wave {
+  45% {
+    transform: translateX(1.5px) scale(1.15);
+  }
+}
+
+@keyframes vi-blink {
+  40% {
+    transform: scaleY(0.15);
+  }
+}
+
+@keyframes vi-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes vi-spin-back {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+@keyframes vi-half-turn {
+  to {
+    transform: rotate(180deg);
+  }
+}
+
+@keyframes vi-quarter {
+  to {
+    transform: rotate(90deg);
+  }
+}
+
+@keyframes vi-swing-left {
+  45% {
+    transform: rotate(-25deg) translateX(-1px);
+  }
+}
+
+@keyframes vi-wiggle {
+  25% {
+    transform: rotate(-14deg);
+  }
+
+  50% {
+    transform: rotate(10deg);
+  }
+
+  75% {
+    transform: rotate(-5deg);
+  }
+}
+
+@keyframes vi-sing {
+  30% {
+    transform: rotate(-14deg) translateY(-1px);
+  }
+
+  65% {
+    transform: rotate(6deg);
+  }
+}
+
+@keyframes vi-look {
+  25% {
+    transform: translate(-1.5px, -1px) rotate(-10deg);
+  }
+
+  60% {
+    transform: translate(1.5px, 0.5px) rotate(6deg);
+  }
+}
+
+@keyframes vi-shake {
+  20% {
+    transform: translateX(-2px);
+  }
+
+  40% {
+    transform: translateX(2px);
+  }
+
+  60% {
+    transform: translateX(-1.5px);
+  }
+
+  80% {
+    transform: translateX(1px);
+  }
+}
+
+@keyframes vi-open {
+  45% {
+    transform: rotate(-8deg) translateY(-1px);
+  }
+}
+
+@keyframes vi-lid {
+  45% {
+    transform: translateY(-2px) rotate(-14deg);
+  }
+}
+
+@keyframes vi-write {
+  30% {
+    transform: translate(-1.5px, 1px) rotate(-8deg);
+  }
+
+  65% {
+    transform: translate(1.5px, -0.5px) rotate(4deg);
+  }
+}
+
+@keyframes vi-apart-left {
+  45% {
+    transform: translateX(-2.5px);
+  }
+}
+
+@keyframes vi-apart-right {
+  45% {
+    transform: translateX(2.5px);
+  }
+}
+
+@keyframes vi-slide-left {
+  50% {
+    transform: translateX(-4px);
+  }
+}
+
+@keyframes vi-slide-right {
+  50% {
+    transform: translateX(4px);
+  }
+}
+
+@keyframes vi-out-up-right {
+  45% {
+    transform: translate(2px, -2px);
+  }
+}
+
+@keyframes vi-out-down-left {
+  45% {
+    transform: translate(-2px, 2px);
+  }
+}
+
+@keyframes vi-key {
+  45% {
+    transform: translateY(1.5px);
+  }
+}
+
+@keyframes vi-tip {
+  45% {
+    transform: rotate(-12deg);
+  }
+}

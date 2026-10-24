@@ -1,17 +1,22 @@
 //! Vitra desktop app: Tauri setup and command registration.
 
+mod browser;
 mod drag;
 mod error;
+mod global_shortcuts;
 mod layout;
 mod library;
 mod links;
 mod lyrics;
 mod mini;
+mod now_playing;
 mod player;
 mod settings;
 mod shortcuts;
 mod sidecar;
+mod sound;
 mod themes;
+mod tray;
 mod window;
 
 use std::path::PathBuf;
@@ -35,6 +40,11 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(global_shortcuts::GlobalKeys::handle)
+                .build(),
+        )
         // Artwork of the playing track (memory) and library album covers (disk), answered off
         // the main thread: a grid of covers means many requests at once.
         .register_asynchronous_uri_scheme_protocol(
@@ -129,6 +139,9 @@ pub fn run() {
             app.manage(links);
             app.manage(links::Downloads::new(app.handle().clone())?);
 
+            // Before the player, so its first state reaches the system.
+            app.manage(now_playing::NowPlaying::new(app.handle()));
+            app.manage(sound::LoudnessMeter::new(app.handle().clone()));
             let player = Player::new(app.handle().clone());
             player.start();
             // Files passed on the command line ("Open with" on Windows and Linux).
@@ -139,6 +152,15 @@ pub fn run() {
                 .collect();
             open_files(&player, launch_files);
             app.manage(player);
+
+            let system = app.state::<settings::SettingsStore>().get();
+            // Follows the player from here (`Player::emit_state`).
+            let tray = tray::Tray::new(app.handle(), system.system.tray_icon);
+            tray.update(&app.state::<Player>().state());
+            app.manage(tray);
+            let keys = global_shortcuts::GlobalKeys::default();
+            keys.apply(app.handle(), &system.global_shortcuts);
+            app.manage(keys);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -149,6 +171,11 @@ pub fn run() {
             player::player_state,
             player::player_open,
             player::player_meters,
+            player::sound_preview_equalizer,
+            browser::open_in_browser,
+            tray::tray_labels,
+            tray::tray_available,
+            global_shortcuts::global_shortcuts_failed,
             player::player_play,
             player::player_pause,
             player::player_toggle,

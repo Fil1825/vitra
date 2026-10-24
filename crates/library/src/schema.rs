@@ -177,6 +177,17 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     r"
     ALTER TABLE albums ADD COLUMN source_url TEXT;
     ",
+    // 8: loudness Vitra measured for volume normalization (EBU R128), by path, so files
+    // outside the library and links have it too; size and mtime tell when it is stale.
+    r"
+    CREATE TABLE loudness (
+        path        TEXT PRIMARY KEY,
+        integrated  REAL NOT NULL,
+        peak        REAL,
+        file_size   INTEGER,
+        file_mtime  INTEGER
+    );
+    ",
 ];
 
 /// Brings the database up to the latest schema.

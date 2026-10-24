@@ -25,6 +25,7 @@ import { useThemeEditor } from '../stores/themeEditor.ts';
 import { useUi } from '../stores/ui.ts';
 import styles from './App.module.css';
 import { useAppearanceController } from './useAppearanceController.ts';
+import { useTrayLabels } from './useTrayLabels.ts';
 import { useFileDrop } from './useFileDrop.ts';
 import { useLevelMeter } from './useLevelMeter.ts';
 import { useLinkInput } from './useLinkInput.ts';
@@ -32,6 +33,7 @@ import { useLinkInput } from './useLinkInput.ts';
 export function App() {
   useAppearanceController();
   useShortcuts('main');
+  useTrayLabels();
   useLinkInput();
   useLevelMeter();
   const { t } = useTranslation();

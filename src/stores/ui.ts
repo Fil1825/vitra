@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 
+import type { SettingsSection } from '../features/settings/sections.ts';
 import type { ArtworkSource } from '../lib/library.ts';
 
 /** A track whose lyrics are being edited. */
@@ -20,6 +21,8 @@ interface UiState {
   /** The search field (which only the full sidebar shows) should take the focus. */
   searchRequested: boolean;
   settingsOpen: boolean;
+  /** The Settings page shown (kept while the window is open). */
+  settingsSection: SettingsSection;
   /** File whose tags are being edited. */
   tagEditorPath: string | null;
   lyricsEditor: LyricsEditorTarget | null;
@@ -30,7 +33,8 @@ interface UiState {
   renamingPlaylist: number | null;
   /** The link dialog is open, with this text in its field. */
   linkInput: string | null;
-  showSettings(open: boolean): void;
+  /** Opens or closes Settings, at `section` if given. */
+  showSettings(open: boolean, section?: SettingsSection): void;
   /** The search field took the focus. */
   searchFocused(): void;
   editTags(path: string | null): void;
@@ -55,8 +59,9 @@ export const useUi = create<UiState>((set) => ({
   renamingPlaylist: null,
   linkInput: null,
   settingsOpen: false,
-  showSettings(settingsOpen) {
-    set({ settingsOpen });
+  settingsSection: 'general',
+  showSettings(settingsOpen, section) {
+    set(section ? { settingsOpen, settingsSection: section } : { settingsOpen });
   },
   searchFocused() {
     set({ searchRequested: false });

@@ -28,6 +28,12 @@ pub fn player_meters(player: State<'_, Player>, pulse: bool, spectrum: bool) {
     player.set_meters(pulse, spectrum);
 }
 
+/// Plays with an equalizer that isn't saved yet (a band being dragged in Settings).
+#[tauri::command]
+pub fn sound_preview_equalizer(player: State<'_, Player>, equalizer: crate::sound::Equalizer) {
+    player.preview_equalizer(equalizer.sanitized());
+}
+
 #[tauri::command]
 pub async fn player_play(player: State<'_, Player>) -> Result<(), AppError> {
     player.play().await
