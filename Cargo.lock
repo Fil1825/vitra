@@ -2528,6 +2528,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "objc2-itunes-library"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d099084c1c266bb91cc050ff8bde5a40f4e3840932c6a79428819177e24ebd1e"
+dependencies = [
+ "objc2",
+ "objc2-foundation",
+]
+
+[[package]]
 name = "objc2-media-player"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4434,6 +4444,7 @@ dependencies = [
  "objc2-app-kit",
  "objc2-core-foundation",
  "objc2-foundation",
+ "objc2-itunes-library",
  "objc2-media-player",
  "objc2-quartz-core",
  "serde",

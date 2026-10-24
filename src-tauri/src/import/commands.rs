@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use library::{EntryCandidate, ImportProgress, PlaylistPlace};
 use tauri::State;
 
+use super::music::{self, MusicPlaylist};
 use super::{ImportResult, ImportService};
 use crate::error::AppError;
 
@@ -84,4 +85,18 @@ pub async fn import_retry(
     playlist_id: i64,
 ) -> Result<(), AppError> {
     import.retry(playlist_id).await
+}
+
+/// The Music app's playlists (macOS; elsewhere an error the dialog never asks for).
+#[tauri::command]
+pub async fn music_playlists() -> Result<Vec<MusicPlaylist>, AppError> {
+    music::playlists().await
+}
+
+#[tauri::command]
+pub async fn import_music(
+    import: State<'_, ImportService>,
+    ids: Vec<String>,
+) -> Result<Vec<ImportResult>, AppError> {
+    import.import_music(ids).await
 }

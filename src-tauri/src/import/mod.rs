@@ -5,6 +5,7 @@
 //! the user to pick from. See `crates/import` for the reading and matching.
 
 pub mod commands;
+pub mod music;
 
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -297,6 +298,15 @@ impl ImportService {
 
     /// A link to a list on a service (or a playable one, which links import as before).
     pub async fn import_link(&self, url: &str) -> Result<ImportResult, AppError> {
+        if let Some(id) = url.strip_prefix(music::SOURCE_PREFIX) {
+            return self
+                .import_music(vec![id.to_owned()])
+                .await?
+                .pop()
+                .ok_or_else(|| {
+                    AppError::Import("the playlist is no longer in the Music app".into())
+                });
+        }
         let mut link = service_links::parse(url)
             .ok_or_else(|| AppError::Import("not a link to a playlist".into()))?;
         if link.target == Target::Short {
@@ -328,6 +338,19 @@ impl ImportService {
         let playlist = self.read_link(&link).await?;
         let name = playlist.name.clone().unwrap_or_default();
         self.save(name, Some(link.url.clone()), playlist).await
+    }
+
+    /// Playlists of the Music app (macOS), each kept as the playlist imported from it.
+    pub async fn import_music(&self, ids: Vec<String>) -> Result<Vec<ImportResult>, AppError> {
+        let mut results = Vec::new();
+        for (id, playlist) in music::read(ids).await? {
+            let name = playlist.name.clone().unwrap_or_default();
+            results.push(
+                self.save(name, Some(music::source_url(&id)), playlist)
+                    .await?,
+            );
+        }
+        Ok(results)
     }
 
     /// Reads a service's page for `link` (following Deezer's pages).
