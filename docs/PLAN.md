@@ -437,15 +437,57 @@ One rule: **give Vitra the playlist in whatever form you have it, and it does th
 6. **UI**: Import Playlist… with the field, the file button and the Music tab; the
    playlist page's progress, "?" and "Find…"; en + ru strings.
 
+### Done (in review, PR #10)
+
+- `crates/import` (pure): the model (`ImportedTrack`, `ImportedPlaylist`), matching
+  (`normalize.rs`: folding with ё → е, Latin transliteration of Cyrillic, versions such as
+  live / remix / sped up, noise such as "Remastered 2011" and "Official Video", feat.
+  credits; `matching.rs`: title, artist and length similarity, ISRC, a confidence of sure /
+  doubtful / none), text (`text.rs`: lines either way round, numbered lists, blocks copied
+  from a page, links in bulk), tables (`table.rs`: the exporters' column names in English
+  and Russian, tab / comma / semicolon), files (`files.rs`: M3U / M3U8, XSPF, the Music app's
+  XML and text exports, CSV / TSV, text), service links (`links.rs`) and their pages
+  (`pages.rs`: Spotify's embed JSON, Apple Music's page data and JSON-LD, Deezer's API with
+  its pages, Yandex Music's handlers and new share links).
+- Library migration 9: `import_entries` (what the list says, the state, the alternatives),
+  `playlist_items` places that are an entry, a track or both; reimporting keeps found
+  entries and picks, a partial list (Spotify's first 100) keeps what lies past it.
+- `ImportService` (`src-tauri/src/import`): imports at once (library matches by path, name
+  and length), then a background matcher, one entry at a time and at most one YouTube Music
+  request every 3 s (60 s after failures): the library again, then a `#songs` search whose
+  closest two results are opened in full (artists, length, thumbnail). Sure → plays,
+  doubtful → plays with a "?", none → grey. Bulk Spotify / YouTube track links are read
+  when their turn comes. Pages with curl (`http.rs`); Yandex Music's private lists with the
+  cookies of the browser chosen for yt-dlp (exported by yt-dlp, only Yandex's kept, deleted
+  right after).
+- The Music app (macOS): `objc2-itunes-library`, its playlists (folders named, the library's
+  sections left out) in the dialog's Music tab; `Info.plist` asks for Media & Apple Music.
+- UI: "+" → Import Playlist… (field, name, Choose File…, the Music tab); pasted service
+  links and track lists and dropped playlist files go there; the playlist page with grey
+  rows, "?" menus of alternatives, Find… (library + YouTube Music, Listen, Choose), the
+  progress line and Look Again; Update from Source for every imported list.
+- Differences from the plan: CSV is read by hand (RFC 4180 rows, no `csv` crate); Yandex
+  Music is read from the handlers its own pages call, not through yt-dlp; the Music tab
+  shows counts without artwork; ISRC matching works for lists that carry it (Deezer,
+  Spotify pages do not), not yet against library files (their ISRC tags aren't stored).
+- Also: closing the main window keeps the music playing (macOS always, elsewhere while the
+  tray icon is on); `scripts/record-import-fixtures.sh` records real pages for the readers'
+  tests.
+
 ### Mac checks for stage 9
 
-- Each way in with the owner's real playlists: a Spotify link and Liked Songs copied with
-  ⌘A ⌘C, a Yandex link and «Мне нравится», a VK page copied as text, Music app
-  playlists (the permission prompt), a TuneMyMusic / Exportify file.
+- Each way in with the owner's real playlists: a Spotify link (and one of more than 100
+  songs: the dialog then asks for the copied songs, and the playlist gets them all) and
+  Liked Songs copied with ⌘A ⌘C, a Yandex link and «Мне нравится» (with Cookies from
+  browser set to the browser signed in to Yandex), an Apple Music link, a Deezer link, a VK
+  page copied as text, Music app playlists (the permission prompt, then the list), a
+  TuneMyMusic / Exportify file dropped on the window and chosen with Choose File….
 - Order, names (Russian titles, ё), how many found in the library and on YouTube Music,
-  wrong matches and picking another.
+  wrong matches: the "?" menu, Find… with Listen and Choose.
 - A few hundred tracks matched in the background without YouTube blocking us, while
-  playback goes on.
+  playback goes on; the progress line under the title.
+- Closing the main window with ⌘W or the red button keeps the music playing; the Dock
+  icon brings the window back.
 
 ## Stage 10 — My Wave
 

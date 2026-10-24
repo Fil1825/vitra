@@ -14,20 +14,20 @@ the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Stage status
 
-| #   | Stage                                                  | Status            |
-| --- | ------------------------------------------------------ | ----------------- |
-| 0   | Preparation: environment, structure, sidecars, plan    | in review (PR #1) |
-| 1   | Shell: transparent window, vibrancy, `<Glass>`, themes | in review (PR #2) |
-| 2   | Engine: mpv IPC, transport controls, artwork backdrop  | in review (PR #3) |
-| 3   | Library & queue: scan, SQLite, views, search, session  | in review (PR #4) |
-| 4   | Links: yt-dlp playback, playlists, downloads           | in review (PR #5) |
-| 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | accepted (PR #6)  |
-| 6   | Mini player                                            | accepted (PR #7)  |
-| 7   | Customization: theme editor, `.vitratheme`, layout     | accepted (PR #8)  |
-| 8   | Sound & system: EQ, crossfade, media keys, tray        | accepted (PR #9)  |
-| 9   | Playlist import: Spotify, Yandex, VK, Apple Music…     | in progress       |
-| 10  | My Wave: mood analysis, endless mood-based queue       | not started       |
-| 11  | Integrations, i18n, CI builds, README, first release   | not started       |
+| #   | Stage                                                  | Status             |
+| --- | ------------------------------------------------------ | ------------------ |
+| 0   | Preparation: environment, structure, sidecars, plan    | in review (PR #1)  |
+| 1   | Shell: transparent window, vibrancy, `<Glass>`, themes | in review (PR #2)  |
+| 2   | Engine: mpv IPC, transport controls, artwork backdrop  | in review (PR #3)  |
+| 3   | Library & queue: scan, SQLite, views, search, session  | in review (PR #4)  |
+| 4   | Links: yt-dlp playback, playlists, downloads           | in review (PR #5)  |
+| 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | accepted (PR #6)   |
+| 6   | Mini player                                            | accepted (PR #7)   |
+| 7   | Customization: theme editor, `.vitratheme`, layout     | accepted (PR #8)   |
+| 8   | Sound & system: EQ, crossfade, media keys, tray        | accepted (PR #9)   |
+| 9   | Playlist import: Spotify, Yandex, VK, Apple Music…     | in review (PR #10) |
+| 10  | My Wave: mood analysis, endless mood-based queue       | not started        |
+| 11  | Integrations, i18n, CI builds, README, first release   | not started        |
 
 ## Commands
 
@@ -50,6 +50,8 @@ VITRA_YTDLP=src-tauri/sidecars/<triple>/yt-dlp cargo test -p links --test real_y
                                           # relative paths are from the repo root; macOS:
                                           # .../<triple>/yt-dlp/yt-dlp_macos)
 scripts/record-ytdlp-fixtures.sh          # record real pages as *-recorded.json fixtures
+scripts/record-import-fixtures.sh         # record Spotify / Apple / Deezer / Yandex pages for
+                                          # crates/import (needs those sites; not the cloud)
 ```
 
 Debugging playback: `VITRA_MPV_ARGS="--ao=null --log-file=/tmp/mpv.log" npm run tauri dev` passes
@@ -121,7 +123,9 @@ src/                    React + TypeScript frontend
                         with the search; a component per page, Row/Group; about.ts: the
                         owner's words and donation link), sound/ (equalizer presets.ts),
                         themes/ (ThemeEditor, fields, editor.ts: the draft; actions.ts:
-                        import, export, duplicate)
+                        import, export, duplicate), import/ (ImportDialog with the Music tab,
+                        FindDialog, ImportStatus + useImportProgress, entries.ts: rows for
+                        entries and the "?" menu, errors.ts)
   stores/               zustand stores: settings (mirror of Rust), environment, appearance,
                         player, queue, library (scan status), downloads, lyrics, navigation
                         (routes), ui (dialogs, Settings, artwork viewer), themes (installed),
@@ -151,6 +155,12 @@ src-tauri/              Tauri app crate (`vitra`, lib `vitra_lib`)
                         parsing and the links' integrator (loudness.rs, pure), FFmpeg
                         measurements in the background (measure.rs)
   src/browser.rs        opens web pages (About) in the default browser
+  src/http.rs           GET with curl (pages for the import; cookie files)
+  src/import/           ImportService: text / files / links / the Music app → playlists,
+                        the background matcher (library, then YouTube Music), picks, Find…;
+                        music.rs (macOS: iTunesLibrary), commands
+  Info.plist            merged into the bundle's (and embedded in debug builds): the Media &
+                        Apple Music usage text
   src/themes.rs         ThemeStore: installed themes, theme:// scheme, import/export commands
   src/window.rs         window creation from config, vibrancy / Mica / Acrylic
   src/error.rs          AppError (serializes to a message for the frontend)
@@ -190,9 +200,13 @@ crates/                 pure-Rust crates testable without WebKit
                         tests/)
   themes/               .vitratheme packages: safe reading (sizes, names), writing, installing;
                         examples/pack.rs packs a theme folder; tests/ packs the examples
+  import/               playlist import (pure): model, normalize + matching, pasted text,
+                        tables (CSV / TSV), files (M3U, XSPF, the Music app's XML), service
+                        links and their pages (fixtures in tests/)
 scripts/
   fetch-sidecars.mjs    downloader (I/O)
   record-ytdlp-fixtures.sh  real yt-dlp recordings for crates/links (needs YouTube)
+  record-import-fixtures.sh real service pages for crates/import (needs the services)
   sidecars/plan.mjs     what to download per target (pure, unit-tested)
   theme-schema.ts       writes docs/theme.schema.json from the zod schema (`npm run theme-schema`)
 assets/brand/           logo, app icon source, mono tray icon, palette (see its README)
@@ -524,8 +538,9 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
       stores and the theme like the main window; it adds nothing to Rust's state.
     - Opening it hides the main window (`hideMainWindow`); expand, ⌥⌘M (`mini_toggle`),
       closing it or the Dock icon (`RunEvent::Reopen`) bring the main window back. Closing
-      the main window while the mini player shows keeps the app running in it; otherwise the
-      hidden mini window is destroyed so the app quits as before. `mini-player.json` (config
+      the main window hides it (the music goes on) while the mini player shows, always on
+      macOS, and elsewhere while the tray icon is shown (`main_close_requested`); otherwise
+      the hidden mini window is destroyed so the app quits. `mini-player.json` (config
       dir, not the settings: moving shouldn't notify every window) keeps `open` (reopen at
       launch), the position and each mode's size.
     - Sizes: a base size per mode × the preset (0.8 / 1 / 1.3), min/max per mode, dragged
@@ -722,6 +737,47 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
     `:active` adds `scale: 0.9`; the play/pause icon (`data-morph`) turns into the other.
     Only `transform` moves; nothing with Reduce Motion; the spinner keeps its own spin.
     `styles/icons.test.ts` fails when an imported icon has no motion.
+40. **Playlist import** (`crates/import`, `src-tauri/src/import`, `features/import`,
+    migration 9):
+    - Only the list comes over; the sound is the library's or a YouTube Music link. No
+      accounts or API keys: links are read from what the services show visitors (Spotify's
+      `open.spotify.com/embed/…` JSON, Apple Music's page data or JSON-LD, Deezer's open API
+      page by page, Yandex Music's `handlers/*.jsx` and `api.music.yandex.net` share links)
+      with curl (`http.rs`, a Safari User-Agent); YouTube / SoundCloud / Bandcamp lists go
+      through `LinkService::import` as before; VK only as copied text. Readers are tested on
+      hand-written fixtures in each service's shape (the cloud can't reach them) and on
+      `*-recorded.*` pages when someone records them.
+    - A playlist's places (`playlist_items`) are a track, an `import_entries` row (what the
+      list says, `state`, `candidates` JSON) or both; positions count every place, so the
+      page shows waiting entries as placeholder rows (`entries.ts`, negative ids) and moves
+      and removals keep working. `PLAYLIST_SELECT` counts tracks only. Importing a source
+      again (`playlists.source_url`; the Music app's is `music-app:playlist/<id>`) keeps
+      entries by identity (their link, else folded artists + title) with their tracks and
+      picks; a `partial` page (Spotify's first 100) removes nothing past it, and pasted
+      tracks can complete such a playlist (`import_text … into`).
+    - At import, entries match the library by path, then name and length (sure ones get the
+      track at once). The matcher (one task) takes pending entries one at a time: bare links
+      are described first (Spotify track pages, yt-dlp), then the library again, then a
+      YouTube Music `#songs` search (`ytdlp::music_search_url`): flat results carry titles
+      only, so the two closest are described in full (with their thumbnail, kept as the
+      found track's cover). At most one request every 3 s, 60 s after failures. Scores
+      (`matching.rs`): 0.5 title + 0.3 artist + 0.2 length, version mismatches −0.25 each,
+      another artist −0.2, a different title gated; ≥ 0.82 sure, ≥ 0.55 doubtful ("?",
+      alternatives kept), else missing (grey, Find…). Found links are stored under the
+      list's names (`edited = 1`) with the link's own length; a link replaced by a pick goes
+      if nothing else uses it.
+    - Events: `import://progress` (bus `import:progress`) per playlist; entries changing emit
+      `library://changed` (`playlists`, plus `tracks` when a track was added).
+    - Yandex Music's private lists and «Мне нравится»: with `downloads.cookiesFromBrowser`
+      set, yt-dlp exports that browser's cookies (`YtDlp::export_cookies`, a run against a
+      refusing local address), only Yandex's are kept in a 0600 file, curl retries with
+      them, the file is deleted.
+    - The Music app (macOS): `objc2-itunes-library` lists playlists (not the library's
+      sections or folders) for the dialog's Music tab and reads the chosen ones; macOS asks
+      for Media & Apple Music once (`Info.plist`).
+    - Ways in: "+" next to Playlists → Import Playlist…; pasting a service link or several
+      lines outside text fields (`useLinkInput`); dropping playlist files or a service link
+      (`useFileDrop`, kind `playlist`); service links typed into the link dialog.
 
 ## Conventions
 
@@ -784,6 +840,9 @@ windowmove` to test snapping, resize with `xdotool windowsize` to test layouts a
   (WebView2, `ScreenToClient`); macOS (`draggingLocation`, points) and Linux (GTK widget
   coordinates) report logical ones. `useFileDrop.dropPoint` divides by `devicePixelRatio`
   on Windows only.
+- Typing into the real app under Xvfb with `xdotool type` lags far behind (WebKitGTK on the
+  CPU): wait seconds before clicking elsewhere, or later keys land in the next field. GTK's
+  file chooser completes paths as you type (`/t` → `/tmp/`): type `~/name` or short paths.
 - lofty can't write `ItemKey::Lyrics` to ID3v2; use `ItemKey::UnsyncLyrics` (USLT) there.
   lofty also warns about every odd MP3 frame; the app logs `lofty` at error level only.
 - The macOS mpv tarball carries code-signature xattrs; `fetch-sidecars` moves extracted files
