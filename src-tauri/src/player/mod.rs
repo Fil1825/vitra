@@ -38,6 +38,7 @@ use crate::library::{LibraryService, entry_from_track};
 use crate::links::LinkService;
 use crate::lyrics::{LyricsService, TrackInfo};
 use crate::now_playing::NowPlaying;
+use crate::tray::Tray;
 use crate::settings::{AudioMeters, SettingsStore};
 use crate::sidecar::{self, Sidecar};
 use crate::sound::{self, Equalizer, LoudnessMeter, Normalization, SoundSettings, loudness};
@@ -2327,6 +2328,9 @@ impl Player {
         *lock(&self.0.last_position_emit) = Instant::now();
         self.emit(STATE_EVENT, &state);
         self.show_now_playing(&state);
+        if let Some(tray) = self.0.app.try_state::<Tray>() {
+            tray.update(&state);
+        }
     }
 
     /// Tells the system's Now Playing (it sends only what changed).

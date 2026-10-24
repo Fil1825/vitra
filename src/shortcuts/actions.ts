@@ -1,4 +1,4 @@
-import { normalizeCombo } from './keys.ts';
+import { isChord, normalizeCombo, parseCombo } from './keys.ts';
 
 /**
  * What a shortcut can do. Ids are kept in the settings (`shortcuts`: id → combination, only
@@ -156,4 +156,91 @@ export function resetAction(
   mac: boolean,
 ): { overrides: ShortcutOverrides; displaced: ActionId[] } {
   return rebind(overrides, action, defaultCombo(action, mac), mac);
+}
+
+/**
+ * Shortcuts that work in every app (`globalShortcuts`: id → combination, none by default).
+ * Rust registers them with the system and runs the actions (`global_shortcuts.rs`).
+ */
+export type GlobalShortcuts = Readonly<Record<string, string>>;
+
+/** Playback and the mini player can be run from another app; the window's views can't. */
+export const isGlobalAction = (action: ActionId): boolean =>
+  ACTIONS[action].group === 'playback' || action === 'mini-player';
+
+/**
+ * Whether a combination may work in every app: it needs ⌘, ⌃ or ⌥ (Ctrl or Alt), or it
+ * would take a key away from typing in every app; function and media keys type nothing.
+ */
+export function globalAllowed(combo: string): boolean {
+  const code = parseCombo(combo)?.code ?? '';
+  return isChord(combo) || /^(F\d+|Media\w+|AudioVolume\w+)$/.test(code);
+}
+
+/** What a change of shortcuts did, for the settings and the note to the user. */
+export interface Rebound {
+  overrides: ShortcutOverrides;
+  globals: GlobalShortcuts;
+  displaced: ActionId[];
+}
+
+const withoutGlobal = (globals: GlobalShortcuts, action: string): GlobalShortcuts =>
+  Object.fromEntries(Object.entries(globals).filter(([id]) => id !== action));
+
+/**
+ * Gives `action` the combination `combo` in every app (`null`: none). Another action
+ * loses it, in every app or in the window: the system catches the keys before the window
+ * would see them.
+ */
+export function rebindGlobal(
+  overrides: ShortcutOverrides,
+  globals: GlobalShortcuts,
+  action: ActionId,
+  combo: string | null,
+  mac: boolean,
+): Rebound {
+  const normalized = combo === null ? null : normalizeCombo(combo);
+  let next = withoutGlobal(globals, action);
+  let nextOverrides = overrides;
+  const displaced: ActionId[] = [];
+  if (normalized !== null) {
+    for (const [id, other] of Object.entries(next)) {
+      if (other === normalized && (ACTION_IDS as readonly string[]).includes(id)) {
+        next = withoutGlobal(next, id);
+        displaced.push(id as ActionId);
+      }
+    }
+    const { actions } = resolveBindings(overrides, mac);
+    const inWindow = actions.get(normalized);
+    if (inWindow && inWindow !== action) {
+      nextOverrides = rebind(overrides, inWindow, null, mac).overrides;
+      if (!displaced.includes(inWindow)) displaced.push(inWindow);
+    }
+    next = { ...next, [action]: normalized };
+  }
+  return { overrides: nextOverrides, globals: next, displaced };
+}
+
+/**
+ * Gives `action` the combination `combo` in the window ([`rebind`]); another action's
+ * shortcut in every app with that combination goes too, or it would catch the keys first.
+ */
+export function rebindInWindow(
+  overrides: ShortcutOverrides,
+  globals: GlobalShortcuts,
+  action: ActionId,
+  combo: string | null,
+  mac: boolean,
+): Rebound {
+  const result = rebind(overrides, action, combo, mac);
+  const normalized = combo === null ? null : normalizeCombo(combo);
+  let next = globals;
+  const displaced = [...result.displaced];
+  for (const [id, other] of Object.entries(globals)) {
+    if (normalized !== null && other === normalized && id !== action) {
+      next = withoutGlobal(next, id);
+      if (!displaced.includes(id as ActionId)) displaced.push(id as ActionId);
+    }
+  }
+  return { overrides: result.overrides, globals: next, displaced };
 }

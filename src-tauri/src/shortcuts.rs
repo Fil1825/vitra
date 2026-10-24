@@ -1,11 +1,14 @@
 //! Keyboard shortcuts the user changed (`settings.shortcuts`): an action id (`play-pause`)
 //! with its key combination (`Mod+Alt+KeyS`), or `None` for an action the user took the
 //! shortcut off. The frontend owns the actions, their defaults and the matching
-//! (`src/shortcuts`); this only keeps the map tidy.
+//! (`src/shortcuts`); this only keeps the map tidy. Shortcuts that work in every app
+//! (`settings.globalShortcuts`, none by default) are kept the same way and run in Rust
+//! (`global_shortcuts.rs`).
 
 use std::collections::BTreeMap;
 
 pub type Shortcuts = BTreeMap<String, Option<String>>;
+pub type GlobalShortcuts = BTreeMap<String, String>;
 
 /// Far more than there are actions; a bigger map is not something the app wrote.
 const MAX_ENTRIES: usize = 100;
@@ -31,6 +34,14 @@ pub fn sanitize(shortcuts: Shortcuts) -> Shortcuts {
     shortcuts
         .into_iter()
         .filter(|(id, combo)| is_action(id) && combo.as_deref().is_none_or(is_combo))
+        .take(MAX_ENTRIES)
+        .collect()
+}
+
+pub fn sanitize_global(shortcuts: GlobalShortcuts) -> GlobalShortcuts {
+    shortcuts
+        .into_iter()
+        .filter(|(id, combo)| is_action(id) && is_combo(combo))
         .take(MAX_ENTRIES)
         .collect()
 }

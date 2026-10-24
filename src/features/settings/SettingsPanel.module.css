@@ -577,10 +577,20 @@
   line-height: 1.4;
 }
 
-/* Keyboard shortcuts: the action, its keys, and buttons to remove or reset them. */
-.shortcutGroup {
+/*
+ * Keyboard shortcuts: the action, its keys in the window with buttons to remove or reset
+ * them, and its keys in every app with a button to remove them.
+ */
+.shortcutTable {
   display: grid;
-  gap: 2px;
+  grid-template-columns: minmax(0, 1fr) auto 56px auto 28px;
+  column-gap: var(--vitra-space-2);
+  row-gap: 2px;
+}
+
+/* Its rows join the table's, so both groups share the columns. */
+.shortcutGroup {
+  display: contents;
 }
 
 .shortcutGroupTitle {
@@ -590,11 +600,20 @@
 }
 
 .shortcutRow {
+  /* Rows share the table's columns, so every keycap lines up whatever its width. */
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto 56px;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: center;
-  gap: var(--vitra-space-2);
   min-height: 32px;
+}
+
+.shortcutColumn {
+  min-width: 64px;
+  margin-top: var(--vitra-space-1);
+  color: var(--vitra-color-text-secondary);
+  font-size: 11px;
+  text-align: center;
 }
 
 .shortcutName {
@@ -605,6 +624,7 @@
 }
 
 .keycap {
+  justify-self: stretch;
   min-width: 64px;
   padding: 3px var(--vitra-space-2);
   border: 1px solid var(--vitra-color-separator);
@@ -624,6 +644,10 @@
 
 .keycap[data-empty] {
   color: var(--vitra-color-text-tertiary);
+}
+
+.keycap[data-failed] {
+  border-color: color-mix(in srgb, var(--vitra-color-danger) 60%, transparent);
 }
 
 .keycap[data-recording] {

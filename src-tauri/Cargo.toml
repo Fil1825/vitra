@@ -15,7 +15,7 @@ name = "vitra_lib"
 tauri-build = { version = "2.7.4", features = [] }
 
 [dependencies]
-tauri = { version = "2.12.5", features = ["macos-private-api"] }
+tauri = { version = "2.12.5", features = ["macos-private-api", "tray-icon"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 window-vibrancy = "0.8.1"
@@ -23,6 +23,8 @@ thiserror = "2"
 log = "0.4"
 tauri-plugin-log = "2.10.1"
 tauri-plugin-dialog = "2.8.3"
+# Shortcuts that work while another app is active (the spec names it).
+tauri-plugin-global-shortcut = "2.4.1"
 mpv-ipc = { version = "0.1.0", path = "../crates/mpv-ipc" }
 media = { version = "0.1.0", path = "../crates/media" }
 library = { version = "0.1.0", path = "../crates/library" }

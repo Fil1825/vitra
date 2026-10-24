@@ -21,8 +21,10 @@ use crate::library::LibraryService;
 use crate::lyrics::LyricsService;
 use crate::mini::{MiniPlayer, Mode, SizePreset};
 use crate::player::Player;
-use crate::shortcuts::{self, Shortcuts};
+use crate::shortcuts::{self, GlobalShortcuts, Shortcuts};
+use crate::global_shortcuts::GlobalKeys;
 use crate::sound::SoundSettings;
+use crate::tray::Tray;
 use crate::window;
 
 /// Emitted to every window with the new [`Settings`] after a change.
@@ -52,12 +54,31 @@ pub struct Settings {
     /// Keyboard shortcuts the user changed (see `shortcuts.rs`).
     #[serde(deserialize_with = "or_default")]
     pub shortcuts: Shortcuts,
+    /// Shortcuts that work in every app: action id → combination (see `global_shortcuts.rs`).
+    #[serde(deserialize_with = "or_default")]
+    pub global_shortcuts: GlobalShortcuts,
     /// The level meter module.
     #[serde(deserialize_with = "or_default")]
     pub meter: MeterSettings,
     /// The equalizer, volume normalization and crossfade (see `sound.rs`).
     #[serde(deserialize_with = "or_default")]
     pub sound: SoundSettings,
+    #[serde(deserialize_with = "or_default")]
+    pub system: SystemSettings,
+}
+
+/// How Vitra sits in the system.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SystemSettings {
+    /// The icon in the menu bar (macOS) or the notification area (see `tray.rs`).
+    pub tray_icon: bool,
+}
+
+impl Default for SystemSettings {
+    fn default() -> Self {
+        Self { tray_icon: true }
+    }
 }
 
 /// The level meter module.
@@ -394,6 +415,8 @@ impl Settings {
         }
         self.layout_presets = sanitize_presets(std::mem::take(&mut self.layout_presets));
         self.shortcuts = shortcuts::sanitize(std::mem::take(&mut self.shortcuts));
+        self.global_shortcuts =
+            shortcuts::sanitize_global(std::mem::take(&mut self.global_shortcuts));
         self.sound = std::mem::take(&mut self.sound).sanitized();
         let scale = &mut self.lyrics.font_scale;
         *scale = if scale.is_finite() && *scale > 0.0 {
@@ -518,6 +541,16 @@ pub fn set_settings(
     {
         player.sound_changed(&previous.sound, &saved.sound);
     }
+    if saved.system.tray_icon != previous.system.tray_icon
+        && let Some(tray) = app.try_state::<Tray>()
+    {
+        tray.set_visible(saved.system.tray_icon);
+    }
+    if saved.global_shortcuts != previous.global_shortcuts
+        && let Some(keys) = app.try_state::<GlobalKeys>()
+    {
+        keys.apply(&app, &saved.global_shortcuts);
+    }
     if saved.mini_player != previous.mini_player
         && let Some(mini) = app.try_state::<MiniPlayer>()
     {
@@ -610,6 +643,10 @@ mod tests {
                 ("mute".to_owned(), None),
                 ("play-pause".to_owned(), Some("KeyK".to_owned())),
             ]),
+            global_shortcuts: GlobalShortcuts::from([(
+                "play-pause".to_owned(),
+                "Mod+Alt+KeyP".to_owned(),
+            )]),
             meter: MeterSettings {
                 style: MeterStyle::Mirror,
             },
@@ -628,6 +665,7 @@ mod tests {
                 normalization: crate::sound::Normalization::Album,
                 crossfade: 6.0,
             },
+            system: SystemSettings { tray_icon: false },
         };
 
         store_in(tmp.path()).set(settings.clone()).unwrap();
@@ -696,6 +734,7 @@ mod tests {
                 },
                 "layoutPresets": [],
                 "shortcuts": {},
+                "globalShortcuts": {},
                 "meter": { "style": "bars" },
                 "sound": {
                     "equalizer": {
@@ -707,7 +746,8 @@ mod tests {
                     "presets": [],
                     "normalization": "off",
                     "crossfade": 0.0
-                }
+                },
+                "system": { "trayIcon": true }
             })
         );
     }

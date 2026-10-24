@@ -159,8 +159,17 @@ export interface Settings {
   layoutPresets: LayoutPreset[];
   /** Keyboard shortcuts the user changed: action id → combination, `null` for none. */
   shortcuts: Record<string, string | null>;
+  /** Shortcuts that work in every app: action id → combination (none by default). */
+  globalShortcuts: Record<string, string>;
   meter: MeterSettings;
   sound: SoundSettings;
+  system: SystemSettings;
+}
+
+/** How Vitra sits in the system. */
+export interface SystemSettings {
+  /** The icon in the menu bar (macOS) or the notification area. */
+  trayIcon: boolean;
 }
 
 /** The range of the mini player's background opacity. */
@@ -206,6 +215,7 @@ export const DEFAULT_SETTINGS: Settings = {
   layout: DEFAULT_LAYOUT,
   layoutPresets: [],
   shortcuts: {},
+  globalShortcuts: {},
   meter: { style: 'bars' },
   sound: {
     equalizer: { enabled: false, preset: 'flat', gains: EQ_BANDS.map(() => 0), preamp: 0 },
@@ -213,6 +223,7 @@ export const DEFAULT_SETTINGS: Settings = {
     normalization: 'off',
     crossfade: 0,
   },
+  system: { trayIcon: true },
 };
 
 /** Tauri event carrying the new settings after any window changed them. */

@@ -43,7 +43,14 @@ export const SECTIONS: Record<SettingsSection, SectionInfo> = {
   general: {
     icon: Settings2,
     title: 'settings.sections.general',
-    keywords: ['settings.language', 'settings.general.menuBar', 'settings.general.globalHint'],
+    keywords: [
+      'settings.language',
+      'settings.general.trayIcon.macos',
+      'settings.general.trayIcon.windows',
+      'settings.general.trayIcon.linux',
+      'settings.general.globalShortcuts',
+      'tray.miniPlayer',
+    ],
   },
   appearance: {
     icon: Palette,
@@ -122,7 +129,11 @@ export const SECTIONS: Record<SettingsSection, SectionInfo> = {
   shortcuts: {
     icon: Keyboard,
     title: 'shortcuts.title',
-    keywords: ACTION_IDS.map((id) => `shortcuts.actions.${id}` as const),
+    keywords: [
+      'shortcuts.everywhere',
+      'settings.general.globalShortcuts',
+      ...ACTION_IDS.map((id) => `shortcuts.actions.${id}` as const),
+    ],
   },
   about: {
     icon: Info,
