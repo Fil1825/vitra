@@ -286,6 +286,16 @@ impl LinkService {
         recall(&self.0.thumbnails, url)
     }
 
+    /// Keeps a link's thumbnail for a while (the import's searches see many).
+    pub fn remember_thumbnail(&self, url: &str, image: Vec<u8>) {
+        remember(&self.0.thumbnails, url, Arc::new(image));
+    }
+
+    /// A folder for yt-dlp's temporary files.
+    pub fn scratch(&self) -> &Path {
+        &self.0.scratch
+    }
+
     /// What a pasted link is. Pages are asked about with yt-dlp; direct files and radio
     /// streams are taken as they are (mpv reads their tags while playing).
     pub async fn resolve(&self, input: &str) -> Result<LinkPreview, AppError> {

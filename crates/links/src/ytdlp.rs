@@ -262,18 +262,57 @@ impl YtDlp {
         )
     }
 
-    /// One track's complete metadata (artists, album, length), without its thumbnail.
-    pub async fn describe(&self, url: &str) -> Result<LinkTrack> {
+    /// Writes the cookies of the browser chosen in the settings into `file` (Netscape format),
+    /// for requests Vitra makes itself (Yandex Music's private playlists). yt-dlp saves its
+    /// cookie jar into `--cookies` when it exits, whatever the run did, so the run asks a
+    /// local address that refuses at once and nothing goes out.
+    pub async fn export_cookies(&self, file: &Path) -> Result<()> {
+        if self.cookies_from_browser.is_none() {
+            return Err(LinkError::Failed("no browser chosen for cookies".into()));
+        }
+        let mut command = self.command();
+        command.arg("--cookies").arg(file).args([
+            "--simulate",
+            "--no-playlist",
+            "--",
+            "http://127.0.0.1:9/",
+        ]);
+        match Self::output(command, RESOLVE_TIMEOUT).await {
+            Ok(_) | Err(LinkError::Failed(_)) => {}
+            Err(err) => return Err(err),
+        }
+        match std::fs::metadata(file) {
+            Ok(meta) if meta.len() > 0 => Ok(()),
+            _ => Err(LinkError::Cookies("yt-dlp wrote no cookies".into())),
+        }
+    }
+
+    /// One track's complete metadata (artists, album, length) and its thumbnail, in one run.
+    /// `scratch` is a directory for temporary files.
+    pub async fn describe(
+        &self,
+        url: &str,
+        scratch: &Path,
+    ) -> Result<(LinkTrack, Option<Vec<u8>>)> {
+        let dir = scratch_dir(scratch)?;
         let mut command = self.command();
         command
-            .args(["-J", "--no-playlist", "--skip-download"])
+            .args(["-J", "--no-playlist"])
+            .args(["--no-simulate", "--skip-download", "--write-thumbnail"])
+            .args(thumbnail_templates(&dir))
+            .current_dir(&dir)
             .arg("--")
             .arg(url);
-        let output = Self::output(command, RESOLVE_TIMEOUT).await?;
-        match parse_info(&String::from_utf8_lossy(&output.stdout), url)? {
-            Resolved::Track(track) => Ok(track),
-            Resolved::Playlist(_) => Err(LinkError::Failed("a list, not a track".into())),
-        }
+        let result = Self::output(command, RESOLVE_TIMEOUT)
+            .await
+            .and_then(
+                |output| match parse_info(&String::from_utf8_lossy(&output.stdout), url)? {
+                    Resolved::Track(track) => Ok((track, thumbnail_in(&dir, None))),
+                    Resolved::Playlist(_) => Err(LinkError::Failed("a list, not a track".into())),
+                },
+            );
+        let _ = std::fs::remove_dir_all(&dir);
+        result
     }
 
     /// Complete metadata and the thumbnail of every entry of `url`, one at a time as yt-dlp

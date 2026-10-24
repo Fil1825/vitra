@@ -10,7 +10,7 @@ use crate::artists::splitting;
 use crate::model::{Playlist, RemoteTrack, Track};
 use crate::playlists::{Item, items, write_places};
 use crate::remote::store_remote;
-use crate::tracks::prune;
+use crate::tracks::{delete_tracks, prune};
 use crate::{Error, Library, Result, now};
 
 /// How the search for an entry went.
@@ -344,6 +344,15 @@ impl Library {
         candidates: &[EntryCandidate],
     ) -> Result<()> {
         let tx = self.conn.transaction()?;
+        let previous: Vec<i64> = {
+            let mut statement = tx.prepare(
+                "SELECT DISTINCT track_id FROM playlist_items
+                 WHERE entry_id = ? AND track_id IS NOT NULL",
+            )?;
+            statement
+                .query_map([entry_id], |row| row.get(0))?
+                .collect::<rusqlite::Result<_>>()?
+        };
         tx.execute(
             "UPDATE import_entries SET state = ?2, candidates = ?3, checked_at = ?4 WHERE id = ?1",
             params![
@@ -357,6 +366,26 @@ impl Library {
             "UPDATE playlist_items SET track_id = ?2 WHERE entry_id = ?1",
             params![entry_id, track_id],
         )?;
+        // A link found for the entry that another track replaced goes, unless something
+        // else has it: a wrong match shouldn't stay in the library under the list's names.
+        let mut unused = Vec::new();
+        for id in previous.into_iter().filter(|id| Some(*id) != track_id) {
+            let gone: bool = tx.query_row(
+                "SELECT EXISTS (SELECT 1 FROM tracks t WHERE t.id = ?1
+                     AND t.path = t.source_url AND t.edited = 1
+                     AND t.play_count = 0 AND t.favorite = 0
+                     AND NOT EXISTS (SELECT 1 FROM playlist_items i WHERE i.track_id = t.id))",
+                [id],
+                |row| row.get(0),
+            )?;
+            if gone {
+                unused.push(id);
+            }
+        }
+        if !unused.is_empty() {
+            delete_tracks(&tx, &unused)?;
+            prune(&tx)?;
+        }
         tx.commit()?;
         Ok(())
     }
@@ -381,9 +410,16 @@ impl Library {
     }
 
     /// A link found for an entry, as a library track named the way the import named it
-    /// (a service's titles are cleaner than video titles); a link the library already has
-    /// stays as it is. Marked as corrected, so yt-dlp's later descriptions keep the names.
-    pub fn add_found_link(&mut self, url: &str, source: &ImportedTrack) -> Result<i64> {
+    /// (a service's titles are cleaner than video titles), with what `found` says where the
+    /// import says nothing, and always its length (that's what plays). A link the library
+    /// already has stays as it is. Marked as corrected, so yt-dlp's later descriptions keep
+    /// the names. Returns the track and whether it is new.
+    pub fn add_found_link(
+        &mut self,
+        url: &str,
+        source: &ImportedTrack,
+        found: Option<&EntryCandidate>,
+    ) -> Result<(i64, bool)> {
         let tx = self.conn.transaction()?;
         let known: Option<i64> = tx
             .query_row(
@@ -393,20 +429,31 @@ impl Library {
             )
             .optional()?;
         if let Some(id) = known {
-            return Ok(id);
+            return Ok((id, false));
         }
         let splitting = splitting(&tx)?;
+        let title = match (source.title.trim(), found) {
+            ("", Some(found)) => found.title.clone(),
+            _ => source.title.clone(),
+        };
+        let artists = match found {
+            Some(found) if source.artists.is_empty() => found.artists.clone(),
+            _ => source.artists.clone(),
+        };
         let remote = RemoteTrack {
             url: url.to_owned(),
-            title: source.title.clone(),
-            artist: (source.artists.len() == 1).then(|| source.artists[0].clone()),
-            artists: if source.artists.len() > 1 {
-                source.artists.clone()
+            title,
+            artist: (artists.len() == 1).then(|| artists[0].clone()),
+            artists: if artists.len() > 1 {
+                artists
             } else {
                 Vec::new()
             },
-            album: source.album.clone(),
-            duration: source.duration,
+            album: source
+                .album
+                .clone()
+                .or_else(|| found.and_then(|f| f.album.clone())),
+            duration: found.and_then(|f| f.duration).or(source.duration),
             complete: true,
             ..RemoteTrack::default()
         };
@@ -414,7 +461,7 @@ impl Library {
         tx.execute("UPDATE tracks SET edited = 1 WHERE id = ?", [id])?;
         prune(&tx)?;
         tx.commit()?;
-        Ok(id)
+        Ok((id, true))
     }
 
     /// Every place of a playlist, imported entries still being looked for included.
@@ -585,17 +632,50 @@ mod tests {
         let pending = library.pending_entries(10).unwrap();
         assert_eq!(pending.len(), 1);
         let entry = &pending[0];
-        let id = library
-            .add_found_link("https://music.youtube.com/watch?v=abc", &entry.source)
+        let found = EntryCandidate {
+            url: Some("https://music.youtube.com/watch?v=abc".into()),
+            title: "Not Here (Official Video)".into(),
+            artists: vec!["Nobody VEVO".into()],
+            album: Some("Somewhere".into()),
+            duration: Some(201.0),
+            score: 0.7,
+            ..EntryCandidate::default()
+        };
+        let (id, created) = library
+            .add_found_link(
+                "https://music.youtube.com/watch?v=abc",
+                &entry.source,
+                Some(&found),
+            )
             .unwrap();
+        assert!(created);
         library
             .resolve_entry(entry.id, EntryState::Doubtful, Some(id), &[])
             .unwrap();
         let tracks = library.tracks(&TrackFilter::Playlist(playlist.id)).unwrap();
         assert_eq!(tracks[1].title, "Not Here");
         assert_eq!(tracks[1].artist.as_deref(), Some("Nobody"));
+        // What the list doesn't say comes from the link; its length is the link's own.
+        assert_eq!(tracks[1].album.as_deref(), Some("Somewhere"));
+        assert_eq!(tracks[1].duration, Some(201.0));
+        assert_eq!(
+            library
+                .add_found_link("https://music.youtube.com/watch?v=abc", &entry.source, None)
+                .unwrap(),
+            (id, false)
+        );
         assert!(library.pending_entries(10).unwrap().is_empty());
         assert_eq!(library.import_progress(playlist.id).unwrap().doubtful, 1);
+
+        // Another track chosen: the wrong link leaves the library.
+        let (other, _) = library
+            .add_found_link("https://music.youtube.com/watch?v=def", &entry.source, None)
+            .unwrap();
+        library
+            .resolve_entry(entry.id, EntryState::Picked, Some(other), &[])
+            .unwrap();
+        assert!(library.track(id).unwrap().is_none());
+        assert!(library.track(other).unwrap().is_some());
         assert_eq!(
             library
                 .imported_playlist("https://open.spotify.com/playlist/x")

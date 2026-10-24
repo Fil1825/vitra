@@ -7,6 +7,7 @@
 pub mod commands;
 pub mod music;
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -371,7 +372,21 @@ impl ImportService {
     async fn read_link(&self, link: &ServiceLink) -> Result<ImportedPlaylist, AppError> {
         let request = pages::request(link)
             .ok_or_else(|| AppError::Import("Vitra can't read lists from this link".into()))?;
-        let response = http::get(&request.url, &request.headers).await?;
+        let response = http::get(&request.url, &request.headers, None).await?;
+        if link.service == Service::YandexMusic {
+            let read = if response.status == 404 {
+                Err(PageError::NotFound)
+            } else {
+                pages::read(link, &response.body)
+            };
+            return match read {
+                // «Мне нравится» and private playlists show only to their owner.
+                Err(PageError::Private | PageError::NotFound) => {
+                    self.read_signed_in(link, &request).await
+                }
+                other => other.map_err(page_error),
+            };
+        }
         if response.status == 404 {
             return Err(page_error(PageError::NotFound));
         }
@@ -383,7 +398,7 @@ impl ImportService {
                 let Some(url) = next.take() else {
                     break;
                 };
-                let response = http::get(&url, &[]).await?;
+                let response = http::get(&url, &[], None).await?;
                 let page = pages::deezer(&response.body).map_err(page_error)?;
                 playlist.tracks.extend(page.playlist.tracks);
                 next = page.next;
@@ -395,6 +410,38 @@ impl ImportService {
             return Ok(playlist);
         }
         pages::read(link, &response.body).map_err(page_error)
+    }
+
+    /// Asks for a list again as the user, with the cookies of the browser chosen in Settings
+    /// → Downloads (only Yandex Music's go along, and the file is gone right after).
+    async fn read_signed_in(
+        &self,
+        link: &ServiceLink,
+        request: &pages::Request,
+    ) -> Result<ImportedPlaylist, AppError> {
+        let links = self.links()?;
+        let ytdlp = links.ytdlp()?;
+        if ytdlp.cookies_from_browser.is_none() {
+            return Err(AppError::Import(
+                "the playlist is private on Yandex Music: choose the browser you're signed in \
+                 with in Settings → Downloads → Cookies from browser, or make it public"
+                    .into(),
+            ));
+        }
+        std::fs::create_dir_all(links.scratch())?;
+        let file = links
+            .scratch()
+            .join(format!("cookies-{}.txt", std::process::id()));
+        let result = async {
+            private_file(&file)?;
+            ytdlp.export_cookies(&file).await?;
+            keep_cookies_of(&file, "yandex.")?;
+            let response = http::get(&request.url, &request.headers, Some(&file)).await?;
+            pages::read(link, &response.body).map_err(page_error)
+        }
+        .await;
+        let _ = std::fs::remove_file(&file);
+        result
     }
 
     /// The import entries of a playlist's page.
@@ -434,10 +481,7 @@ impl ImportService {
         let track_id = match (candidate.track_id, &candidate.url) {
             (Some(id), _) => id,
             (None, Some(url)) => {
-                let url = url.clone();
-                let source = entry.source.clone();
-                library
-                    .run(move |db| db.add_found_link(&url, &source))
+                self.store_link(url, &entry.source, Some(&candidate))
                     .await?
             }
             (None, None) => return Err(AppError::Import("nothing to pick".into())),
@@ -477,11 +521,11 @@ impl ImportService {
             };
         }
         let lookup = wanted.clone();
-        let mut found: Vec<EntryCandidate> = library
+        let (mut found, library_paths): (Vec<EntryCandidate>, HashMap<i64, String>) = library
             .run(move |db| {
                 let tracks = db.library_candidates(&lookup, LIBRARY_CANDIDATES)?;
                 let candidates: Vec<Candidate> = tracks.iter().map(library_candidate).collect();
-                Ok(matching::rank(&lookup, &candidates)
+                let ranked: Vec<EntryCandidate> = matching::rank(&lookup, &candidates)
                     .into_iter()
                     .take(ALTERNATIVES)
                     .filter(|(_, score)| *score > 0.3)
@@ -497,7 +541,9 @@ impl ImportService {
                             score,
                         }
                     })
-                    .collect())
+                    .collect();
+                let paths = tracks.iter().map(|t| (t.id, t.path.clone())).collect();
+                Ok((ranked, paths))
             })
             .await?;
         let online = self.search_online(&wanted, query.as_deref()).await?;
@@ -506,6 +552,13 @@ impl ImportService {
                 .into_iter()
                 .map(|(track, score)| entry_candidate(&track, score)),
         );
+        // A link the library has shows once, as the library's.
+        let known: Vec<String> = found
+            .iter()
+            .filter_map(|c| c.track_id)
+            .filter_map(|id| library_paths.get(&id).cloned())
+            .collect();
+        found.retain(|c| c.track_id.is_some() || c.url.as_ref().is_none_or(|u| !known.contains(u)));
         Ok(found)
     }
 
@@ -518,6 +571,40 @@ impl ImportService {
         self.announce(playlist_id, false).await?;
         self.wake();
         Ok(())
+    }
+
+    /// A link found for `source` as a library track (see [`library::Library::add_found_link`]),
+    /// with the thumbnail its description brought as its cover.
+    async fn store_link(
+        &self,
+        url: &str,
+        source: &ImportedTrack,
+        found: Option<&EntryCandidate>,
+    ) -> Result<i64, AppError> {
+        let library = self.library()?;
+        let thumbnail = self.links().ok().and_then(|links| links.thumbnail(url));
+        let covers = library.covers_dir().to_path_buf();
+        let (url, source, found) = (url.to_owned(), source.clone(), found.cloned());
+        library
+            .run(move |db| {
+                let (id, created) = db.add_found_link(&url, &source, found.as_ref())?;
+                if created && let Some(image) = &thumbnail {
+                    db.set_track_artwork(id, image, &covers)?;
+                }
+                Ok(id)
+            })
+            .await
+    }
+
+    /// Opens a link in full (names, length) and keeps its thumbnail for a while.
+    async fn describe_link(&self, url: &str) -> Result<LinkTrack, AppError> {
+        let links = self.links()?;
+        self.pace().await;
+        let (track, thumbnail) = links.ytdlp()?.describe(url, links.scratch()).await?;
+        if let Some(image) = thumbnail {
+            links.remember_thumbnail(&track.url, image);
+        }
+        Ok(track)
     }
 
     /// Waits until YouTube may be asked again.
@@ -563,8 +650,7 @@ impl ImportService {
         by_title.sort_by(|a, b| b.1.total_cmp(&a.1));
         let mut scored = Vec::new();
         for (index, _) in by_title.into_iter().take(DESCRIBED) {
-            self.pace().await;
-            let track = match ytdlp.describe(&results[index].url).await {
+            let track = match self.describe_link(&results[index].url).await {
                 Ok(track) => track,
                 Err(err) => {
                     log::info!("import: cannot open {}: {err}", results[index].url);
@@ -599,8 +685,7 @@ impl ImportService {
         };
         if link.service == Service::Playable {
             // A YouTube or SoundCloud link is a track already: yt-dlp names it.
-            self.pace().await;
-            let track = self.links()?.ytdlp()?.describe(&link.url).await?;
+            let track = self.describe_link(&link.url).await?;
             return Ok(Some(ImportedTrack {
                 title: track.title.clone(),
                 artists: link_candidate(&track).artists,
@@ -685,10 +770,8 @@ impl ImportService {
         if let Some(url) = &source.url
             && service_links::parse(url).is_some_and(|l| l.service == Service::Playable)
         {
-            let (id, url, stored) = (entry.id, url.clone(), source.clone());
-            let track = library
-                .run(move |db| db.add_found_link(&url, &stored))
-                .await?;
+            let id = entry.id;
+            let track = self.store_link(url, &source, None).await?;
             library
                 .run(move |db| db.resolve_entry(id, EntryState::Sure, Some(track), &[]))
                 .await?;
@@ -739,16 +822,9 @@ impl ImportService {
             .cloned();
         let id = entry.id;
         // A library track, or a link stored under the import's names.
-        let track_id = match best.as_ref().map(|b| (b.track_id, b.url.clone())) {
+        let track_id = match best.as_ref().map(|b| (b.track_id, b.url.as_deref())) {
             Some((Some(track_id), _)) => Some(track_id),
-            Some((None, Some(url))) => {
-                let stored = source.clone();
-                Some(
-                    library
-                        .run(move |db| db.add_found_link(&url, &stored))
-                        .await?,
-                )
-            }
+            Some((None, Some(url))) => Some(self.store_link(url, &source, best.as_ref()).await?),
             _ => None,
         };
         let state = match (track_id, best.map(|b| Confidence::of(b.score))) {
@@ -774,6 +850,41 @@ impl ImportService {
     }
 }
 
+/// An empty file only the user can read (cookies go into it).
+fn private_file(path: &Path) -> std::io::Result<()> {
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options.open(path).map(drop)
+}
+
+/// Keeps only the cookies of `domain` in a Netscape cookie file.
+fn keep_cookies_of(path: &Path, domain: &str) -> std::io::Result<()> {
+    let text = std::fs::read_to_string(path)?;
+    std::fs::write(path, cookies_of(&text, domain))
+}
+
+fn cookies_of(text: &str, domain: &str) -> String {
+    text.lines()
+        .filter(|line| {
+            // `#HttpOnly_.site.com` lines are cookies; other `#` lines are comments.
+            let cookie = line.strip_prefix("#HttpOnly_").unwrap_or(line);
+            if cookie.starts_with('#') || cookie.trim().is_empty() {
+                return true;
+            }
+            cookie
+                .split('\t')
+                .next()
+                .is_some_and(|host| host.contains(domain))
+        })
+        .map(|line| format!("{line}\n"))
+        .collect()
+}
+
 /// "Artist - Title" typed into Find…, either way round.
 fn split_query(query: &str) -> ImportedTrack {
     match import::text::parse(query).into_iter().next() {
@@ -793,4 +904,31 @@ fn page_error(err: PageError) -> AppError {
             "this link can't be read right now ({detail}); copy the playlist's tracks and paste them instead"
         ),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_the_sites_cookies_go_along() {
+        let jar = "# Netscape HTTP Cookie File\n\
+                   .yandex.ru\tTRUE\t/\tTRUE\t2000000000\tSession_id\tabc\n\
+                   #HttpOnly_.music.yandex.ru\tTRUE\t/\tTRUE\t0\tyandexuid\t1\n\
+                   .google.com\tTRUE\t/\tTRUE\t2000000000\tSID\tsecret\n\
+                   #HttpOnly_.bank.example\tTRUE\t/\tTRUE\t0\ttoken\tsecret\n";
+        let kept = cookies_of(jar, "yandex.");
+        assert!(kept.contains("Session_id"));
+        assert!(kept.contains("yandexuid"));
+        assert!(kept.starts_with("# Netscape"));
+        assert!(!kept.contains("secret"));
+    }
+
+    #[test]
+    fn typed_queries_go_either_way() {
+        let query = split_query("Daft Punk - One More Time");
+        assert_eq!(query.title, "One More Time");
+        assert_eq!(query.artists, ["Daft Punk"]);
+        assert_eq!(split_query("just words").title, "just words");
+    }
 }

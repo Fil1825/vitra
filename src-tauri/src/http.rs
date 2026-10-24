@@ -1,6 +1,7 @@
 //! Fetching web pages with curl (part of macOS, Windows 10+ and every desktop Linux), like the
 //! lyrics lookups and yt-dlp updates, so the app carries no HTTP client of its own.
 
+use std::path::Path;
 use std::process::Stdio;
 use std::time::Duration;
 
@@ -38,8 +39,13 @@ fn curl() -> Command {
     command
 }
 
-/// GETs `url` (following redirects) with extra `headers` ("Name: value").
-pub async fn get(url: &str, headers: &[String]) -> Result<Response, AppError> {
+/// GETs `url` (following redirects) with extra `headers` ("Name: value") and, if given, the
+/// cookies in a Netscape cookie file.
+pub async fn get(
+    url: &str,
+    headers: &[String],
+    cookies: Option<&Path>,
+) -> Result<Response, AppError> {
     let mut command = curl();
     command
         .args([
@@ -54,6 +60,9 @@ pub async fn get(url: &str, headers: &[String]) -> Result<Response, AppError> {
         .args(["-H", "Accept-Language: en-US,en;q=0.9,ru;q=0.8"]);
     for header in headers {
         command.arg("-H").arg(header);
+    }
+    if let Some(file) = cookies {
+        command.arg("-b").arg(file);
     }
     // The final URL and the status on lines of their own after the body.
     command
@@ -85,6 +94,6 @@ pub async fn get(url: &str, headers: &[String]) -> Result<Response, AppError> {
 
 /// Where a short link (`spotify.link/…`, `deezer.page.link/…`) leads.
 pub async fn follow(url: &str) -> Result<String, AppError> {
-    let response = get(url, &[]).await?;
+    let response = get(url, &[], None).await?;
     Ok(response.url)
 }

@@ -187,6 +187,8 @@ const NOISE_WORDS: &[&str] = &[
 pub struct Title {
     /// The words that name the song, [`fold`]ed.
     pub base: String,
+    /// The same words as written (for searching: "D.A.N.C.E.", "P!nk" survive).
+    pub name: String,
     pub versions: BTreeSet<Version>,
     /// Artists credited in the title ("feat. X"), folded.
     pub featuring: Vec<String>,
@@ -286,6 +288,7 @@ pub fn title(text: &str) -> Title {
         kept.truncate(at);
     }
     result.base = fold(&kept);
+    result.name = kept.split_whitespace().collect::<Vec<_>>().join(" ");
     result
 }
 

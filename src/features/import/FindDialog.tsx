@@ -169,7 +169,7 @@ export function FindDialog({ entry, onClose }: { entry: ImportEntry; onClose(): 
                       <span className={styles.resultSide}>
                         <span className={linkStyles.badge}>
                           {candidate.trackId !== null
-                            ? t('import.inLibrary')
+                            ? t('links.inLibrary')
                             : t('import.find.youtubeMusic')}
                         </span>
                         {candidate.duration !== null && (

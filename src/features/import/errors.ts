@@ -15,6 +15,8 @@ const EXACT: Record<string, ParseKeys> = {
 const PREFIXES: [string, ParseKeys][] = [
   ['VK shows its playlists only', 'import.errors.vk'],
   ['the service has no such playlist', 'import.errors.notFound'],
+  // Before the general one below.
+  ['the playlist is private on Yandex Music', 'import.errors.yandexPrivate'],
   ['the playlist is private', 'import.errors.private'],
   ["this link can't be read right now", 'import.errors.unreadable'],
   ['cannot reach the site', 'import.errors.offline'],

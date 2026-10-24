@@ -455,6 +455,7 @@
       "vk": "VK shows playlists only to signed-in visitors: open the playlist in your browser, select all (⌘A or Ctrl+A), copy and paste here.",
       "notFound": "The service has no such playlist. Is the link complete?",
       "private": "The playlist is private. Make it public, or copy its tracks and paste them here.",
+      "yandexPrivate": "Yandex Music shows this playlist only to its owner. Choose the browser you’re signed in to Yandex with in Settings → Downloads → Cookies from browser, or make the playlist public.",
       "unreadable": "The page can’t be read right now. Copy the playlist’s tracks and paste them here.",
       "offline": "Couldn’t reach the service. Check the connection.",
       "musicAccess": "Vitra can’t read the Music library. Allow it in System Settings → Privacy & Security → Media & Apple Music.",

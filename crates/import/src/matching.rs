@@ -139,11 +139,18 @@ fn score_one(wanted: &ImportedTrack, candidate: &Candidate) -> f64 {
     };
     let mismatched = ours.versions.symmetric_difference(&theirs.versions).count();
     let penalty = (mismatched as f64 * 0.25).min(0.5);
+    // Another artist's song of the same name (a cover, a namesake) must not pass on its
+    // title: the right artist's live take is closer than that.
+    let stranger = match artists {
+        Some(fit) if fit < 0.5 => 0.2,
+        _ => 0.0,
+    };
     // Nobody named on one side: a title and a length alone are rarely sure.
     let artists = artists.unwrap_or(0.4);
     // A different song by the same artist must not pass on artist and duration alone.
     let title_gate = if title < 0.6 { title } else { 1.0 };
-    ((0.5 * title + 0.3 * artists + 0.2 * duration) * title_gate - penalty).clamp(0.0, 1.0)
+    ((0.5 * title + 0.3 * artists + 0.2 * duration) * title_gate - penalty - stranger)
+        .clamp(0.0, 1.0)
 }
 
 /// The artists' fit: the main artist found among theirs (and those credited in their
@@ -213,9 +220,10 @@ pub fn search_query(track: &ImportedTrack) -> String {
         query.push_str(artist.trim());
         query.push(' ');
     }
-    // Keep what makes the version (a live take is searched as live); drop the rest.
+    // Keep what makes the version (a live take is searched as live); drop the rest. The
+    // name as written: search engines know "D.A.N.C.E." better than "d a n c e".
     let title = normalize::title(&track.title);
-    let mut name = title.base;
+    let mut name = title.name;
     for version in &title.versions {
         name.push(' ');
         name.push_str(match version {
@@ -375,6 +383,19 @@ mod tests {
     }
 
     #[test]
+    fn a_cover_is_not_the_song() {
+        let w = wanted("Digital Love", "Daft Punk", None);
+        let candidates = [
+            found("Digital Love", "Cover Band", Some(301.0)),
+            found("Digital Love (Live)", "Daft Punk", Some(300.0)),
+        ];
+        let ranked = rank(&w, &candidates);
+        assert_eq!(ranked[0].0, 1);
+        assert_eq!(Confidence::of(ranked[0].1), Confidence::Doubtful);
+        assert_eq!(Confidence::of(ranked[1].1), Confidence::None);
+    }
+
+    #[test]
     fn queries_keep_versions() {
         assert_eq!(
             search_query(&wanted(
@@ -382,7 +403,7 @@ mod tests {
                 "Eagles",
                 None
             )),
-            "Eagles hotel california live"
+            "Eagles Hotel California live"
         );
         assert_eq!(
             search_query(&wanted(
@@ -390,7 +411,15 @@ mod tests {
                 "The Beatles",
                 None
             )),
-            "The Beatles here comes the sun"
+            "The Beatles Here Comes the Sun"
+        );
+        assert_eq!(
+            search_query(&wanted("D.A.N.C.E.", "Justice", None)),
+            "Justice D.A.N.C.E."
+        );
+        assert_eq!(
+            search_query(&wanted("Song (feat. Someone) [Remastered]", "Artist", None)),
+            "Artist Song"
         );
     }
 
