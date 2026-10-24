@@ -205,7 +205,23 @@
     },
     "vinyl": "Covers as Records",
     "vinylHint": "Covers become vinyl records that turn while music plays. “As in Theme” follows the theme; the disc button on a big cover switches it too.",
-    "vinylAuto": "As in Theme"
+    "vinylAuto": "As in Theme",
+    "sections": {
+      "general": "General",
+      "sound": "Sound",
+      "links": "Links & Downloads"
+    },
+    "search": "Search settings",
+    "noMatch": "Nothing found",
+    "groups": {
+      "window": "Window",
+      "motion": "Motion",
+      "covers": "Covers"
+    },
+    "general": {
+      "menuBar": "Icon in the menu bar",
+      "globalHint": "Shortcuts that work in every app are set in Keyboard Shortcuts."
+    }
   },
   "library": {
     "emptyTitle": "Your library is empty",
@@ -655,7 +671,8 @@
       "mirror": "Mirrored",
       "wave": "Wave"
     },
-    "spectrum": "The music's spectrum"
+    "spectrum": "The music's spectrum",
+    "spectrumHint": "How the level meter module draws the music; its context menu has the same choice."
   },
   "shortcuts": {
     "title": "Keyboard Shortcuts",
@@ -698,5 +715,68 @@
     "resetAll": "Reset All Shortcuts",
     "reserved": "{{combo}} belongs to the system or to text editing",
     "taken": "Taken from “{{actions}}”"
+  },
+  "about": {
+    "title": "About Vitra",
+    "version": "Version {{version}}",
+    "tagline": "An open-source music player with a Liquid Glass look.",
+    "support": "Support Vitra",
+    "source": "Source Code",
+    "license": "License",
+    "licenseText": "Vitra is free software under the GNU General Public License, version 3 or later: you may use, study, share and change it.",
+    "credits": "Made with"
+  },
+  "sound": {
+    "equalizer": "Equalizer",
+    "equalizerHint": "Ten bands from 32 Hz to 16 kHz. Moving a band turns it on.",
+    "preset": "Preset",
+    "custom": "Custom",
+    "yourPresets": "Your Presets",
+    "preamp": "Preamp",
+    "preampShort": "Pre",
+    "band": "{{band}} Hz",
+    "reset": "Reset",
+    "savePreset": "Save as Preset…",
+    "presetName": "Preset name",
+    "save": "Save",
+    "deletePreset": "Delete Preset",
+    "volume": "Volume",
+    "normalization": "Even out loudness",
+    "normalizationHint": "Plays every track equally loud: from ReplayGain tags where files have them, otherwise Vitra measures a track once (a link while it first plays). The music’s dynamics stay as they are.",
+    "normalizations": {
+      "off": "Off",
+      "track": "By Track",
+      "album": "By Album"
+    },
+    "transitions": "Transitions",
+    "crossfade": "Crossfade",
+    "crossfadeHint": "Overlaps the end of a track with the start of the next. Tracks of one album stay gapless; skipping by hand switches at once.",
+    "gapless": "Off (gapless)",
+    "seconds_one": "{{count}} s",
+    "seconds_other": "{{count}} s",
+    "presetNames": {
+      "flat": "Flat",
+      "acoustic": "Acoustic",
+      "bassBooster": "Bass Booster",
+      "bassReducer": "Bass Reducer",
+      "classical": "Classical",
+      "dance": "Dance",
+      "deep": "Deep",
+      "electronic": "Electronic",
+      "hipHop": "Hip-Hop",
+      "jazz": "Jazz",
+      "latin": "Latin",
+      "loudness": "Loudness",
+      "lounge": "Lounge",
+      "piano": "Piano",
+      "pop": "Pop",
+      "rnb": "R&B",
+      "rock": "Rock",
+      "smallSpeakers": "Small Speakers",
+      "spokenWord": "Spoken Word",
+      "trebleBooster": "Treble Booster",
+      "trebleReducer": "Treble Reducer",
+      "vocalBooster": "Vocal Booster"
+    }
   }
 }

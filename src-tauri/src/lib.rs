@@ -1,5 +1,6 @@
 //! Vitra desktop app: Tauri setup and command registration.
 
+mod browser;
 mod drag;
 mod error;
 mod layout;
@@ -12,6 +13,7 @@ mod player;
 mod settings;
 mod shortcuts;
 mod sidecar;
+mod sound;
 mod themes;
 mod window;
 
@@ -152,6 +154,8 @@ pub fn run() {
             player::player_state,
             player::player_open,
             player::player_meters,
+            player::sound_preview_equalizer,
+            browser::open_in_browser,
             player::player_play,
             player::player_pause,
             player::player_toggle,

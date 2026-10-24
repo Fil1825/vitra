@@ -22,6 +22,7 @@ use crate::lyrics::LyricsService;
 use crate::mini::{MiniPlayer, Mode, SizePreset};
 use crate::player::Player;
 use crate::shortcuts::{self, Shortcuts};
+use crate::sound::SoundSettings;
 use crate::window;
 
 /// Emitted to every window with the new [`Settings`] after a change.
@@ -54,6 +55,9 @@ pub struct Settings {
     /// The level meter module.
     #[serde(deserialize_with = "or_default")]
     pub meter: MeterSettings,
+    /// The equalizer, volume normalization and crossfade (see `sound.rs`).
+    #[serde(deserialize_with = "or_default")]
+    pub sound: SoundSettings,
 }
 
 /// The level meter module.
@@ -332,7 +336,7 @@ pub enum Switch {
 }
 
 /// Deserializes a field, falling back to its default when the value has the wrong shape.
-fn or_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+pub(crate) fn or_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
     D: Deserializer<'de>,
     T: DeserializeOwned + Default,
@@ -390,6 +394,7 @@ impl Settings {
         }
         self.layout_presets = sanitize_presets(std::mem::take(&mut self.layout_presets));
         self.shortcuts = shortcuts::sanitize(std::mem::take(&mut self.shortcuts));
+        self.sound = std::mem::take(&mut self.sound).sanitized();
         let scale = &mut self.lyrics.font_scale;
         *scale = if scale.is_finite() && *scale > 0.0 {
             scale.clamp(*FONT_SCALES.start(), *FONT_SCALES.end())
@@ -508,6 +513,11 @@ pub fn set_settings(
     {
         player.meter_filters_changed();
     }
+    if saved.sound != previous.sound
+        && let Some(player) = app.try_state::<Player>()
+    {
+        player.sound_changed(&previous.sound, &saved.sound);
+    }
     if saved.mini_player != previous.mini_player
         && let Some(mini) = app.try_state::<MiniPlayer>()
     {
@@ -603,6 +613,21 @@ mod tests {
             meter: MeterSettings {
                 style: MeterStyle::Mirror,
             },
+            sound: SoundSettings {
+                equalizer: crate::sound::Equalizer {
+                    enabled: true,
+                    preset: "rock".into(),
+                    gains: vec![4.5, 3.0, -1.5, -2.0, -1.0, 1.0, 2.5, 3.5, 4.0, 4.0],
+                    preamp: -4.5,
+                },
+                presets: vec![crate::sound::EqPreset {
+                    name: "Car".into(),
+                    gains: vec![2.0; 10],
+                    preamp: -2.0,
+                }],
+                normalization: crate::sound::Normalization::Album,
+                crossfade: 6.0,
+            },
         };
 
         store_in(tmp.path()).set(settings.clone()).unwrap();
@@ -671,7 +696,18 @@ mod tests {
                 },
                 "layoutPresets": [],
                 "shortcuts": {},
-                "meter": { "style": "bars" }
+                "meter": { "style": "bars" },
+                "sound": {
+                    "equalizer": {
+                        "enabled": false,
+                        "preset": "flat",
+                        "gains": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                        "preamp": 0.0
+                    },
+                    "presets": [],
+                    "normalization": "off",
+                    "crossfade": 0.0
+                }
             })
         );
     }

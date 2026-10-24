@@ -39,6 +39,41 @@ export interface MeterSettings {
   style: MeterStyle;
 }
 
+/** The equalizer's band centres (Hz), low to high. */
+export const EQ_BANDS = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000] as const;
+/** A band's gain and the preamp, in dB. */
+export const EQ_GAIN_MAX = 12;
+/** The longest crossfade, in seconds (0 plays gapless). */
+export const CROSSFADE_MAX = 12;
+
+export interface Equalizer {
+  enabled: boolean;
+  /** The preset the gains came from (`flat`, `rock`, `user:<name>`…); empty once edited. */
+  preset: string;
+  /** dB per band, low to high. */
+  gains: number[];
+  /** dB before the bands, to keep boosts from clipping. */
+  preamp: number;
+}
+
+/** An equalizer preset the user saved. */
+export interface EqPreset {
+  name: string;
+  gains: number[];
+  preamp: number;
+}
+
+/** Evening out loudness between tracks (ReplayGain tags, else Vitra's own measurement). */
+export type Normalization = 'off' | 'track' | 'album';
+
+export interface SoundSettings {
+  equalizer: Equalizer;
+  presets: EqPreset[];
+  normalization: Normalization;
+  /** Seconds two tracks overlap; 0 plays them gapless. */
+  crossfade: number;
+}
+
 /** How a credit like "A feat. B" or "A, B" is split into artists. */
 export interface ArtistSplitting {
   enabled: boolean;
@@ -125,6 +160,7 @@ export interface Settings {
   /** Keyboard shortcuts the user changed: action id → combination, `null` for none. */
   shortcuts: Record<string, string | null>;
   meter: MeterSettings;
+  sound: SoundSettings;
 }
 
 /** The range of the mini player's background opacity. */
@@ -171,6 +207,12 @@ export const DEFAULT_SETTINGS: Settings = {
   layoutPresets: [],
   shortcuts: {},
   meter: { style: 'bars' },
+  sound: {
+    equalizer: { enabled: false, preset: 'flat', gains: EQ_BANDS.map(() => 0), preamp: 0 },
+    presets: [],
+    normalization: 'off',
+    crossfade: 0,
+  },
 };
 
 /** Tauri event carrying the new settings after any window changed them. */

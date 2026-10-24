@@ -39,6 +39,7 @@ use crate::lyrics::{LyricsService, TrackInfo};
 use crate::now_playing::NowPlaying;
 use crate::settings::{AudioMeters, SettingsStore};
 use crate::sidecar::{self, Sidecar};
+use crate::sound::{self, Equalizer, SoundSettings};
 
 pub use artwork::{
     ArtworkStore, COVER_PREFIX, SCHEME as ARTWORK_SCHEME, respond_cover, status as http_status,
@@ -133,6 +134,10 @@ struct Inner {
     pulse_wanted: AtomicBool,
     spectrum_wanted: AtomicBool,
     meters_running: AtomicBool,
+    /// The equalizer in mpv's chain now (default: none).
+    equalizer: Mutex<Equalizer>,
+    /// Equalizer changes wait for each other.
+    equalizer_turn: tokio::sync::Mutex<()>,
 }
 
 /// Lines of the hook's log kept per link: its errors are a few lines of yt-dlp's stderr.
@@ -189,6 +194,8 @@ impl Player {
             pulse_wanted: AtomicBool::new(false),
             spectrum_wanted: AtomicBool::new(false),
             meters_running: AtomicBool::new(false),
+            equalizer: Mutex::new(Equalizer::default()),
+            equalizer_turn: tokio::sync::Mutex::new(()),
         }))
     }
 
@@ -1344,6 +1351,7 @@ impl Player {
         command(client, vec![json!("request_log_messages"), json!("warn")]).await?;
         self.set_ytdl_options(client).await;
         self.set_meter_filters(client, false).await;
+        self.add_equalizer(client).await;
         let current = lock(&self.0.queue).current().cloned();
         let waiting = self.0.load_waiting.load(Ordering::Relaxed);
         if let (Status::Playing | Status::Paused | Status::Loading, Some(item), false) =
@@ -1425,6 +1433,71 @@ impl Player {
                 log::warn!("cannot measure the audio: {err}");
             }
         }
+    }
+
+    /// Puts the equalizer into a fresh mpv's audio chain, first, if it changes the sound.
+    async fn add_equalizer(&self, client: &Client) {
+        let Some(settings) = self.0.app.try_state::<SettingsStore>() else {
+            return;
+        };
+        // A fresh mpv has no equalizer: whatever the last one had is gone.
+        *lock(&self.0.equalizer) = Equalizer::default();
+        self.apply_equalizer(client, settings.get().sound.equalizer)
+            .await;
+    }
+
+    /// Makes mpv's equalizer `to`: a moved band goes to its own filter (`af-command`), so
+    /// the music plays on undisturbed; switching it on or off adds or removes the filter.
+    async fn apply_equalizer(&self, client: &Client, to: Equalizer) {
+        let from = std::mem::replace(&mut *lock(&self.0.equalizer), to.clone());
+        let result = match (from.active(), to.active()) {
+            (true, true) => {
+                let mut result = Ok(());
+                for [name, value, target] in to.commands(&from) {
+                    let args = vec![
+                        json!("af-command"),
+                        json!(sound::EQ_LABEL),
+                        json!(name),
+                        json!(value),
+                        json!(target),
+                    ];
+                    result = result.and(command(client, args).await);
+                }
+                result
+            }
+            (false, true) => {
+                command(client, vec![json!("af"), json!("pre"), json!(to.filter())]).await
+            }
+            (true, false) => {
+                let label = format!("@{}", sound::EQ_LABEL);
+                command(client, vec![json!("af"), json!("remove"), json!(label)]).await
+            }
+            (false, false) => Ok(()),
+        };
+        if let Err(err) = result {
+            log::warn!("cannot change the equalizer: {err}");
+        }
+    }
+
+    /// The sound settings changed.
+    pub fn sound_changed(&self, previous: &SoundSettings, next: &SoundSettings) {
+        if previous.equalizer != next.equalizer {
+            self.preview_equalizer(next.equalizer.clone());
+        }
+    }
+
+    /// Plays with `equalizer` without saving it (a band being dragged); the settings bring
+    /// the one to keep.
+    pub fn preview_equalizer(&self, equalizer: Equalizer) {
+        let Ok(client) = self.client() else {
+            return;
+        };
+        let player = self.clone();
+        tauri::async_runtime::spawn(async move {
+            // One change at a time, so quick moves reach mpv in order.
+            let _turn = player.0.equalizer_turn.lock().await;
+            player.apply_equalizer(&client, equalizer).await;
+        });
     }
 
     /// The backdrop pulse was switched, or the level meter shown or hidden.
