@@ -10,13 +10,15 @@ use super::{ImportResult, ImportService};
 use crate::error::AppError;
 
 /// Pasted text: a link, links, or tracks written out; `name` names a playlist that has none.
+/// With `into`, the text completes that playlist.
 #[tauri::command]
 pub async fn import_text(
     import: State<'_, ImportService>,
     text: String,
     name: String,
+    into: Option<i64>,
 ) -> Result<ImportResult, AppError> {
-    import.import_text(&text, &name).await
+    import.import_text(&text, &name, into).await
 }
 
 /// Playlist files (each may hold several playlists).

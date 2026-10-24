@@ -7,3 +7,5 @@ LICENSE
 SPEC.md
 # Recorded yt-dlp output, kept as recorded.
 crates/links/tests/fixtures/
+# Service pages and API answers, kept in their own shape (and recorded ones as recorded).
+crates/import/tests/fixtures/

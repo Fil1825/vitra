@@ -238,6 +238,14 @@ export function Sidebar({
     { route: { view: 'favorites' }, label: t('nav.favorites'), icon: Heart },
   ];
 
+  // "+": a new playlist, or one imported from elsewhere.
+  const addPlaylistMenu = () => {
+    showContextMenu([
+      { label: t('nav.newPlaylist'), action: () => createPlaylist() },
+      { label: t('import.openImport'), action: () => useUi.getState().openImport('') },
+    ]).catch(report('Showing a menu'));
+  };
+
   const playlistMenu = (id: number, name: string, custom: boolean) => (event: MouseEvent) => {
     event.preventDefault();
     showContextMenu([
@@ -298,9 +306,9 @@ export function Sidebar({
           <div className={styles.sectionRow}>
             <p className={styles.section}>{t('nav.playlists')}</p>
             <IconButton
-              label={t('nav.newPlaylist')}
+              label={t('nav.addPlaylist')}
               className={styles.add}
-              onClick={() => createPlaylist()}
+              onClick={addPlaylistMenu}
             >
               <Plus size={14} />
             </IconButton>
@@ -324,9 +332,9 @@ export function Sidebar({
               <button
                 type="button"
                 className={styles.item}
-                aria-label={t('nav.newPlaylist')}
-                title={t('nav.newPlaylist')}
-                onClick={() => createPlaylist()}
+                aria-label={t('nav.addPlaylist')}
+                title={t('nav.addPlaylist')}
+                onClick={addPlaylistMenu}
               >
                 <Plus size={16} className={styles.icon} aria-hidden="true" />
               </button>

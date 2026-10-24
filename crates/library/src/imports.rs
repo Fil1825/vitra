@@ -230,12 +230,20 @@ impl Library {
 
     /// Brings an imported playlist up to the source's current list: entries it still has
     /// keep their tracks and the user's picks, new ones wait to be looked for, gone ones
-    /// leave. Tracks the user added themselves stay, after the source's.
-    pub fn reimport_playlist(&mut self, playlist_id: i64, entries: &[NewEntry]) -> Result<()> {
+    /// leave. Tracks the user added themselves stay, after the source's. A `partial` list
+    /// (the first part of a longer one) removes nothing: entries past it stay after it.
+    pub fn reimport_playlist(
+        &mut self,
+        playlist_id: i64,
+        entries: &[NewEntry],
+        partial: bool,
+    ) -> Result<()> {
         let tx = self.conn.transaction()?;
         let places = items(&tx, playlist_id)?;
         let mut known: std::collections::HashMap<String, Vec<Item>> =
             std::collections::HashMap::new();
+        // The source's places in their order, for a partial list.
+        let mut sourced: Vec<(String, Item)> = Vec::new();
         let mut own: Vec<Item> = Vec::new();
         {
             let mut statement = tx.prepare(&format!(
@@ -246,10 +254,9 @@ impl Library {
                     Some(entry_id) => {
                         let entry = statement.query_row([entry_id], entry_from_row).optional()?;
                         if let Some(entry) = entry {
-                            known
-                                .entry(identity(&entry.source))
-                                .or_default()
-                                .push(*place);
+                            let id = identity(&entry.source);
+                            known.entry(id.clone()).or_default().push(*place);
+                            sourced.push((id, *place));
                         }
                     }
                     None => own.push(*place),
@@ -269,6 +276,16 @@ impl Library {
                         track_id: entry.track_id,
                         entry_id: Some(entry_id),
                     });
+                }
+            }
+        }
+        if partial {
+            // What the list didn't show this time: every place not taken above, in order.
+            for (id, place) in sourced {
+                if let Some(list) = known.get_mut(&id)
+                    && let Some(index) = list.iter().position(|p| *p == place)
+                {
+                    next.push(list.remove(index));
                 }
             }
         }
@@ -663,7 +680,11 @@ mod tests {
         // The source lost B and gained C, and A moved down.
         let c = imported("C", "y");
         library
-            .reimport_playlist(playlist.id, &[NewEntry::pending(c), NewEntry::pending(a)])
+            .reimport_playlist(
+                playlist.id,
+                &[NewEntry::pending(c.clone()), NewEntry::pending(a.clone())],
+                false,
+            )
             .unwrap();
         let places = library.playlist_places(playlist.id).unwrap();
         let names: Vec<String> = places
@@ -677,5 +698,21 @@ mod tests {
         assert_eq!(places[1].entry.as_ref().unwrap().state, EntryState::Picked);
         assert_eq!(places[1].track.as_ref().map(|t| t.id), Some(first));
         assert_eq!(library.import_progress(playlist.id).unwrap().total, 2);
+
+        // Only the first part of the list (Spotify's page): nothing past it goes.
+        let d = imported("D", "z");
+        library
+            .reimport_playlist(playlist.id, &[NewEntry::pending(d)], true)
+            .unwrap();
+        let names: Vec<String> = library
+            .playlist_places(playlist.id)
+            .unwrap()
+            .iter()
+            .map(|p| match &p.entry {
+                Some(entry) => entry.source.title.clone(),
+                None => "own".into(),
+            })
+            .collect();
+        assert_eq!(names, ["D", "C", "A", "own"]);
     }
 }

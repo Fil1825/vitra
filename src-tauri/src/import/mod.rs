@@ -203,34 +203,39 @@ impl ImportService {
         self.0.wake.notify_one();
     }
 
-    /// Makes the playlist (or brings the one imported from `source_url` up to date).
+    /// Makes the playlist, or brings `into` (else the one imported from `source_url`) up to
+    /// date.
     async fn save(
         &self,
         name: String,
         source_url: Option<String>,
+        into: Option<i64>,
         playlist: ImportedPlaylist,
     ) -> Result<ImportResult, AppError> {
         let library = self.library()?;
         let total = playlist.tracks.len();
         let partial = playlist.partial;
         let tracks = playlist.tracks;
-        let (playlist, in_library) = library
+        let (playlist, in_library, partial) = library
             .run(move |db| {
                 let entries = match_in_library(db, tracks)?;
                 let in_library = entries.iter().filter(|e| e.track_id.is_some()).count();
-                let existing = match &source_url {
-                    Some(url) => db.imported_playlist(url)?,
-                    None => None,
+                let existing = match (into, &source_url) {
+                    (Some(id), _) => Some(id),
+                    (None, Some(url)) => db.imported_playlist(url)?,
+                    (None, None) => None,
                 };
                 let playlist = match existing {
                     Some(id) => {
-                        db.reimport_playlist(id, &entries)?;
+                        db.reimport_playlist(id, &entries, partial)?;
                         db.playlist(id)?
                             .ok_or_else(|| library::Error::Invalid("playlist vanished".into()))?
                     }
                     None => db.create_imported_playlist(&name, source_url.as_deref(), &entries)?,
                 };
-                Ok((playlist, in_library))
+                // A partial page of a playlist that was completed before is no news.
+                let partial = partial && db.import_progress(playlist.id)?.total <= total as i64;
+                Ok((playlist, in_library, partial))
             })
             .await?;
         library.changed(Change::Playlists);
@@ -244,14 +249,21 @@ impl ImportService {
         })
     }
 
-    /// Pasted text: links (one list, or tracks in bulk) or tracks written out.
-    pub async fn import_text(&self, text: &str, name: &str) -> Result<ImportResult, AppError> {
+    /// Pasted text: links (one list, or tracks in bulk) or tracks written out. With `into`,
+    /// the text completes that playlist (all of a list whose page showed only a part).
+    pub async fn import_text(
+        &self,
+        text: &str,
+        name: &str,
+        into: Option<i64>,
+    ) -> Result<ImportResult, AppError> {
         let items = import::text::parse(text);
         if items.is_empty() {
             return Err(AppError::Import("no tracks in the text".into()));
         }
         // One link alone: the list it points at.
         if let [Item::Link(url)] = items.as_slice()
+            && into.is_none()
             && let Some(link) = service_links::parse(url)
             && !matches!(link.target, Target::Track { .. })
         {
@@ -271,6 +283,7 @@ impl ImportService {
         self.save(
             name.to_owned(),
             None,
+            into,
             ImportedPlaylist {
                 tracks,
                 ..ImportedPlaylist::default()
@@ -291,7 +304,7 @@ impl ImportService {
         let mut results = Vec::new();
         for playlist in playlists {
             let name = playlist.name.clone().unwrap_or_default();
-            results.push(self.save(name, None, playlist).await?);
+            results.push(self.save(name, None, None, playlist).await?);
         }
         Ok(results)
     }
@@ -337,7 +350,8 @@ impl ImportService {
         }
         let playlist = self.read_link(&link).await?;
         let name = playlist.name.clone().unwrap_or_default();
-        self.save(name, Some(link.url.clone()), playlist).await
+        self.save(name, Some(link.url.clone()), None, playlist)
+            .await
     }
 
     /// Playlists of the Music app (macOS), each kept as the playlist imported from it.
@@ -346,7 +360,7 @@ impl ImportService {
         for (id, playlist) in music::read(ids).await? {
             let name = playlist.name.clone().unwrap_or_default();
             results.push(
-                self.save(name, Some(music::source_url(&id)), playlist)
+                self.save(name, Some(music::source_url(&id)), None, playlist)
                     .await?,
             );
         }
@@ -500,7 +514,8 @@ impl ImportService {
         self.library()?
             .run(move |db| db.retry_entries(playlist_id, true))
             .await?;
-        self.emit_progress(playlist_id).await;
+        // The rows show the search again.
+        self.announce(playlist_id, false).await?;
         self.wake();
         Ok(())
     }
@@ -662,8 +677,7 @@ impl ImportService {
                     library
                         .run(move |db| db.resolve_entry(id, EntryState::Missing, None, &[]))
                         .await?;
-                    self.emit_progress(entry.playlist_id).await;
-                    return Ok(());
+                    return self.announce(entry.playlist_id, false).await;
                 }
             }
         }
@@ -678,7 +692,7 @@ impl ImportService {
             library
                 .run(move |db| db.resolve_entry(id, EntryState::Sure, Some(track), &[]))
                 .await?;
-            return self.announce(entry.playlist_id).await;
+            return self.announce(entry.playlist_id, true).await;
         }
         let wanted = source.clone();
         let local = library.run(move |db| best_in_library(db, &wanted)).await?;
@@ -689,7 +703,7 @@ impl ImportService {
             library
                 .run(move |db| db.resolve_entry(id, EntryState::Sure, Some(track_id), &[]))
                 .await?;
-            return self.announce(entry.playlist_id).await;
+            return self.announce(entry.playlist_id, true).await;
         }
         let found = match self.search_online(&source, None).await {
             Ok(found) => found,
@@ -745,12 +759,15 @@ impl ImportService {
         library
             .run(move |db| db.resolve_entry(id, state, track_id, &candidates))
             .await?;
-        self.announce(entry.playlist_id).await
+        self.announce(entry.playlist_id, track_id.is_some()).await
     }
 
-    async fn announce(&self, playlist_id: i64) -> Result<(), AppError> {
+    /// Tells the windows an entry changed (and the library got a track, when `found`).
+    async fn announce(&self, playlist_id: i64, found: bool) -> Result<(), AppError> {
         let library = self.library()?;
-        library.changed(Change::Tracks);
+        if found {
+            library.changed(Change::Tracks);
+        }
         library.changed(Change::Playlists);
         self.emit_progress(playlist_id).await;
         Ok(())
