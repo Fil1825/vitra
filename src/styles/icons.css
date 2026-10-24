@@ -338,6 +338,15 @@
   --vi: vi-squeeze-x;
 }
 
+/* The big star, then the small ones. */
+.lucide-sparkles > * {
+  --vi: vi-pop;
+}
+
+.lucide-sparkles > :nth-child(n + 2) {
+  --vi-delay: 0.08s;
+}
+
 .lucide-check {
   --vi: vi-pop;
 }
