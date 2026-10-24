@@ -86,6 +86,19 @@ impl Client {
 
     /// Runs an mpv command (`["loadfile", "/a.flac"]`, ...) and returns its `data`.
     pub async fn command(&self, args: Vec<Value>) -> Result<Value, Error> {
+        self.send(Value::Array(args)).await
+    }
+
+    /// A command with named arguments (`{"name": "loadfile", "url": …, "options": {…}}`),
+    /// which doesn't depend on the order of arguments changing between mpv versions.
+    pub async fn command_named(
+        &self,
+        command: serde_json::Map<String, Value>,
+    ) -> Result<Value, Error> {
+        self.send(Value::Object(command)).await
+    }
+
+    async fn send(&self, command: Value) -> Result<Value, Error> {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (reply_tx, reply_rx) = oneshot::channel();
         {
@@ -96,7 +109,7 @@ impl Client {
             pending.waiting.insert(id, reply_tx);
         }
 
-        let mut line = serde_json::to_string(&json!({ "command": args, "request_id": id }))?;
+        let mut line = serde_json::to_string(&json!({ "command": command, "request_id": id }))?;
         line.push('\n');
         if self.lines.send(line).is_err() {
             lock(&self.pending).waiting.remove(&id);

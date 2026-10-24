@@ -6,11 +6,16 @@
 //! gain is sent to that one filter (`af-command`) while the music plays, without rebuilding
 //! the chain (which could click). A flat or switched-off equalizer is taken out of the chain.
 
+pub mod loudness;
+pub mod measure;
+
 use std::ops::RangeInclusive;
 
 use serde::{Deserialize, Serialize};
 
 use crate::settings::or_default;
+
+pub use measure::LoudnessMeter;
 
 /// The bands' centres (Hz).
 pub const BANDS: [f64; 10] = [
@@ -26,6 +31,13 @@ const MAX_PRESET_NAME: usize = 60;
 
 /// The equalizer's label in mpv's audio chain.
 pub const EQ_LABEL: &str = "vitraeq";
+/// The loudness meter's label: EBU R128 readings for links, which can't be measured ahead.
+pub const LOUDNESS_LABEL: &str = "vitraloud";
+
+/// The loudness meter in mpv's chain, while normalization is on.
+pub fn loudness_filter() -> String {
+    format!("@{LOUDNESS_LABEL}:lavfi=graph=[ebur128=metadata=1]:o=[threads=1]")
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]

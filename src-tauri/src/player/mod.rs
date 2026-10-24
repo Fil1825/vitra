@@ -39,7 +39,7 @@ use crate::lyrics::{LyricsService, TrackInfo};
 use crate::now_playing::NowPlaying;
 use crate::settings::{AudioMeters, SettingsStore};
 use crate::sidecar::{self, Sidecar};
-use crate::sound::{self, Equalizer, SoundSettings};
+use crate::sound::{self, Equalizer, LoudnessMeter, Normalization, SoundSettings, loudness};
 
 pub use artwork::{
     ArtworkStore, COVER_PREFIX, SCHEME as ARTWORK_SCHEME, respond_cover, status as http_status,
@@ -659,6 +659,7 @@ impl Player {
         if let Some(lyrics) = self.lyrics() {
             lyrics.track_started(id, &entry.path, entry.track_id);
         }
+        self.measure_link(id, &entry.path);
         self.read_metadata(id, PathBuf::from(&entry.path));
     }
 
@@ -681,11 +682,8 @@ impl Player {
     /// Makes `item` mpv's playing file and preloads the one after it.
     async fn load_with(&self, client: &Client, item: &QueueItem) -> Result<(), AppError> {
         *lock(&self.0.mirror) = Mirror::default();
-        let reply = command_value(
-            client,
-            vec![json!("loadfile"), json!(item.entry.path), json!("replace")],
-        )
-        .await?;
+        let options = self.file_options(&item.entry.path).await;
+        let reply = loadfile(client, &item.entry.path, "replace", options).await?;
         lock(&self.0.mirror).current = entry_id(&reply).map(|id| (id, item.uid));
         self.sync_next(client, true).await
     }
@@ -707,11 +705,8 @@ impl Player {
         command(client, vec![json!("playlist-clear")]).await?;
         lock(&self.0.mirror).next = None;
         if let Some(item) = wanted {
-            let reply = command_value(
-                client,
-                vec![json!("loadfile"), json!(item.entry.path), json!("append")],
-            )
-            .await?;
+            let options = self.file_options(&item.entry.path).await;
+            let reply = loadfile(client, &item.entry.path, "append", options).await?;
             lock(&self.0.mirror).next = entry_id(&reply).map(|id| (id, item.uid));
         }
         Ok(())
@@ -1352,6 +1347,7 @@ impl Player {
         self.set_ytdl_options(client).await;
         self.set_meter_filters(client, false).await;
         self.add_equalizer(client).await;
+        self.apply_normalization(client).await;
         let current = lock(&self.0.queue).current().cloned();
         let waiting = self.0.load_waiting.load(Ordering::Relaxed);
         if let (Status::Playing | Status::Paused | Status::Loading, Some(item), false) =
@@ -1479,10 +1475,203 @@ impl Player {
         }
     }
 
+    fn normalization(&self) -> Normalization {
+        self.0
+            .app
+            .try_state::<SettingsStore>()
+            .map_or(Normalization::Off, |settings| {
+                settings.get().sound.normalization
+            })
+    }
+
+    /// How mpv evens out loudness: ReplayGain tags (track or album gains), moved to Vitra's
+    /// target by the preamp, with clipping prevented. Applies from the next file.
+    async fn apply_normalization(&self, client: &Client) {
+        let mode = match self.normalization() {
+            Normalization::Off => "no",
+            Normalization::Track => "track",
+            Normalization::Album => "album",
+        };
+        let properties = [
+            ("replaygain", json!(mode)),
+            ("replaygain-preamp", json!(loudness::REPLAYGAIN_PREAMP)),
+            ("replaygain-clip", json!(true)),
+        ];
+        for (name, value) in properties {
+            if let Err(err) = command(client, vec![json!("set_property"), json!(name), value]).await
+            {
+                log::warn!("cannot set {name}: {err}");
+            }
+        }
+        // Links are measured while they play (see `measure_link`).
+        let label = format!("@{}", sound::LOUDNESS_LABEL);
+        let _ = command(client, vec![json!("af"), json!("remove"), json!(label)]).await;
+        if mode != "no"
+            && let Err(err) = command(
+                client,
+                vec![json!("af"), json!("add"), json!(sound::loudness_filter())],
+            )
+            .await
+        {
+            log::warn!("cannot measure loudness: {err}");
+        }
+    }
+
+    /// Measures a link's loudness while it plays (it can't be measured ahead without
+    /// downloading it), from the R128 filter's momentary readings; stored when the track
+    /// ends, if enough of it was heard, for the next time it plays.
+    fn measure_link(&self, id: u64, path: &str) {
+        if !links::is_remote(path) || self.normalization() == Normalization::Off {
+            return;
+        }
+        let Some(library) = self.library() else {
+            return;
+        };
+        let player = self.clone();
+        let key = path.to_owned();
+        tauri::async_runtime::spawn(async move {
+            let known = {
+                let key = key.clone();
+                library.run(move |db| db.loudness(&key, None)).await
+            };
+            if matches!(known, Ok(Some(_))) {
+                return;
+            }
+            let property = format!("af-metadata/{}", sound::LOUDNESS_LABEL);
+            let mut integrator = loudness::Integrator::default();
+            let mut duration = None;
+            loop {
+                tokio::time::sleep(loudness::READING_INTERVAL).await;
+                let (current, status) = {
+                    let state = lock(&player.0.state);
+                    duration = state.duration.or(duration);
+                    (state.track.as_ref().map(|track| track.id), state.status)
+                };
+                if current != Some(id) || status == Status::Idle {
+                    break;
+                }
+                if status != Status::Playing {
+                    continue;
+                }
+                let Ok(client) = player.client() else {
+                    continue;
+                };
+                let reading = client.get_property::<Value>(&property).await.ok();
+                let momentary = reading
+                    .as_ref()
+                    .and_then(|data| data.get("lavfi.r128.M"))
+                    .and_then(Value::as_str)
+                    .and_then(|text| text.parse::<f64>().ok());
+                if let Some(momentary) = momentary {
+                    integrator.push(momentary);
+                }
+            }
+            let Some(integrated) = integrator.integrated(duration) else {
+                return;
+            };
+            let loudness = library::Loudness {
+                integrated,
+                peak: None,
+            };
+            let stored = {
+                let key = key.clone();
+                library
+                    .run(move |db| db.set_loudness(&key, None, loudness))
+                    .await
+            };
+            match stored {
+                Ok(()) => log::info!("loudness of {key}: {integrated:.1} LUFS (while playing)"),
+                Err(err) => log::warn!("cannot store the loudness of {key}: {err}"),
+            }
+        });
+    }
+
+    /// Options for one file: with normalization on, the gain from Vitra's measurement for a
+    /// file without ReplayGain tags (mpv uses `replaygain-fallback` only then; 0 when it
+    /// wasn't measured yet, which also asks for a measurement).
+    async fn file_options(&self, path: &str) -> serde_json::Map<String, Value> {
+        let mut options = serde_json::Map::new();
+        let mode = self.normalization();
+        if mode == Normalization::Off {
+            return options;
+        }
+        let local = !links::is_remote(path);
+        let stamp = if local {
+            sound::measure::file_stamp(Path::new(path))
+        } else {
+            None
+        };
+        let measured = match self.library() {
+            Some(library) if !local || stamp.is_some() => {
+                let key = path.to_owned();
+                library
+                    .run(move |db| {
+                        let own = db.loudness(&key, stamp)?;
+                        let album = match mode {
+                            Normalization::Album if own.is_some() => db.album_loudness(&key)?,
+                            _ => None,
+                        };
+                        Ok(album.or(own))
+                    })
+                    .await
+                    .unwrap_or_else(|err| {
+                        log::warn!("cannot read the loudness of {path}: {err}");
+                        None
+                    })
+            }
+            _ => None,
+        };
+        if measured.is_none()
+            && local
+            && let Some(meter) = self.0.app.try_state::<LoudnessMeter>()
+        {
+            meter.want(Path::new(path));
+        }
+        let gain = measured.map_or(0.0, loudness::gain);
+        options.insert("replaygain-fallback".into(), json!(format!("{gain:.1}")));
+        options
+    }
+
+    /// A file was measured: if it is the one waiting to play next, it is handed to mpv again
+    /// with its gain.
+    pub fn loudness_measured(&self, path: &str) {
+        let next = lock(&self.0.mirror).next.map(|(_, uid)| uid);
+        let waiting = lock(&self.0.queue)
+            .peek_next()
+            .filter(|item| Some(item.uid) == next && item.entry.path == path)
+            .is_some();
+        if !waiting {
+            return;
+        }
+        let Ok(client) = self.client() else {
+            return;
+        };
+        let player = self.clone();
+        tauri::async_runtime::spawn(async move {
+            let _transport = player.0.transport.lock().await;
+            if let Err(err) = player.sync_next(&client, true).await {
+                log::warn!("cannot queue the next file again: {err}");
+            }
+        });
+    }
+
     /// The sound settings changed.
     pub fn sound_changed(&self, previous: &SoundSettings, next: &SoundSettings) {
         if previous.equalizer != next.equalizer {
             self.preview_equalizer(next.equalizer.clone());
+        }
+        if previous.normalization != next.normalization
+            && let Ok(client) = self.client()
+        {
+            let player = self.clone();
+            tauri::async_runtime::spawn(async move {
+                player.apply_normalization(&client).await;
+                // The next file goes to mpv again with its gain.
+                let _transport = player.0.transport.lock().await;
+                if let Err(err) = player.sync_next(&client, true).await {
+                    log::warn!("cannot queue the next file again: {err}");
+                }
+            });
         }
     }
 
@@ -1595,6 +1784,27 @@ async fn command_value(client: &Client, args: Vec<Value>) -> Result<Value, AppEr
 }
 
 /// The playlist entry id `loadfile` reports (mpv 0.33+).
+/// `loadfile` with its arguments named (their order changed in mpv 0.38) and options that
+/// apply to that file only.
+async fn loadfile(
+    client: &Client,
+    path: &str,
+    flags: &str,
+    options: serde_json::Map<String, Value>,
+) -> Result<Value, AppError> {
+    let mut command = serde_json::Map::new();
+    command.insert("name".into(), json!("loadfile"));
+    command.insert("url".into(), json!(path));
+    command.insert("flags".into(), json!(flags));
+    if !options.is_empty() {
+        command.insert("options".into(), Value::Object(options));
+    }
+    match tokio::time::timeout(COMMAND_TIMEOUT, client.command_named(command)).await {
+        Ok(result) => result.map_err(mpv_error),
+        Err(_) => Err(AppError::Player("mpv did not answer in time".into())),
+    }
+}
+
 fn entry_id(reply: &Value) -> Option<i64> {
     let id = reply.get("playlist_entry_id").and_then(Value::as_i64);
     if id.is_none() {

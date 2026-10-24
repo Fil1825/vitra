@@ -134,6 +134,7 @@ pub fn run() {
 
             // Before the player, so its first state reaches the system.
             app.manage(now_playing::NowPlaying::new(app.handle()));
+            app.manage(sound::LoudnessMeter::new(app.handle().clone()));
             let player = Player::new(app.handle().clone());
             player.start();
             // Files passed on the command line ("Open with" on Windows and Linux).

@@ -742,7 +742,7 @@
     "deletePreset": "Delete Preset",
     "volume": "Volume",
     "normalization": "Even out loudness",
-    "normalizationHint": "Plays every track equally loud: from ReplayGain tags where files have them, otherwise Vitra measures a track once (a link while it first plays). The music’s dynamics stay as they are.",
+    "normalizationHint": "Plays every track equally loud: from ReplayGain tags where files have them, otherwise Vitra measures a track once (a link while it first plays). The music’s dynamics stay as they are. A change applies from the next track.",
     "normalizations": {
       "off": "Off",
       "track": "By Track",
