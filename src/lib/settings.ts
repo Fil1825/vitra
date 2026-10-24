@@ -1,6 +1,8 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
+import { DEFAULT_LAYOUT, type Layout } from '../layout/model.ts';
 import type { AudioFormat } from './links.ts';
+import type { MiniMode, MiniSize } from './mini.ts';
 
 // Mirrors `Settings` in src-tauri/src/settings.rs, which owns and persists them.
 
@@ -23,6 +25,18 @@ export interface AppearanceSettings {
   artworkAccent: boolean;
   /** The animated backdrop swells with the music. */
   backdropPulse: boolean;
+  /** Covers as spinning records: as the theme says (`auto`), always or never. */
+  vinyl: Switch;
+}
+
+/** How the level meter draws the spectrum. */
+export type MeterStyle = 'bars' | 'mirror' | 'wave';
+
+export const METER_STYLES: readonly MeterStyle[] = ['bars', 'mirror', 'wave'];
+
+/** The level meter module. */
+export interface MeterSettings {
+  style: MeterStyle;
 }
 
 /** How a credit like "A feat. B" or "A, B" is split into artists. */
@@ -71,6 +85,31 @@ export interface LyricsSettings {
   fontScale: number;
   /** Show a translation line under the original when the lyrics have one. */
   showTranslation: boolean;
+  /** Show lyrics at all (Now Playing, the side panel, the mini player's lyrics mode). */
+  visible: boolean;
+}
+
+export interface MiniPlayerSettings {
+  mode: MiniMode;
+  size: MiniSize;
+  alwaysOnTop: boolean;
+  /** macOS: above full-screen apps too (the Dock icon goes while it is the only window). */
+  overFullScreen: boolean;
+  /** Opacity of the glass background (0.2–1); artwork, text and buttons stay solid. */
+  opacity: number;
+  snapToEdges: boolean;
+  /** Opens where it was, at the size each mode had. */
+  rememberPosition: boolean;
+  /** Clicks go through; holding ⌥ (Alt) over it makes it usable. */
+  clickThrough: boolean;
+  /** Opening the mini player hides the main window. */
+  hideMainWindow: boolean;
+}
+
+/** A layout saved under a name. */
+export interface LayoutPreset {
+  name: string;
+  layout: Layout;
 }
 
 export interface Settings {
@@ -79,7 +118,17 @@ export interface Settings {
   library: LibrarySettings;
   downloads: DownloadSettings;
   lyrics: LyricsSettings;
+  miniPlayer: MiniPlayerSettings;
+  /** The main window's modules and where they are (normalized by the backend). */
+  layout: Layout;
+  layoutPresets: LayoutPreset[];
+  /** Keyboard shortcuts the user changed: action id → combination, `null` for none. */
+  shortcuts: Record<string, string | null>;
+  meter: MeterSettings;
 }
+
+/** The range of the mini player's background opacity. */
+export const MINI_OPACITY_MIN = 0.2;
 
 export const FONT_SCALE_MIN = 0.7;
 export const FONT_SCALE_MAX = 1.6;
@@ -95,6 +144,7 @@ export const DEFAULT_SETTINGS: Settings = {
     windowMaterial: 'vibrancy',
     artworkAccent: true,
     backdropPulse: true,
+    vinyl: 'auto',
   },
   library: { addOpenedFiles: true, artistSplitting: { enabled: true, exceptions: [] } },
   downloads: {
@@ -105,7 +155,22 @@ export const DEFAULT_SETTINGS: Settings = {
     albumTemplate: '{album_artist}/{album}/{track} {title}',
     cookiesFromBrowser: '',
   },
-  lyrics: { online: false, fontScale: 1, showTranslation: true },
+  lyrics: { online: false, fontScale: 1, showTranslation: true, visible: true },
+  miniPlayer: {
+    mode: 'compact',
+    size: 'medium',
+    alwaysOnTop: true,
+    overFullScreen: false,
+    opacity: 1,
+    snapToEdges: true,
+    rememberPosition: true,
+    clickThrough: false,
+    hideMainWindow: true,
+  },
+  layout: DEFAULT_LAYOUT,
+  layoutPresets: [],
+  shortcuts: {},
+  meter: { style: 'bars' },
 };
 
 /** Tauri event carrying the new settings after any window changed them. */

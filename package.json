@@ -21,12 +21,16 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "fetch-sidecars": "node scripts/fetch-sidecars.mjs",
+    "theme-schema": "node --experimental-strip-types scripts/theme-schema.ts && prettier --write docs/theme.schema.json",
     "check": "npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build",
     "check:rust": "cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace",
     "check:cross": "sh scripts/cross-check/run.sh",
     "check:all": "npm run check && npm run check:rust"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-dialog": "^2.8.3",
     "i18next": "^26.5.4",

@@ -21,11 +21,13 @@ the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
 | 2   | Engine: mpv IPC, transport controls, artwork backdrop  | in review (PR #3) |
 | 3   | Library & queue: scan, SQLite, views, search, session  | in review (PR #4) |
 | 4   | Links: yt-dlp playback, playlists, downloads           | in review (PR #5) |
-| 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | in review (PR #6) |
-| 6   | Mini player                                            | not started       |
-| 7   | Customization: theme editor, `.vitratheme`, layout     | not started       |
-| 8   | Sound & system: EQ, crossfade, media keys, tray        | not started       |
-| 9   | Integrations, i18n, CI builds, README, first release   | not started       |
+| 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | accepted (PR #6)  |
+| 6   | Mini player                                            | accepted (PR #7)  |
+| 7   | Customization: theme editor, `.vitratheme`, layout     | accepted (PR #8)  |
+| 8   | Sound & system: EQ, crossfade, media keys, tray        | in progress       |
+| 9   | Playlist import: Spotify, Yandex, VK, Apple Music…     | not started       |
+| 10  | My Wave: mood analysis, endless mood-based queue       | not started       |
+| 11  | Integrations, i18n, CI builds, README, first release   | not started       |
 
 ## Commands
 
@@ -40,6 +42,8 @@ npm run check              # eslint, prettier, tsc, vitest, vite build
 npm run check:rust         # cargo fmt --check, clippy -D warnings, cargo test
 npm run check:all          # both of the above — must pass before every PR
 npm run check:cross        # clippy for aarch64-apple-darwin + x86_64-pc-windows-msvc from Linux
+npm run theme-schema       # regenerate docs/theme.schema.json after changing src/theme/schema.ts
+cargo run -p themes --example pack -- themes/dunes   # pack a theme folder → target/themes/*.vitratheme
 VITRA_MPV_TESTS=1 cargo test -p mpv-ipc   # also run the tests against a real mpv (on PATH)
 VITRA_YTDLP=src-tauri/sidecars/<triple>/yt-dlp cargo test -p links --test real_ytdlp
                                           # real yt-dlp against a local HTTP server (FFmpeg on PATH;
@@ -87,40 +91,63 @@ sudo apt-get install -y llvm
 ```
 Cargo.toml              Cargo workspace (members: src-tauri, later crates/*)
 package.json            frontend + scripts; Tauri CLI is a devDependency
-index.html              main window entry (mini player gets mini.html in stage 6)
+index.html, mini.html   window entries: main window, mini player
 src/                    React + TypeScript frontend
   main.tsx              boot: backend bridge → settings, environment, player, queue, library,
-                        downloads, lyrics stores → i18n → render
-  app/                  shell layout (TitleBar, Sidebar, NowPlaying, ControlBar),
-                        useAppearanceController (theme vars, effect flags, window theme, language)
-                        and useLevelMeter (asks for the backdrop's music pulse)
+                        downloads, lyrics, themes stores → old panel state into the layout →
+                        i18n → render
+  app/                  the window's parts (TitleBar, Sidebar, NowPlaying, ControlBar),
+                        useAppearanceController (theme vars, user theme CSS, effect flags,
+                        window theme, language) and useLevelMeter (asks for the pulse and the
+                        spectrum)
+  layout/               modular layout: model.ts (zones, modules, normalize; pure), state.ts
+                        (in the settings, customize mode), Workspace (zones, resizing, dnd-kit),
+                        Palette (customize mode), presets.ts, modules/ (ArtworkPanel,
+                        LevelMeter: the spectrum on a canvas; spectrum.ts: its motion, pure)
+  shortcuts/            keyboard shortcuts: keys.ts (combinations, labels, focus rules; pure),
+                        actions.ts (actions, defaults, rebinding; pure), run.ts, useShortcuts
   components/           shared UI: Glass/ (glass surface, layer budget, refraction), Backdrop/,
-                        ArtworkViewer/ (full-screen artwork), ui/ (IconButton,
+                        ArtworkViewer/ (full-screen artwork), CoverArt/ (the player's covers:
+                        records, their spin clock spin.ts, the no-cover placeholder), ui/ (IconButton,
                         SegmentedControl, Switch, Slider)
   features/<feature>/   feature UI: library/ (views, TrackTable, AlbumGrid, actions + menus,
                         HeroCover + covers.ts: covers the user chooses),
                         queue/ (QueuePanel), tags/ (TagEditor, files and links; album.ts:
                         which album a title + artist means), links/ (LinkDialog,
                         DownloadsView, download groups), lyrics/ (LyricsView, LyricsPanel, LyricsEditor +
-                        SyncPane, tap-sync model sync.ts), settings/
+                        SyncPane, tap-sync model sync.ts, Karaoke + clock.ts shared with the
+                        mini player), settings/ (+ ShortcutSettings), themes/ (ThemeEditor,
+                        fields, editor.ts: the draft; actions.ts: import, export, duplicate)
   stores/               zustand stores: settings (mirror of Rust), environment, appearance,
                         player, queue, library (scan status), downloads, lyrics, navigation
-                        (routes), ui (sidebar mode, side panel, dialogs, artwork viewer)
-  theme/                zod schema, built-in themes (builtin/*.json), tokens → CSS vars, effects
+                        (routes), ui (dialogs, Settings, artwork viewer), themes (installed),
+                        themeEditor (the draft being edited)
+  theme/                zod schema (+ jsonSchema.ts), built-in themes (builtin/*.json), tokens →
+                        CSS vars, effects, user themes (user.ts), custom.css cleaning (css.ts),
+                        color helpers, artwork.ts (whether covers are records)
   i18n/                 i18next setup, locales/en.json + ru.json (typed keys)
   lib/                  IPC wrappers, event bus + backend bridge, hooks, pure helpers
-  styles/global.css     base document styles
-  (planned) windows/mini/
+  styles/global.css     base document styles, the Vitra Sans @font-face rules
+  assets/fonts/         Vitra Sans: Outfit (Latin) + Onest (Cyrillic) woff2, their OFL.txt
+  windows/mini/         the mini player window: boot (main.tsx), MiniApp (three modes),
+                        context menu (menu.ts)
 src-tauri/              Tauri app crate (`vitra`, lib `vitra_lib`)
   src/lib.rs            builder, plugins, setup, command registration
   src/settings.rs       Settings struct, JSON persistence, get/set commands
+  src/layout.rs         the layout in the settings (normalized like the frontend's), presets
+  src/shortcuts.rs      the user's shortcut changes in the settings (kept tidy)
+  src/themes.rs         ThemeStore: installed themes, theme:// scheme, import/export commands
   src/window.rs         window creation from config, vibrancy / Mica / Acrylic
   src/error.rs          AppError (serializes to a message for the frontend)
+  src/mini/             mini player window: show/hide and the main window, sizes per mode,
+                        snapping, saved position (geometry.rs, pure), click-through with ⌥
+                        (passthrough.rs), macOS / Windows specifics (platform.rs), commands
   src/sidecar.rs        locating mpv / yt-dlp / ffmpeg / ffprobe / deno
   src/player/           mpv supervisor, queue mirroring and commands (mod.rs, commands.rs),
                         PlayerState reducer (state.rs), play queue (queue.rs, pure),
                         session save/restore (session.rs), artwork:// scheme (artwork.rs),
-                        loudness for the backdrop pulse (level.rs)
+                        loudness for the backdrop pulse (level.rs), the level meter's
+                        spectrum (spectrum.rs)
   src/library/          LibraryService: DB connection, scanner thread, folder watcher
                         (watch.rs), library/playlist/tag-editor commands (commands.rs)
   src/links/            LinkService (resolve, play, import + background enrich, yt-dlp
@@ -146,13 +173,16 @@ crates/                 pure-Rust crates testable without WebKit
                         and folder templates, progress lines, download state machine,
                         YtDlp runner and error classes (fixtures + opt-in real tests in
                         tests/)
+  themes/               .vitratheme packages: safe reading (sizes, names), writing, installing;
+                        examples/pack.rs packs a theme folder; tests/ packs the examples
 scripts/
   fetch-sidecars.mjs    downloader (I/O)
   record-ytdlp-fixtures.sh  real yt-dlp recordings for crates/links (needs YouTube)
   sidecars/plan.mjs     what to download per target (pure, unit-tested)
+  theme-schema.ts       writes docs/theme.schema.json from the zod schema (`npm run theme-schema`)
 assets/brand/           logo, app icon source, mono tray icon, palette (see its README)
-docs/                   PLAN.md; later THEMES.md, theme.schema.json
-themes/                 (stage 7) example themes
+docs/                   PLAN.md, THEMES.md (theme format), theme.schema.json (generated)
+themes/                 example themes (sources: theme.json, custom.css, assets/)
 .github/workflows/      CI
 ```
 
@@ -172,7 +202,7 @@ themes/                 (stage 7) example themes
    - macOS/Linux: one end of a socket pair is mpv's stdin (`--input-ipc-client=fd://0`); mpv
      quits when that connection closes, so it can't outlive the app even after a crash or
      `kill -9`. Windows: a named pipe (`--input-ipc-server`); a hard crash there can still leave
-     an orphan until a Job Object is added (stage 9).
+     an orphan until a Job Object is added (stage 11).
    - Flags (`player::mpv_args`): `--no-config` (ignores the user's mpv.conf and the bundle's
      pseudo-GUI config), `--load-scripts=no`, `--idle`, `--no-video`, `--no-terminal`,
      `--input-media-keys=no` (media keys/Now Playing are ours), `--ytdl-format=bestaudio/best`,
@@ -222,13 +252,16 @@ themes/                 (stage 7) example themes
    off (`appearance.artworkAccent`). `theme/accent.ts` adjusts the color per light/dark.
    - The backdrop moves (`components/Backdrop`): the cover breathes, three copies of it drift
      and turn over each other (the third a soft round patch, `mask-image`), the theme's blobs
-     drift on top. The 96 px thumbnail comes blurred and saturated from Rust
+     drift on top. The turning copies are squares of 200vmax around the middle, so no
+     corner of theirs reaches the screen at any aspect (a copy the size of the window
+     showed a diagonal edge on wide screens). The 96 px thumbnail comes blurred and saturated from Rust
      (`media::artwork::backdrop_image`), so no moving layer has a CSS `filter`, and only
      `transform`/`opacity` animate. `data-backdrop-animation='off'` pauses it all.
    - Pulse (`appearance.backdropPulse`, on by default): while it is on, mpv's audio chain
-     has `@vitralevel:lavfi=[astats=…RMS_level]` (`player/level.rs`; added when mpv starts,
-     never touched for visibility changes, which could click). While a window wants it
-     (`player_level_meter` from `useLevelMeter`: setting on, motion on, window visible) the
+     has `@vitralevel:lavfi=graph=[astats=…RMS_level]:o=[threads=1]` (`player/level.rs`;
+     added when mpv starts, never touched for visibility changes, which could click). While
+     a window wants it (`player_meters` from `useLevelMeter`: setting on, motion on, window
+     visible) the
      player reads `af-metadata/vitralevel` every 70 ms and emits `player://level` (0..1: a
      smoothed loudness plus a kick when it rises above the recent average). `Backdrop` sets
      `--vitra-pulse` on its own element (on `<html>` it would restyle the whole window
@@ -240,7 +273,8 @@ themes/                 (stage 7) example themes
    stores, Motion for animation, Lucide icons — each added in the stage that first needs it.
 9. **Multiple windows** = multiple Vite HTML entries (`index.html`, `mini.html`).
 10. **Security**: strict CSP in production (`script-src 'self'`), no remote scripts. Themes are
-    data (JSON + CSS + assets), never JavaScript; `custom.css` is sanitized on import.
+    data (JSON + CSS + assets), never JavaScript; `custom.css` is sanitized on import and
+    when applied (key decision 30).
     `devCsp` is `null` because Vite's dev server injects inline scripts — check CSP-sensitive
     work with `npm run tauri build`.
 11. **Persistence**: SQLite (`rusqlite`, bundled, FTS5) in the app data dir (`library.db`, WAL)
@@ -251,8 +285,9 @@ themes/                 (stage 7) example themes
     from it (`z.toJSONSchema`) and a test fails if the committed file is stale.
 13. **LRC / enhanced LRC parsing and serialization in Rust** (one implementation shared by tag
     reading, `.lrc` files, FTS indexing and saving from the editor).
-14. **i18n from stage 1** (i18next, en + ru) so strings are never hard-coded; stage 9 completes
-    and reviews translations. (The spec lists i18n in stage 9; doing it early avoids a rewrite.)
+14. **i18n from stage 1** (i18next, en + ru) so strings are never hard-coded; the release stage
+    (11) completes and reviews translations. (The spec lists i18n in its stage 9; doing it early
+    avoids a rewrite.)
 15. **Windows are created in Rust** from their `tauri.conf.json` entry (`"create": false`) so
     transparency can differ per platform: Linux windows are opaque (no vibrancy to show, and a
     transparent window renders black without a compositor).
@@ -339,7 +374,14 @@ artist_id, position)`; `tracks.artist_id` stays the first (main) one, and an alb
       their number) and stored as one library album with one square cover
       (`media::square_cover`, `Library::set_album_artwork`); album tracks get no covers of
       their own. Enrichment keeps the placement (`Placement`), so `yt-dlp -j` can't move a
-      track to another album.
+      track to another album. Tracks the library had before (played or downloaded on their
+      own) are placed too (`remote::place_known`): a listing files a stream into the album
+      with its number, and numbers a downloaded file whose tags name the same album; edited
+      links stay as they are. The album keeps its link (`albums.source_url`, migration 7):
+      opening the link (even just its preview) places the tracks the library has
+      (`Library::place_album_listing`, never adds new ones), and opening the album's page
+      re-reads the listing once per session when tracks lack numbers
+      (`LinkService::renumber_album_later`).
     - Corrections: the tag editor edits a streamed link's title, artists, album, album artist
       and year in the library (`Library::edit_link`, `TagForm.link`); the album is found by
       title + album artist (or made), like a file's. `tracks.edited` (migration 6) makes
@@ -429,16 +471,22 @@ artist_id, position)`; `tracks.artist_id` stays the first (main) one, and an alb
     - The view: the playing line a third of the way down, smooth scroll and per-line blur
       only with motion on, scrolling by hand pauses following for 3 s. Tap-sync captures
       Space/Backspace/arrows before the player's shortcuts while the edited track plays.
+    - `lyrics.visible` (a setting, so every window follows) hides them in Now Playing, the
+      side panel (the panel stays "open" in `ui.sidePanel` and comes back with them) and the
+      mini player's lyrics mode. The lyrics toolbar and the mini player hide them; the
+      control bar's microphone brings them back in the panel.
 24. **Context menus** are native (`@tauri-apps/api/menu`, `lib/menu.ts`); the WebView's own
     menu is suppressed outside text fields. Reordering uses a small pointer-based hook
     (`lib/reorder.ts`) because HTML5 drag and drop clashes with the window's file drop.
 25. License **GPL-3.0-or-later** (compatible with mpv). Bundle identifier
     `io.github.fil1825.vitra`. macOS minimum **14.0** (official mpv builds require it).
-26. **Sidebar** (`stores/ui.ts`): `expanded` / `rail` (icons, labels as tooltips, playlists as
-    monograms) / `hidden`, switched by the title bar button or ⌥⌘S / Ctrl+Alt+S (matched by
-    `event.code`, because Option changes `key` on macOS) and kept in `localStorage`. On
-    macOS the rail is 88 px so the traffic lights stay on it, and with no sidebar the title
-    bar leaves 84 px for them. ⌘F opens the full sidebar with the search field focused.
+26. **Sidebar** (`layout/state.ts`): `expanded` / `rail` (icons, labels as tooltips, playlists
+    as monograms) / `hidden`, switched by the title bar button or ⌥⌘S / Ctrl+Alt+S. It is the
+    layout's sidebar module (hidden = not shown, `layout.sidebar` = full or rail); the
+    `localStorage` values of stage 5 move into the layout once (`adoptOldPanels`). On macOS
+    the rail is 88 px so the traffic lights stay on it; whatever else sits in the window's
+    top-left corner leaves 84 px for them (`Workspace`, `data-lights`). ⌘F opens the full
+    sidebar with the search field focused.
 27. **Full-screen artwork** (`components/ArtworkViewer`): shows the cached image at once,
     then the original from `artwork_original` (track path or album id; links use their
     thumbnail or album cover), served unscaled by `ArtworkStore::insert_original`.
@@ -453,6 +501,143 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
     UI: `HeroCover` on album/artist/playlist pages (button on hover, context menu, an image
     file dropped on it: `useFileDrop` finds the `[data-cover-drop]` element under Tauri's
     drop position), plus entries in the album, artist and playlist menus. The sidebar shows a playlist's chosen cover in place of its icon.
+29. **Mini player** (`src-tauri/src/mini`, `mini.html`, `src/windows/mini`, settings
+    `miniPlayer`):
+    - A borderless, transparent, `skipTaskbar` window labelled `mini` (`tauri.conf.json`,
+      `create: false`, own capability `capabilities/mini.json`), created on first use and then
+      only shown and hidden. Its page boots the settings, environment, player, queue and lyrics
+      stores and the theme like the main window; it adds nothing to Rust's state.
+    - Opening it hides the main window (`hideMainWindow`); expand, ⌥⌘M (`mini_toggle`),
+      closing it or the Dock icon (`RunEvent::Reopen`) bring the main window back. Closing
+      the main window while the mini player shows keeps the app running in it; otherwise the
+      hidden mini window is destroyed so the app quits as before. `mini-player.json` (config
+      dir, not the settings: moving shouldn't notify every window) keeps `open` (reopen at
+      launch), the position and each mode's size.
+    - Sizes: a base size per mode × the preset (0.8 / 1 / 1.3), min/max per mode, dragged
+      sizes remembered per mode; a preset change forgets them. The page sizes everything in
+      `em` of a font that follows the window height (`100vh / --_rows`), or its width when
+      the window is narrow for that (`100vw / --_cols`), so the text always has room. The
+      compact artwork is `min(100vh − padding, 40vw)`; below an aspect of 11:5 the progress
+      bar moves under it (`useMediaQuery`, re-rendered rather than a grid, see Gotchas).
+      A new window reports its old size for a moment: positions are computed from the
+      size just set.
+    - Moves and resizes settle (250 ms, mouse button up where the platform tells) before
+      snapping to the work area's edges (16 pt), saving, or pulling a grown window back on
+      screen (`geometry::snap`, `fit_inside`, `reachable`).
+    - Backdrop per window (`window::Backdrop`): rounded (`mini::RADIUS`, the page's
+      `--glass-radius` matches; Windows 11 rounds the window itself, 8 px, through DWM's
+      corner preference) and faded by `opacity`. The window's content is clipped to the same
+      corners and its shadow redrawn after showing and resizing
+      (`platform::round_window`: the content view's layer `cornerRadius` + `masksToBounds`,
+      `invalidateShadow`): otherwise the WebView's square corners and the shadow of the
+      square window showed as dark strips and corners at the edges. Fading: macOS sets the
+      vibrancy view's alpha (found by window-vibrancy's view tag; Liquid Glass hosts the
+      page, so a faded backdrop is always vibrancy), Windows drops Acrylic below 100% and
+      the page's tint fades, Linux windows are opaque.
+    - Always on top: `set_always_on_top` + all workspaces, and on macOS
+      `FullScreenAuxiliary`. Over other apps' full-screen spaces only accessory apps are
+      allowed, so `overFullScreen` switches the activation policy to `Accessory` while the
+      mini player is the only window (`update_activation_policy`).
+    - Click-through: `set_ignore_cursor_events`, except while ⌥/Alt is held over it: a loop
+      (80 ms, only while it is on and shown) reads the pointer and `NSEvent.modifierFlags` /
+      `GetAsyncKeyState` and emits `mini://interactive` (bus `mini:interactive`, an accent
+      ring). Linux can't read the key: turned off in Settings there.
+30. **User themes** (`crates/themes`, `src-tauri/src/themes.rs`, `theme/user.ts`,
+    `features/themes`, `docs/THEMES.md`):
+    - A `.vitratheme` is a zip of `theme.json`, `custom.css` and `assets/` (pictures without
+      SVG, fonts). Rust reads it with every size capped as it is read, takes only well-named
+      files (a path that could escape refuses the package), and installs it unpacked into
+      `<app data>/themes/<id>/` through a staging folder. The frontend checks `theme.json`
+      against the zod schema and cleans `custom.css` (`theme/css.ts`: `url()` only for the
+      theme's assets, no `@import`/`image-set`/script hooks; a linear scan, strings set
+      aside first) before installing and again when applying it.
+    - Import is two steps (`theme_open` keeps the read package under a token, the frontend
+      decides, `theme_install` writes it): a built-in id gets another, an installed one is
+      replaced or kept beside; a theme with a layout asks before changing the window.
+    - Assets reach the page through `theme://localhost/<id>/<name>` (`http://theme.localhost`
+      on Windows), only for installed themes' assets; CSP allows it in `img-src`/`font-src`.
+      Fonts become `@font-face` rules and the cleaned CSS a `<style id="vitra-theme-css">`.
+    - The editor (`ThemeEditor`, a panel over the window in Settings' place) edits a draft
+      (`stores/themeEditor.ts`) that `useAppearanceController` applies live; Save writes the
+      installed theme, closing with changes asks. New Theme copies the theme in use.
+    - Example themes are sources in `themes/` (fonts under OFL, cut to Latin + Cyrillic);
+      `cargo run -p themes --example pack` makes packages; `crates/themes/tests/examples.rs`
+      and `src/theme/examples.test.ts` keep them valid.
+    - Stable hooks for `custom.css`: `data-part` on the modules (`sidebar`, `queue`, `lyrics`,
+      `artwork`, `controls`, `level`), `center`, `header`, `main`, `lyrics-text`, `settings`,
+      `mini`, `backdrop`; `--glass-radius` set on a part rounds its glass. Class names are
+      hashed and never part of the theme API.
+31. **Layout** (`layout/`, `src-tauri/src/layout.rs`, settings `layout` + `layoutPresets`):
+    - Zones and panels (the owner's choice, not a free grid): modules in the left and right
+      columns (sidebar, queue, lyrics, artwork, level) and the top and bottom bars
+      (controls, level) around the main view. `FITS` says where each may go; `hidden`
+      modules keep their place. Column widths 180–560 px, a module's share of its column
+      0.25–4 (`weights`). Both sides normalize the same way (`normalizeLayout`,
+      `Layout: From<Value>`): every module placed exactly once, misplaced ones go home.
+    - `Workspace` is nested flex boxes (see Gotchas on WebKit grids). Columns resize at their
+      inner edge, modules at the line between them; changes show live and save on release.
+    - Customize mode (title bar button, Settings → Layout, a shortcut): dnd-kit drags a module
+      by its frame (`useSortable`) or a hidden one from the palette (`useDraggable`); the drop
+      target is the module under the pointer, else the zone (`dropTarget`: nearest centres
+      mean nothing between zones this different in size); the half dropped on decides
+      before/after. Built-in presets (`presets.ts`) and saved ones (≤ 20, by name).
+    - The queue and lyrics buttons show and hide their modules wherever they are; hidden
+      lyrics (`lyrics.visible`) take their module along.
+    - The level meter module is a spectrum (`player/spectrum.rs`): twenty bands, 40 Hz to
+      16 kHz on a log scale, measured in mpv's chain like the pulse, so links work too. lavfi
+      filters that merge branches (`amerge`, `amix`, `join`) drop the side branch's metadata,
+      so the analysis rides in the audio: `pan` adds one mono channel per band (named
+      channels, since `bandpass … c=` picks by name), each gets its band-pass, `astats`
+      measures every channel and a last `pan` keeps the two music channels bit for bit.
+      `o=[threads=1]`: lavfi's threading cost ten times the filtering. The filter is in the
+      chain while the meter is in the layout (`Settings::audio_meters`); readings
+      (`af-metadata/vitraspectrum`, every 33 ms while playing) wait 330 ms in a `DelayLine`
+      because mpv filters that far ahead of what is heard, and go out as `player://spectrum`
+      (0..1 per band, high bands lifted 1.5 dB/octave; empty when nothing plays).
+    - The meter draws on a canvas every frame (`LevelMeter.tsx`): bars resampled to the width
+      (one per 12 px, 8–32), fast rise and slow fall with peak caps that hold and drop
+      (`spectrum.ts`, `Dynamics`), one fill with the glow for all bars. Styles `bars`,
+      `mirror`, `wave` (`meter.style`, its context menu); a quiet wave when no reading came
+      for 900 ms; with Reduce Motion a few frames a second, no caps, still when idle. The
+      canvas sits absolutely in its box and 8 px into the padding, so its pixel size never
+      feeds back into the layout and the glow isn't cut off.
+32. **Keyboard shortcuts** (`shortcuts/`, `src-tauri/src/shortcuts.rs`, settings `shortcuts`):
+    - Actions (`actions.ts`) with a default combination per platform; the settings keep only
+      the user's changes (`id → combination | null`), so new actions get their defaults.
+      Combinations are `Mod+Ctrl+Alt+Shift+<KeyboardEvent.code>` (`Mod` = ⌘ on macOS, Ctrl
+      elsewhere; `Ctrl` only on macOS), so they don't depend on the keyboard layout or on ⌥
+      changing letters. Rebinding takes the combination from the action that had it and
+      says so; the system's and text editing's combinations are refused (`isReserved`).
+    - One `keydown` listener per window (`useShortcuts('main' | 'mini')`; the mini player runs
+      the playback actions and its own toggle). Plain keys don't act in focused controls or
+      text fields, and editing chords (arrows, ⌘A/C/V/X/Z) not in text fields (`firesIn`); a
+      key a component already handled (`defaultPrevented`) is left alone; held keys repeat
+      only seeking and volume. The recorder in Settings captures keys first and pauses the
+      listener. Global (system-wide) shortcuts come with stage 8.
+33. **Covers and records** (`components/CoverArt`, `theme/artwork.ts`, theme `artwork`,
+    settings `appearance.vinyl`):
+    - The theme's `artwork.shape` sets `--vitra-artwork-radius` (`square` = `initial`, so
+      each place keeps its own corners from `--cover-radius`; `rounded` 22%, `circle` 50%,
+      shares of the cover so every size matches). Artists stay round.
+    - Records (`artwork.vinyl`, or the user's `appearance.vinyl` on/off over the theme's
+      `auto`; the disc button on the big cover sets it): every cover is round
+      (`html[data-vinyl='on']`), and the playing track's covers (`CoverArt live`: Now
+      Playing, the artwork module, the control bar, the mini player, the queue's current
+      row) get grooves, a sheen and a label and turn at 33⅓ rpm while it plays.
+    - One spin clock per window (`spin.ts`): a shared angle so every record shows the same
+      turn, eased up (0.8 s) and down (1.4 s) when playback starts and stops, kept on
+      pause; driven by `requestAnimationFrame` only while something turns and written as a
+      `transform` (never `filter`/`opacity`, see Gotchas). With Reduce Motion no cover
+      joins it.
+    - No cover: the mono Vitra symbol (`assets/brand/mono.svg`, inlined with
+      `currentColor`) in `--vitra-artwork-placeholder` (`artwork.placeholderColor`), else
+      the text color faded.
+34. **Vitra Sans** (`styles/global.css`, `src/assets/fonts/`): the built-in themes' font
+    stack starts with it. Two `@font-face` rules under one name split by `unicode-range`:
+    Outfit (variable, Latin) and Onest (variable, Cyrillic, which Outfit lacks) at
+    `size-adjust: 92%`, so lowercase heights meet and mixed lines read evenly. Both SIL OFL,
+    subset with their license names kept; bundled by Vite (CSP `font-src 'self'`), never
+    fetched. Themes still name their own fonts first.
 
 ## Conventions
 
@@ -502,6 +687,15 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
   reads the macOS drag pasteboard (`public.url`, legacy `NSURLPboardType`, plain text).
   Windows and Linux report nothing for links; paste works there. Don't turn off
   `dragDropEnabled`: file and folder drops need its real paths.
+- Under Xvfb there is no window manager: `startDragging` does nothing and keyboard focus may
+  not be on a window (click before typing shortcuts). Move windows with `xdotool
+windowmove` to test snapping, resize with `xdotool windowsize` to test layouts at every
+  size; `xwininfo -root -tree` lists the mini window.
+- WebKit layout traps (seen in the mini player): a percentage height of a flex item in a
+  window-sized container didn't resolve on macOS, so an image took its own size (use `vh`
+  / `vw`); a grid item spanning several rows spreads its height over them even next to
+  `fr` rows, and an `auto` row whose item has `overflow: hidden` can collapse to nothing.
+  Nested flex boxes are the safe choice.
 - Tauri types drop positions as `PhysicalPosition`, but only Windows reports physical pixels
   (WebView2, `ScreenToClient`); macOS (`draggingLocation`, points) and Linux (GTK widget
   coordinates) report logical ones. `useFileDrop.dropPoint` divides by `devicePixelRatio`

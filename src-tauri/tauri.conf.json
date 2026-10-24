@@ -29,10 +29,28 @@
           "x": 23,
           "y": 33
         }
+      },
+      {
+        "label": "mini",
+        "create": false,
+        "url": "mini.html",
+        "title": "Vitra Mini Player",
+        "width": 380,
+        "height": 124,
+        "visible": false,
+        "decorations": false,
+        "transparent": true,
+        "resizable": true,
+        "maximizable": false,
+        "minimizable": false,
+        "skipTaskbar": true,
+        "alwaysOnTop": true,
+        "shadow": true,
+        "acceptFirstMouse": true
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' artwork: http://artwork.localhost asset: http://asset.localhost data: blob: https:; font-src 'self' data:; media-src 'self' asset: http://asset.localhost blob:; connect-src ipc: http://ipc.localhost",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' artwork: http://artwork.localhost theme: http://theme.localhost asset: http://asset.localhost data: blob: https:; font-src 'self' data: theme: http://theme.localhost; media-src 'self' asset: http://asset.localhost blob:; connect-src ipc: http://ipc.localhost",
       "devCsp": null
     }
   },

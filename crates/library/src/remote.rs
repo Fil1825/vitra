@@ -5,13 +5,13 @@ use std::fs;
 use std::path::Path;
 
 use media::TrackMetadata;
-use rusqlite::{OptionalExtension, Transaction, params};
+use rusqlite::{Connection, OptionalExtension, Transaction, params};
 
-use crate::artists::{ArtistSplitting, splitting};
+use crate::artists::{ArtistSplitting, album_artist_name, artist_id, splitting};
 use crate::model::{LinkEdit, Playlist, RemoteTrack, ScannedTrack, Track};
 use crate::playlists::{PLAYLIST_SELECT, playlist_from_row, write_items};
 use crate::scan::{cache_cover, mtime, read_metadata};
-use crate::tracks::{delete_tracks, prune, upsert_track};
+use crate::tracks::{album_id, delete_tracks, prune, upsert_track};
 use crate::{Error, Library, Result, now};
 
 /// Stores a link as a track (or updates it); returns its id. A track already downloaded
@@ -33,7 +33,16 @@ fn store_remote(
         .optional()?;
     match known {
         // What the user corrected stays, whatever yt-dlp says now.
-        Some((id, path, edited)) if path != track.url || !track.complete || edited => {
+        Some((id, _, true)) => return Ok(id),
+        // A downloaded copy: its file's tags count; its album's listing only numbers it.
+        Some((id, path, false)) if path != track.url => {
+            place_known(tx, id, track, true, splitting)?;
+            return Ok(id);
+        }
+        // A listing doesn't replace what the track's own page said, but an album's listing
+        // still files it in the album, with its number.
+        Some((id, _, false)) if !track.complete => {
+            place_known(tx, id, track, false, splitting)?;
             return Ok(id);
         }
         _ => {}
@@ -60,6 +69,67 @@ fn store_remote(
         params![id, track.url],
     )?;
     Ok(id)
+}
+
+/// Files a track the library knew before into the album an album link puts it in: the album,
+/// its artist and the track's number. A stream takes all three (from the listing; its own
+/// description replaces the row anyway); a downloaded file keeps the album its tags give and
+/// only gets a missing number when that is the same album.
+fn place_known(
+    tx: &Transaction<'_>,
+    id: i64,
+    track: &RemoteTrack,
+    file: bool,
+    splitting: &ArtistSplitting,
+) -> Result<()> {
+    let Some(album) = track
+        .album
+        .as_deref()
+        .filter(|album| !album.trim().is_empty())
+    else {
+        return Ok(());
+    };
+    if file {
+        if let Some(number) = track.track_number {
+            tx.execute(
+                "UPDATE tracks SET track_number = ?2
+                 WHERE id = ?1 AND track_number IS NULL
+                     AND album_id IN (SELECT id FROM albums WHERE title = ?3)",
+                params![id, number, album],
+            )?;
+        }
+        return Ok(());
+    }
+    let album_artist = track
+        .album_artist
+        .as_deref()
+        .filter(|name| !name.trim().is_empty());
+    // Filed like `upsert_track` does: under the album artist, else the track's main artist.
+    let artist = match album_artist_name(album_artist, splitting) {
+        Some(name) => Some(artist_id(tx, &name)?),
+        None => tx.query_row("SELECT artist_id FROM tracks WHERE id = ?", [id], |row| {
+            row.get(0)
+        })?,
+    };
+    let album = album_id(tx, Some(album), artist, track.year)?;
+    tx.execute(
+        "UPDATE tracks SET album_id = ?2, album_artist = COALESCE(?3, album_artist),
+             track_number = COALESCE(?4, track_number)
+         WHERE id = ?1",
+        params![id, album, album_artist, track.track_number],
+    )?;
+    Ok(())
+}
+
+fn keep_album_source(conn: &Connection, url: &str, title: &str, track_ids: &[i64]) -> Result<()> {
+    let mut statement = conn.prepare_cached(
+        "UPDATE albums SET source_url = ?1
+         WHERE title = ?2 AND id = (SELECT album_id FROM tracks WHERE id = ?3)",
+    )?;
+    for id in track_ids {
+        statement.execute(params![url, title, id])?;
+    }
+    Ok(())
 }
 
 /// Moves everything that refers to track `from` over to `to`, then deletes `from`.
@@ -103,6 +173,74 @@ impl Library {
         prune(&tx)?;
         tx.commit()?;
         self.tracks(&crate::TrackFilter::Ids(ids))
+    }
+
+    /// Lets the album titled `title` that these tracks are in keep `url`, the album link
+    /// they came from, for [`Self::album_to_renumber`]. Tracks in another album (a
+    /// downloaded copy whose tags name a different one) leave theirs alone.
+    pub fn keep_album_source(&self, url: &str, title: &str, track_ids: &[i64]) -> Result<()> {
+        keep_album_source(&self.conn, url, title, track_ids)
+    }
+
+    /// The link of an album that has tracks without a number (and not corrected by hand),
+    /// whose listing should be read again; `None` when there is nothing to repair.
+    pub fn album_to_renumber(&self, album_id: i64) -> Result<Option<String>> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT source_url FROM albums
+                 WHERE id = ?1 AND source_url IS NOT NULL
+                     AND EXISTS (SELECT 1 FROM tracks
+                                 WHERE album_id = ?1 AND track_number IS NULL AND NOT edited)",
+                [album_id],
+                |row| row.get(0),
+            )
+            .optional()?)
+    }
+
+    /// Places the tracks the library already has from the listing of the album link `url`
+    /// (album `title`), as importing the album does (see `place_known`), and lets their
+    /// album keep the link. Entries the library doesn't have are left out: this repairs an
+    /// album rather than imports it again (a link the user removed stays removed). Returns
+    /// the tracks whose album or number changed.
+    pub fn place_album_listing(
+        &mut self,
+        url: &str,
+        title: &str,
+        tracks: &[RemoteTrack],
+    ) -> Result<Vec<Track>> {
+        let tx = self.conn.transaction()?;
+        let at = now();
+        let splitting = splitting(&tx)?;
+        let placement = |id: i64| -> Result<(Option<i64>, Option<i64>)> {
+            Ok(tx.query_row(
+                "SELECT album_id, track_number FROM tracks WHERE id = ?",
+                [id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )?)
+        };
+        let (mut known, mut changed) = (Vec::new(), Vec::new());
+        for track in tracks {
+            let id: Option<i64> = tx
+                .query_row(
+                    "SELECT id FROM tracks WHERE source_url = ?
+                     ORDER BY path = source_url LIMIT 1",
+                    [&track.url],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            let Some(id) = id else { continue };
+            let before = placement(id)?;
+            let id = store_remote(&tx, track, at, &splitting)?;
+            if placement(id)? != before {
+                changed.push(id);
+            }
+            known.push(id);
+        }
+        keep_album_source(&tx, url, title, &known)?;
+        prune(&tx)?;
+        tx.commit()?;
+        self.tracks(&crate::TrackFilter::Ids(changed))
     }
 
     /// The track that came from `url`: its downloaded file if there is one, else the stream.
@@ -1014,6 +1152,201 @@ mod tests {
             library.edit_link("/music/song.flac", &LinkEdit::default(), None, tmp.path()),
             Err(Error::Invalid(_))
         ));
+    }
+
+    /// Tracks played on their own before their album was imported (or downloaded): the
+    /// album's listing still numbers them.
+    #[test]
+    fn an_album_listing_numbers_tracks_the_library_had_before() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut library = Library::open_in_memory().unwrap();
+        let alone = |url: &str, title: &str| RemoteTrack {
+            url: url.into(),
+            title: title.into(),
+            artist: Some("Sqwore".into()),
+            complete: true,
+            ..RemoteTrack::default()
+        };
+        let before = library
+            .add_remote_tracks(&[
+                alone("https://y/grust", "Грусть"),
+                alone("https://y/x", "X"),
+            ])
+            .unwrap();
+        // One of them the user put elsewhere by hand.
+        let edit = LinkEdit {
+            title: "Mine".into(),
+            artists: vec!["Sqwore".into()],
+            album: Some("Elsewhere".into()),
+            ..LinkEdit::default()
+        };
+        library
+            .edit_link("https://y/x", &edit, None, tmp.path())
+            .unwrap();
+
+        let entry = |url: &str, title: &str, number: u32| RemoteTrack {
+            url: url.into(),
+            title: title.into(),
+            artist: Some("Sqwore".into()),
+            album: Some("Как я провела лето".into()),
+            album_artist: Some("Sqwore".into()),
+            track_number: Some(number),
+            complete: false,
+            ..RemoteTrack::default()
+        };
+        let listed = library
+            .add_remote_tracks(&[
+                entry("https://y/first", "Первый", 1),
+                entry("https://y/grust", "Грусть (listing)", 4),
+                entry("https://y/x", "X", 5),
+            ])
+            .unwrap();
+        let (first, grust, edited) = (&listed[0], &listed[1], &listed[2]);
+        assert_eq!(grust.id, before[0].id);
+        assert_eq!(grust.track_number, Some(4));
+        assert_eq!(grust.album_id, first.album_id);
+        assert_eq!(grust.album.as_deref(), Some("Как я провела лето"));
+        // The listing doesn't replace what the track's own page said.
+        assert_eq!(grust.title, "Грусть");
+        // Corrections stay.
+        assert_eq!(edited.album.as_deref(), Some("Elsewhere"));
+        assert_eq!(edited.track_number, None);
+    }
+
+    #[test]
+    fn an_album_listing_numbers_a_downloaded_copy_in_that_album_only() {
+        let tmp = tempfile::tempdir().unwrap();
+        let covers = tmp.path().join("covers");
+        let file = tmp.path().join("Song.flac");
+        fs::copy(fixture("tagged.flac"), &file).unwrap();
+        let mut library = Library::open_in_memory().unwrap();
+        let url = "https://y/song";
+        let stream = library
+            .add_remote_tracks(&[link(url, "Song", true)])
+            .unwrap()
+            .remove(0);
+        let local = library.attach_download(stream.id, &file, &covers).unwrap();
+        library
+            .conn
+            .execute(
+                "UPDATE tracks SET track_number = NULL WHERE id = ?",
+                [local.id],
+            )
+            .unwrap();
+        let listing = |album: &str, number: u32| RemoteTrack {
+            album: Some(album.into()),
+            track_number: Some(number),
+            ..link(url, "Song", false)
+        };
+        // Another album's listing leaves the file where its tags put it.
+        library.add_remote_tracks(&[listing("Other", 2)]).unwrap();
+        let file_row = library.track(local.id).unwrap().unwrap();
+        assert_eq!(file_row.track_number, None);
+        assert_eq!(file_row.album, local.album);
+        // Its own album's listing numbers it.
+        let album = local.album.clone().unwrap();
+        library.add_remote_tracks(&[listing(&album, 7)]).unwrap();
+        assert_eq!(
+            library.track(local.id).unwrap().unwrap().track_number,
+            Some(7)
+        );
+    }
+
+    /// An album stored before listings placed tracks the library had: opening its link
+    /// numbers them and lets the album keep the link, so its page can do the same later.
+    /// Only tracks the library has are touched.
+    #[test]
+    fn an_album_listing_repairs_and_the_album_keeps_its_link() {
+        let mut library = Library::open_in_memory().unwrap();
+        let entry = |url: &str, title: &str, number: u32| RemoteTrack {
+            url: url.into(),
+            title: title.into(),
+            artist: Some("Sqwore".into()),
+            album: Some("Лето".into()),
+            album_artist: Some("Sqwore".into()),
+            track_number: Some(number),
+            complete: false,
+            ..RemoteTrack::default()
+        };
+        let listing = [
+            entry("https://y/1", "Один", 1),
+            entry("https://y/2", "Два", 2),
+            entry("https://y/3", "Три", 3),
+        ];
+        let stored = library.add_remote_tracks(&listing[..2]).unwrap();
+        let album = stored[0].album_id.unwrap();
+        let unnumber = |library: &Library, id: i64, edited: bool| {
+            library
+                .conn
+                .execute(
+                    "UPDATE tracks SET track_number = NULL, edited = ?2 WHERE id = ?1",
+                    params![id, edited],
+                )
+                .unwrap();
+        };
+        // As such an album was: a track without its number, and no link to read.
+        unnumber(&library, stored[1].id, false);
+        assert_eq!(library.album_to_renumber(album).unwrap(), None);
+
+        let url = "https://y/album";
+        let changed = library.place_album_listing(url, "Лето", &listing).unwrap();
+        assert_eq!(changed.len(), 1);
+        assert_eq!(
+            (changed[0].id, changed[0].track_number),
+            (stored[1].id, Some(2))
+        );
+        assert!(library.track_by_source("https://y/3").unwrap().is_none());
+        // Nothing left to do, and nothing changes the second time.
+        assert_eq!(library.album_to_renumber(album).unwrap(), None);
+        assert!(
+            library
+                .place_album_listing(url, "Лето", &listing)
+                .unwrap()
+                .is_empty()
+        );
+
+        // The album page finds the link when a number is missing again...
+        unnumber(&library, stored[1].id, false);
+        assert_eq!(
+            library.album_to_renumber(album).unwrap().as_deref(),
+            Some(url)
+        );
+        library.place_album_listing(url, "Лето", &listing).unwrap();
+        // ...but a track the user corrected may stay without one.
+        unnumber(&library, stored[0].id, true);
+        assert_eq!(library.album_to_renumber(album).unwrap(), None);
+    }
+
+    #[test]
+    fn an_album_keeps_its_link_only_where_the_listing_put_tracks() {
+        let mut library = Library::open_in_memory().unwrap();
+        let track = |url: &str, album: &str| RemoteTrack {
+            url: url.into(),
+            title: url.into(),
+            album: Some(album.into()),
+            complete: true,
+            ..RemoteTrack::default()
+        };
+        let stored = library
+            .add_remote_tracks(&[track("https://y/a", "Лето"), track("https://y/b", "Другой")])
+            .unwrap();
+        let ids: Vec<i64> = stored.iter().map(|t| t.id).collect();
+        library
+            .keep_album_source("https://y/album", "Лето", &ids)
+            .unwrap();
+        let source = |id: i64| -> Option<String> {
+            library
+                .conn
+                .query_row("SELECT source_url FROM albums WHERE id = ?", [id], |row| {
+                    row.get(0)
+                })
+                .unwrap()
+        };
+        assert_eq!(
+            source(stored[0].album_id.unwrap()).as_deref(),
+            Some("https://y/album")
+        );
+        assert_eq!(source(stored[1].album_id.unwrap()), None);
     }
 
     #[test]

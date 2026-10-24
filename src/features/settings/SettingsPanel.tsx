@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { LayoutDashboard, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 
@@ -6,6 +6,7 @@ import { Glass } from '../../components/Glass/index.ts';
 import { IconButton } from '../../components/ui/IconButton.tsx';
 import { SegmentedControl, type SegmentedOption } from '../../components/ui/SegmentedControl.tsx';
 import { Switch } from '../../components/ui/Switch.tsx';
+import { setCustomizing } from '../../layout/state.ts';
 import type {
   AppearanceSettings,
   Language,
@@ -19,6 +20,8 @@ import { Diagnostics } from './Diagnostics.tsx';
 import { DownloadSettings } from './DownloadSettings.tsx';
 import { LibrarySettings } from './LibrarySettings.tsx';
 import { LyricsSettings } from './LyricsSettings.tsx';
+import { MiniPlayerSettings } from './MiniPlayerSettings.tsx';
+import { ShortcutSettings } from './ShortcutSettings.tsx';
 import styles from './SettingsPanel.module.css';
 import { ThemePicker } from './ThemePicker.tsx';
 
@@ -73,7 +76,13 @@ export function SettingsPanel({ onClose }: { onClose(): void }) {
       exit={{ x: '110%' }}
       transition={{ type: 'spring', stiffness: 380, damping: 38 }}
     >
-      <Glass as="aside" className={styles.panel} aria-label={t('settings.title')} priority={4}>
+      <Glass
+        as="aside"
+        className={styles.panel}
+        data-part="settings"
+        aria-label={t('settings.title')}
+        priority={4}
+      >
         <header className={styles.header}>
           <h2 className={styles.title}>{t('settings.title')}</h2>
           <IconButton label={t('settings.close')} onClick={onClose}>
@@ -98,11 +107,30 @@ export function SettingsPanel({ onClose }: { onClose(): void }) {
           </section>
 
           <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>{t('settings.mini.title')}</h3>
+            <MiniPlayerSettings />
+          </section>
+
+          <section className={styles.section}>
             <h3 className={styles.sectionTitle}>{t('settings.appearance')}</h3>
             <ThemePicker
               value={settings.appearance.theme}
               onChange={(theme) => setAppearance({ theme })}
             />
+
+            <Row label={t('layout.title')} hint={t('layout.hint')}>
+              <button
+                type="button"
+                className={styles.textButton}
+                onClick={() => {
+                  onClose();
+                  setCustomizing(true);
+                }}
+              >
+                <LayoutDashboard size={14} aria-hidden="true" />
+                {t('layout.customizeButton')}
+              </button>
+            </Row>
 
             {/* Window materials are a macOS feature; elsewhere the backdrop is fixed. */}
             {platform === 'macos' && (
@@ -147,6 +175,18 @@ export function SettingsPanel({ onClose }: { onClose(): void }) {
                 onChange={(refraction) => setAppearance({ refraction })}
               />
             </Row>
+            <Row label={t('settings.vinyl')} hint={t('settings.vinylHint')}>
+              <SegmentedControl
+                label={t('settings.vinyl')}
+                value={settings.appearance.vinyl}
+                options={[
+                  { value: 'auto', label: t('settings.vinylAuto') },
+                  { value: 'on', label: t('settings.switch.on') },
+                  { value: 'off', label: t('settings.switch.off') },
+                ]}
+                onChange={(vinyl) => setAppearance({ vinyl })}
+              />
+            </Row>
             <Row
               label={t('settings.artworkAccent')}
               hint={t('settings.artworkAccentHint')}
@@ -180,6 +220,11 @@ export function SettingsPanel({ onClose }: { onClose(): void }) {
                 onChange={(powerSaving) => setAppearance({ powerSaving })}
               />
             </Row>
+          </section>
+
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>{t('shortcuts.title')}</h3>
+            <ShortcutSettings />
           </section>
 
           <section className={styles.section}>

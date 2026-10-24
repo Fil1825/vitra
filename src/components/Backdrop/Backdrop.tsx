@@ -9,6 +9,8 @@ export interface BackdropProps {
   colors?: readonly string[];
   /** Small artwork image (already blurred) shown behind everything. */
   artworkUrl?: string;
+  /** The theme's own picture, under the artwork. */
+  picture?: { url: string; opacity: number; fit: 'cover' | 'contain' | 'tile' };
 }
 
 /**
@@ -17,7 +19,7 @@ export interface BackdropProps {
  * changes `transform` or `opacity`, which the compositor animates without repainting, and
  * no moving layer has a `filter` (the artwork comes blurred from the backend).
  */
-export function Backdrop({ colors, artworkUrl }: BackdropProps) {
+export function Backdrop({ colors, artworkUrl, picture }: BackdropProps) {
   const root = useRef<HTMLDivElement>(null);
 
   // The music's pulse goes straight onto this element: on <html> it would restyle the whole
@@ -37,8 +39,23 @@ export function Backdrop({ colors, artworkUrl }: BackdropProps) {
     : undefined;
 
   return (
-    <div ref={root} className={styles.backdrop} style={style} aria-hidden="true">
+    <div
+      ref={root}
+      className={styles.backdrop}
+      data-part="backdrop"
+      style={style}
+      aria-hidden="true"
+    >
       <div className={styles.base} />
+      {picture && (
+        <div
+          className={styles.picture}
+          data-fit={picture.fit}
+          style={
+            { '--_picture': `url("${picture.url}")`, opacity: picture.opacity } as CSSProperties
+          }
+        />
+      )}
       <div className={styles.pulse}>
         {artworkUrl && (
           // Keyed by URL so a new cover fades in instead of popping.

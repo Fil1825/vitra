@@ -1,0 +1,19 @@
+/* Neon Grid: glowing edges on the controls and the sidebar, and titles set like a sign. */
+
+[data-part='controls'],
+[data-part='sidebar'] {
+  box-shadow:
+    0 0 28px #ff3ea533,
+    inset 0 0 0 1px #7df9ff26;
+}
+
+[data-part='main'] h2 {
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 18px #ff3ea5aa;
+  text-transform: uppercase;
+}
+
+/* The level meter beside the controls: a sharper box. */
+[data-part='level'] {
+  --glass-radius: 6px;
+}

@@ -28,15 +28,23 @@ media = { version = "0.1.0", path = "../crates/media" }
 library = { version = "0.1.0", path = "../crates/library" }
 links = { version = "0.1.0", path = "../crates/links" }
 lyrics = { version = "0.1.0", path = "../crates/lyrics" }
+themes = { version = "0.1.0", path = "../crates/themes" }
 # Watches library folders (FSEvents / inotify / ReadDirectoryChangesW).
 notify = "8.2.0"
 tokio = { version = "1.54", features = ["sync", "time", "macros"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# The OS version (Liquid Glass) and the drag pasteboard (links dropped from a browser); both
-# already in the tree via window-vibrancy, tao and wry.
+# The OS version (Liquid Glass), the drag pasteboard (links dropped from a browser), and for
+# the mini player the keyboard and mouse state, spaces, the backdrop's alpha and its rounded
+# shape (a layer); all already in the tree via window-vibrancy, tao and wry.
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSProcessInfo", "NSString"] }
-objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSPasteboard"] }
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSPasteboard", "NSEvent", "NSResponder", "NSView", "NSWindow", "objc2-core-foundation", "objc2-quartz-core"] }
+objc2-quartz-core = { version = "0.3.2", default-features = false, features = ["std", "CALayer"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# The state of Alt and the mouse button for the mini player, and its rounded corners
+# (already in the tree via window-vibrancy and tao).
+windows-sys = { version = "0.61.2", features = ["Win32_Graphics_Dwm", "Win32_UI_Input_KeyboardAndMouse"] }
 
 [dev-dependencies]
 tempfile = "3"

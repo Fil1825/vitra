@@ -14,6 +14,25 @@
   transition: background-color var(--vitra-motion-duration) var(--vitra-motion-easing);
 }
 
+/* A theme's own picture, still: it sits under the artwork and the flowing colors. */
+.picture {
+  position: absolute;
+  inset: 0;
+  background-image: var(--_picture);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.picture[data-fit='contain'] {
+  background-size: contain;
+}
+
+.picture[data-fit='tile'] {
+  background-repeat: repeat;
+  background-size: auto;
+}
+
 /* Without a system backdrop (Linux, reduced transparency) the base must be opaque. */
 :root[data-vibrancy='off'] .base,
 :root[data-transparency='reduce'] .base {
@@ -32,7 +51,7 @@
 
 .artwork {
   position: absolute;
-  inset: -20%;
+  inset: 0;
   opacity: var(--vitra-backdrop-artwork-opacity);
   animation:
     artwork-in calc(var(--vitra-motion-duration) * 4) ease-out,
@@ -53,11 +72,21 @@
   }
 }
 
-/* Three copies of the (already blurred) cover drifting and turning over each other: its
-   colors seem to flow into one another. */
+/*
+ * Three copies of the (already blurred) cover drifting and turning over each other: its
+ * colors seem to flow into one another. Each is a square of twice the window's longer side,
+ * centred: whatever it turns by, the circle inside it (100vmax across from the middle, at
+ * least 90vmax after the furthest drift) covers the window, whose corners are at most
+ * 71vmax from the middle. A window-shaped copy turned by 20° showed its straight edge across
+ * the corners of a wide screen.
+ */
 .piece {
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 50%;
+  width: 200vmax;
+  height: 200vmax;
+  margin: -100vmax 0 0 -100vmax;
   background-image: var(--_artwork);
   background-position: center;
   background-size: cover;
@@ -74,6 +103,9 @@
 /* A smaller copy wandering around: its edges would show, so it is a soft round patch. The
    mask never changes, so the compositor still only moves the layer. */
 .piece:nth-child(3) {
+  width: 120vmax;
+  height: 120vmax;
+  margin: -60vmax 0 0 -60vmax;
   opacity: 0.4;
   mask-image: radial-gradient(closest-side, #000 35%, transparent);
   animation-name: flow-c;

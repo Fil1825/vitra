@@ -80,6 +80,11 @@
   transition: background-color var(--vitra-motion-duration) var(--vitra-motion-easing);
 }
 
+.switch:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
 .switch[aria-checked='true'] {
   background: var(--vitra-color-accent);
 }

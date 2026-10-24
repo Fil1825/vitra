@@ -111,7 +111,7 @@
   inset: 0;
   display: grid;
   place-items: center;
-  border-radius: var(--vitra-radius-sm);
+  border-radius: var(--vitra-artwork-radius, var(--vitra-radius-sm));
   background: color-mix(in srgb, var(--vitra-color-background) 55%, transparent);
   color: var(--vitra-color-accent);
 }

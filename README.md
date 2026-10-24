@@ -9,9 +9,10 @@ An open-source desktop music player with a **Liquid Glass** look — fully theme
 virtually any audio format, streams audio from links (YouTube, SoundCloud and hundreds of other
 sites) and shows synced lyrics. Runs on macOS, Windows and Linux.
 
-> **Status:** early development (stage 5 of the [plan](docs/PLAN.md)): local playback, the
-> music library, the play queue, playing and downloading links, and lyrics work; the mini
-> player, theme editor and releases come later. Nothing to install yet.
+> **Status:** early development (stage 7 of the [plan](docs/PLAN.md)): local playback, the
+> music library, the play queue, playing and downloading links, lyrics, the mini player,
+> themes and the layout work; sound settings, system integration and releases come later.
+> Nothing to install yet.
 
 ## Links
 
@@ -50,13 +51,44 @@ a line to jump to it; text size and a sync offset are adjustable while it plays.
 lyrics, syncs them as you tap Space at each line, and saves them into the file's tags (after
 making a backup copy), a `.lrc` file, or Vitra's library only. Lyrics can also be looked up on
 [LRCLIB](https://lrclib.net) — off by default; turning it on sends the song's title, artist,
-album and length there.
+album and length there. Don't want them? The crossed-out eye in the lyrics view hides lyrics
+everywhere until the microphone in the control bar brings them back.
+
+## Mini player
+
+**⌥⌘M** (Ctrl+Alt+M) or the last button of the control bar swaps the main window for a small
+glass player that stays on top: compact (artwork, controls, progress), a slim bar, or just the
+playing line of the lyrics. Drag it anywhere (it snaps to the screen's edges) or by its edges
+to resize it; right-click for its mode, size, background opacity, always on top and
+click-through (hold ⌥ / Alt over it to use it then). Settings → Mini Player has the rest.
 
 ## Look
 
 The window's background comes from the playing song's cover: blurred, slowly breathing and
 flowing, and gently pulsing with the music (Settings → Appearance → **Background moves with the
 music**). It holds still when the system asks for reduced motion or in power-saving mode.
+
+Covers can be square, rounded or round, and with **Vinyl** (Settings → Appearance, or the disc
+button on the big cover) they become records that turn while the music plays. The text is set
+in Vitra Sans, made of [Outfit](https://github.com/Outfitio/Outfit-Fonts) and
+[Onest](https://github.com/googlefonts/onest) (both SIL Open Font License, shipped with the app).
+
+## Themes and layout
+
+Settings → Appearance has the themes: Light, Dark, Aurora Night and your own. **New Theme**
+opens an editor over the window (colors, glass, fonts, corners, background picture, motion,
+custom CSS) and the whole app shows every change as you make it. Themes travel as
+`.vitratheme` files: drop one on the window to install it, or export yours from its menu.
+Three examples are in [`themes/`](themes); [docs/THEMES.md](docs/THEMES.md) describes the
+format.
+
+The window is made of modules — sidebar, queue, lyrics, big artwork, player controls, level
+meter — in columns on either side and bars above and below. Drag a column's edge or the line
+between two modules to resize; the layout button in the title bar (or Settings → Layout)
+lets you drag modules between places, hide them, and save layouts you like. The level meter
+shows the music's spectrum as bars, mirrored bars or a wave (right-click it).
+
+Every keyboard shortcut can be changed in Settings → Keyboard Shortcuts.
 
 ## Building from source
 
@@ -81,4 +113,5 @@ country.
 ## License
 
 [GPL-3.0-or-later](LICENSE). Vitra's look is inspired by Apple Music, but it contains no Apple
-icons, logos, fonts or other assets.
+icons, logos, fonts or other assets. The bundled fonts are under the SIL Open Font License
+(`src/assets/fonts/OFL-*.txt`, `themes/*/OFL.txt`).

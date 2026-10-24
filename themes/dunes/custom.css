@@ -1,0 +1,15 @@
+/* Dunes: heavier, tighter titles and a sandy text selection. */
+
+[data-part='main'] h2 {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+::selection {
+  background: #e07a5f59;
+}
+
+/* The big cover under the sidebar, a touch warmer. */
+[data-part='artwork'] img {
+  filter: sepia(0.08);
+}

@@ -1,0 +1,4 @@
+/* Linux windows are opaque (decision 15): the theme's background shows behind the glass. */
+:root[data-platform='linux'] body {
+  background: var(--vitra-color-background);
+}
