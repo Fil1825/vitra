@@ -344,6 +344,25 @@ impl Library {
         Ok(())
     }
 
+    /// Fills in what the source says about an entry that came as a bare link (Spotify
+    /// tracks pasted in bulk) once its page was read.
+    pub fn update_entry_source(&self, entry_id: i64, source: &ImportedTrack) -> Result<()> {
+        self.conn.execute(
+            "UPDATE import_entries SET title = ?2, artists = ?3, album = ?4, duration = ?5,
+                 isrc = COALESCE(?6, isrc)
+             WHERE id = ?1",
+            params![
+                entry_id,
+                source.title,
+                serde_json::to_string(&source.artists)?,
+                source.album,
+                source.duration,
+                source.isrc,
+            ],
+        )?;
+        Ok(())
+    }
+
     /// A link found for an entry, as a library track named the way the import named it
     /// (a service's titles are cleaner than video titles); a link the library already has
     /// stays as it is. Marked as corrected, so yt-dlp's later descriptions keep the names.
