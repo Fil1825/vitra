@@ -16,13 +16,13 @@ use serde::{Deserialize, Deserializer, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::error::AppError;
+use crate::global_shortcuts::GlobalKeys;
 use crate::layout::{Layout, LayoutPreset, Module, sanitize_presets};
 use crate::library::LibraryService;
 use crate::lyrics::LyricsService;
 use crate::mini::{MiniPlayer, Mode, SizePreset};
 use crate::player::Player;
 use crate::shortcuts::{self, GlobalShortcuts, Shortcuts};
-use crate::global_shortcuts::GlobalKeys;
 use crate::sound::SoundSettings;
 use crate::tray::Tray;
 use crate::window;

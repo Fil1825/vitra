@@ -38,10 +38,10 @@ use crate::library::{LibraryService, entry_from_track};
 use crate::links::LinkService;
 use crate::lyrics::{LyricsService, TrackInfo};
 use crate::now_playing::NowPlaying;
-use crate::tray::Tray;
 use crate::settings::{AudioMeters, SettingsStore};
 use crate::sidecar::{self, Sidecar};
 use crate::sound::{self, Equalizer, LoudnessMeter, Normalization, SoundSettings, loudness};
+use crate::tray::Tray;
 
 pub use artwork::{
     ArtworkStore, COVER_PREFIX, SCHEME as ARTWORK_SCHEME, respond_cover, status as http_status,
