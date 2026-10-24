@@ -24,8 +24,8 @@ the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
 | 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | accepted (PR #6)  |
 | 6   | Mini player                                            | accepted (PR #7)  |
 | 7   | Customization: theme editor, `.vitratheme`, layout     | accepted (PR #8)  |
-| 8   | Sound & system: EQ, crossfade, media keys, tray        | in review (PR #9) |
-| 9   | Playlist import: Spotify, Yandex, VK, Apple Music…     | not started       |
+| 8   | Sound & system: EQ, crossfade, media keys, tray        | accepted (PR #9)  |
+| 9   | Playlist import: Spotify, Yandex, VK, Apple Music…     | in progress       |
 | 10  | My Wave: mood analysis, endless mood-based queue       | not started       |
 | 11  | Integrations, i18n, CI builds, README, first release   | not started       |
 

@@ -310,7 +310,7 @@ and an explicit list of checks that can only be done on a Mac.
   search, still a panel over the window); crossfade **0–12 s on automatic transitions
   only**, neighbours on one album stay gapless, skipping switches at once; normalization
   **like Sound Check**: measured once, applied as a gain, ReplayGain tags first.
-- Done (PR in review):
+- Done and accepted (PR #9; the owner checked it on a Mac, in a `.app` bundle):
   - Now Playing: `MPNowPlayingInfoCenter` + `MPRemoteCommandCenter` on macOS
     (`objc2-media-player`), `souvlaki` on Windows (SMTC) and Linux (MPRIS); track,
     artists, album, artwork, duration, position and rate from Rust's player state, sent
@@ -565,6 +565,14 @@ original spec. Each part is its own commit (or a few), testable on its own.
 - `README.md` (+ screenshots/GIF), `README.ru.md`, `CONTRIBUTING.md`, issue/PR templates,
   disclaimer that users are responsible for complying with the terms of sites they play from.
 - First release.
+- Before the release (the owner's notes after stage 8):
+  - **Sidecars inside `Vitra.app`.** A plain `tauri build` bundle has no mpv, yt-dlp,
+    FFmpeg or Deno: a debug build finds them through `CARGO_MANIFEST_DIR`
+    (`src-tauri/sidecars/<triple>/`), a release bundle on another Mac can't play.
+    `npm run bundle` copies them in (key decision 6); the release workflow must build that
+    way (or fetch them on first use, open question 1) and be checked on a clean Mac.
+  - **About**: remind the owner to write their note and donation link
+    (`src/features/settings/about.ts`, `AUTHOR_NOTE`, `DONATE_URL`).
 
 ## Post-v1 roadmap
 
