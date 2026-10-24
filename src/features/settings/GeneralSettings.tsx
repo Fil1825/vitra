@@ -55,7 +55,11 @@ export function GeneralSettings() {
         <Row
           label={trayLabel}
           hint={
-            trayAvailable ? t('settings.general.trayHint') : t('settings.general.trayUnavailable')
+            !trayAvailable
+              ? t('settings.general.trayUnavailable')
+              : platform === 'macos'
+                ? t('settings.general.trayHint.macos')
+                : t('settings.general.trayHint.other')
           }
           layout="inline"
         >

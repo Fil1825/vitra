@@ -224,7 +224,10 @@
         "windows": "Icon in the notification area",
         "linux": "Icon in the system tray"
       },
-      "trayHint": "The track, playback buttons, the mini player and Quit, even with every window closed to the mini player.",
+      "trayHint": {
+        "macos": "The track, playback buttons, the mini player and Quit. Closing the window keeps the music playing; ⌘Q or Quit Vitra quits.",
+        "other": "The track, playback buttons, the mini player and Quit. While it is on, closing the window keeps the music playing here."
+      },
       "trayUnavailable": "This desktop has no place for it: install the AppIndicator library (libayatana-appindicator3).",
       "globalShortcuts": "Shortcuts in Every App",
       "globalHint": "Play, pause or skip while another app is in front: set them in Keyboard Shortcuts.",
