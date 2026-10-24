@@ -98,14 +98,17 @@ src/                    React + TypeScript frontend
                         i18n → render
   app/                  the window's parts (TitleBar, Sidebar, NowPlaying, ControlBar),
                         useAppearanceController (theme vars, user theme CSS, effect flags,
-                        window theme, language) and useLevelMeter (asks for the music's level)
+                        window theme, language) and useLevelMeter (asks for the pulse and the
+                        spectrum)
   layout/               modular layout: model.ts (zones, modules, normalize; pure), state.ts
                         (in the settings, customize mode), Workspace (zones, resizing, dnd-kit),
-                        Palette (customize mode), presets.ts, modules/ (ArtworkPanel, LevelMeter)
+                        Palette (customize mode), presets.ts, modules/ (ArtworkPanel,
+                        LevelMeter: the spectrum on a canvas; spectrum.ts: its motion, pure)
   shortcuts/            keyboard shortcuts: keys.ts (combinations, labels, focus rules; pure),
                         actions.ts (actions, defaults, rebinding; pure), run.ts, useShortcuts
   components/           shared UI: Glass/ (glass surface, layer budget, refraction), Backdrop/,
-                        ArtworkViewer/ (full-screen artwork), ui/ (IconButton,
+                        ArtworkViewer/ (full-screen artwork), CoverArt/ (the player's covers:
+                        records, their spin clock spin.ts, the no-cover placeholder), ui/ (IconButton,
                         SegmentedControl, Switch, Slider)
   features/<feature>/   feature UI: library/ (views, TrackTable, AlbumGrid, actions + menus,
                         HeroCover + covers.ts: covers the user chooses),
@@ -121,10 +124,11 @@ src/                    React + TypeScript frontend
                         themeEditor (the draft being edited)
   theme/                zod schema (+ jsonSchema.ts), built-in themes (builtin/*.json), tokens →
                         CSS vars, effects, user themes (user.ts), custom.css cleaning (css.ts),
-                        color helpers
+                        color helpers, artwork.ts (whether covers are records)
   i18n/                 i18next setup, locales/en.json + ru.json (typed keys)
   lib/                  IPC wrappers, event bus + backend bridge, hooks, pure helpers
-  styles/global.css     base document styles
+  styles/global.css     base document styles, the Vitra Sans @font-face rules
+  assets/fonts/         Vitra Sans: Outfit (Latin) + Onest (Cyrillic) woff2, their OFL.txt
   windows/mini/         the mini player window: boot (main.tsx), MiniApp (three modes),
                         context menu (menu.ts)
 src-tauri/              Tauri app crate (`vitra`, lib `vitra_lib`)
@@ -142,7 +146,8 @@ src-tauri/              Tauri app crate (`vitra`, lib `vitra_lib`)
   src/player/           mpv supervisor, queue mirroring and commands (mod.rs, commands.rs),
                         PlayerState reducer (state.rs), play queue (queue.rs, pure),
                         session save/restore (session.rs), artwork:// scheme (artwork.rs),
-                        loudness for the backdrop pulse (level.rs)
+                        loudness for the backdrop pulse (level.rs), the level meter's
+                        spectrum (spectrum.rs)
   src/library/          LibraryService: DB connection, scanner thread, folder watcher
                         (watch.rs), library/playlist/tag-editor commands (commands.rs)
   src/links/            LinkService (resolve, play, import + background enrich, yt-dlp
@@ -247,13 +252,16 @@ themes/                 example themes (sources: theme.json, custom.css, assets/
    off (`appearance.artworkAccent`). `theme/accent.ts` adjusts the color per light/dark.
    - The backdrop moves (`components/Backdrop`): the cover breathes, three copies of it drift
      and turn over each other (the third a soft round patch, `mask-image`), the theme's blobs
-     drift on top. The 96 px thumbnail comes blurred and saturated from Rust
+     drift on top. The turning copies are squares of 200vmax around the middle, so no
+     corner of theirs reaches the screen at any aspect (a copy the size of the window
+     showed a diagonal edge on wide screens). The 96 px thumbnail comes blurred and saturated from Rust
      (`media::artwork::backdrop_image`), so no moving layer has a CSS `filter`, and only
      `transform`/`opacity` animate. `data-backdrop-animation='off'` pauses it all.
    - Pulse (`appearance.backdropPulse`, on by default): while it is on, mpv's audio chain
-     has `@vitralevel:lavfi=[astats=…RMS_level]` (`player/level.rs`; added when mpv starts,
-     never touched for visibility changes, which could click). While a window wants it
-     (`player_level_meter` from `useLevelMeter`: setting on, motion on, window visible) the
+     has `@vitralevel:lavfi=graph=[astats=…RMS_level]:o=[threads=1]` (`player/level.rs`;
+     added when mpv starts, never touched for visibility changes, which could click). While
+     a window wants it (`player_meters` from `useLevelMeter`: setting on, motion on, window
+     visible) the
      player reads `af-metadata/vitralevel` every 70 ms and emits `player://level` (0..1: a
      smoothed loudness plus a kick when it rises above the recent average). `Backdrop` sets
      `--vitra-pulse` on its own element (on `<html>` it would restyle the whole window
@@ -517,10 +525,15 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
       snapping to the work area's edges (16 pt), saving, or pulling a grown window back on
       screen (`geometry::snap`, `fit_inside`, `reachable`).
     - Backdrop per window (`window::Backdrop`): rounded (`mini::RADIUS`, the page's
-      `--glass-radius` matches) and faded by `opacity`: macOS sets the vibrancy view's alpha
-      (found by window-vibrancy's view tag; Liquid Glass hosts the page, so a faded backdrop
-      is always vibrancy), Windows drops Acrylic below 100% and the page's tint fades,
-      Linux windows are opaque.
+      `--glass-radius` matches; Windows 11 rounds the window itself, 8 px, through DWM's
+      corner preference) and faded by `opacity`. The window's content is clipped to the same
+      corners and its shadow redrawn after showing and resizing
+      (`platform::round_window`: the content view's layer `cornerRadius` + `masksToBounds`,
+      `invalidateShadow`): otherwise the WebView's square corners and the shadow of the
+      square window showed as dark strips and corners at the edges. Fading: macOS sets the
+      vibrancy view's alpha (found by window-vibrancy's view tag; Liquid Glass hosts the
+      page, so a faded backdrop is always vibrancy), Windows drops Acrylic below 100% and
+      the page's tint fades, Linux windows are opaque.
     - Always on top: `set_always_on_top` + all workspaces, and on macOS
       `FullScreenAuxiliary`. Over other apps' full-screen spaces only accessory apps are
       allowed, so `overFullScreen` switches the activation policy to `Accessory` while the
@@ -570,9 +583,24 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
       before/after. Built-in presets (`presets.ts`) and saved ones (≤ 20, by name).
     - The queue and lyrics buttons show and hide their modules wherever they are; hidden
       lyrics (`lyrics.visible`) take their module along.
-    - The level meter module reads `player://level` like the backdrop pulse: the filter is in
-      mpv's chain when either wants it (`Settings::measures_level`), and the window asks for
-      readings while it is visible and the meter shows (`useLevelMeter`).
+    - The level meter module is a spectrum (`player/spectrum.rs`): twenty bands, 40 Hz to
+      16 kHz on a log scale, measured in mpv's chain like the pulse, so links work too. lavfi
+      filters that merge branches (`amerge`, `amix`, `join`) drop the side branch's metadata,
+      so the analysis rides in the audio: `pan` adds one mono channel per band (named
+      channels, since `bandpass … c=` picks by name), each gets its band-pass, `astats`
+      measures every channel and a last `pan` keeps the two music channels bit for bit.
+      `o=[threads=1]`: lavfi's threading cost ten times the filtering. The filter is in the
+      chain while the meter is in the layout (`Settings::audio_meters`); readings
+      (`af-metadata/vitraspectrum`, every 33 ms while playing) wait 330 ms in a `DelayLine`
+      because mpv filters that far ahead of what is heard, and go out as `player://spectrum`
+      (0..1 per band, high bands lifted 1.5 dB/octave; empty when nothing plays).
+    - The meter draws on a canvas every frame (`LevelMeter.tsx`): bars resampled to the width
+      (one per 12 px, 8–32), fast rise and slow fall with peak caps that hold and drop
+      (`spectrum.ts`, `Dynamics`), one fill with the glow for all bars. Styles `bars`,
+      `mirror`, `wave` (`meter.style`, its context menu); a quiet wave when no reading came
+      for 900 ms; with Reduce Motion a few frames a second, no caps, still when idle. The
+      canvas sits absolutely in its box and 8 px into the padding, so its pixel size never
+      feeds back into the layout and the glow isn't cut off.
 32. **Keyboard shortcuts** (`shortcuts/`, `src-tauri/src/shortcuts.rs`, settings `shortcuts`):
     - Actions (`actions.ts`) with a default combination per platform; the settings keep only
       the user's changes (`id → combination | null`), so new actions get their defaults.
@@ -586,6 +614,30 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
       key a component already handled (`defaultPrevented`) is left alone; held keys repeat
       only seeking and volume. The recorder in Settings captures keys first and pauses the
       listener. Global (system-wide) shortcuts come with stage 8.
+33. **Covers and records** (`components/CoverArt`, `theme/artwork.ts`, theme `artwork`,
+    settings `appearance.vinyl`):
+    - The theme's `artwork.shape` sets `--vitra-artwork-radius` (`square` = `initial`, so
+      each place keeps its own corners from `--cover-radius`; `rounded` 22%, `circle` 50%,
+      shares of the cover so every size matches). Artists stay round.
+    - Records (`artwork.vinyl`, or the user's `appearance.vinyl` on/off over the theme's
+      `auto`; the disc button on the big cover sets it): every cover is round
+      (`html[data-vinyl='on']`), and the playing track's covers (`CoverArt live`: Now
+      Playing, the artwork module, the control bar, the mini player, the queue's current
+      row) get grooves, a sheen and a label and turn at 33⅓ rpm while it plays.
+    - One spin clock per window (`spin.ts`): a shared angle so every record shows the same
+      turn, eased up (0.8 s) and down (1.4 s) when playback starts and stops, kept on
+      pause; driven by `requestAnimationFrame` only while something turns and written as a
+      `transform` (never `filter`/`opacity`, see Gotchas). With Reduce Motion no cover
+      joins it.
+    - No cover: the mono Vitra symbol (`assets/brand/mono.svg`, inlined with
+      `currentColor`) in `--vitra-artwork-placeholder` (`artwork.placeholderColor`), else
+      the text color faded.
+34. **Vitra Sans** (`styles/global.css`, `src/assets/fonts/`): the built-in themes' font
+    stack starts with it. Two `@font-face` rules under one name split by `unicode-range`:
+    Outfit (variable, Latin) and Onest (variable, Cyrillic, which Outfit lacks) at
+    `size-adjust: 92%`, so lowercase heights meet and mixed lines read evenly. Both SIL OFL,
+    subset with their license names kept; bundled by Vite (CSP `font-src 'self'`), never
+    fetched. Themes still name their own fonts first.
 
 ## Conventions
 

@@ -68,6 +68,11 @@ The window's background comes from the playing song's cover: blurred, slowly bre
 flowing, and gently pulsing with the music (Settings → Appearance → **Background moves with the
 music**). It holds still when the system asks for reduced motion or in power-saving mode.
 
+Covers can be square, rounded or round, and with **Vinyl** (Settings → Appearance, or the disc
+button on the big cover) they become records that turn while the music plays. The text is set
+in Vitra Sans, made of [Outfit](https://github.com/Outfitio/Outfit-Fonts) and
+[Onest](https://github.com/googlefonts/onest) (both SIL Open Font License, shipped with the app).
+
 ## Themes and layout
 
 Settings → Appearance has the themes: Light, Dark, Aurora Night and your own. **New Theme**
@@ -80,7 +85,8 @@ format.
 The window is made of modules — sidebar, queue, lyrics, big artwork, player controls, level
 meter — in columns on either side and bars above and below. Drag a column's edge or the line
 between two modules to resize; the layout button in the title bar (or Settings → Layout)
-lets you drag modules between places, hide them, and save layouts you like.
+lets you drag modules between places, hide them, and save layouts you like. The level meter
+shows the music's spectrum as bars, mirrored bars or a wave (right-click it).
 
 Every keyboard shortcut can be changed in Settings → Keyboard Shortcuts.
 
@@ -107,4 +113,5 @@ country.
 ## License
 
 [GPL-3.0-or-later](LICENSE). Vitra's look is inspired by Apple Music, but it contains no Apple
-icons, logos, fonts or other assets.
+icons, logos, fonts or other assets. The bundled fonts are under the SIL Open Font License
+(`src/assets/fonts/OFL-*.txt`, `themes/*/OFL.txt`).

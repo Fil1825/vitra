@@ -252,6 +252,33 @@ and an explicit list of checks that can only be done on a Mac.
   the traffic lights next to the top bar or the main view when the sidebar moves; ⌘-based
   shortcuts and the macOS menu's own (⌘Q, ⌘W, ⌘H, ⌘M stay the system's); dragging modules
   with a trackpad.
+- Review round (the owner's notes after checking it on a Mac):
+  - The level meter is a real spectrum: twenty bands from 40 Hz to 16 kHz measured in mpv's
+    audio chain (files and links alike, nothing measured while the module is hidden), drawn
+    on a canvas sixty times a second with fast rise, slow fall and falling peak caps; bars,
+    mirrored bars or a wave (its context menu), a quiet wave while nothing plays, still with
+    Reduce Motion.
+  - Covers: `artwork.shape` (square, rounded, round) and `artwork.vinyl` in the theme and the
+    editor; records turn at 33⅓ rpm while music plays (the big cover, the artwork module,
+    the control bar, the mini player, the queue's current track), with grooves, a sheen and
+    a label; the user can force them on or off (Settings, the disc button on the big cover).
+  - Vitra Sans: Outfit (Latin) with Onest (Cyrillic), bundled, the built-in themes' font.
+  - The no-cover placeholder is the mono Vitra symbol in the theme's color (or its own,
+    `artwork.placeholderColor`), everywhere a cover shows.
+  - Fixes: the mini player's dark edges (its content is clipped to its rounded corners and
+    the window shadow redrawn); the backdrop's diagonal edge on wide screens (its moving
+    pieces are big squares now).
+- **Mac** for the review round:
+  - The spectrum with real music and a link: bars move with what you hear (no lag or lead),
+    CPU stays low (Activity Monitor: mpv and Vitra), nothing measured with the module hidden.
+  - Records: the spin looks smooth, starts and stops gently with play/pause, stops in place;
+    Reduce Motion (System Settings → Accessibility → Display) keeps them still.
+  - Vitra Sans in a release build (CSP), Latin and Cyrillic mixed on one line look even.
+  - The mini player's edges and corners are clean on light and dark themes, with vibrancy
+    and Liquid Glass, faded and not, and its shadow follows the rounded shape. (Windows 11:
+    rounded corners.)
+  - The backdrop on a 2K (2560×1440) and an ultrawide (21:9) screen in full screen, on the
+    lyrics view too: no edge or diagonal line.
 
 ## Stage 8 — Sound & system
 

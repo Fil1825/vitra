@@ -64,6 +64,7 @@ In short:
 | `spacing.unit`      | The base of every gap and padding (2–8 px).                                             |
 | `background`        | The window's backdrop: base opacity, gradient colors, the playing artwork, a picture.   |
 | `accentFromArtwork` | Take the accent from the playing song's cover.                                          |
+| `artwork`           | Optional: covers' shape, records (vinyl), the color of the no-cover symbol (below).     |
 | `motion`            | Transition duration, easing (`standard`, `emphasized`, `linear`), backdrop speed.       |
 | `layout`            | Optional: a layout of the window the theme suggests (see below).                        |
 
@@ -93,8 +94,28 @@ digits, `.`, `_` or `-`, and an extension.
   `fonts`. Only ship fonts whose license allows it (the examples use SIL OFL fonts, cut down
   to Latin and Cyrillic).
 
+Vitra's own typeface, `'Vitra Sans'` (Outfit for Latin, Onest for Cyrillic, both bundled), is
+the built-in themes' font; a theme can name it in its stack too, or put its own font first and
+keep `'Vitra Sans'` as the fallback for scripts its font lacks.
+
 Limits: 32 MB per package, 16 MB per file, 64 assets, 512 KB for `theme.json` and for
 `custom.css`.
+
+### Covers
+
+```json
+"artwork": { "shape": "circle", "vinyl": true, "placeholderColor": "#F5D9A866" }
+```
+
+- `shape`: `square` (the theme's corner radii, as when `artwork` is left out), `rounded` or
+  `circle`. It applies to album and track covers everywhere; artists stay round.
+- `vinyl`: covers become records: round, with grooves, a sheen and a label hole, and the
+  playing track's covers (Now Playing, the artwork module, the control bar, the mini player,
+  the queue's current row) turn at 33⅓ rpm while it plays, stopping where they are on pause.
+  The user can turn it on or off for every theme (Settings → Appearance, or the disc button on
+  the big cover); Reduce Motion keeps records still.
+- `placeholderColor`: the Vitra symbol shown where a track has no cover. Left out, it is the
+  theme's text color, faded.
 
 ### A layout
 
@@ -150,12 +171,14 @@ Vitra's class names change between versions; style these stable hooks instead:
 | `html[data-platform='macos']`      | `macos`, `windows` or `linux`.                                                                                                   |
 | `html[data-motion='reduce']`       | Reduce Motion or power saving is on: keep things still.                                                                          |
 | `html[data-transparency='reduce']` | Reduce Transparency is on.                                                                                                       |
+| `html[data-vinyl='on']`            | Covers are records (the theme's `artwork.vinyl` or the user's choice).                                                           |
 
 Every value the theme sets is a variable too: `--vitra-color-*` (`background`, `text`,
 `text-secondary`, `text-tertiary`, `accent`, `accent-contrast`, `separator`, `danger`),
 `--vitra-glass-*`, `--vitra-radius-sm|md|lg`, `--vitra-space-1` … `--vitra-space-12`,
-`--vitra-font-family`, `--vitra-font-size`, `--vitra-motion-duration`, `--vitra-motion-easing`.
-Set `--glass-radius` on a part to round its glass differently:
+`--vitra-font-family`, `--vitra-font-size`, `--vitra-motion-duration`, `--vitra-motion-easing`,
+`--vitra-artwork-radius` (covers' corners; `50%` for records) and `--vitra-artwork-placeholder`
+(the no-cover symbol's color). Set `--glass-radius` on a part to round its glass differently:
 
 ```css
 /* Pill-shaped controls. */
