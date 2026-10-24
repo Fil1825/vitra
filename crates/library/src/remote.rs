@@ -16,7 +16,7 @@ use crate::{Error, Library, Result, now};
 
 /// Stores a link as a track (or updates it); returns its id. A track already downloaded
 /// from the link is returned as it is: its file's tags are what count now.
-fn store_remote(
+pub(crate) fn store_remote(
     tx: &Transaction<'_>,
     track: &RemoteTrack,
     at: i64,

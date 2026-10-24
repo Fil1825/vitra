@@ -7,6 +7,7 @@
 mod artists;
 mod covers;
 mod folders;
+mod imports;
 mod loudness;
 mod lyrics;
 mod model;
@@ -26,6 +27,9 @@ use rusqlite::Connection;
 
 pub use artists::{ArtistSplitting, BUILTIN_EXCEPTIONS, split_artists};
 pub use covers::CoverTarget;
+pub use imports::{
+    EntryCandidate, EntryState, ImportEntry, ImportProgress, NewEntry, PlaylistPlace,
+};
 pub use loudness::{FileStamp, Loudness};
 pub use lyrics::{SOURCE_ONLINE, SOURCE_USER, SavedLyrics};
 pub use model::*;
