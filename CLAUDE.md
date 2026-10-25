@@ -104,14 +104,16 @@ src/                    React + TypeScript frontend
                         spectrum) and useTrayLabels (the tray menu's words)
   layout/               modular layout: model.ts (zones, modules, normalize; pure), state.ts
                         (in the settings, customize mode), Workspace (zones, resizing, dnd-kit),
-                        Palette (customize mode), presets.ts, modules/ (ArtworkPanel,
+                        presence.ts (modules coming and going; pure), Palette (customize
+                        mode), presets.ts, modules/ (ArtworkPanel,
                         LevelMeter: the spectrum on a canvas; spectrum.ts: its motion, pure)
   shortcuts/            keyboard shortcuts: keys.ts (combinations, labels, focus rules; pure),
                         actions.ts (actions, defaults, rebinding in the window and in every
                         app; pure), run.ts, useShortcuts
   components/           shared UI: Glass/ (glass surface, layer budget, refraction), Backdrop/,
                         ArtworkViewer/ (full-screen artwork), CoverArt/ (the player's covers:
-                        records, their spin clock spin.ts, the no-cover placeholder), ui/ (IconButton,
+                        records, their spin clock spin.ts + platter.ts, the speed slider
+                        SpeedDial + speedDial.ts, the no-cover placeholder), ui/ (IconButton,
                         SegmentedControl, Switch, Slider)
   features/<feature>/   feature UI: library/ (views, TrackTable, AlbumGrid, actions + menus,
                         HeroCover + covers.ts: covers the user chooses),
@@ -135,7 +137,8 @@ src/                    React + TypeScript frontend
                         color helpers, artwork.ts (whether covers are records)
   i18n/                 i18next setup, locales/en.json + ru.json (typed keys)
   lib/                  IPC wrappers (system.ts: tray and shortcuts in every app; browser.ts),
-                        event bus + backend bridge, hooks, pure helpers
+                        event bus + backend bridge, hooks, pure helpers (scrollMemory.ts +
+                        useScrollMemory: each screen's scroll position)
   styles/global.css     base document styles, the Vitra Sans @font-face rules
   styles/icons.css      every icon's motion under the pointer (key decision 39)
   assets/fonts/         Vitra Sans: Outfit (Latin) + Onest (Cyrillic) woff2, their OFL.txt
@@ -606,6 +609,18 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
       `Layout: From<Value>`): every module placed exactly once, misplaced ones go home.
     - `Workspace` is nested flex boxes (see Gotchas on WebKit grids). Columns resize at their
       inner edge, modules at the line between them; changes show live and save on release.
+    - Modules come and go with a motion (`presence.ts`, CSS keyframes in
+      `Workspace.module.css`, the theme's `--vitra-motion-*`): a hidden module stays
+      `leaving` (inert, focus given back) until its `animationend` (a timer is the safety
+      net). A column that empties or fills (`data-presence` closing / opening) animates its
+      width to or from 0 with the gap beside it (negative margin) while its modules keep
+      their full width (`--column-width`) and slide past the window's edge in step; a
+      module next to others folds (`flex-grow`, the split line's height). Only `transform`
+      moves around the glass; the fade is `opacity` on the glass element itself, never on an
+      ancestor. Full ↔ rail: the column's width transitions (`data-morphing`, only then, so
+      a dragged edge or the window's width doesn't lag) and the Sidebar crossfades two
+      layers at their own widths. The macOS traffic-light paddings transition. Bars, Reduce
+      Motion and customize mode change at once.
     - Customize mode (title bar button, Settings → Layout, a shortcut): dnd-kit drags a module
       by its frame (`useSortable`) or a hidden one from the palette (`useDraggable`); the drop
       target is the module under the pointer, else the zone (`dropTarget`: nearest centres
@@ -654,12 +669,19 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
       `auto`; the disc button on the big cover sets it): every cover is round
       (`html[data-vinyl='on']`), and the playing track's covers (`CoverArt live`: Now
       Playing, the artwork module, the control bar, the mini player, the queue's current
-      row) get grooves, a sheen and a label and turn at 33⅓ rpm while it plays.
+      row) get grooves, a sheen and a label and turn while it plays.
+    - Speed: `appearance.vinylSpeed` (5–78 rpm; `null` = the theme's `artwork.vinylSpeed`,
+      else 33⅓, so older settings files need nothing). Settings → Appearance has a slider
+      (`SpeedDial`) whose detents 33⅓ / 45 / 78 hold a stretch of its travel
+      (`speedDial.ts`: position ↔ speed, so arrow keys pass them), previewed live while
+      dragged (`previewVinylSpeed`), saved on release; a speed equal to the usual one is
+      saved as `null`.
     - One spin clock per window (`spin.ts`): a shared angle so every record shows the same
-      turn, eased up (0.8 s) and down (1.4 s) when playback starts and stops, kept on
-      pause; driven by `requestAnimationFrame` only while something turns and written as a
-      `transform` (never `filter`/`opacity`, see Gotchas). With Reduce Motion no cover
-      joins it.
+      turn; it reads the speed every frame and eases towards it (`platter.ts`: the pull
+      scales with the speed, so starting takes 0.8 s and stopping 1.4 s at any speed, and
+      a changed speed is eased to), kept on pause; driven by `requestAnimationFrame` only
+      while something turns and written as a `transform` (never `filter`/`opacity`, see
+      Gotchas). With Reduce Motion no cover joins it.
     - No cover: the mono Vitra symbol (`assets/brand/mono.svg`, inlined with
       `currentColor`) in `--vitra-artwork-placeholder` (`artwork.placeholderColor`), else
       the text color faded.
@@ -742,8 +764,9 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
     - Only the list comes over; the sound is the library's or a YouTube Music link. No
       accounts or API keys: links are read from what the services show visitors (Spotify's
       `open.spotify.com/embed/…` JSON, Apple Music's page data or JSON-LD, Deezer's open API
-      page by page, Yandex Music's `handlers/*.jsx` and `api.music.yandex.net` share links)
-      with curl (`http.rs`, a Safari User-Agent); YouTube / SoundCloud / Bandcamp lists go
+      page by page, Yandex Music's public API `api.music.yandex.net`: `/albums/<id>/with-tracks`,
+      `/users/<owner>/playlists/<kind>`, `/tracks/<id>`, `/playlist/<uuid>`; its old
+      `handlers/*.jsx` answer with the new site's HTML) with curl (`http.rs`, a Safari User-Agent); YouTube / SoundCloud / Bandcamp lists go
       through `LinkService::import` as before; VK only as copied text. Readers are tested on
       hand-written fixtures in each service's shape (the cloud can't reach them) and on
       `*-recorded.*` pages when someone records them.
@@ -760,7 +783,14 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
       are described first (Spotify track pages, yt-dlp), then the library again, then a
       YouTube Music `#songs` search (`ytdlp::music_search_url`): flat results carry titles
       only, so the two closest are described in full (with their thumbnail, kept as the
-      found track's cover). At most one request every 3 s, 60 s after failures. Scores
+      found track's cover). YouTube runs without cookies (`ImportService::youtube`) and
+      retries with them only on a sign-in or age check. At most one request every 3 s.
+      Failures (`import/status.rs`, `import://status`, bus `import:status`): lasting ones
+      (cookies unreadable, no yt-dlp, sign-in) stop the matcher with a `Blocked` status the
+      playlist page explains with a Settings button, until `import_resume` or a cookies
+      change; passing ones (`ytdlp::outage`: 429, network) pause it (`Paused` with
+      `retryAt`, 30 s doubling to 10 min); anything else counts against the entry, missing
+      after 3 attempts. Scores
       (`matching.rs`): 0.5 title + 0.3 artist + 0.2 length, version mismatches −0.25 each,
       another artist −0.2, a different title gated; ≥ 0.82 sure, ≥ 0.55 doubtful ("?",
       alternatives kept), else missing (grey, Find…). Found links are stored under the
@@ -771,13 +801,21 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
     - Yandex Music's private lists and «Мне нравится»: with `downloads.cookiesFromBrowser`
       set, yt-dlp exports that browser's cookies (`YtDlp::export_cookies`, a run against a
       refusing local address), only Yandex's are kept in a 0600 file, curl retries with
-      them, the file is deleted.
+      them against `api.music.yandex.ru` (`pages::yandex_signed_in`), the file is deleted.
     - The Music app (macOS): `objc2-itunes-library` lists playlists (not the library's
       sections or folders) for the dialog's Music tab and reads the chosen ones; macOS asks
       for Media & Apple Music once (`Info.plist`).
     - Ways in: "+" next to Playlists → Import Playlist…; pasting a service link or several
       lines outside text fields (`useLinkInput`); dropping playlist files or a service link
       (`useFileDrop`, kind `playlist`); service links typed into the link dialog.
+41. **Scroll memory** (`lib/scrollMemory.ts`, `lib/useScrollMemory.ts`): the main area is
+    keyed by route (`MainArea`, remounted per screen) and carries `data-scroll-key`
+    (`routeKey`: the view plus its playlist / album / artist id or search words). Positions
+    live in memory for the session. A layout effect puts the position back before the first
+    paint; virtual lists call `restoreScroll` before they measure (a child's layout effects
+    run first), and a list still loading gets more tries as it grows, clamped to its height,
+    until the user scrolls (wheel, touch, keys, pointer) or 2 s pass. Only then are scroll
+    events saved, so restoring never overwrites what was saved.
 
 ## Conventions
 
@@ -811,6 +849,11 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
   as `convertFileSrc('cover', 'artwork') + '/' + id` (see `coverUrl`).
 - Lists that virtualize (`useVirtualRange`) measure against the closest
   `[data-scroll-container]` ancestor; the main area and the queue panel are such containers.
+- Vitest runs with `fsModuleCache: false` (`vite.config.ts`): its file cache kept a stale
+  `import.meta.glob` result, so a test passed locally and failed in CI.
+- To look at a CSS animation frame by frame in headless Chromium, pause every
+  `document.getAnimations()` and set its `currentTime`; resuming them afterwards keeps
+  finished CSS animations alive, so use a fresh page per frozen frame.
 - The library database and covers live in `~/.local/share/io.github.fil1825.vitra/` on Linux
   (app data dir); to test a library under Xvfb, insert a row into `folders` or use the
   settings panel.

@@ -489,6 +489,58 @@ One rule: **give Vitra the playlist in whatever form you have it, and it does th
 - Closing the main window with ⌘W or the red button keeps the music playing; the Dock
   icon brings the window back.
 
+### Review round (the owner's Mac check of stage 9)
+
+- The background search no longer stalls when cookies can't be read: YouTube Music
+  searches and descriptions run without cookies (about a second each) and retry with them
+  only when YouTube asks to sign in or for an age check. Failures are told apart
+  (`import/status.rs`): a lasting one (the browser's cookies can't be read, no yt-dlp,
+  sign-in needed) stops the search and says so on the playlist page with what to do and a
+  button to Settings (Safari: give Vitra Full Disk Access or pick another browser); a
+  passing one (no network, 429) pauses it with "Paused, trying again in N s" and a "Try
+  Now" button (30 s, doubling to 10 min); one entry failing three times is marked not found
+  and the search goes on. The page shows which track is being looked for. Changing the
+  cookies setting wakes the search.
+- Yandex Music albums, playlists and tracks are read through its public API
+  (`api.music.yandex.net`: `/albums/<id>/with-tracks`, `/users/<owner>/playlists/<kind>`,
+  `/tracks/<id>`, share links `/playlist/<uuid>`), from `.ru`, `.com`, `.by`, `.kz` and
+  the new links; the old `handlers/*.jsx` now answer with the new site's HTML. «Мне
+  нравится» and private lists: the same API on `api.music.yandex.ru` with the browser's
+  Yandex cookies. `scripts/record-import-fixtures.sh` records the API's answers.
+- Every screen of the main area comes back where it was scrolled (this session only, per
+  view and playlist / album / artist / search): from the sidebar, Back / Forward, after
+  Now Playing or Settings. Put back before the first paint, virtual lists included; a list
+  that got shorter stops at its end; scrolling by hand wins.
+- The sidebar and the panels move instead of jumping: hiding the sidebar slides it out
+  past the window's edge (right, if it is in the right column) while its column narrows
+  to nothing and the main view widens with it; showing it plays that backwards; full ↔
+  icons resizes the column while the two crossfade (labels fade, never cut); the queue
+  and lyrics fold open and shut next to other panels. The theme's duration and curve;
+  instant with Reduce Motion and in customize mode.
+- Settings → Appearance → Record Speed (5–78 rpm, 33⅓ / 45 / 78 marked and slightly
+  sticky, live while dragging, a reset button); themes may set `artwork.vinylSpeed`.
+
+### Mac checks for the review round
+
+- Safari chosen for cookies without Full Disk Access: importing a Spotify playlist finds
+  its tracks anyway; a Yandex «Мне нравится» import says the cookies can't be read, the
+  button opens Settings, and giving Full Disk Access (or Chrome) then Try Again works.
+  Wi-Fi off mid-search: "Paused, trying again in …", and it carries on once back.
+- Yandex Music: an album link (`music.yandex.ru/album/3389008`), a playlist link
+  (`music.yandex.ru/users/music-blog/playlists/2075`), a track link, a share link, the same
+  on `.com`; «Мне нравится» with cookies. Then `scripts/record-import-fixtures.sh` to
+  record real pages: `cargo test -p import --test pages` reads them.
+- Scroll a long playlist, go to Albums, another playlist, Settings and Now Playing, and come
+  back by the sidebar and by Back / Forward: the same rows, no jump on the way. Search and
+  "show the playing track" still scroll where they should.
+- The sidebar button and ⌥⌘S through full → icons → hidden → full, with the sidebar on the
+  left and moved to the right; the queue and lyrics buttons with and without other panels
+  in their column; the traffic lights stay put and the title bar doesn't jump; long track
+  lists in the main view don't stutter. Reduce Motion: instant.
+- Record Speed: the slider changes the turning records at once and smoothly (Now Playing,
+  the mini player after letting go), the marks hold the thumb a little, the reset button,
+  greyed out while records are off.
+
 ## Stage 10 — My Wave
 
 An endless stream picked by mood, like Yandex Music's "Моя волна", from the library and,
