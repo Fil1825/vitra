@@ -480,6 +480,14 @@ impl Wave {
         }
     }
 
+    /// A track the wave plays without having picked it (a radio song not measured yet, when
+    /// nothing else is left): it counts as played, so it isn't picked later.
+    pub fn played(&mut self, id: i64) {
+        if !self.picked.contains(&id) {
+            self.picked.push(id);
+        }
+    }
+
     /// The upcoming picks taken back (the queue's tracks after the playing one were removed,
     /// so they can come again).
     pub fn forget(&mut self, ids: &[i64]) {
@@ -573,6 +581,21 @@ mod tests {
         assert_ne!(first.id, 42);
         assert!(distance(&pool.point(first.id).unwrap(), &seed_point) < 0.25);
         assert!(first.closeness > 0.5);
+    }
+
+    #[test]
+    fn a_track_played_without_a_pick_is_not_picked_again() {
+        let pool = Pool::new(library(40, 20), Habits::default());
+        let mut wave = Wave::new(Mode::Calm, &pool, 9);
+        for c in &pool.candidates {
+            if c.id != 7 {
+                wave.played(c.id);
+            }
+        }
+        wave.played(3);
+        assert_eq!(wave.picked().iter().filter(|id| **id == 3).count(), 1);
+        assert_eq!(wave.pick(&pool, 0).map(|p| p.id), Some(7));
+        assert_eq!(wave.pick(&pool, 0), None);
     }
 
     #[test]

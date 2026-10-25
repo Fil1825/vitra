@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use library::{Playlist, RemoteTrack, Track};
-use links::{LinkAlbum, LinkKind, LinkPlaylist, LinkTrack, Resolved, YtDlp};
+use links::{LinkAlbum, LinkError, LinkKind, LinkPlaylist, LinkTrack, Resolved, YtDlp};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
@@ -546,6 +546,57 @@ impl LinkService {
         library.changed(Change::Tracks);
         self.enrich(playlist.url.clone(), Placement::of(playlist));
         Ok(stored)
+    }
+
+    /// Songs like the YouTube video `video_id`, from YouTube Music's radio of it, added to
+    /// the library as links (in the order the radio plays them). Asked without the
+    /// browser's cookies first, like every search.
+    pub async fn radio(&self, video_id: &str, limit: usize) -> Result<Vec<Track>, AppError> {
+        let signed_in = self.ytdlp()?;
+        let plain = YtDlp {
+            cookies_from_browser: None,
+            ..signed_in.clone()
+        };
+        let tracks = match plain.radio(video_id, limit).await {
+            Err(LinkError::SignInRequired | LinkError::AgeRestricted)
+                if signed_in.cookies_from_browser.is_some() =>
+            {
+                signed_in.radio(video_id, limit).await?
+            }
+            result => result?,
+        };
+        self.store_tracks(tracks.iter().map(|t| remote(t, false)).collect())
+            .await
+    }
+
+    /// A link the analysis described in full (the run that found its stream): one known
+    /// only from a listing (a radio's song) takes its details, and its thumbnail as its
+    /// cover. Links in an album or with a cover stay as they are, and the user's corrections
+    /// are kept either way.
+    pub async fn described(
+        &self,
+        track: LinkTrack,
+        thumbnail: Option<Vec<u8>>,
+    ) -> Result<(), AppError> {
+        let library = self.library()?;
+        let covers = library.covers_dir().to_path_buf();
+        let changed = library
+            .run(move |db| {
+                let Some(known) = db.track_by_source(&track.url)? else {
+                    return Ok(false);
+                };
+                if known.album_id.is_some() || known.cover.is_some() {
+                    return Ok(false);
+                }
+                let thumbnail = thumbnail.as_deref();
+                db.store_enriched(&remote(&track, true), thumbnail, false, &covers)?;
+                Ok(true)
+            })
+            .await?;
+        if changed {
+            library.changed(Change::Tracks);
+        }
+        Ok(())
     }
 
     /// Adds link tracks to the library with their thumbnails as covers.

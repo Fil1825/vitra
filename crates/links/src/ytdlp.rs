@@ -34,6 +34,50 @@ pub fn music_search_url(query: &str) -> String {
     format!("https://music.youtube.com/search?q={query}#songs")
 }
 
+/// YouTube Music's radio of a song: the songs it plays after it (its "mix" list).
+pub fn radio_url(video_id: &str) -> String {
+    format!("https://music.youtube.com/watch?v={video_id}&list=RDAMVM{video_id}")
+}
+
+/// The video id of a YouTube or YouTube Music link (`watch?v=`, `youtu.be/`, `shorts/`).
+pub fn youtube_id(link: &str) -> Option<String> {
+    let parsed = url::Url::parse(link).ok()?;
+    let host = parsed.host_str()?.trim_start_matches("www.");
+    let id = match host {
+        "youtu.be" => parsed.path_segments()?.next().map(str::to_owned),
+        "youtube.com" | "m.youtube.com" | "music.youtube.com" => {
+            let mut segments = parsed.path_segments()?;
+            match segments.next() {
+                Some("watch") => parsed
+                    .query_pairs()
+                    .find(|(key, _)| key == "v")
+                    .map(|(_, value)| value.into_owned()),
+                Some("shorts" | "embed" | "live") => segments.next().map(str::to_owned),
+                _ => None,
+            }
+        }
+        _ => None,
+    }?;
+    // YouTube's ids are 11 URL-safe characters.
+    (id.len() == 11
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_'))
+    .then_some(id)
+}
+
+/// A radio's songs without the one it is the radio of, at most `limit`.
+fn without_seed(tracks: Vec<LinkTrack>, video_id: &str, limit: usize) -> Vec<LinkTrack> {
+    tracks
+        .into_iter()
+        .filter(|track| {
+            track.id.as_deref() != Some(video_id)
+                && youtube_id(&track.url).as_deref() != Some(video_id)
+        })
+        .take(limit)
+        .collect()
+}
+
 /// Browsers yt-dlp can take cookies from (`--cookies-from-browser`).
 pub const COOKIE_BROWSERS: &[&str] = &[
     "safari", "chrome", "firefox", "edge", "brave", "chromium", "opera", "vivaldi",
@@ -54,15 +98,21 @@ pub struct YtDlp {
 
 /// Where a link's audio streams from, for reading a stretch of it without playing it: the
 /// media address yt-dlp chose, the headers the site expects with it, and the track's length.
+/// The same run describes the track in full, so a link known only from a listing (a radio's
+/// song) gets its details and thumbnail without asking the site again.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AudioStream {
     pub url: String,
     pub headers: Vec<(String, String)>,
     pub duration: Option<f64>,
+    /// The track as the page describes it, under the link it was asked for.
+    pub track: Option<LinkTrack>,
+    pub thumbnail: Option<Vec<u8>>,
 }
 
-/// Reads `-J -f bestaudio/best` output: one chosen format, so its address is the info's own.
-pub fn parse_stream(json: &str) -> Result<AudioStream> {
+/// Reads `-J -f bestaudio/best` output for `requested`: one chosen format, so its address is
+/// the info's own.
+pub fn parse_stream(json: &str, requested: &str) -> Result<AudioStream> {
     let info: serde_json::Value =
         serde_json::from_str(json).map_err(|err| LinkError::Failed(format!("bad JSON: {err}")))?;
     let url = info
@@ -81,6 +131,14 @@ pub fn parse_stream(json: &str) -> Result<AudioStream> {
         })
         .unwrap_or_default();
     headers.sort();
+    let track = match parse_info(json, requested) {
+        Ok(Resolved::Track(track)) => Some(LinkTrack {
+            // The library knows the link by the address it was given.
+            url: requested.to_owned(),
+            ..track
+        }),
+        _ => None,
+    };
     Ok(AudioStream {
         url,
         headers,
@@ -88,6 +146,8 @@ pub fn parse_stream(json: &str) -> Result<AudioStream> {
             .get("duration")
             .and_then(serde_json::Value::as_f64)
             .filter(|d| d.is_finite() && *d > 0.0),
+        track,
+        thumbnail: None,
     })
 }
 
@@ -328,16 +388,28 @@ impl YtDlp {
     /// labels' audio tracks, not videos), listed without opening each one, so they have a
     /// title and a link only ([`Self::describe`] tells the rest).
     pub async fn search(&self, query: &str, limit: usize) -> Result<Vec<LinkTrack>> {
-        let url = music_search_url(query);
+        self.listing(&music_search_url(query), limit).await
+    }
+
+    /// Songs like the video `video_id` from YouTube Music's radio of it (the song itself
+    /// left out), listed without opening each one.
+    pub async fn radio(&self, video_id: &str, limit: usize) -> Result<Vec<LinkTrack>> {
+        // The radio starts with its song.
+        let tracks = self.listing(&radio_url(video_id), limit + 1).await?;
+        Ok(without_seed(tracks, video_id, limit))
+    }
+
+    /// The first `limit` entries of a list, without opening each one.
+    async fn listing(&self, url: &str, limit: usize) -> Result<Vec<LinkTrack>> {
         let mut command = self.command();
         command
             .args(["-J", "--flat-playlist", "--playlist-end"])
             .arg(limit.max(1).to_string())
             .arg("--")
-            .arg(&url);
+            .arg(url);
         let output = Self::output(command, RESOLVE_TIMEOUT).await?;
         Ok(
-            match parse_info(&String::from_utf8_lossy(&output.stdout), &url)? {
+            match parse_info(&String::from_utf8_lossy(&output.stdout), url)? {
                 Resolved::Playlist(playlist) => playlist.tracks,
                 Resolved::Track(track) => vec![track],
             },
@@ -369,15 +441,30 @@ impl YtDlp {
         }
     }
 
-    /// The address of `url`'s best audio and how to ask for it (nothing is downloaded).
-    pub async fn audio_stream(&self, url: &str) -> Result<AudioStream> {
+    /// The address of `url`'s best audio and how to ask for it (no audio is downloaded),
+    /// with the track's description and thumbnail. `scratch` is a directory for temporary
+    /// files.
+    pub async fn audio_stream(&self, url: &str, scratch: &Path) -> Result<AudioStream> {
+        let dir = scratch_dir(scratch)?;
         let mut command = self.command();
         command
             .args(["-J", "--no-playlist", "-f", "bestaudio/best"])
+            .args(["--no-simulate", "--skip-download", "--write-thumbnail"])
+            .args(thumbnail_templates(&dir))
+            .current_dir(&dir)
             .arg("--")
             .arg(url);
-        let output = Self::output(command, RESOLVE_TIMEOUT).await?;
-        parse_stream(&String::from_utf8_lossy(&output.stdout))
+        let result = Self::output(command, RESOLVE_TIMEOUT)
+            .await
+            .and_then(|output| {
+                let stream = parse_stream(&String::from_utf8_lossy(&output.stdout), url)?;
+                Ok(AudioStream {
+                    thumbnail: thumbnail_in(&dir, None),
+                    ..stream
+                })
+            });
+        let _ = std::fs::remove_dir_all(&dir);
+        result
     }
 
     /// One track's complete metadata (artists, album, length) and its thumbnail, in one run.
@@ -551,7 +638,9 @@ mod tests {
 
     #[test]
     fn a_stream_is_its_address_and_headers() {
-        let stream = parse_stream(include_str!("../tests/fixtures/youtube-stream.json")).unwrap();
+        let page = "https://music.youtube.com/watch?v=dQw4w9WgXcQ";
+        let stream =
+            parse_stream(include_str!("../tests/fixtures/youtube-stream.json"), page).unwrap();
         assert!(
             stream
                 .url
@@ -565,10 +654,76 @@ mod tests {
                 .iter()
                 .any(|(name, value)| name == "User-Agent" && value.starts_with("Mozilla/5.0"))
         );
+        // The same run describes the track, under the address the library knows.
+        let track = stream.track.expect("the track's details");
+        assert_eq!(track.url, page);
+        assert_eq!(track.title, "Northern Song");
+        assert_eq!(track.duration, Some(213.0));
         // No address (a page that only lists), or not a web one: nothing to read.
-        assert!(parse_stream(r#"{"id": "x", "title": "y"}"#).is_err());
-        assert!(parse_stream(r#"{"url": "file:///etc/passwd"}"#).is_err());
-        assert!(parse_stream("not json").is_err());
+        assert!(parse_stream(r#"{"id": "x", "title": "y"}"#, page).is_err());
+        assert!(parse_stream(r#"{"url": "file:///etc/passwd"}"#, page).is_err());
+        assert!(parse_stream("not json", page).is_err());
+    }
+
+    #[test]
+    fn youtube_ids_come_from_every_kind_of_link() {
+        for link in [
+            "https://www.youtube.com/watch?v=MgNrAu2pzNs",
+            "https://music.youtube.com/watch?v=MgNrAu2pzNs&list=RDAMVMMgNrAu2pzNs",
+            "https://youtu.be/MgNrAu2pzNs?t=4",
+            "https://m.youtube.com/shorts/MgNrAu2pzNs",
+        ] {
+            assert_eq!(youtube_id(link).as_deref(), Some("MgNrAu2pzNs"), "{link}");
+        }
+        for link in [
+            "https://www.youtube.com/playlist?list=PL0",
+            "https://soundcloud.com/forss/flickermood",
+            "https://www.youtube.com/watch?v=short",
+            "https://evil.example/watch?v=MgNrAu2pzNs",
+            "/Music/song.flac",
+        ] {
+            assert_eq!(youtube_id(link), None, "{link}");
+        }
+        assert_eq!(
+            radio_url("MgNrAu2pzNs"),
+            "https://music.youtube.com/watch?v=MgNrAu2pzNs&list=RDAMVMMgNrAu2pzNs"
+        );
+    }
+
+    #[test]
+    fn a_radio_lists_the_songs_after_its_own() {
+        let url = radio_url("MgNrAu2pzNs");
+        let Ok(Resolved::Playlist(playlist)) =
+            parse_info(include_str!("../tests/fixtures/youtube-radio.json"), &url)
+        else {
+            panic!("a radio is a list");
+        };
+        let tracks = without_seed(playlist.tracks, "MgNrAu2pzNs", 2);
+        let titles: Vec<&str> = tracks.iter().map(|t| t.title.as_str()).collect();
+        assert_eq!(titles, ["Strobe", "Midnight City"]);
+        assert_eq!(tracks[0].artist.as_deref(), Some("deadmau5"));
+        assert_eq!(tracks[0].duration, Some(637.0));
+    }
+
+    /// `scripts/record-ytdlp-fixtures.sh` records a real radio, if it was run.
+    #[test]
+    fn a_recorded_radio_lists_other_songs() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/youtube-radio-recorded.json");
+        let Ok(json) = std::fs::read_to_string(path) else {
+            return;
+        };
+        let Ok(Resolved::Playlist(playlist)) = parse_info(&json, &radio_url("MgNrAu2pzNs")) else {
+            panic!("a recorded radio is a list");
+        };
+        let seed = playlist
+            .tracks
+            .first()
+            .and_then(|t| youtube_id(&t.url))
+            .expect("the radio starts with its song");
+        let tracks = without_seed(playlist.tracks, &seed, 25);
+        assert!(tracks.len() >= 5, "{} songs", tracks.len());
+        assert!(tracks.iter().all(|t| youtube_id(&t.url).is_some()));
     }
 
     #[test]

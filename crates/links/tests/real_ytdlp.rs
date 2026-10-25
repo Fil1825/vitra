@@ -226,9 +226,13 @@ async fn finds_a_pages_audio_stream() {
         return;
     };
     let base = serve();
+    let scratch = tempfile::tempdir().unwrap();
+    let page = format!("{base}/song.html");
     let stream = ytdlp
-        .audio_stream(&format!("{base}/song.html"))
+        .audio_stream(&page, scratch.path())
         .await
         .expect("the page's audio");
     assert_eq!(stream.url, format!("{base}/one.flac"));
+    // Described under the page's own address.
+    assert_eq!(stream.track.map(|t| t.url), Some(page));
 }

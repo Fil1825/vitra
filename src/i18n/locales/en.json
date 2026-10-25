@@ -968,7 +968,7 @@
     },
     "radio": {
       "label": "YouTube Music Radio",
-      "hint": "When the library runs out of tracks for the mood, similar ones come from YouTube Music, analyzed before they play."
+      "hint": "When the library runs out of tracks for the mood, similar songs come from YouTube Music’s radio of the playing track. They join the library as links and are analyzed first. Needs “Analyze Links” and “Add opened files to the library”."
     }
   }
 }

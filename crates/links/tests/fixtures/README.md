@@ -19,6 +19,8 @@ parser tests check every recording they find for what doesn't depend on the site
 - `youtube-music-recorded.json`: a track of an auto-generated "Artist - Topic" channel, which
   has music tags (track, artists, album); official videos don't (`VITRA_MUSIC_URL` picks
   another one).
+- `youtube-radio-recorded.json`: YouTube Music's radio of that track (`RDAMVM<id>`), the
+  list My Wave takes similar songs from.
 - `soundcloud-track-recorded.json`, `soundcloud-set-recorded.json`.
 - `youtube-album-recorded.json` (an `OLAK5uy_` playlist), `youtube-album-page-recorded.json`
   (its `music.youtube.com/browse/MPREb…` page) and `youtube-album-entry-recorded.json` (one of

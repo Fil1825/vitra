@@ -2,21 +2,23 @@
 //! queue that picks from those measurements by mood (`mood::Wave`). The queue is the
 //! player's, flagged as a wave (`Queue::wave`); this service keeps a few tracks ahead of the
 //! playing one, steers the wave by what is listened to, skipped, liked and disliked, and
-//! saves its course with the session.
+//! saves its course with the session. When the library runs short, `radio` brings songs
+//! from YouTube Music.
 
 mod analysis;
 mod commands;
 mod process;
+mod radio;
 
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use library::Mark;
 use mood::{Mode, Pool, Wave};
 use serde::Serialize;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Listener, Manager};
 
 use crate::error::AppError;
 use crate::library::{Change, LibraryService};
@@ -31,6 +33,10 @@ pub const AHEAD: usize = 3;
 const POOL_AGE: Duration = Duration::from_secs(120);
 /// The wave's course, saved with the session.
 const SESSION_KEY: &str = "wave.state";
+/// A pick this far from the course is a poor one...
+const POOR_CLOSENESS: f32 = 0.25;
+/// ...and this many in a row mean the library has little left for the mood.
+const POOR_STREAK: u32 = 3;
 
 /// How starting a wave went, for the UI to explain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -62,6 +68,11 @@ struct Inner {
     /// A top-up runs / another was asked for meanwhile.
     filling: AtomicBool,
     again: AtomicBool,
+    /// The last top-up came up short: new measurements try again.
+    starved: AtomicBool,
+    /// Poor picks in a row.
+    poor: AtomicU32,
+    radio: radio::Radio,
 }
 
 #[derive(Clone)]
@@ -92,11 +103,22 @@ impl WaveService {
             picking: tokio::sync::Mutex::new(()),
             filling: AtomicBool::new(false),
             again: AtomicBool::new(false),
+            starved: AtomicBool::new(false),
+            poor: AtomicU32::new(0),
+            radio: radio::Radio::default(),
         }))
     }
 
     pub fn start(&self) {
         self.0.analyzer.start();
+        // A new measurement is a new candidate; a wave that ran short looks again.
+        let service = self.clone();
+        self.0.app.listen_any(analysis::PROGRESS_EVENT, move |_| {
+            service.invalidate();
+            if service.0.starved.load(Ordering::Acquire) {
+                service.top_up();
+            }
+        });
     }
 
     /// Quitting: no FFmpeg is left behind.
@@ -230,7 +252,15 @@ impl WaveService {
                 };
                 let now = library::now();
                 (entries.len()..count)
-                    .map_while(|_| wave.pick(pool, now).map(|pick| pick.id))
+                    .map_while(|_| wave.pick(pool, now))
+                    .map(|pick| {
+                        if pick.closeness < POOR_CLOSENESS {
+                            self.0.poor.fetch_add(1, Ordering::AcqRel);
+                        } else {
+                            self.0.poor.store(0, Ordering::Release);
+                        }
+                        pick.id
+                    })
                     .collect()
             };
             if ids.is_empty() {
@@ -271,15 +301,27 @@ impl WaveService {
             return Ok(StartOutcome::NothingMeasured);
         }
         *lock(&self.0.wave) = Some(Wave::new(mode, &pool, seed()));
+        self.0.poor.store(0, Ordering::Release);
         let mut entries: Vec<Entry> = seed_entry.into_iter().collect();
         let wanted = AHEAD + usize::from(!from_current) - entries.len();
-        entries.extend(self.picks(&pool, wanted).await?);
+        let picked = self.picks(&pool, wanted).await?;
+        self.ran_short(picked.len() < wanted);
+        entries.extend(picked);
         if entries.is_empty() {
             return Ok(StartOutcome::NothingMeasured);
         }
         self.save();
         player.play_wave(entries, mode, from_current).await?;
         Ok(StartOutcome::Started)
+    }
+
+    /// After picking: the library has little left for the mood when the picks came up short
+    /// or were poor a few times in a row, and then the radio helps.
+    fn ran_short(&self, short: bool) {
+        self.0.starved.store(short, Ordering::Release);
+        if short || self.0.poor.load(Ordering::Acquire) >= POOR_STREAK {
+            self.radio_soon();
+        }
     }
 
     /// The queue is a wave and runs short: picks more, in the background. Calls while one
@@ -316,10 +358,18 @@ impl WaveService {
             None => view.items.len(),
         };
         if upcoming >= AHEAD {
+            self.0.starved.store(false, Ordering::Release);
             return Ok(());
         }
         let pool = self.prepare(mode).await?;
-        let entries = self.picks(&pool, AHEAD - upcoming).await?;
+        let needed = AHEAD - upcoming;
+        let mut entries = self.picks(&pool, needed).await?;
+        self.ran_short(entries.len() < needed);
+        if entries.is_empty() {
+            // Nothing measured is left for the mood: the radio's songs as they are, rather
+            // than silence.
+            entries = self.radio_songs(needed).await?;
+        }
         if entries.is_empty() {
             log::info!("the wave has nothing left to pick");
             return Ok(());

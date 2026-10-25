@@ -181,8 +181,8 @@ impl Analyzer {
         lock(&self.0.status).links == LinksState::Offline
     }
 
-    /// Measures these links before any other (the wave's next candidates).
-    #[allow(dead_code, reason = "the wave's queue (next) asks it")]
+    /// Measures these links before any other (the radio's songs, the wave's next
+    /// candidates).
     pub fn want(&self, track_ids: &[i64]) {
         {
             let mut wanted = lock(&self.0.wanted);
@@ -521,11 +521,12 @@ impl Analyzer {
             cookies_from_browser: None,
             ..signed_in.clone()
         };
-        match plain.audio_stream(url).await {
+        let scratch = links.scratch();
+        match plain.audio_stream(url, scratch).await {
             Err(LinkError::SignInRequired | LinkError::AgeRestricted)
                 if signed_in.cookies_from_browser.is_some() =>
             {
-                signed_in.audio_stream(url).await
+                signed_in.audio_stream(url, scratch).await
             }
             result => result,
         }
@@ -557,6 +558,11 @@ impl Analyzer {
         };
         let slice = stream_slice(stream.duration.or(job.duration));
         let args = stream_args(&stream.url, &stream.headers, slice);
+        if let (Some(track), Some(links)) = (stream.track, self.0.app.try_state::<LinkService>())
+            && let Err(err) = links.described(track, stream.thumbnail).await
+        {
+            log::info!("cannot store the details of {}: {err}", job.path);
+        }
         let measured = match process::decode(ffmpeg, args, running).await {
             Ok(bytes) => analyze(bytes).await,
             Err(_) if self.stopping() => return LinkOutcome::Done,
