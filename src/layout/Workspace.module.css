@@ -407,16 +407,24 @@
   position: absolute;
   z-index: 5;
   inset: 0;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--vitra-space-2);
+  /* Its own width decides the layout inside (below); whatever still doesn't fit is cut
+     rather than spilling over the title bar or the next module. The container is the
+     frame, not the module: containment on an ancestor of the glass is best avoided. */
+  container-type: inline-size;
+  overflow: hidden;
   padding: var(--vitra-space-2);
   border: 2px dashed color-mix(in srgb, var(--vitra-color-accent) 70%, transparent);
   border-radius: var(--vitra-radius-lg);
   background: color-mix(in srgb, var(--vitra-color-accent) 10%, transparent);
   cursor: grab;
   touch-action: none;
+}
+
+.frameBar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--vitra-space-2);
 }
 
 .frame:focus-visible {
@@ -456,6 +464,34 @@
   flex: none;
   padding: 0 2px;
   cursor: default;
+}
+
+/* A narrow module (the sidebar's rail, 64–88 px, or anything up to about 180 px): the
+   handle on top, its name only as its tooltip, and the buttons stacked under it. */
+@container (max-width: 160px) {
+  .frameBar {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .frameLabel {
+    justify-content: center;
+    width: 28px;
+    padding: 0;
+  }
+
+  /* Still read out by screen readers. */
+  .frameName {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
+  }
+
+  .frameButtons {
+    flex-direction: column;
+    padding: 2px 0;
+  }
 }
 
 /* The place a module leaves while it is dragged: the frame alone, as an outline. */

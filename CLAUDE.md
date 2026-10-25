@@ -625,7 +625,10 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
       by its frame (`useSortable`) or a hidden one from the palette (`useDraggable`); the drop
       target is the module under the pointer, else the zone (`dropTarget`: nearest centres
       mean nothing between zones this different in size); the half dropped on decides
-      before/after. Built-in presets (`presets.ts`) and saved ones (≤ 20, by name).
+      before/after. Built-in presets (`presets.ts`) and saved ones (≤ 20, by name). A
+      module's frame is a size container (`container-type` on `.frame`, never on the module,
+      an ancestor of the glass): up to about 180 px wide (the rail) its handle and buttons
+      stack in a column, the name only as the handle's tooltip, and nothing leaves it.
     - The queue and lyrics buttons show and hide their modules wherever they are; hidden
       lyrics (`lyrics.visible`) take their module along.
     - The level meter module is a spectrum (`player/spectrum.rs`): twenty bands, 40 Hz to

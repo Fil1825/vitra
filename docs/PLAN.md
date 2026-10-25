@@ -541,6 +541,13 @@ One rule: **give Vitra the playlist in whatever form you have it, and it does th
   the mini player after letting go), the marks hold the thumb a little, the reset button,
   greyed out while records are off.
 
+### Review round 2
+
+- Customize mode: the frame over a narrow module (the sidebar's icon strip, anything up to
+  about 180 px) now stacks its handle and buttons in a column; before, the move and hide
+  buttons stuck out of the rail over the title bar. **Mac**: the rail on the left under the
+  traffic lights and on the right, and a column dragged to its narrowest, in customize mode.
+
 ## Stage 10 — My Wave
 
 An endless stream picked by mood, like Yandex Music's "Моя волна", from the library and,

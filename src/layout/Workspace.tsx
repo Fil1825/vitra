@@ -461,26 +461,29 @@ function ModuleFrame({
       <ModuleContent module={module} rail={rail} />
       {customizing && (
         <div className={styles.frame} {...attributes} {...listeners}>
-          <span className={styles.frameLabel}>
-            <GripVertical size={14} aria-hidden="true" />
-            <span className={styles.frameName}>{t(`layout.modules.${module}`)}</span>
-          </span>
-          <span className={styles.frameButtons}>
-            <IconButton
-              label={t('layout.move')}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={moveMenu}
-            >
-              <MoveRight size={15} />
-            </IconButton>
-            <IconButton
-              label={t('layout.hide')}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={() => setModuleShown(module, false)}
-            >
-              <EyeOff size={15} />
-            </IconButton>
-          </span>
+          {/* The frame measures itself (a container): a narrow module stacks these. */}
+          <div className={styles.frameBar}>
+            <span className={styles.frameLabel} title={t(`layout.modules.${module}`)}>
+              <GripVertical size={14} aria-hidden="true" />
+              <span className={styles.frameName}>{t(`layout.modules.${module}`)}</span>
+            </span>
+            <span className={styles.frameButtons}>
+              <IconButton
+                label={t('layout.move')}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={moveMenu}
+              >
+                <MoveRight size={15} />
+              </IconButton>
+              <IconButton
+                label={t('layout.hide')}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => setModuleShown(module, false)}
+              >
+                <EyeOff size={15} />
+              </IconButton>
+            </span>
+          </div>
         </div>
       )}
     </div>
