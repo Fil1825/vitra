@@ -86,6 +86,24 @@ export interface MusicPlaylist {
 }
 
 export const IMPORT_PROGRESS_EVENT = 'import://progress';
+export const IMPORT_STATUS_EVENT = 'import://status';
+
+/** Why the background search waits: YouTube asked to slow down, or nothing answers. */
+export type PauseReason = 'rateLimited' | 'offline';
+
+/**
+ * Why it stopped until something changes: the cookies browser can't be read, there is no
+ * yt-dlp, or YouTube wants a signed-in user and no browser is chosen.
+ */
+export type Blocker = 'cookies' | 'ytDlpMissing' | 'signIn';
+
+/** What the background search for imported tracks is doing. */
+export type MatcherStatus =
+  | { state: 'idle' }
+  | { state: 'searching'; playlistId: number; title: string }
+  /** `retryAt`: Unix ms. */
+  | { state: 'paused'; reason: PauseReason; retryAt: number }
+  | { state: 'blocked'; reason: Blocker; detail: string };
 
 /** Playlist files the import reads (the Music app's XML export included). */
 export const PLAYLIST_FILE_EXTENSIONS = ['m3u', 'm3u8', 'xspf', 'xml', 'csv', 'tsv', 'txt'];
@@ -173,6 +191,9 @@ export const importer = {
     call<EntryCandidate[]>('import_search', { entryId, query }),
   /** Looks again for the tracks that weren't found. */
   retry: (playlistId: number) => call('import_retry', { playlistId }),
+  status: () => call<MatcherStatus>('import_status'),
+  /** A paused or stopped search goes on at once. */
+  resume: () => call('import_resume'),
   musicPlaylists: () => call<MusicPlaylist[]>('music_playlists'),
   music: (ids: string[]) => call<ImportResult[]>('import_music', { ids }),
 };

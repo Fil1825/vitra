@@ -434,6 +434,19 @@
       "doubtful_one": "{{count}} to check (?)",
       "doubtful_other": "{{count}} to check (?)"
     },
+    "status": {
+      "searching": "looking for “{{title}}”…",
+      "queued": "waiting while another playlist's tracks are looked for…",
+      "rateLimited": "YouTube Music asked to slow down: trying again in {{seconds}} s.",
+      "offline": "YouTube Music doesn't answer: trying again in {{seconds}} s.",
+      "retryNow": "Try Now",
+      "cookiesSafari": "Vitra can't read Safari's cookies, which YouTube asked for. Give Vitra Full Disk Access (System Settings → Privacy & Security) or choose another browser in Settings → Links & Downloads.",
+      "cookies": "Vitra can't read {{browser}}'s cookies, which YouTube asked for. Check that {{browser}} is installed and you're signed in to YouTube, or choose another browser in Settings → Links & Downloads.",
+      "ytDlpMissing": "yt-dlp wasn't found, so tracks can't be looked for on YouTube Music. Settings → Links & Downloads shows where Vitra looks for it.",
+      "signIn": "YouTube asks to sign in. Choose the browser you're signed in to YouTube with in Settings → Links & Downloads → Cookies from browser.",
+      "openSettings": "Open Settings",
+      "retry": "Retry"
+    },
     "find": {
       "title": "Find the Track",
       "menu": "Find…",

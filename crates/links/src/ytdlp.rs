@@ -84,6 +84,49 @@ pub fn failure(stderr: &str) -> LinkError {
     }
 }
 
+/// Why a site can't be asked right now, though it may answer later.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Outage {
+    /// "Too many requests": the site wants us to slow down.
+    RateLimited,
+    /// No connection, a timeout, the site's own trouble (5xx).
+    Unreachable,
+}
+
+/// Whether yt-dlp's error is the network's or the site's for now (worth waiting and asking
+/// again) rather than about the page itself (gone, private, not a page yt-dlp reads).
+pub fn outage(message: &str) -> Option<Outage> {
+    let lower = message.to_lowercase();
+    if lower.contains("http error 429") || lower.contains("too many requests") {
+        return Some(Outage::RateLimited);
+    }
+    // A page that isn't there answers with 4xx: that's the page, not the network.
+    if (400..500).any(|code| lower.contains(&format!("http error {code}"))) {
+        return None;
+    }
+    const NETWORK: &[&str] = &[
+        "http error 5",
+        "urlopen error",
+        "connection reset",
+        "connection refused",
+        "connection aborted",
+        "remote end closed",
+        "timed out",
+        "name resolution",
+        "name or service not known",
+        "nodename nor servname",
+        "network is unreachable",
+        "no route to host",
+        "temporarily unavailable",
+        "ssl:",
+        "eof occurred",
+    ];
+    NETWORK
+        .iter()
+        .any(|sign| lower.contains(sign))
+        .then_some(Outage::Unreachable)
+}
+
 /// The last `ERROR:` line yt-dlp printed, or its last line at all.
 fn error_message(stderr: &str) -> String {
     let lines: Vec<&str> = stderr
@@ -494,6 +537,31 @@ mod tests {
             failure("ERROR: [youtube] abc: Video unavailable"),
             LinkError::Failed(message) if message == "[youtube] abc: Video unavailable"
         ));
+    }
+
+    #[test]
+    fn outages_are_told_from_pages() {
+        assert_eq!(
+            outage(
+                "[youtube:music:search_url] x: Unable to download API page: HTTP Error 429: Too Many Requests"
+            ),
+            Some(Outage::RateLimited)
+        );
+        assert_eq!(
+            outage(
+                "[youtube] x: Unable to download webpage: <urlopen error [Errno 8] nodename nor servname provided, or not known>"
+            ),
+            Some(Outage::Unreachable)
+        );
+        assert_eq!(
+            outage("Unable to download webpage: HTTP Error 503: Service Unavailable"),
+            Some(Outage::Unreachable)
+        );
+        assert_eq!(
+            outage("[youtube] x: Unable to download webpage: HTTP Error 404: Not Found"),
+            None
+        );
+        assert_eq!(outage("[youtube] abc: Video unavailable"), None);
     }
 
     #[test]

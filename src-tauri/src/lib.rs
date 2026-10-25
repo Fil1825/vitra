@@ -189,6 +189,8 @@ pub fn run() {
             import::commands::import_retry,
             import::commands::music_playlists,
             import::commands::import_music,
+            import::commands::import_status,
+            import::commands::import_resume,
             tray::tray_available,
             global_shortcuts::global_shortcuts_failed,
             player::player_play,

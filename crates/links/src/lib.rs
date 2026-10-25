@@ -11,7 +11,7 @@ pub mod release;
 mod template;
 pub mod ytdlp;
 
-pub use ytdlp::{COOKIE_BROWSERS, YtDlp, music_search_url};
+pub use ytdlp::{COOKIE_BROWSERS, Outage, YtDlp, music_search_url};
 
 pub use classify::{Link, LinkKind, is_remote, link_title, parse_link};
 pub use download::{AudioFormat, DownloadOptions, DownloadStatus, MP3_BITRATES, download_args};
@@ -52,6 +52,18 @@ pub enum LinkError {
     Io(#[from] std::io::Error),
     #[error("unexpected yt-dlp output: {0}")]
     Json(#[from] serde_json::Error),
+}
+
+impl LinkError {
+    /// Why the site can't be asked right now, if that is all that's wrong (see
+    /// [`ytdlp::outage`]).
+    pub fn outage(&self) -> Option<Outage> {
+        match self {
+            Self::TimedOut | Self::Io(_) => Some(Outage::Unreachable),
+            Self::Failed(message) => ytdlp::outage(message),
+            _ => None,
+        }
+    }
 }
 
 pub type Result<T, E = LinkError> = std::result::Result<T, E>;

@@ -531,6 +531,12 @@ pub fn set_settings(
     {
         player.links_settings_changed();
     }
+    // A search stopped for want of readable cookies may go on with another browser.
+    if saved.downloads.cookies_from_browser != previous.downloads.cookies_from_browser
+        && let Some(import) = app.try_state::<crate::import::ImportService>()
+    {
+        import.resume();
+    }
     if saved.audio_meters() != previous.audio_meters()
         && let Some(player) = app.try_state::<Player>()
     {

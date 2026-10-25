@@ -3,7 +3,12 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import { bus } from './bus.ts';
-import { IMPORT_PROGRESS_EVENT, type ImportProgressUpdate } from './import.ts';
+import {
+  IMPORT_PROGRESS_EVENT,
+  IMPORT_STATUS_EVENT,
+  type ImportProgressUpdate,
+  type MatcherStatus,
+} from './import.ts';
 import {
   LIBRARY_CHANGED_EVENT,
   LIBRARY_SCAN_EVENT,
@@ -62,6 +67,7 @@ export async function startBackendBridge(): Promise<UnlistenFn> {
     listen<ImportProgressUpdate>(IMPORT_PROGRESS_EVENT, (event) =>
       bus.emit('import:progress', event.payload),
     ),
+    listen<MatcherStatus>(IMPORT_STATUS_EVENT, (event) => bus.emit('import:status', event.payload)),
     listen<DownloadJob[]>(DOWNLOADS_CHANGED_EVENT, (event) =>
       bus.emit('downloads:changed', event.payload),
     ),

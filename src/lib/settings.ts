@@ -113,6 +113,18 @@ export const COOKIE_BROWSERS = [
   'vivaldi',
 ] as const;
 
+/** A cookies browser's name as people know it. */
+export const BROWSER_NAMES: Record<(typeof COOKIE_BROWSERS)[number], string> = {
+  safari: 'Safari',
+  chrome: 'Chrome',
+  firefox: 'Firefox',
+  edge: 'Edge',
+  brave: 'Brave',
+  chromium: 'Chromium',
+  opera: 'Opera',
+  vivaldi: 'Vivaldi',
+};
+
 export interface LyricsSettings {
   /** Look lyrics up on LRCLIB when a track has none. */
   online: boolean;

@@ -6,6 +6,7 @@
 
 pub mod commands;
 pub mod music;
+pub mod status;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -19,7 +20,7 @@ use import::pages::{self, PageError};
 use import::text::Item;
 use import::{ImportedPlaylist, ImportedTrack};
 use library::{EntryCandidate, EntryState, ImportEntry, ImportProgress, NewEntry, Playlist, Track};
-use links::{LinkError, LinkTrack};
+use links::{LinkError, LinkTrack, YtDlp};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::Notify;
@@ -28,6 +29,7 @@ use crate::error::AppError;
 use crate::http;
 use crate::library::{Change, LibraryService};
 use crate::links::LinkService;
+use status::{ENTRY_ATTEMPTS, MatcherStatus, STATUS_EVENT, Trouble};
 
 /// Sent while a playlist's tracks are being looked for.
 pub const PROGRESS_EVENT: &str = "import://progress";
@@ -40,7 +42,7 @@ const SEARCH_RESULTS: usize = 5;
 const DESCRIBED: usize = 2;
 /// Alternatives kept for the user to pick from.
 const ALTERNATIVES: usize = 3;
-/// After failures (no network, YouTube asking to sign in), the matcher waits this long.
+/// After the library itself fails, the matcher waits this long.
 const BACKOFF: Duration = Duration::from_secs(60);
 /// Pages of Deezer's API read at most (a page is up to 400 tracks).
 const DEEZER_PAGES: usize = 25;
@@ -72,6 +74,7 @@ struct Inner {
     wake: Notify,
     running: AtomicBool,
     last_request: Mutex<Option<Instant>>,
+    status: Mutex<MatcherStatus>,
 }
 
 #[derive(Clone)]
@@ -172,6 +175,7 @@ impl ImportService {
             wake: Notify::new(),
             running: AtomicBool::new(false),
             last_request: Mutex::new(None),
+            status: Mutex::new(MatcherStatus::Idle),
         }))
     }
 
@@ -202,6 +206,52 @@ impl ImportService {
 
     fn wake(&self) {
         self.0.wake.notify_one();
+    }
+
+    /// Lets a paused or stopped matcher try again at once (Retry, or a setting it needs
+    /// changed).
+    pub fn resume(&self) {
+        self.wake();
+    }
+
+    pub fn status(&self) -> MatcherStatus {
+        lock(&self.0.status).clone()
+    }
+
+    fn set_status(&self, status: MatcherStatus) {
+        {
+            let mut current = lock(&self.0.status);
+            if *current == status {
+                return;
+            }
+            *current = status.clone();
+        }
+        if let Err(err) = self.0.app.emit(STATUS_EVENT, status) {
+            log::warn!("cannot emit {STATUS_EVENT}: {err}");
+        }
+    }
+
+    /// Asks YouTube without the browser's cookies: searches don't need them, and reading
+    /// them can fail (Safari's, without Full Disk Access). Only when YouTube wants a
+    /// signed-in user, again with them.
+    async fn youtube<T, F, Fut>(&self, run: F) -> Result<T, AppError>
+    where
+        F: Fn(YtDlp) -> Fut,
+        Fut: std::future::Future<Output = links::Result<T>>,
+    {
+        let signed_in = self.links()?.ytdlp()?;
+        let plain = YtDlp {
+            cookies_from_browser: None,
+            ..signed_in.clone()
+        };
+        match run(plain).await {
+            Err(LinkError::SignInRequired | LinkError::AgeRestricted)
+                if signed_in.cookies_from_browser.is_some() =>
+            {
+                Ok(run(signed_in).await?)
+            }
+            result => Ok(result?),
+        }
     }
 
     /// Makes the playlist, or brings `into` (else the one imported from `source_url`) up to
@@ -600,7 +650,13 @@ impl ImportService {
     async fn describe_link(&self, url: &str) -> Result<LinkTrack, AppError> {
         let links = self.links()?;
         self.pace().await;
-        let (track, thumbnail) = links.ytdlp()?.describe(url, links.scratch()).await?;
+        let scratch = links.scratch().to_path_buf();
+        let (track, thumbnail) = self
+            .youtube(|ytdlp| {
+                let (url, scratch) = (url.to_owned(), scratch.clone());
+                async move { ytdlp.describe(&url, &scratch).await }
+            })
+            .await?;
         if let Some(image) = thumbnail {
             links.remember_thumbnail(&track.url, image);
         }
@@ -624,12 +680,16 @@ impl ImportService {
         wanted: &ImportedTrack,
         query: Option<&str>,
     ) -> Result<Vec<(LinkTrack, f64)>, AppError> {
-        let ytdlp = self.links()?.ytdlp()?;
         let query = query
             .map(str::to_owned)
             .unwrap_or_else(|| matching::search_query(wanted));
         self.pace().await;
-        let results = ytdlp.search(&query, SEARCH_RESULTS).await?;
+        let results = self
+            .youtube(|ytdlp| {
+                let query = query.clone();
+                async move { ytdlp.search(&query, SEARCH_RESULTS).await }
+            })
+            .await?;
         // The listing has titles only: open the ones whose titles come close.
         let mut by_title: Vec<(usize, f64)> = results
             .iter()
@@ -708,7 +768,9 @@ impl ImportService {
 
     /// The background matcher: entries waiting are looked for one at a time.
     async fn matcher(self) {
-        let mut failures = 0u32;
+        // Outages in a row (each waits longer), and failed searches per entry.
+        let mut outages = 0u32;
+        let mut attempts: HashMap<i64, u32> = HashMap::new();
         loop {
             let pending = match self.library() {
                 Ok(library) => library.run(|db| db.pending_entries(8)).await,
@@ -723,23 +785,79 @@ impl ImportService {
                 }
             };
             if pending.is_empty() {
+                attempts.clear();
+                self.set_status(MatcherStatus::Idle);
                 self.0.wake.notified().await;
                 continue;
             }
             for entry in pending {
-                match self.find(&entry).await {
-                    Ok(()) => failures = 0,
-                    Err(err) => {
-                        failures += 1;
-                        log::info!("import: looking for {:?} failed: {err}", entry.source.title);
-                        // yt-dlp missing, no network, YouTube asking to sign in: give it time.
-                        let wait = BACKOFF * failures.min(10);
-                        tokio::time::sleep(wait).await;
+                // A bare link (Spotify's ⌘C) is named once its page is read.
+                let title = match &entry.source.url {
+                    Some(url) if entry.source.title.is_empty() => url.clone(),
+                    _ => entry.source.display(),
+                };
+                self.set_status(MatcherStatus::Searching {
+                    playlist_id: entry.playlist_id,
+                    title,
+                });
+                let err = match self.find(&entry).await {
+                    Ok(()) => {
+                        outages = 0;
+                        attempts.remove(&entry.id);
+                        continue;
+                    }
+                    Err(err) => err,
+                };
+                log::info!("import: looking for {:?} failed: {err}", entry.source.title);
+                match status::trouble(&err) {
+                    // Nothing works until the settings change: say so and wait for that
+                    // (or Retry, or another import).
+                    Trouble::Blocked(reason) => {
+                        self.set_status(MatcherStatus::Blocked {
+                            reason,
+                            detail: err.to_string(),
+                        });
+                        self.0.wake.notified().await;
                         break;
+                    }
+                    // Nothing answers for now: wait, longer each time, unless told to go on.
+                    Trouble::Paused(reason) => {
+                        outages += 1;
+                        let wait = status::pause(outages);
+                        self.set_status(MatcherStatus::Paused {
+                            reason,
+                            retry_at: unix_ms() + wait.as_millis() as u64,
+                        });
+                        tokio::select! {
+                            () = tokio::time::sleep(wait) => {}
+                            () = self.0.wake.notified() => {}
+                        }
+                        break;
+                    }
+                    // This entry's search failed: try the others, and after a few tries give
+                    // it up as not found so it doesn't hold the queue.
+                    Trouble::Entry => {
+                        let tries = attempts.entry(entry.id).or_insert(0);
+                        *tries += 1;
+                        if *tries >= ENTRY_ATTEMPTS {
+                            attempts.remove(&entry.id);
+                            if let Err(err) = self.give_up(&entry).await {
+                                log::warn!("import: {err}");
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+
+    /// Marks an entry that couldn't be looked for as not found (Look Again tries again).
+    async fn give_up(&self, entry: &ImportEntry) -> Result<(), AppError> {
+        let id = entry.id;
+        self.library()?
+            .run(move |db| db.resolve_entry(id, EntryState::Missing, None, &[]))
+            .await?;
+        self.announce(entry.playlist_id, false).await
     }
 
     /// Looks for one entry: the library first (it may have the track by now), then
@@ -848,6 +966,12 @@ impl ImportService {
         self.emit_progress(playlist_id).await;
         Ok(())
     }
+}
+
+fn unix_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| since.as_millis() as u64)
 }
 
 /// An empty file only the user can read (cookies go into it).

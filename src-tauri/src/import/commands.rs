@@ -6,6 +6,7 @@ use library::{EntryCandidate, ImportProgress, PlaylistPlace};
 use tauri::State;
 
 use super::music::{self, MusicPlaylist};
+use super::status::MatcherStatus;
 use super::{ImportResult, ImportService};
 use crate::error::AppError;
 
@@ -101,4 +102,16 @@ pub async fn import_music(
     ids: Vec<String>,
 ) -> Result<Vec<ImportResult>, AppError> {
     import.import_music(ids).await
+}
+
+/// What the background search is doing (searching, paused, stopped and why).
+#[tauri::command]
+pub fn import_status(import: State<'_, ImportService>) -> MatcherStatus {
+    import.status()
+}
+
+/// "Retry": a paused or stopped search goes on at once.
+#[tauri::command]
+pub fn import_resume(import: State<'_, ImportService>) {
+    import.resume();
 }

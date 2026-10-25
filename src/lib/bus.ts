@@ -1,4 +1,4 @@
-import type { ImportProgressUpdate } from './import.ts';
+import type { ImportProgressUpdate, MatcherStatus } from './import.ts';
 import type { LibraryChange, ScanStatus } from './library.ts';
 import type { DownloadJob } from './links.ts';
 import type { CurrentLyrics, LineUpdate } from './lyrics.ts';
@@ -37,6 +37,8 @@ export interface VitraEvents {
   'library:scan': ScanStatus;
   /** An imported playlist's tracks were looked for (one more found, or not). */
   'import:progress': ImportProgressUpdate;
+  /** The background search started on another track, paused or stopped. */
+  'import:status': MatcherStatus;
   /** The download queue changed (a job was added, progressed or finished). */
   'downloads:changed': DownloadJob[];
   /** The playing track's lyrics (or their loading state, or the sync offset) changed. */

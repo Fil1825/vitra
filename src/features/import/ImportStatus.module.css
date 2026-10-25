@@ -1,3 +1,8 @@
+.block {
+  display: grid;
+  gap: var(--vitra-space-1);
+}
+
 .status {
   display: flex;
   flex-wrap: wrap;
@@ -7,6 +12,14 @@
   color: var(--vitra-color-text-secondary);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
+}
+
+.now {
+  overflow: hidden;
+  max-width: 40ch;
+  color: var(--vitra-color-text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .spin {
@@ -27,6 +40,31 @@
   font-size: 12px;
 }
 
+/* A pause or a stop: what happened and what to do. */
+.problem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--vitra-space-2);
+  max-width: 64ch;
+  color: var(--vitra-color-text-secondary);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.problem > svg {
+  flex: none;
+}
+
+.alert {
+  color: var(--vitra-color-danger);
+}
+
+.buttons {
+  display: inline-flex;
+  gap: var(--vitra-space-2);
+}
+
 .retry {
   padding: 2px var(--vitra-space-3);
   border: 0;
@@ -36,5 +74,6 @@
   font: inherit;
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
 }
