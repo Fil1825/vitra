@@ -531,8 +531,8 @@ One rule: **give Vitra the playlist in whatever form you have it, and it does th
   on `.com`; «Мне нравится» with cookies. Then `scripts/record-import-fixtures.sh` to
   record real pages: `cargo test -p import --test pages` reads them.
 - Scroll a long playlist, go to Albums, another playlist, Settings and Now Playing, and come
-  back by the sidebar and by Back / Forward: the same rows, no jump on the way. Search and
-  "show the playing track" still scroll where they should.
+  back by the sidebar and by Back / Forward: the same rows, no jump on the way. New search
+  words start at the top; arrow keys in a list still scroll to the focused row.
 - The sidebar button and ⌥⌘S through full → icons → hidden → full, with the sidebar on the
   left and moved to the right; the queue and lyrics buttons with and without other panels
   in their column; the traffic lights stay put and the title bar doesn't jump; long track
