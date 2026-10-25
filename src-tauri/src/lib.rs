@@ -19,6 +19,7 @@ mod sidecar;
 mod sound;
 mod themes;
 mod tray;
+mod wave;
 mod window;
 
 use std::path::PathBuf;
@@ -143,6 +144,9 @@ pub fn run() {
             let importer = import::ImportService::new(app.handle().clone());
             importer.start();
             app.manage(importer);
+            let wave = wave::WaveService::new(app.handle().clone());
+            wave.start();
+            app.manage(wave);
 
             // Before the player, so its first state reaches the system.
             app.manage(now_playing::NowPlaying::new(app.handle()));
@@ -179,6 +183,7 @@ pub fn run() {
             player::sound_preview_equalizer,
             browser::open_in_browser,
             tray::tray_labels,
+            wave::wave_analysis,
             import::commands::import_text,
             import::commands::import_files,
             import::commands::import_link,
@@ -305,6 +310,9 @@ pub fn run() {
             }
         }
         RunEvent::Exit => {
+            if let Some(wave) = app.try_state::<wave::WaveService>() {
+                wave.stop();
+            }
             if let Some(library) = app.try_state::<LibraryService>() {
                 library.stop();
             }

@@ -904,5 +904,43 @@
     "show": "Show Vitra",
     "miniPlayer": "Mini Player",
     "quit": "Quit Vitra"
+  },
+  "wave": {
+    "title": "My Wave",
+    "analysis": {
+      "title": "Analysis",
+      "label": "What Your Music Sounds Like",
+      "hint": "My Wave picks by mood from how each track sounds: Vitra listens to a minute and a half of every file once, in the background and at a low priority.",
+      "files": "{{done}} of {{total}}",
+      "analyzing": "Listening to “{{title}}”…",
+      "analyzingSome": "Listening…",
+      "paused": "Paused.",
+      "scanning": "Waiting for the library scan to finish.",
+      "powerSaving": "Waiting: power saving is on.",
+      "noFfmpeg": "FFmpeg wasn’t found, so nothing can be analyzed.",
+      "done": "Everything is analyzed.",
+      "waiting": "Waiting for its turn.",
+      "failed_one": "{{count}} couldn’t be analyzed",
+      "failed_other": "{{count}} couldn’t be analyzed",
+      "skipped_one": "{{count}} left out (missing or in iCloud only)",
+      "skipped_other": "{{count}} left out (missing or in iCloud only)",
+      "pause": "Pause",
+      "resume": "Resume"
+    },
+    "online": {
+      "title": "Links and YouTube Music"
+    },
+    "links": {
+      "label": "Analyze Links",
+      "hint": "A stretch from the middle of each link’s stream, one at a time with pauses of tens of seconds, so the site doesn’t take Vitra for a bot.",
+      "count": "Links: {{done}} of {{total}}",
+      "rateLimited": "the site asked to slow down, going on at {{time}}",
+      "offline": "no connection, trying again at {{time}}",
+      "noYtDlp": "yt-dlp wasn’t found"
+    },
+    "radio": {
+      "label": "YouTube Music Radio",
+      "hint": "When the library runs out of tracks for the mood, similar ones come from YouTube Music, analyzed before they play."
+    }
   }
 }

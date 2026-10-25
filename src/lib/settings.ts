@@ -184,6 +184,17 @@ export interface Settings {
   meter: MeterSettings;
   sound: SoundSettings;
   system: SystemSettings;
+  wave: WaveSettings;
+}
+
+/** My Wave's background work (all on by default, and slow). */
+export interface WaveSettings {
+  /** Measure the library's files in the background (off = paused). */
+  analyze: boolean;
+  /** Measure the library's links too, a stretch of each stream at a time. */
+  analyzeLinks: boolean;
+  /** When the library runs out, similar tracks come from YouTube Music's radio. */
+  radio: boolean;
 }
 
 /** How Vitra sits in the system. */
@@ -245,6 +256,7 @@ export const DEFAULT_SETTINGS: Settings = {
     crossfade: 0,
   },
   system: { trayIcon: true },
+  wave: { analyze: true, analyzeLinks: true, radio: true },
 };
 
 /** Tauri event carrying the new settings after any window changed them. */

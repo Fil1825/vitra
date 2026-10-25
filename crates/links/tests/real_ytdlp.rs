@@ -218,3 +218,17 @@ async fn reports_unsupported_links() {
     assert!(matches!(error, LinkError::Failed(_)), "{error:?}");
     assert!(!ytdlp.version().await.unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn finds_a_pages_audio_stream() {
+    let Some(ytdlp) = ytdlp() else {
+        eprintln!("VITRA_YTDLP not set: skipped");
+        return;
+    };
+    let base = serve();
+    let stream = ytdlp
+        .audio_stream(&format!("{base}/song.html"))
+        .await
+        .expect("the page's audio");
+    assert_eq!(stream.url, format!("{base}/one.flac"));
+}

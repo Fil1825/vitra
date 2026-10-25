@@ -11,7 +11,7 @@ pub mod release;
 mod template;
 pub mod ytdlp;
 
-pub use ytdlp::{COOKIE_BROWSERS, Outage, YtDlp, music_search_url};
+pub use ytdlp::{AudioStream, COOKIE_BROWSERS, Outage, YtDlp, music_search_url, parse_stream};
 
 pub use classify::{Link, LinkKind, is_remote, link_title, parse_link};
 pub use download::{AudioFormat, DownloadOptions, DownloadStatus, MP3_BITRATES, download_args};

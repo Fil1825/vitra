@@ -52,6 +52,45 @@ pub struct YtDlp {
     pub cookies_from_browser: Option<String>,
 }
 
+/// Where a link's audio streams from, for reading a stretch of it without playing it: the
+/// media address yt-dlp chose, the headers the site expects with it, and the track's length.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AudioStream {
+    pub url: String,
+    pub headers: Vec<(String, String)>,
+    pub duration: Option<f64>,
+}
+
+/// Reads `-J -f bestaudio/best` output: one chosen format, so its address is the info's own.
+pub fn parse_stream(json: &str) -> Result<AudioStream> {
+    let info: serde_json::Value =
+        serde_json::from_str(json).map_err(|err| LinkError::Failed(format!("bad JSON: {err}")))?;
+    let url = info
+        .get("url")
+        .and_then(serde_json::Value::as_str)
+        .filter(|url| url.starts_with("http://") || url.starts_with("https://"))
+        .ok_or_else(|| LinkError::Failed("no audio address".into()))?
+        .to_owned();
+    let mut headers: Vec<(String, String)> = info
+        .get("http_headers")
+        .and_then(serde_json::Value::as_object)
+        .map(|map| {
+            map.iter()
+                .filter_map(|(name, value)| Some((name.clone(), value.as_str()?.to_owned())))
+                .collect()
+        })
+        .unwrap_or_default();
+    headers.sort();
+    Ok(AudioStream {
+        url,
+        headers,
+        duration: info
+            .get("duration")
+            .and_then(serde_json::Value::as_f64)
+            .filter(|d| d.is_finite() && *d > 0.0),
+    })
+}
+
 /// What a failed run means, from its stderr: errors with a remedy get their own kind. mpv's
 /// yt-dlp hook logs the same text, so the player reads its errors with this too.
 pub fn failure(stderr: &str) -> LinkError {
@@ -330,6 +369,17 @@ impl YtDlp {
         }
     }
 
+    /// The address of `url`'s best audio and how to ask for it (nothing is downloaded).
+    pub async fn audio_stream(&self, url: &str) -> Result<AudioStream> {
+        let mut command = self.command();
+        command
+            .args(["-J", "--no-playlist", "-f", "bestaudio/best"])
+            .arg("--")
+            .arg(url);
+        let output = Self::output(command, RESOLVE_TIMEOUT).await?;
+        parse_stream(&String::from_utf8_lossy(&output.stdout))
+    }
+
     /// One track's complete metadata (artists, album, length) and its thumbnail, in one run.
     /// `scratch` is a directory for temporary files.
     pub async fn describe(
@@ -498,6 +548,28 @@ impl YtDlp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_stream_is_its_address_and_headers() {
+        let stream = parse_stream(include_str!("../tests/fixtures/youtube-stream.json")).unwrap();
+        assert!(
+            stream
+                .url
+                .starts_with("https://rr3---sn-example.googlevideo.com/videoplayback")
+        );
+        assert_eq!(stream.duration, Some(213.0));
+        assert_eq!(stream.headers.len(), 4);
+        assert!(
+            stream
+                .headers
+                .iter()
+                .any(|(name, value)| name == "User-Agent" && value.starts_with("Mozilla/5.0"))
+        );
+        // No address (a page that only lists), or not a web one: nothing to read.
+        assert!(parse_stream(r#"{"id": "x", "title": "y"}"#).is_err());
+        assert!(parse_stream(r#"{"url": "file:///etc/passwd"}"#).is_err());
+        assert!(parse_stream("not json").is_err());
+    }
 
     #[test]
     fn music_search_urls() {

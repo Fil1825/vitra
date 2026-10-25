@@ -560,6 +560,36 @@
   gap: var(--vitra-space-2);
 }
 
+/* My Wave: how much of the library is analyzed. */
+.waveProgress {
+  display: flex;
+  align-items: center;
+  gap: var(--vitra-space-3);
+}
+
+.waveBar {
+  flex: 1;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--vitra-color-text) 14%, transparent);
+}
+
+.waveBar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--vitra-color-accent);
+  transition: width var(--vitra-motion-duration) var(--vitra-motion-easing);
+}
+
+.waveCount {
+  flex: none;
+  color: var(--vitra-color-text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 .textInput {
   width: 100%;
   padding: 6px var(--vitra-space-2);

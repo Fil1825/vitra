@@ -148,6 +148,19 @@
   --vi-time: 0.6s;
 }
 
+/* My Wave: the three waves roll by, one after another. */
+.lucide-waves-horizontal > * {
+  --vi: vi-wave;
+}
+
+.lucide-waves-horizontal > :nth-child(2) {
+  --vi-delay: 0.06s;
+}
+
+.lucide-waves-horizontal > :nth-child(3) {
+  --vi-delay: 0.12s;
+}
+
 .lucide-audio-lines > *,
 .lucide-audio-waveform {
   --vi: vi-bar;

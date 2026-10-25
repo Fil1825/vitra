@@ -14,6 +14,8 @@ media = { path = "../media" }
 # What an imported playlist's entries are (stage 9).
 import = { path = "../import" }
 lyrics = { path = "../lyrics" }
+# What a track sounds like and what the wave needs to know about it (stage 10).
+mood = { path = "../mood" }
 # `bundled` compiles SQLite with FTS5, so search works the same on every platform.
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
