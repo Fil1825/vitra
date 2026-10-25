@@ -14,20 +14,20 @@ the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Stage status
 
-| #   | Stage                                                  | Status            |
-| --- | ------------------------------------------------------ | ----------------- |
-| 0   | Preparation: environment, structure, sidecars, plan    | in review (PR #1) |
-| 1   | Shell: transparent window, vibrancy, `<Glass>`, themes | in review (PR #2) |
-| 2   | Engine: mpv IPC, transport controls, artwork backdrop  | in review (PR #3) |
-| 3   | Library & queue: scan, SQLite, views, search, session  | in review (PR #4) |
-| 4   | Links: yt-dlp playback, playlists, downloads           | in review (PR #5) |
-| 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | accepted (PR #6)  |
-| 6   | Mini player                                            | accepted (PR #7)  |
-| 7   | Customization: theme editor, `.vitratheme`, layout     | accepted (PR #8)  |
-| 8   | Sound & system: EQ, crossfade, media keys, tray        | accepted (PR #9)  |
-| 9   | Playlist import: Spotify, Yandex, VK, Apple Music…     | accepted (PR #10) |
-| 10  | My Wave: mood analysis, endless mood-based queue       | in progress       |
-| 11  | Integrations, i18n, CI builds, README, first release   | not started       |
+| #   | Stage                                                  | Status             |
+| --- | ------------------------------------------------------ | ------------------ |
+| 0   | Preparation: environment, structure, sidecars, plan    | in review (PR #1)  |
+| 1   | Shell: transparent window, vibrancy, `<Glass>`, themes | in review (PR #2)  |
+| 2   | Engine: mpv IPC, transport controls, artwork backdrop  | in review (PR #3)  |
+| 3   | Library & queue: scan, SQLite, views, search, session  | in review (PR #4)  |
+| 4   | Links: yt-dlp playback, playlists, downloads           | in review (PR #5)  |
+| 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | accepted (PR #6)   |
+| 6   | Mini player                                            | accepted (PR #7)   |
+| 7   | Customization: theme editor, `.vitratheme`, layout     | accepted (PR #8)   |
+| 8   | Sound & system: EQ, crossfade, media keys, tray        | accepted (PR #9)   |
+| 9   | Playlist import: Spotify, Yandex, VK, Apple Music…     | accepted (PR #10)  |
+| 10  | My Wave: mood analysis, endless mood-based queue       | in review (PR #11) |
+| 11  | Integrations, i18n, CI builds, README, first release   | not started        |
 
 ## Commands
 
@@ -127,7 +127,9 @@ src/                    React + TypeScript frontend
                         themes/ (ThemeEditor, fields, editor.ts: the draft; actions.ts:
                         import, export, duplicate), import/ (ImportDialog with the Music tab,
                         FindDialog, ImportStatus + useImportProgress, entries.ts: rows for
-                        entries and the "?" menu, errors.ts)
+                        entries and the "?" menu, errors.ts), wave/ (WavePage, WaveButtons:
+                        like, dislike, a wave like this track; actions.ts: starting and the
+                        reasons it didn't; useWaveAnalysis)
   stores/               zustand stores: settings (mirror of Rust), environment, appearance,
                         player, queue, library (scan status), downloads, lyrics, navigation
                         (routes), ui (dialogs, Settings, artwork viewer), themes (installed),
@@ -162,6 +164,9 @@ src-tauri/              Tauri app crate (`vitra`, lib `vitra_lib`)
   src/import/           ImportService: text / files / links / the Music app → playlists,
                         the background matcher (library, then YouTube Music), picks, Find…;
                         music.rs (macOS: iTunesLibrary), commands
+  src/wave/             My Wave: WaveService (mod.rs: start, top-up, likes and skips, the
+                        session), the background analysis (analysis.rs), low-priority FFmpeg
+                        (process.rs), the YouTube Music radio (radio.rs), commands
   Info.plist            merged into the bundle's (and embedded in debug builds): the Media &
                         Apple Music usage text
   src/themes.rs         ThemeStore: installed themes, theme:// scheme, import/export commands
@@ -206,6 +211,9 @@ crates/                 pure-Rust crates testable without WebKit
   import/               playlist import (pure): model, normalize + matching, pasted text,
                         tables (CSV / TSV), files (M3U, XSPF, the Music app's XML), service
                         links and their pages (fixtures in tests/)
+  mood/                 My Wave (pure): FFmpeg arguments for slices, the features from raw
+                        samples (features.rs, fft.rs), the wave that picks by mood (wave.rs);
+                        an opt-in real-FFmpeg test (`VITRA_FFMPEG`)
 scripts/
   fetch-sidecars.mjs    downloader (I/O)
   record-ytdlp-fixtures.sh  real yt-dlp recordings for crates/links (needs YouTube)
@@ -819,6 +827,39 @@ covers.ts`): `albums.custom_cover`, `artists.cover`, `playlists.cover`, apart fr
     run first), and a list still loading gets more tries as it grows, clamped to its height,
     until the user scrolls (wheel, touch, keys, pointer) or 2 s pass. Only then are scroll
     events saved, so restoring never overwrites what was saved.
+42. **My Wave** (`crates/mood`, `src-tauri/src/wave`, `features/wave`, migration 10,
+    settings `wave {analyze, analyzeLinks, radio}`, all on by default):
+    - Analysis: FFmpeg only decodes (three 30 s slices around 20/50/80 % of a file, the
+      first 90 s of a short one, 75 s from the middle of a link's stream) to mono f32 at
+      22 050 Hz; Rust measures energy + spread (0.5 s RMS), brightness (centroid), tempo
+      (onset autocorrelation, 70–180, confidence × onset clarity so a steady tone isn't a
+      beat) and valence (chroma vs Krumhansl–Kessler major − minor) with its own FFT.
+      `mood::VERSION` bumps re-measure everything. Stored in `track_features` (file size +
+      mtime: a changed file is measured again; errors are kept so they aren't retried).
+    - The analyzer (one async loop): FFmpeg under `taskpolicy -b` (macOS) / `nice -n 15` /
+      `IDLE_PRIORITY_CLASS`, killed on quit (`Running`); gates in order paused, power
+      saving, scan running, no FFmpeg. Wanted links (the radio's) first, then files, then
+      other links: yt-dlp `-J -f bestaudio/best` without cookies first (the same run's
+      description and thumbnail fill in a bare link: `LinkService::described`), 20–60 s
+      apart, 15 min doubling to 6 h after a refusal (429, a media 403), 5 min offline
+      (then the wave leaves links out). iCloud-only (`SF_DATALESS`) and missing files are
+      skipped for the session. `wave://progress` → bus `wave:progress`.
+    - The wave (`mood::Wave`, pure, serde): five axes ranked within the library, a course
+      that starts at the mood (Your Taste: plays and favorites) and drifts (random walk,
+      pulled back, ≤ 0.35 away), listens pull it, skips push, Like (the heart:
+      `library_set_favorite` tells the wave) holds it 4 picks, Don't Like (`wave_marks`,
+      unfavorites) excludes and pushes. Picks: closeness + affinity + habits, softmax over
+      the best 12; strict rules (no artist repeat, nothing played in 2 h) unless nothing is
+      left. A wave like a track starts with that track (kept playing if it plays).
+    - Playback: the queue carries the mood (`Queue::wave`, saved with the session; replacing
+      or shuffling ends it); `WaveService` keeps `AHEAD` = 3 tracks queued (`emit_queue`
+      asks for a top-up, one at a time), saves the course (`session` key `wave.state`) and
+      restores it lazily. Next before the play counted is a skip (`Player::note_skip`).
+    - Running short (picks short, or 3 with closeness < 0.25 in a row): the radio of the
+      playing track or a recent pick (`RDAMVM<id>`; a file is found first with the
+      importer's YouTube Music search) adds 25 songs as library links and asks the analyzer
+      for them; one attempt per 10 min, failed ones included; needs `analyzeLinks` and
+      `library.addOpenedFiles`. With nothing measured left, its songs play unmeasured.
 
 ## Conventions
 
