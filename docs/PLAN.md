@@ -657,7 +657,7 @@ Chosen (owner, at the start of stage 10):
   library under `library.addOpenedFiles`), and are rate-limited like everything else that
   talks to YouTube.
 
-### Done (in review)
+### Done (in review, PR #11)
 
 Checked in the cloud with `npm run check:all`, `npm run check:cross`, the opt-in real FFmpeg
 and yt-dlp tests, and the real app under Xvfb with a generated library (24 files: fast
