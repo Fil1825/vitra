@@ -264,13 +264,18 @@ fn clamp_point(p: Point) -> Point {
 }
 
 impl Wave {
+    /// A wave "like this track" begins with that track (it plays first, or already plays),
+    /// so it is never picked again.
     pub fn new(mode: Mode, pool: &Pool, seed: u64) -> Self {
         let anchor = mood_point(mode, pool);
         Self {
             mode,
             course: anchor,
             anchor,
-            picked: Vec::new(),
+            picked: match mode {
+                Mode::LikeTrack(id) => vec![id],
+                _ => Vec::new(),
+            },
             liked: Vec::new(),
             disliked: Vec::new(),
             hold: 0,
@@ -563,7 +568,9 @@ mod tests {
         let pool = Pool::new(library(600, 60), Habits::default());
         let seed_point = pool.point(42).unwrap();
         let mut wave = Wave::new(Mode::LikeTrack(42), &pool, 3);
+        assert_eq!(wave.picked(), [42]);
         let first = wave.pick(&pool, 0).unwrap();
+        assert_ne!(first.id, 42);
         assert!(distance(&pool.point(first.id).unwrap(), &seed_point) < 0.25);
         assert!(first.closeness > 0.5);
     }

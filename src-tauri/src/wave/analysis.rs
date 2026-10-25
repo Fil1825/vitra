@@ -98,6 +98,8 @@ struct Inner {
     wake: Notify,
     stopping: AtomicBool,
     running: Running,
+    /// A measurement the wave waits for, beside the background one.
+    urgent: Running,
     status: Mutex<AnalysisStatus>,
     /// Missing or iCloud-only files, left alone until the next launch.
     skipped: Mutex<HashSet<i64>>,
@@ -137,6 +139,7 @@ impl Analyzer {
             wake: Notify::new(),
             stopping: AtomicBool::new(false),
             running: Running::default(),
+            urgent: Running::default(),
             status: Mutex::new(AnalysisStatus::default()),
             skipped: Mutex::new(HashSet::new()),
             wanted: Mutex::new(VecDeque::new()),
@@ -165,6 +168,7 @@ impl Analyzer {
     pub fn stop(&self) {
         self.0.stopping.store(true, Ordering::Release);
         self.0.running.kill();
+        self.0.urgent.kill();
         self.wake();
     }
 
@@ -173,7 +177,6 @@ impl Analyzer {
     }
 
     /// Whether links can't be reached now: the wave then picks files only.
-    #[allow(dead_code, reason = "the wave's queue (next) asks it")]
     pub fn offline(&self) -> bool {
         lock(&self.0.status).links == LinksState::Offline
     }
@@ -329,7 +332,10 @@ impl Analyzer {
             })
             .await;
             if links::is_remote(&job.path) {
-                match self.measure_link(&library, &ffmpeg, job).await {
+                match self
+                    .measure_link(&library, &ffmpeg, job, &self.0.running)
+                    .await
+                {
                     LinkOutcome::Done => {
                         backoff = 0;
                         links_at = Instant::now() + jitter(LINK_PAUSE_SECONDS);
@@ -364,7 +370,8 @@ impl Analyzer {
                     }
                 }
             } else {
-                self.measure_file(&library, &ffmpeg, job).await;
+                self.measure_file(&library, &ffmpeg, job, &self.0.running)
+                    .await;
                 tokio::time::sleep(BETWEEN_FILES).await;
             }
         }
@@ -430,7 +437,62 @@ impl Analyzer {
         }
     }
 
-    async fn measure_file(&self, library: &LibraryService, ffmpeg: &Path, job: AnalysisJob) {
+    /// Measures one track now, beside the background work (a wave "like this track" whose
+    /// track wasn't measured yet). Whether its sound is known afterwards.
+    pub async fn measure_now(&self, track_id: i64) -> bool {
+        let Some(library) = self.library() else {
+            return false;
+        };
+        let known = |library: LibraryService| async move {
+            library
+                .run(move |db| db.features(track_id))
+                .await
+                .ok()
+                .flatten()
+                .is_some()
+        };
+        if known(library.clone()).await {
+            return true;
+        }
+        let Some(job) = library
+            .run(move |db| db.analysis_job(track_id))
+            .await
+            .ok()
+            .flatten()
+        else {
+            return false;
+        };
+        let Some(ffmpeg) = sidecar::search_paths(&self.0.app)
+            .locate(Sidecar::Ffmpeg)
+            .map(|found| found.path)
+        else {
+            return false;
+        };
+        if links::is_remote(&job.path) {
+            let links_on = self
+                .0
+                .app
+                .try_state::<SettingsStore>()
+                .is_none_or(|s| s.get().wave.analyze_links);
+            if !links_on || self.offline() {
+                return false;
+            }
+            self.measure_link(&library, &ffmpeg, job, &self.0.urgent)
+                .await;
+        } else {
+            self.measure_file(&library, &ffmpeg, job, &self.0.urgent)
+                .await;
+        }
+        known(library).await
+    }
+
+    async fn measure_file(
+        &self,
+        library: &LibraryService,
+        ffmpeg: &Path,
+        job: AnalysisJob,
+        running: &Running,
+    ) {
         let path = PathBuf::from(&job.path);
         // An unplugged drive, or a file kept only in iCloud: not now, and nothing stored,
         // so it is measured once it is here.
@@ -439,7 +501,7 @@ impl Analyzer {
             return;
         }
         let args = file_args(path.as_os_str(), &slices(job.duration));
-        let measured = match process::decode(ffmpeg, args, &self.0.running).await {
+        let measured = match process::decode(ffmpeg, args, running).await {
             Ok(bytes) => analyze(bytes).await,
             Err(_) if self.stopping() => return,
             Err(error) => Err(error),
@@ -474,6 +536,7 @@ impl Analyzer {
         library: &LibraryService,
         ffmpeg: &Path,
         job: AnalysisJob,
+        running: &Running,
     ) -> LinkOutcome {
         let stream = match self.stream(&job.path).await {
             Ok(stream) => stream,
@@ -494,7 +557,7 @@ impl Analyzer {
         };
         let slice = stream_slice(stream.duration.or(job.duration));
         let args = stream_args(&stream.url, &stream.headers, slice);
-        let measured = match process::decode(ffmpeg, args, &self.0.running).await {
+        let measured = match process::decode(ffmpeg, args, running).await {
             Ok(bytes) => analyze(bytes).await,
             Err(_) if self.stopping() => return LinkOutcome::Done,
             Err(error) => {
