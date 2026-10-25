@@ -79,11 +79,33 @@ fn yandex() {
     assert_eq!(album.tracks[1].title, "Закрой за мной дверь, я ухожу");
     assert_eq!(album.tracks[0].album.as_deref(), Some("Группа крови"));
 
+    // The album's own title isn't a track (no length), its volumes' tracks are.
+    assert_eq!(album.tracks[0].artists, ["Кино"]);
+    assert!((album.tracks[0].duration.unwrap() - 285.72).abs() < 1e-9);
+    assert!(!album.partial);
+
     let liked = pages::yandex(&fixture("yandex-playlist.json")).unwrap();
     assert_eq!(liked.name.as_deref(), Some("Мне нравится"));
+    assert_eq!(liked.tracks.len(), 2);
     assert_eq!(liked.tracks[1].title, "Кукушка (Live)");
-    // Three tracks listed, two given.
+    assert_eq!(liked.tracks[1].album.as_deref(), Some("Последний концерт"));
+    // Three tracks counted, two given.
     assert!(liked.partial);
+
+    let track = pages::yandex(&fixture("yandex-track.json")).unwrap();
+    assert_eq!(track.tracks.len(), 1);
+    assert_eq!(track.tracks[0].title, "Закрой за мной дверь, я ухожу");
+
+    // A list that isn't there (or isn't shown to visitors) answers with an error.
+    assert_eq!(
+        pages::yandex(&fixture("yandex-error.json")),
+        Err(PageError::NotFound)
+    );
+    // The handlers of the old site now answer with the new site's page.
+    assert!(matches!(
+        pages::yandex("<!DOCTYPE html><html><body>music.yandex.ru</body></html>"),
+        Err(PageError::Unreadable(_))
+    ));
 }
 
 #[test]

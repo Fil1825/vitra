@@ -59,7 +59,7 @@ pub fn request(link: &ServiceLink) -> Option<Request> {
         (Service::Deezer, Target::Track { id }) => {
             Some(plain(format!("https://api.deezer.com/track/{id}")))
         }
-        (Service::YandexMusic, target) => yandex_request(&link.url, target),
+        (Service::YandexMusic, target) => yandex_request(target),
         _ => None,
     }
 }
@@ -420,48 +420,60 @@ pub fn deezer(json: &str) -> Result<DeezerPage, PageError> {
 
 // --- Yandex Music -------------------------------------------------------------------
 
-/// The web handlers Yandex Music's own pages use (yt-dlp reads the same), on the link's
-/// own domain; the new `/playlists/<uuid>` share links go through its API.
-fn yandex_request(url: &str, target: &Target) -> Option<Request> {
-    let parsed = url::Url::parse(url).ok()?;
-    let host = parsed.host_str()?;
-    let origin = format!("https://{host}");
-    let handler = match target {
-        Target::Album { id } => format!("{origin}/handlers/album.jsx?album={id}"),
-        Target::Track { id } => format!("{origin}/handlers/track.jsx?track={id}"),
-        Target::UserPlaylist { owner, id } => format!(
-            "{origin}/handlers/playlist.jsx?owner={}&kinds={}&light=false&lang=ru&external-domain={host}&overembed=false",
-            encode(owner),
-            encode(id)
-        ),
-        Target::Playlist { id } => {
-            return Some(Request {
-                url: format!(
-                    "https://api.music.yandex.net/playlist/{}?richTracks=true",
-                    encode(id)
-                ),
-                headers: Vec::new(),
-            });
+/// Yandex Music's public API answers visitors on one host, whichever domain the link is
+/// on (.ru, .com, .by, .kz…). The web handlers (`/handlers/album.jsx`…) the old site's
+/// pages used, and yt-dlp still reads, now answer with the new site's HTML.
+const YANDEX_API: &str = "https://api.music.yandex.net";
+/// The host the web player asks as the signed-in user: it takes the yandex.ru cookies.
+const YANDEX_API_SIGNED_IN: &str = "https://api.music.yandex.ru";
+
+fn yandex_request(target: &Target) -> Option<Request> {
+    let path = match target {
+        Target::Album { id } => format!("/albums/{}/with-tracks", encode(id)),
+        Target::Track { id } => format!("/tracks/{}", encode(id)),
+        Target::UserPlaylist { owner, id } => {
+            format!("/users/{}/playlists/{}", encode(owner), encode(id))
         }
+        // The share links of the new site (`/playlists/lk.<uuid>`).
+        Target::Playlist { id } => format!("/playlist/{}?richTracks=true", encode(id)),
         _ => return None,
     };
     Some(Request {
-        url: handler,
-        headers: vec![
-            "X-Requested-With: XMLHttpRequest".into(),
-            format!("X-Retpath-Y: {url}"),
-            format!("Referer: {url}"),
-        ],
+        url: format!("{YANDEX_API}{path}"),
+        headers: Vec::new(),
     })
+}
+
+/// The same Yandex Music request as the signed-in user, for «Мне нравится» and private
+/// playlists (sent with the browser's cookies).
+pub fn yandex_signed_in(request: &Request) -> Request {
+    let url = match request.url.strip_prefix(YANDEX_API) {
+        Some(path) => format!("{YANDEX_API_SIGNED_IN}{path}"),
+        None => request.url.clone(),
+    };
+    Request {
+        url,
+        headers: vec![
+            "Origin: https://music.yandex.ru".into(),
+            "Referer: https://music.yandex.ru/".into(),
+            "X-Yandex-Music-Client: YandexMusicWebNext/1.0.0".into(),
+        ],
+    }
 }
 
 fn encode(text: &str) -> String {
     url::form_urlencoded::byte_serialize(text.as_bytes()).collect()
 }
 
-/// Yandex Music's JSON: tracks are objects with a `title`, `artists` and `durationMs`,
-/// wherever they sit (an album's volumes, a playlist's tracks, the API's `result`).
+/// Yandex Music's API: tracks are objects with a `title`, `artists` and `durationMs`,
+/// wherever they sit (an album's `volumes`, a playlist's `tracks[].track`, `/tracks`'
+/// list), under `result`.
 pub fn yandex(json: &str) -> Result<ImportedPlaylist, PageError> {
+    if json.trim_start().starts_with('<') {
+        return Err(PageError::Unreadable(
+            "Yandex Music answered with a web page".into(),
+        ));
+    }
     let value: Value =
         serde_json::from_str(json).map_err(|err| PageError::Unreadable(err.to_string()))?;
     let mut all = Vec::new();
@@ -561,12 +573,36 @@ mod tests {
             "https://api.deezer.com/album/302127"
         );
         let yandex = request(&link("https://music.yandex.ru/users/some-one/playlists/3")).unwrap();
-        assert!(
-            yandex.url.starts_with(
-                "https://music.yandex.ru/handlers/playlist.jsx?owner=some-one&kinds=3"
-            )
+        assert_eq!(
+            yandex.url,
+            "https://api.music.yandex.net/users/some-one/playlists/3"
         );
-        assert!(yandex.headers.iter().any(|h| h.starts_with("X-Retpath-Y")));
+        let signed_in = yandex_signed_in(&yandex);
+        assert_eq!(
+            signed_in.url,
+            "https://api.music.yandex.ru/users/some-one/playlists/3"
+        );
+        assert!(signed_in.headers.iter().any(|h| h.starts_with("Origin:")));
+        for (url, api) in [
+            (
+                "https://music.yandex.com/album/3389008",
+                "https://api.music.yandex.net/albums/3389008/with-tracks",
+            ),
+            (
+                "https://music.yandex.kz/album/3389008/track/28566745?utm_source=x",
+                "https://api.music.yandex.net/tracks/28566745",
+            ),
+            (
+                "https://music.yandex.by/track/28566745",
+                "https://api.music.yandex.net/tracks/28566745",
+            ),
+            (
+                "https://music.yandex.ru/playlists/lk.6c1a8c2e-1b9e-4d2d-9a4e-6f1f9e0a2b3c",
+                "https://api.music.yandex.net/playlist/lk.6c1a8c2e-1b9e-4d2d-9a4e-6f1f9e0a2b3c?richTracks=true",
+            ),
+        ] {
+            assert_eq!(request(&link(url)).unwrap().url, api, "{url}");
+        }
         assert_eq!(request(&link("https://vk.com/music/playlist/1_2")), None);
     }
 

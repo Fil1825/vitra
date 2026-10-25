@@ -486,7 +486,8 @@ impl ImportService {
             private_file(&file)?;
             ytdlp.export_cookies(&file).await?;
             keep_cookies_of(&file, "yandex.")?;
-            let response = http::get(&request.url, &request.headers, Some(&file)).await?;
+            let signed_in = pages::yandex_signed_in(request);
+            let response = http::get(&signed_in.url, &signed_in.headers, Some(&file)).await?;
             pages::read(link, &response.body).map_err(page_error)
         }
         .await;
