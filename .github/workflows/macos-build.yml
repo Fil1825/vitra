@@ -58,19 +58,16 @@ jobs:
           fs.writeFileSync(path, JSON.stringify(config, null, 2));
           NODE
       - name: Build macOS disk image with audio components
-        run: npm run bundle -- --bundles dmg
+        id: build
+        run: npm run bundle -- --bundles app,dmg
       - name: Verify application and disk image
         run: |
+          codesign --verify --deep --strict --verbose=2 target/release/bundle/macos/Vitra.app
           for dmg in target/release/bundle/dmg/*.dmg; do
             hdiutil verify "$dmg"
-            mount_dir="$(mktemp -d)"
-            hdiutil attach "$dmg" -readonly -nobrowse -mountpoint "$mount_dir"
-            trap 'hdiutil detach "$mount_dir"' EXIT
-            codesign --verify --deep --strict --verbose=2 "$mount_dir/Vitra.app"
-            hdiutil detach "$mount_dir"
-            trap - EXIT
           done
       - name: Save disk image
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         uses: actions/upload-artifact@v7
         with:
           name: Vitra-macOS-${{ matrix.name }}-${{ github.run_number }}
