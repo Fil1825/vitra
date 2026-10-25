@@ -33,6 +33,22 @@ describe('themeToCssVars', () => {
     expect(vars['--vitra-backdrop-duration']).toBe('69s'); // 48 s / 0.7
   });
 
+  it('shapes covers and colors their placeholder only when the theme says so', () => {
+    expect(vars['--vitra-artwork-radius']).toBe('initial');
+    expect(vars['--vitra-artwork-placeholder']).toBe('initial');
+    const round = themeToCssVars({
+      ...aurora,
+      artwork: { shape: 'circle', vinyl: false, placeholderColor: '#FF00AA80' },
+    });
+    expect(round['--vitra-artwork-radius']).toBe('50%');
+    expect(round['--vitra-artwork-placeholder']).toBe('#FF00AA80');
+    expect(
+      themeToCssVars({ ...aurora, artwork: { shape: 'rounded', vinyl: true } })[
+        '--vitra-artwork-radius'
+      ],
+    ).toBe('22%');
+  });
+
   it('stops the backdrop at speed 0', () => {
     const still = { ...aurora, motion: { ...aurora.motion, backgroundSpeed: 0 } };
     expect(themeToCssVars(still)['--vitra-backdrop-duration']).toBe('0s');

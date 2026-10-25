@@ -25,9 +25,22 @@ export default defineConfig({
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
     // Assets load from disk inside the app, so the web-oriented 500 kB warning doesn't apply.
     chunkSizeWarningLimit: 1500,
+    // One HTML entry per window; shared code goes into common chunks.
+    rollupOptions: {
+      input: {
+        main: 'index.html',
+        mini: 'mini.html',
+      },
+    },
   },
   test: {
     include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.mjs'],
     environment: 'node',
+    // Stylesheets reach tests empty, except the icons' motions (a test checks them).
+    css: { include: [/styles\/icons\.css/] },
+    // Kept transforms are keyed by the file's own text, so a test's `import.meta.glob`
+    // (the icons' test reads every source) kept missing files added since: local runs
+    // passed where CI failed.
+    fsModuleCache: false,
   },
 });

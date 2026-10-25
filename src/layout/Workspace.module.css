@@ -1,0 +1,643 @@
+/* The main window: the top bar, the columns around the main view, the bottom bar. Nested
+   flex boxes rather than a grid: WebKit spreads a spanning item's height over grid rows and
+   can collapse an `auto` row (see CLAUDE.md, Gotchas). */
+.shell {
+  --sidebar-rail-width: 64px;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--vitra-space-2);
+  height: 100vh;
+  padding: var(--vitra-space-2);
+}
+
+/* The traffic lights sit in the sidebar's top corner, so its strip of icons is wide enough
+   for them (the close button's edge at x = 23, the zoom button's at about 83). */
+:root[data-platform='macos'] .shell {
+  --sidebar-rail-width: 88px;
+}
+
+.middle {
+  display: flex;
+  flex: 1;
+  gap: var(--vitra-space-2);
+  min-height: 0;
+}
+
+.center {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.header {
+  flex: none;
+  height: 44px;
+  transition: padding var(--vitra-motion-duration) var(--vitra-motion-easing);
+}
+
+.main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* A column: its modules stacked, sharing the height by weight (set inline). Narrow windows
+   keep some room for the main view whatever width was chosen. `--column-width` stays the
+   full width in the rail too (the sidebar's crossfade between the two uses it). */
+.column {
+  --column-width: min(var(--_width, 280px), 34vw);
+
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: var(--column-width);
+  min-height: 0;
+  transition: padding var(--vitra-motion-duration) var(--vitra-motion-easing);
+}
+
+.column[data-rail] {
+  width: var(--sidebar-rail-width);
+}
+
+/* Between the full sidebar and the rail. */
+.column[data-morphing] {
+  transition:
+    width var(--vitra-motion-duration) var(--vitra-motion-easing),
+    padding var(--vitra-motion-duration) var(--vitra-motion-easing);
+}
+
+.bar {
+  position: relative;
+  display: flex;
+  flex: none;
+  gap: var(--vitra-space-2);
+  transition: padding var(--vitra-motion-duration) var(--vitra-motion-easing);
+}
+
+/* Modules coming and going (presence.ts; none of this runs with Reduce Motion or in
+   customize mode). Only `transform` moves around the glass, and its fade is on the glass
+   itself (`.fill`), never on an ancestor: that would cut it off from the backdrop. */
+
+/* A column opening or closing: its width goes from or to nothing, with the gap beside it,
+   so the main view widens or narrows smoothly; its modules keep their full width and slide
+   in from, or out past, the window's edge in step with the column's inner edge. */
+.column[data-presence] {
+  animation: var(--vitra-motion-duration) var(--vitra-motion-easing) both;
+}
+
+.column[data-zone='left'][data-presence='opening'] {
+  animation-name: open-left;
+}
+
+.column[data-zone='left'][data-presence='closing'] {
+  animation-name: close-left;
+}
+
+.column[data-zone='right'][data-presence='opening'] {
+  animation-name: open-right;
+}
+
+.column[data-zone='right'][data-presence='closing'] {
+  animation-name: close-right;
+}
+
+.column[data-presence] > .module {
+  width: var(--column-width);
+}
+
+.column[data-presence][data-rail] > .module {
+  width: var(--sidebar-rail-width);
+}
+
+/* The right column narrows towards the window's edge: its modules hang from that side. */
+.column[data-zone='right'][data-presence] > .module {
+  align-self: flex-end;
+}
+
+.column[data-presence] > .module[data-phase] {
+  animation: var(--vitra-motion-duration) var(--vitra-motion-easing) both;
+}
+
+.column[data-zone='left'][data-presence] > .module[data-phase='entering'] {
+  animation-name: slide-in-left;
+}
+
+.column[data-zone='left'][data-presence] > .module[data-phase='leaving'] {
+  animation-name: slide-out-left;
+}
+
+.column[data-zone='right'][data-presence] > .module[data-phase='entering'] {
+  animation-name: slide-in-right;
+}
+
+.column[data-zone='right'][data-presence] > .module[data-phase='leaving'] {
+  animation-name: slide-out-right;
+}
+
+/* A module coming or going next to others: it folds open or shut, the others making room
+   (the line beside it with it). */
+.column:not([data-presence]) > .module[data-phase] {
+  overflow: hidden;
+  animation: var(--vitra-motion-duration) var(--vitra-motion-easing) both;
+}
+
+.column:not([data-presence]) > .module[data-phase='entering'] {
+  animation-name: fold-in;
+}
+
+.column:not([data-presence]) > .module[data-phase='leaving'] {
+  animation-name: fold-out;
+}
+
+.column:not([data-presence]) > .split[data-phase] {
+  animation: var(--vitra-motion-duration) var(--vitra-motion-easing) both;
+}
+
+.column:not([data-presence]) > .split[data-phase='entering'] {
+  animation-name: split-in;
+}
+
+.column:not([data-presence]) > .split[data-phase='leaving'] {
+  animation-name: split-out;
+}
+
+/* The glass fades a little on its way, wherever it goes. */
+.module[data-phase] > .fill {
+  animation: var(--vitra-motion-duration) var(--vitra-motion-easing) both;
+}
+
+.module[data-phase='entering'] > .fill {
+  animation-name: glass-in;
+}
+
+.module[data-phase='leaving'] > .fill {
+  animation-name: glass-out;
+}
+
+@keyframes open-left {
+  from {
+    width: 0;
+    margin-right: calc(-1 * var(--vitra-space-2));
+  }
+}
+
+@keyframes close-left {
+  to {
+    width: 0;
+    margin-right: calc(-1 * var(--vitra-space-2));
+  }
+}
+
+@keyframes open-right {
+  from {
+    width: 0;
+    margin-left: calc(-1 * var(--vitra-space-2));
+  }
+}
+
+@keyframes close-right {
+  to {
+    width: 0;
+    margin-left: calc(-1 * var(--vitra-space-2));
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    transform: translateX(calc(-100% - var(--vitra-space-2)));
+  }
+}
+
+@keyframes slide-out-left {
+  to {
+    transform: translateX(calc(-100% - var(--vitra-space-2)));
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(calc(100% + var(--vitra-space-2)));
+  }
+}
+
+@keyframes slide-out-right {
+  to {
+    transform: translateX(calc(100% + var(--vitra-space-2)));
+  }
+}
+
+@keyframes fold-in {
+  from {
+    flex-grow: 0;
+  }
+}
+
+@keyframes fold-out {
+  to {
+    flex-grow: 0;
+  }
+}
+
+@keyframes split-in {
+  from {
+    height: 0;
+  }
+}
+
+@keyframes split-out {
+  to {
+    height: 0;
+  }
+}
+
+@keyframes glass-in {
+  from {
+    opacity: 0.35;
+  }
+}
+
+@keyframes glass-out {
+  to {
+    opacity: 0.35;
+  }
+}
+
+/* Rounded like the glass inside it, so a theme's shadow or outline on `[data-part]` follows
+   the surface (and `--glass-radius` set there rounds both). */
+.module {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-radius: var(--glass-radius, var(--vitra-radius-lg));
+}
+
+.bar > .module {
+  flex: 1 1 0;
+}
+
+/* Next to the controls the level meter is a small block; alone it runs along the bar. */
+.bar > .module[data-module='level']:not(:only-child) {
+  flex: 0 0 200px;
+}
+
+.fill {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* The line between two modules in a column is the gap between them. */
+.split {
+  position: relative;
+  flex: none;
+  height: var(--vitra-space-2);
+  cursor: row-resize;
+  touch-action: none;
+}
+
+/* A column's inner edge: a strip over the gap beside it. */
+.resizer {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.resizer[data-column='left'] {
+  right: calc(var(--vitra-space-2) / -2 - 5px);
+}
+
+.resizer[data-column='right'] {
+  left: calc(var(--vitra-space-2) / -2 - 5px);
+}
+
+/* A line shows where the edge is while the pointer is on it. */
+.resizer::after,
+.split::after {
+  content: '';
+  position: absolute;
+  border-radius: 1px;
+  background: var(--vitra-color-accent);
+  opacity: 0;
+  transition: opacity var(--vitra-motion-duration) var(--vitra-motion-easing);
+}
+
+.resizer::after {
+  top: var(--vitra-space-4);
+  bottom: var(--vitra-space-4);
+  left: 4px;
+  width: 2px;
+}
+
+.split::after {
+  top: calc(50% - 1px);
+  right: var(--vitra-space-4);
+  left: var(--vitra-space-4);
+  height: 2px;
+}
+
+.resizer:hover::after,
+.resizer:active::after,
+.split:hover::after,
+.split:active::after {
+  opacity: 0.6;
+}
+
+/* macOS: the traffic lights need room in whatever is at the window's top-left corner (the
+   sidebar keeps its own). */
+.shell[data-lights='top'] > .bar[data-zone='top'] {
+  padding-left: 76px;
+}
+
+.shell[data-lights='left'] .column[data-zone='left'] {
+  padding-top: 36px;
+}
+
+.shell[data-lights='header'] .header {
+  padding-left: 76px;
+}
+
+/* Customize mode. */
+
+/* An empty zone shows where modules can go, without taking the main view's room. */
+.column[data-empty] {
+  width: 120px;
+}
+
+.bar[data-empty] {
+  height: 56px;
+}
+
+.dropHint {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  padding: var(--vitra-space-2);
+  border: 2px dashed color-mix(in srgb, var(--vitra-color-text) 25%, transparent);
+  border-radius: var(--vitra-radius-md);
+  color: var(--vitra-color-text-secondary);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* While a module is dragged, the zones that take it are outlined, the one under it more. */
+.shell[data-dragging] :is(.column, .bar):not([data-refuses]) {
+  border-radius: var(--vitra-radius-lg);
+  outline: 2px dashed color-mix(in srgb, var(--vitra-color-accent) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.shell[data-dragging] :is(.column, .bar)[data-over] {
+  outline-style: solid;
+  outline-color: var(--vitra-color-accent);
+}
+
+/* Over a module in customize mode: its name, a move menu and a hide button. Static styles
+   only: animating opacity here would cut the glass below off from the backdrop. */
+.frame {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  /* Its own width decides the layout inside (below); whatever still doesn't fit is cut
+     rather than spilling over the title bar or the next module. The container is the
+     frame, not the module: containment on an ancestor of the glass is best avoided. */
+  container-type: inline-size;
+  overflow: hidden;
+  padding: var(--vitra-space-2);
+  border: 2px dashed color-mix(in srgb, var(--vitra-color-accent) 70%, transparent);
+  border-radius: var(--vitra-radius-lg);
+  background: color-mix(in srgb, var(--vitra-color-accent) 10%, transparent);
+  cursor: grab;
+  touch-action: none;
+}
+
+.frameBar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--vitra-space-2);
+}
+
+.frame:focus-visible {
+  outline: 2px solid var(--vitra-color-accent);
+}
+
+.frameLabel,
+.frameButtons {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: var(--vitra-color-background);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 20%);
+}
+
+.frameLabel {
+  gap: 6px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 10px 0 6px;
+  color: var(--vitra-color-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.frameLabel svg {
+  flex: none;
+}
+
+.frameName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.frameButtons {
+  flex: none;
+  padding: 0 2px;
+  cursor: default;
+}
+
+/* A narrow module (the sidebar's rail, 64–88 px, or anything up to about 180 px): the
+   handle on top, its name only as its tooltip, and the buttons stacked under it. */
+@container (max-width: 160px) {
+  .frameBar {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .frameLabel {
+    justify-content: center;
+    width: 28px;
+    padding: 0;
+  }
+
+  /* Still read out by screen readers. */
+  .frameName {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
+  }
+
+  .frameButtons {
+    flex-direction: column;
+    padding: 2px 0;
+  }
+}
+
+/* The place a module leaves while it is dragged: the frame alone, as an outline. */
+.module[data-dragging] > :not(.frame) {
+  visibility: hidden;
+}
+
+.module[data-dragging] > .frame {
+  background: none;
+}
+
+.module[data-dragging] .frameLabel,
+.module[data-dragging] .frameButtons {
+  visibility: hidden;
+}
+
+/* The palette, over the middle of the window. */
+.paletteWrap {
+  position: fixed;
+  z-index: 25;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--vitra-space-4);
+  pointer-events: none;
+}
+
+.palette {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vitra-space-3);
+  width: min(520px, 100%);
+  padding: var(--vitra-space-4);
+  pointer-events: auto;
+}
+
+/* The title with Done, and the presets with Reset. */
+.paletteRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--vitra-space-2);
+}
+
+.paletteTitle {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.paletteItems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vitra-space-2);
+  min-height: 28px;
+}
+
+.paletteItem {
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: grab;
+  touch-action: none;
+}
+
+.paletteItem:focus-visible {
+  outline: 2px solid var(--vitra-color-accent);
+  outline-offset: 2px;
+}
+
+.paletteHint {
+  color: var(--vitra-color-text-secondary);
+  font-size: 13px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vitra-color-text) 10%, transparent);
+  color: var(--vitra-color-text);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.paletteItem:hover .chip {
+  background: color-mix(in srgb, var(--vitra-color-text) 16%, transparent);
+}
+
+.chip[data-lifted] {
+  background: var(--vitra-color-accent);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 30%);
+  color: var(--vitra-color-accent-contrast);
+  cursor: grabbing;
+}
+
+.paletteButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--vitra-radius-sm);
+  background: color-mix(in srgb, var(--vitra-color-text) 8%, transparent);
+  color: var(--vitra-color-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.paletteButton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--vitra-color-text) 14%, transparent);
+}
+
+.paletteButton:disabled {
+  color: var(--vitra-color-text-tertiary);
+  cursor: default;
+}
+
+.paletteButton.done {
+  background: var(--vitra-color-accent);
+  color: var(--vitra-color-accent-contrast);
+}
+
+.presetForm {
+  display: inline-flex;
+  gap: var(--vitra-space-2);
+}
+
+.presetName {
+  width: 160px;
+  height: 28px;
+  padding: 0 var(--vitra-space-2);
+  border: 1px solid var(--vitra-color-accent);
+  border-radius: var(--vitra-radius-sm);
+  background: color-mix(in srgb, var(--vitra-color-text) 8%, transparent);
+  color: var(--vitra-color-text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  user-select: text;
+}

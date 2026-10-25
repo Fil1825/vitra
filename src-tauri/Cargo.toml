@@ -15,7 +15,7 @@ name = "vitra_lib"
 tauri-build = { version = "2.7.4", features = [] }
 
 [dependencies]
-tauri = { version = "2.12.5", features = ["macos-private-api"] }
+tauri = { version = "2.12.5", features = ["macos-private-api", "tray-icon"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 window-vibrancy = "0.8.1"
@@ -23,20 +23,45 @@ thiserror = "2"
 log = "0.4"
 tauri-plugin-log = "2.10.1"
 tauri-plugin-dialog = "2.8.3"
+# Shortcuts that work while another app is active (the spec names it).
+tauri-plugin-global-shortcut = "2.4.1"
 mpv-ipc = { version = "0.1.0", path = "../crates/mpv-ipc" }
 media = { version = "0.1.0", path = "../crates/media" }
 library = { version = "0.1.0", path = "../crates/library" }
 links = { version = "0.1.0", path = "../crates/links" }
 lyrics = { version = "0.1.0", path = "../crates/lyrics" }
+themes = { version = "0.1.0", path = "../crates/themes" }
+import = { version = "0.1.0", path = "../crates/import" }
 # Watches library folders (FSEvents / inotify / ReadDirectoryChangesW).
 notify = "8.2.0"
 tokio = { version = "1.54", features = ["sync", "time", "macros"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# The OS version (Liquid Glass) and the drag pasteboard (links dropped from a browser); both
-# already in the tree via window-vibrancy, tao and wry.
-objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSProcessInfo", "NSString"] }
-objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSPasteboard"] }
+# The OS version (Liquid Glass), the drag pasteboard (links dropped from a browser), and for
+# the mini player the keyboard and mouse state, spaces, the backdrop's alpha and its rounded
+# shape (a layer); all already in the tree via window-vibrancy, tao and wry.
+objc2 = { version = "0.6.2", default-features = false, features = ["std"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSData", "NSDictionary", "NSEnumerator", "NSError", "NSGeometry", "NSObject", "NSProcessInfo", "NSString", "NSURL", "NSValue", "objc2-core-foundation"] }
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSImage", "NSPasteboard", "NSEvent", "NSResponder", "NSView", "NSWindow", "objc2-core-foundation", "objc2-quartz-core"] }
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFCGTypes"] }
+objc2-quartz-core = { version = "0.3.2", default-features = false, features = ["std", "CALayer"] }
+# The system's Now Playing (MPNowPlayingInfoCenter, MPRemoteCommandCenter): the same objc2
+# family as above, plus its blocks for the command handlers.
+objc2-media-player = { version = "0.3.2", default-features = false, features = ["std", "block2", "objc2-app-kit", "objc2-core-foundation", "MPMediaItem", "MPNowPlayingInfoCenter", "MPRemoteCommand", "MPRemoteCommandCenter", "MPRemoteCommandEvent"] }
+block2 = { version = "0.6.2", default-features = false, features = ["std"] }
+# The Music app's playlists for the import dialog (iTunesLibrary.framework, part of macOS);
+# the same objc2 family, small generated bindings only.
+objc2-itunes-library = { version = "0.3.2", default-features = false, features = ["std", "ITLibAlbum", "ITLibArtist", "ITLibMediaEntity", "ITLibMediaItem", "ITLibPlaylist", "ITLibrary"] }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+# The system's media controls on Windows (SMTC) and Linux (MPRIS, through libdbus); macOS
+# has its own above.
+souvlaki = "0.8.3"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# The state of Alt and the mouse button for the mini player, and its rounded corners
+# (already in the tree via window-vibrancy and tao).
+windows-sys = { version = "0.61.2", features = ["Win32_Graphics_Dwm", "Win32_UI_Input_KeyboardAndMouse"] }
 
 [dev-dependencies]
 tempfile = "3"

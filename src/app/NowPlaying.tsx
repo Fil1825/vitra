@@ -1,7 +1,7 @@
 import { AlertTriangle, FolderOpen, LoaderCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import symbolUrl from '../../assets/brand/symbol.svg';
+import { ArtworkPlaceholder, CoverArt, VinylToggle } from '../components/CoverArt/index.ts';
 import { Glass } from '../components/Glass/index.ts';
 import { ArtistLinks, LibraryLink } from '../features/library/TrackLinks.tsx';
 import { useCurrentLibraryTrack } from '../features/library/useCurrentTrack.ts';
@@ -52,7 +52,7 @@ export function NowPlaying() {
     return (
       <Glass as="section" className={styles.empty} priority={1}>
         {error && <ErrorBanner error={error} />}
-        <img className={styles.symbol} src={symbolUrl} alt="" width={168} height={168} />
+        <ArtworkPlaceholder className={styles.symbol} />
         <h2 className={styles.emptyTitle}>{t('nowPlaying.emptyTitle')}</h2>
         <p className={styles.emptyBody}>{t('nowPlaying.emptyBody')}</p>
         <button type="button" className={styles.openButton} onClick={() => void pickAndPlay()}>
@@ -70,28 +70,29 @@ export function NowPlaying() {
   return (
     <section className={styles.track} aria-label={t('nowPlaying.label')}>
       {error && <ErrorBanner error={error} />}
-      {track.artwork ? (
-        <button
-          type="button"
-          className={`${styles.cover} ${styles.coverButton}`}
-          aria-label={t('artwork.view')}
-          onClick={() => {
-            const preview = track.artwork && artworkUrl(track.artwork.id);
-            viewArtwork({ source: { kind: 'track', path: track.path }, preview });
-          }}
-        >
-          <img
-            key={track.artwork.id}
-            className={styles.coverImage}
-            src={artworkUrl(track.artwork.id)}
-            alt=""
-          />
-        </button>
-      ) : (
-        <div className={styles.cover}>
-          <img className={styles.coverPlaceholder} src={symbolUrl} alt="" />
-        </div>
-      )}
+      <div className={styles.coverWrap}>
+        {track.artwork ? (
+          <button
+            type="button"
+            className={styles.coverButton}
+            aria-label={t('artwork.view')}
+            onClick={() => {
+              const preview = track.artwork && artworkUrl(track.artwork.id);
+              viewArtwork({ source: { kind: 'track', path: track.path }, preview });
+            }}
+          >
+            <CoverArt
+              key={track.artwork.id}
+              src={artworkUrl(track.artwork.id)}
+              live
+              className={styles.cover}
+            />
+          </button>
+        ) : (
+          <CoverArt src={null} live className={styles.cover} />
+        )}
+        <VinylToggle />
+      </div>
       <h2 className={styles.title}>
         <LibraryLink to={albumRoute(libraryTrack?.albumId)}>{track.title}</LibraryLink>
       </h2>

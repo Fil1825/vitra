@@ -1,0 +1,13 @@
+/* Paper: titles and lyrics in a serif, as on a printed page; the rest in the system font. */
+
+[data-part='main'] h2,
+[data-part='queue'] h2,
+[data-part='lyrics'] h2,
+[data-part='settings'] h2 {
+  font-family: 'Noto Serif', Georgia, serif;
+  font-weight: 600;
+}
+
+[data-part='lyrics-text'] {
+  font-family: 'Noto Serif', Georgia, serif;
+}

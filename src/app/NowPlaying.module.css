@@ -7,8 +7,22 @@
   text-align: center;
 }
 
+/* Vitra's symbol, colored like the cover placeholders. */
 .symbol {
+  display: block;
+  width: 132px;
+  height: 132px;
   margin-bottom: var(--vitra-space-3);
+  color: var(
+    --vitra-artwork-placeholder,
+    color-mix(in srgb, var(--vitra-color-text) 38%, transparent)
+  );
+}
+
+.symbol svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .emptyTitle,
@@ -52,36 +66,32 @@
   text-align: center;
 }
 
-.cover {
-  display: grid;
-  place-items: center;
+/* The cover's place: its disc button sits in a corner. */
+.coverWrap {
+  position: relative;
   width: min(42vh, 360px, 100%);
-  aspect-ratio: 1;
   margin-bottom: var(--vitra-space-4);
-  border-radius: var(--vitra-radius-lg);
-  overflow: hidden;
-  background: color-mix(in srgb, var(--vitra-color-text) 6%, transparent);
-  box-shadow:
-    0 24px 60px color-mix(in srgb, var(--vitra-color-background) 55%, transparent),
-    inset 0 0 0 1px var(--vitra-color-separator);
 }
 
-.coverButton {
-  padding: 0;
-  border: 0;
-  cursor: zoom-in;
-}
+.cover {
+  --cover-radius: var(--vitra-radius-lg);
 
-.coverImage {
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  box-shadow: 0 24px 60px color-mix(in srgb, var(--vitra-color-background) 55%, transparent);
+}
+
+.cover img {
   animation: appear calc(var(--vitra-motion-duration) * 2) var(--vitra-motion-easing);
 }
 
-.coverPlaceholder {
-  width: 55%;
-  opacity: 0.9;
+.coverButton {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--vitra-artwork-radius, var(--vitra-radius-lg));
+  background: none;
+  cursor: zoom-in;
 }
 
 .byline {

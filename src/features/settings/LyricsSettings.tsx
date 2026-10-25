@@ -5,7 +5,7 @@ import type { LyricsSettings as Values } from '../../lib/settings.ts';
 import { useSettings } from '../../stores/settings.ts';
 import styles from './SettingsPanel.module.css';
 
-/** Online lookups and translations. Text size and sync offset live in the lyrics view. */
+/** Showing lyrics at all, online lookups, translations. Size and sync live in the view. */
 export function LyricsSettings() {
   const { t } = useTranslation();
   const lyrics = useSettings((s) => s.settings.lyrics);
@@ -15,6 +15,17 @@ export function LyricsSettings() {
 
   return (
     <>
+      <div className={styles.inlineRow}>
+        <div className={styles.rowText}>
+          <span>{t('settings.lyrics.visible')}</span>
+          <span className={styles.hint}>{t('settings.lyrics.visibleHint')}</span>
+        </div>
+        <Switch
+          label={t('settings.lyrics.visible')}
+          checked={lyrics.visible}
+          onChange={(visible) => set({ visible })}
+        />
+      </div>
       <div className={styles.inlineRow}>
         <div className={styles.rowText}>
           <span>{t('settings.lyrics.online')}</span>

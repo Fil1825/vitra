@@ -1,0 +1,82 @@
+/* The big artwork module: the cover as wide as its column, the title under it, both in the
+   middle of whatever height the column gives. */
+.artworkPanel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--vitra-space-3);
+  min-height: 0;
+  padding: var(--vitra-space-3);
+  overflow: hidden;
+  /* Its height comes from the column, so the cover can size itself by it (`cqh`). */
+  container-type: size;
+}
+
+/* As wide as the column, never taller than it leaves room for (the caption below). */
+.coverPlace {
+  position: relative;
+  flex: 0 1 auto;
+  align-self: center;
+  width: min(100%, calc(100cqh - 4.5em));
+  min-height: 0;
+}
+
+.cover {
+  --cover-radius: var(--vitra-radius-md);
+
+  width: 100%;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 25%);
+}
+
+.coverButton {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--vitra-artwork-radius, var(--vitra-radius-md));
+  background: none;
+  cursor: zoom-in;
+}
+
+.caption {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.title,
+.subtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.title {
+  font-weight: 650;
+}
+
+.subtitle {
+  color: var(--vitra-color-text-secondary);
+  font-size: 0.9em;
+}
+
+/* The level meter: its canvas fills the glass, whatever the zone gives it. */
+.levelMeter {
+  display: flex;
+  min-width: 120px;
+  min-height: 56px;
+  padding: var(--vitra-space-3);
+}
+
+/* The canvas is placed absolutely so its own pixel size never feeds back into the layout. */
+.spectrumPlace {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+}
+
+.spectrum {
+  position: absolute;
+  display: block;
+}

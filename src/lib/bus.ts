@@ -1,3 +1,4 @@
+import type { ImportProgressUpdate, MatcherStatus } from './import.ts';
 import type { LibraryChange, ScanStatus } from './library.ts';
 import type { DownloadJob } from './links.ts';
 import type { CurrentLyrics, LineUpdate } from './lyrics.ts';
@@ -16,6 +17,8 @@ import type { Theme } from '../theme/schema.ts';
 export interface VitraEvents {
   'settings:changed': Settings;
   'theme:changed': Theme;
+  /** A theme was installed, saved or removed (in any window). */
+  'themes:changed': null;
   'effects:changed': Effects;
   /** The native backdrop of this window changed (e.g. Liquid Glass was switched on). */
   'window:effects': WindowEffects;
@@ -26,16 +29,24 @@ export interface VitraEvents {
   'player:track': Track;
   /** The music's pulse (0..1) for the animated backdrop, while one asked for it. */
   'player:level': number;
+  /** The spectrum (bands low to high, 0..1; empty: nothing plays) for the level meter. */
+  'player:spectrum': number[];
   'queue:changed': QueueState;
   /** Library data changed; views showing that kind of data refetch it. */
   'library:changed': LibraryChange;
   'library:scan': ScanStatus;
+  /** An imported playlist's tracks were looked for (one more found, or not). */
+  'import:progress': ImportProgressUpdate;
+  /** The background search started on another track, paused or stopped. */
+  'import:status': MatcherStatus;
   /** The download queue changed (a job was added, progressed or finished). */
   'downloads:changed': DownloadJob[];
   /** The playing track's lyrics (or their loading state, or the sync offset) changed. */
   'lyrics:changed': CurrentLyrics;
   /** Another line of the lyrics started playing. */
   'lyrics:line': LineUpdate;
+  /** The mini player with click-through on takes clicks right now (⌥ / Alt held over it). */
+  'mini:interactive': boolean;
 }
 
 export type Handler<T> = (payload: T) => void;

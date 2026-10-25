@@ -1,0 +1,360 @@
+/*
+ * The mini player fills its window. Sizes are in `em` of a font that follows the window: its
+ * height (--_rows per mode) unless the window is narrow for that, then its width (--_cols),
+ * so the layout scales as the window is dragged and the text always keeps its room.
+ * Lengths come from the viewport (`vh`, `vw`), never percentages of the window's height,
+ * which WebKit doesn't always resolve. The glass tint fades with the opacity setting, like
+ * the system backdrop behind it.
+ */
+.mini {
+  --_rows: 8.6;
+  --_cols: 24;
+  --glass-radius: 14px;
+  --glass-blur: 0px;
+  --glass-opacity: calc(var(--vitra-glass-opacity) * var(--mini-opacity, 1));
+  --lyrics-lit: var(--vitra-color-text);
+  --lyrics-dim: var(--vitra-color-text-tertiary);
+
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  width: 100%;
+  height: 100%;
+  padding: 0.7em;
+  overflow: hidden;
+  font-size: min(calc(100vh / var(--_rows)), calc(100vw / var(--_cols)));
+  line-height: 1.35;
+  color: var(--vitra-color-text);
+}
+
+/* Without a system backdrop (Windows below 100%, Linux) the tint carries the glass. */
+:root[data-vibrancy='off'] .mini {
+  --glass-opacity: calc(max(var(--vitra-glass-opacity), 0.86) * var(--mini-opacity, 1));
+}
+
+/* Linux windows are opaque rectangles: square glass fills them. */
+:root[data-platform='linux'] .mini {
+  --glass-radius: 0px;
+}
+
+/* Windows 11 rounds the window itself, by 8 px (see `platform::round_window`). */
+:root[data-platform='windows'] .mini {
+  --glass-radius: 8px;
+}
+
+.mini[data-mode='slim'] {
+  --_rows: 3.6;
+  --_cols: 24;
+  --_cover: min(calc(100vh - 0.7em), 3.2em);
+
+  gap: 0.55em;
+  padding: 0.35em 0.5em;
+}
+
+.mini[data-mode='lyrics'] {
+  --_rows: 7.6;
+  --_cols: 28;
+  --_lines: 2;
+
+  justify-content: center;
+  padding: 0.6em 1.4em;
+}
+
+/* A taller lyrics window shows more of a long line rather than larger type. */
+@media (max-aspect-ratio: 3 / 1) {
+  .mini[data-mode='lyrics'] {
+    --_lines: 3;
+  }
+}
+
+@media (max-aspect-ratio: 2 / 1) {
+  .mini[data-mode='lyrics'] {
+    --_lines: 4;
+  }
+}
+
+/* Click-through: nothing reacts to the pointer anyway, so no hover controls either. */
+.mini[data-click-through] .windowButtons,
+.mini[data-click-through] .lyricsControls {
+  visibility: hidden;
+}
+
+/* ⌥ / Alt held over a click-through mini player: it takes clicks now. */
+.mini[data-interactive] {
+  box-shadow:
+    var(--vitra-glass-shadow),
+    inset 0 0 0 2px var(--vitra-color-accent);
+}
+
+/* The artwork's colors behind everything (the thumbnail comes blurred from the backend). */
+.wash {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  border-radius: inherit;
+  background-position: center;
+  background-size: cover;
+  opacity: calc(0.5 * var(--mini-opacity, 1));
+  pointer-events: none;
+}
+
+.artwork {
+  --cover-radius: 0.45em;
+
+  flex: none;
+  align-self: center;
+  /* Both sides set (see Gotchas: percentages don't resolve here on macOS). */
+  width: var(--_cover);
+  height: var(--_cover);
+  box-shadow: 0 0.15em 0.6em rgb(0 0 0 / 25%);
+}
+
+.mini[data-mode='slim'] .artwork {
+  --cover-radius: 0.3em;
+}
+
+/*
+ * Compact: the artwork as tall as the window allows (at most 40% of its width), the text and
+ * the progress beside it. A window too square for a useful progress bar there gets it under
+ * both, across the whole width (`data-narrow`), and a smaller artwork to make room.
+ */
+.compact {
+  --_cover: min(calc(100vh - 1.4em), 40vw);
+
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.75em;
+  min-width: 0;
+}
+
+.compact[data-narrow] {
+  --_cover: min(calc(100vh - 3.2em), 40vw);
+
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.5em;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  min-width: 0;
+}
+
+.text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.title,
+.subtitle,
+.line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.title {
+  /* Room on the right for the window buttons. */
+  padding-right: 3.2em;
+  font-weight: 650;
+}
+
+.subtitle {
+  color: var(--vitra-color-text-secondary);
+  font-size: 0.85em;
+}
+
+.line {
+  flex: 1;
+  min-width: 0;
+}
+
+.line .title {
+  padding-right: 0;
+}
+
+.line .subtitle {
+  font-size: 1em;
+}
+
+.transport {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.15em;
+}
+
+.text .transport {
+  margin: 0.2em 0 0 -0.35em;
+}
+
+/* `.mini` raises these above the shared button's own size. */
+.mini .button {
+  width: 2em;
+  height: 2em;
+  border-radius: 0.5em;
+}
+
+.mini .play {
+  width: 2.4em;
+  height: 2.4em;
+  border-radius: 50%;
+}
+
+.mini .small {
+  width: 1.6em;
+  height: 1.6em;
+  border-radius: 0.4em;
+  color: var(--vitra-color-text-secondary);
+}
+
+.windowButtons {
+  position: absolute;
+  top: 0.35em;
+  right: 0.35em;
+  display: flex;
+  gap: 0.1em;
+  opacity: 0;
+  transition: opacity var(--vitra-motion-duration) var(--vitra-motion-easing);
+}
+
+.mini:hover .windowButtons,
+.windowButtons:focus-within {
+  opacity: 1;
+}
+
+.mini[data-mode='slim'] .windowButtons {
+  position: static;
+  flex: none;
+}
+
+.progress {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.5em;
+  margin-top: 0.15em;
+  font-size: 0.72em;
+}
+
+.time {
+  min-width: 2.6em;
+  color: var(--vitra-color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.time:last-child {
+  text-align: right;
+}
+
+.slider {
+  min-width: 0;
+}
+
+/* Slim: the progress is a hairline along the bottom edge. */
+.edge {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--vitra-color-accent);
+  transform-origin: left;
+  transition: transform 500ms linear;
+  pointer-events: none;
+}
+
+.lyrics {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.2em;
+  min-width: 0;
+  text-align: center;
+}
+
+.lyric,
+.next {
+  margin: 0;
+  overflow: hidden;
+}
+
+.lyric {
+  display: -webkit-box;
+  font-size: 1.55em;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--_lines, 2);
+}
+
+.next {
+  color: var(--vitra-color-text-secondary);
+  font-size: 0.95em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pause {
+  color: var(--vitra-color-text-tertiary);
+}
+
+.rise {
+  animation: rise calc(var(--vitra-motion-duration) * 1.6) var(--vitra-motion-easing);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.35em);
+  }
+}
+
+/* Lyrics mode keeps the controls out of the way until the pointer comes. */
+.lyricsControls {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 0.25em;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--vitra-color-background) 70%, transparent),
+    transparent 60%
+  );
+  opacity: 0;
+  transition: opacity var(--vitra-motion-duration) var(--vitra-motion-easing);
+}
+
+/* Out of the transport's way: it stays centered under the line. */
+.lyricsToggle {
+  position: absolute;
+  right: 0.6em;
+  bottom: 0.25em;
+  color: var(--vitra-color-text-secondary);
+}
+
+.mini:hover .lyricsControls,
+.lyricsControls:focus-within {
+  opacity: 1;
+}
+
+.spin {
+  animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

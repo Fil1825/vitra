@@ -131,7 +131,8 @@ pub async fn library_albums(
     library.run(move |db| db.albums(sort)).await
 }
 
-/// An album; one of links without a cover gets one looked for in the background.
+/// An album; one of links gets a cover looked for if it has none, and its tracks numbered
+/// from its listing if some lack numbers, in the background.
 #[tauri::command]
 pub async fn library_album(
     library: State<'_, LibraryService>,
@@ -141,6 +142,10 @@ pub async fn library_album(
     let album = library.run(move |db| db.album(id)).await?;
     if album.as_ref().is_some_and(|album| album.cover.is_none()) {
         links.cover_album_later(id);
+    }
+    // Downloaded copies may need numbers too, so not only albums with streams.
+    if album.is_some() {
+        links.renumber_album_later(id);
     }
     Ok(album)
 }

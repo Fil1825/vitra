@@ -40,8 +40,25 @@ fn valid_name(name: &str) -> Result<&str> {
     }
 }
 
-/// Track ids of a playlist in order.
-fn items(tx: &Transaction<'_>, playlist_id: i64) -> Result<Vec<i64>> {
+/// One place in a playlist: a track, an imported entry still being looked for, or an entry
+/// matched to a track.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Item {
+    pub track_id: Option<i64>,
+    pub entry_id: Option<i64>,
+}
+
+impl Item {
+    pub fn track(id: i64) -> Self {
+        Self {
+            track_id: Some(id),
+            entry_id: None,
+        }
+    }
+}
+
+/// A playlist's places in order.
+pub(crate) fn items(tx: &Transaction<'_>, playlist_id: i64) -> Result<Vec<Item>> {
     let exists: Option<i64> = tx
         .query_row(
             "SELECT id FROM playlists WHERE id = ?",
@@ -52,28 +69,51 @@ fn items(tx: &Transaction<'_>, playlist_id: i64) -> Result<Vec<i64>> {
     if exists.is_none() {
         return Err(Error::Invalid(format!("no playlist {playlist_id}")));
     }
-    let mut statement =
-        tx.prepare("SELECT track_id FROM playlist_items WHERE playlist_id = ? ORDER BY position")?;
-    let ids = statement
-        .query_map([playlist_id], |row| row.get(0))?
+    let mut statement = tx.prepare(
+        "SELECT track_id, entry_id FROM playlist_items WHERE playlist_id = ? ORDER BY position",
+    )?;
+    let items = statement
+        .query_map([playlist_id], |row| {
+            Ok(Item {
+                track_id: row.get(0)?,
+                entry_id: row.get(1)?,
+            })
+        })?
         .collect::<rusqlite::Result<_>>()?;
-    Ok(ids)
+    Ok(items)
+}
+
+/// Rewrites a playlist of tracks with positions 0..n.
+pub(crate) fn write_items(tx: &Transaction<'_>, playlist_id: i64, ids: &[i64]) -> Result<()> {
+    let items: Vec<Item> = ids.iter().map(|id| Item::track(*id)).collect();
+    write_places(tx, playlist_id, &items)
 }
 
 /// Rewrites a playlist with positions 0..n. Playlists are small enough (thousands of rows at
 /// most) that renumbering everything is simpler than shifting ranges, and it heals the gaps
-/// left when tracks are deleted.
-pub(crate) fn write_items(tx: &Transaction<'_>, playlist_id: i64, ids: &[i64]) -> Result<()> {
+/// left when tracks are deleted. Imported entries no place holds any more go.
+pub(crate) fn write_places(tx: &Transaction<'_>, playlist_id: i64, items: &[Item]) -> Result<()> {
     tx.execute(
         "DELETE FROM playlist_items WHERE playlist_id = ?",
         [playlist_id],
     )?;
     let mut insert = tx.prepare(
-        "INSERT INTO playlist_items (playlist_id, position, track_id) VALUES (?1, ?2, ?3)",
+        "INSERT INTO playlist_items (playlist_id, position, track_id, entry_id)
+         VALUES (?1, ?2, ?3, ?4)",
     )?;
-    for (position, id) in ids.iter().enumerate() {
-        insert.execute(params![playlist_id, position as i64, id])?;
+    for (position, item) in items.iter().enumerate() {
+        insert.execute(params![
+            playlist_id,
+            position as i64,
+            item.track_id,
+            item.entry_id
+        ])?;
     }
+    tx.execute(
+        "DELETE FROM import_entries WHERE playlist_id = ?1 AND id NOT IN
+            (SELECT entry_id FROM playlist_items WHERE playlist_id = ?1 AND entry_id IS NOT NULL)",
+        [playlist_id],
+    )?;
     tx.execute(
         "UPDATE playlists SET updated_at = ?2 WHERE id = ?1",
         params![playlist_id, now()],
@@ -136,10 +176,10 @@ impl Library {
         index: Option<usize>,
     ) -> Result<()> {
         let tx = self.conn.transaction()?;
-        let mut ids = items(&tx, playlist_id)?;
-        let at = index.unwrap_or(ids.len()).min(ids.len());
-        ids.splice(at..at, track_ids.iter().copied());
-        write_items(&tx, playlist_id, &ids)?;
+        let mut places = items(&tx, playlist_id)?;
+        let at = index.unwrap_or(places.len()).min(places.len());
+        places.splice(at..at, track_ids.iter().map(|id| Item::track(*id)));
+        write_places(&tx, playlist_id, &places)?;
         tx.commit()?;
         Ok(())
     }
@@ -147,13 +187,13 @@ impl Library {
     /// Removes the items at the given indices; out-of-range indices are ignored.
     pub fn remove_from_playlist(&mut self, playlist_id: i64, indices: &[usize]) -> Result<()> {
         let tx = self.conn.transaction()?;
-        let ids: Vec<i64> = items(&tx, playlist_id)?
+        let places: Vec<Item> = items(&tx, playlist_id)?
             .into_iter()
             .enumerate()
             .filter(|(index, _)| !indices.contains(index))
-            .map(|(_, id)| id)
+            .map(|(_, item)| item)
             .collect();
-        write_items(&tx, playlist_id, &ids)?;
+        write_places(&tx, playlist_id, &places)?;
         tx.commit()?;
         Ok(())
     }
@@ -161,13 +201,13 @@ impl Library {
     /// Moves the item at `from` so it ends up at index `to`.
     pub fn move_in_playlist(&mut self, playlist_id: i64, from: usize, to: usize) -> Result<()> {
         let tx = self.conn.transaction()?;
-        let mut ids = items(&tx, playlist_id)?;
-        if from >= ids.len() {
+        let mut places = items(&tx, playlist_id)?;
+        if from >= places.len() {
             return Err(Error::Invalid(format!("no item {from}")));
         }
-        let id = ids.remove(from);
-        ids.insert(to.min(ids.len()), id);
-        write_items(&tx, playlist_id, &ids)?;
+        let item = places.remove(from);
+        places.insert(to.min(places.len()), item);
+        write_places(&tx, playlist_id, &places)?;
         tx.commit()?;
         Ok(())
     }

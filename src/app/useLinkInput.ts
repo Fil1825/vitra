@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 
+import { isServiceLink, looksLikeTrackList } from '../lib/import.ts';
 import { looksLikeLink } from '../lib/links.ts';
 import { useUi } from '../stores/ui.ts';
 
@@ -12,21 +13,16 @@ function isEditable(target: EventTarget | null): boolean {
 }
 
 /**
- * Ways to open a link: Cmd/Ctrl+U opens the link dialog; pasting a link anywhere outside a
- * text field opens it with that link. (Dropped links come through `useFileDrop`: Tauri keeps
- * drops from the page.)
+ * Pasting outside a text field: a link to a music service's list (Spotify, Apple Music…) or
+ * several lines of tracks open the Import Playlist dialog with it, any other link the link
+ * dialog. (The link dialog's shortcut, ⌘U / Ctrl+U by default, is the `open-link` action;
+ * dropped links come through `useFileDrop`: Tauri keeps drops from the page.)
  */
 export function useLinkInput(): void {
   useEffect(() => {
     const open = (input: string) => useUi.getState().openLink(input);
+    const openImport = (input: string) => useUi.getState().openImport(input);
 
-    const onKey = (event: KeyboardEvent) => {
-      const command = event.metaKey || event.ctrlKey;
-      if (command && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'u') {
-        event.preventDefault();
-        open('');
-      }
-    };
     // WebKit enables Paste outside text fields only when `beforepaste` is cancelled.
     const onBeforePaste = (event: Event) => {
       if (!isEditable(event.target)) {
@@ -34,21 +30,26 @@ export function useLinkInput(): void {
       }
     };
     const onPaste = (event: ClipboardEvent) => {
-      if (isEditable(event.target) || useUi.getState().linkInput !== null) {
+      const { linkInput, importInput } = useUi.getState();
+      if (isEditable(event.target) || linkInput !== null || importInput !== null) {
         return;
       }
       const text = event.clipboardData?.getData('text/plain') ?? '';
-      if (looksLikeLink(text)) {
+      if (isServiceLink(text)) {
+        event.preventDefault();
+        openImport(text.trim());
+      } else if (looksLikeLink(text)) {
         event.preventDefault();
         open(text.trim());
+      } else if (looksLikeTrackList(text)) {
+        event.preventDefault();
+        openImport(text);
       }
     };
 
-    window.addEventListener('keydown', onKey);
     document.addEventListener('beforepaste', onBeforePaste);
     document.addEventListener('paste', onPaste);
     return () => {
-      window.removeEventListener('keydown', onKey);
       document.removeEventListener('beforepaste', onBeforePaste);
       document.removeEventListener('paste', onPaste);
     };

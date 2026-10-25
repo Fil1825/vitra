@@ -1,0 +1,18 @@
+.word {
+  color: var(--lyrics-dim);
+}
+
+.word[data-state='sung'] {
+  color: var(--lyrics-lit);
+}
+
+.word[data-state='singing'] {
+  background: linear-gradient(
+    90deg,
+    var(--lyrics-lit) var(--fill, 0%),
+    var(--lyrics-dim) calc(var(--fill, 0%) + 16%)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}

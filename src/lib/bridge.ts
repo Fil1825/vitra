@@ -4,6 +4,12 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import { bus } from './bus.ts';
 import {
+  IMPORT_PROGRESS_EVENT,
+  IMPORT_STATUS_EVENT,
+  type ImportProgressUpdate,
+  type MatcherStatus,
+} from './import.ts';
+import {
   LIBRARY_CHANGED_EVENT,
   LIBRARY_SCAN_EVENT,
   type LibraryChange,
@@ -21,12 +27,15 @@ import {
   PLAYER_POSITION_EVENT,
   PLAYER_STATE_EVENT,
   PLAYER_LEVEL_EVENT,
+  PLAYER_SPECTRUM_EVENT,
   PLAYER_TRACK_EVENT,
   type PlayerState,
   type PositionUpdate,
   type Track,
 } from './player.ts';
+import { MINI_INTERACTIVE_EVENT } from './mini.ts';
 import { QUEUE_CHANGED_EVENT, type QueueState } from './queue.ts';
+import { THEMES_CHANGED_EVENT } from './themes.ts';
 import { EFFECTS_CHANGED_EVENT, type WindowEffects } from './window.ts';
 
 /** Re-publishes backend events on the frontend bus. Returns a function that stops it. */
@@ -38,6 +47,7 @@ export async function startBackendBridge(): Promise<UnlistenFn> {
     listen<Settings>(SETTINGS_CHANGED_EVENT, (event) =>
       bus.emit('settings:changed', event.payload),
     ),
+    listen(THEMES_CHANGED_EVENT, () => bus.emit('themes:changed', null)),
     // Sent only to the window whose backdrop changed, so no filtering by label is needed.
     getCurrentWindow().listen<WindowEffects>(EFFECTS_CHANGED_EVENT, (event) =>
       bus.emit('window:effects', event.payload),
@@ -48,11 +58,16 @@ export async function startBackendBridge(): Promise<UnlistenFn> {
     ),
     listen<Track>(PLAYER_TRACK_EVENT, (event) => bus.emit('player:track', event.payload)),
     listen<number>(PLAYER_LEVEL_EVENT, (event) => bus.emit('player:level', event.payload)),
+    listen<number[]>(PLAYER_SPECTRUM_EVENT, (event) => bus.emit('player:spectrum', event.payload)),
     listen<QueueState>(QUEUE_CHANGED_EVENT, (event) => bus.emit('queue:changed', event.payload)),
     listen<LibraryChange>(LIBRARY_CHANGED_EVENT, (event) =>
       bus.emit('library:changed', event.payload),
     ),
     listen<ScanStatus>(LIBRARY_SCAN_EVENT, (event) => bus.emit('library:scan', event.payload)),
+    listen<ImportProgressUpdate>(IMPORT_PROGRESS_EVENT, (event) =>
+      bus.emit('import:progress', event.payload),
+    ),
+    listen<MatcherStatus>(IMPORT_STATUS_EVENT, (event) => bus.emit('import:status', event.payload)),
     listen<DownloadJob[]>(DOWNLOADS_CHANGED_EVENT, (event) =>
       bus.emit('downloads:changed', event.payload),
     ),
@@ -60,6 +75,9 @@ export async function startBackendBridge(): Promise<UnlistenFn> {
       bus.emit('lyrics:changed', event.payload),
     ),
     listen<LineUpdate>(LYRICS_LINE_EVENT, (event) => bus.emit('lyrics:line', event.payload)),
+    getCurrentWindow().listen<boolean>(MINI_INTERACTIVE_EVENT, (event) =>
+      bus.emit('mini:interactive', event.payload),
+    ),
   ]);
   return () => unlisten.forEach((fn) => fn());
 }

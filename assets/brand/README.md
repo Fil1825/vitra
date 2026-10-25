@@ -25,6 +25,15 @@ npm run tauri icon -- assets/brand/icon-1024.png
 rm -rf src-tauri/icons/android src-tauri/icons/ios src-tauri/icons/Square*Logo.png src-tauri/icons/StoreLogo.png
 ```
 
+The macOS menu-bar icon `src-tauri/icons/tray-template.png` is `mono.svg` in black (a template
+image: macOS uses only its alpha), 36 × 36 px for the menu bar's 18 pt at 2x, with the glyph
+32 px and a 2 px margin like other menu-bar icons:
+
+```sh
+sed 's/#FFFFFF/#000000/g' assets/brand/mono.svg | rsvg-convert -w 32 -h 32 \
+  --page-width 36 --page-height 36 --left 2 --top 2 -o src-tauri/icons/tray-template.png
+```
+
 ## Palette
 
 Three accents plus white and dark navy — nothing else.

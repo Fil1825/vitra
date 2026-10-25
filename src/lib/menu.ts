@@ -1,13 +1,21 @@
 import { isTauri } from '@tauri-apps/api/core';
-import { Menu, type MenuItemOptions, type SubmenuOptions } from '@tauri-apps/api/menu';
+import {
+  Menu,
+  type CheckMenuItemOptions,
+  type MenuItemOptions,
+  type SubmenuOptions,
+} from '@tauri-apps/api/menu';
 
-/** A context menu entry: an action, a submenu, or a separator. */
+/**
+ * A context menu entry: an action (with a check mark when `checked` is set), a submenu, or a
+ * separator.
+ */
 export type MenuEntry =
-  | { label: string; action(): void; enabled?: boolean }
+  | { label: string; action(): void; enabled?: boolean; checked?: boolean }
   | { label: string; items: MenuEntry[]; enabled?: boolean }
   | 'separator';
 
-type NativeEntry = MenuItemOptions | SubmenuOptions | { item: 'Separator' };
+type NativeEntry = MenuItemOptions | CheckMenuItemOptions | SubmenuOptions | { item: 'Separator' };
 
 function toNative(entry: MenuEntry): NativeEntry {
   if (entry === 'separator') {
@@ -21,7 +29,8 @@ function toNative(entry: MenuEntry): NativeEntry {
     };
   }
   const { action } = entry;
-  return { text: entry.label, enabled: entry.enabled ?? true, action: () => action() };
+  const item = { text: entry.label, enabled: entry.enabled ?? true, action: () => action() };
+  return entry.checked === undefined ? item : { ...item, checked: entry.checked };
 }
 
 /**

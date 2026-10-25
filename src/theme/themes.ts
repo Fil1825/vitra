@@ -21,8 +21,23 @@ function builtIn(id: string): Theme {
   return theme;
 }
 
-/** Turns the theme setting into a concrete theme; unknown ids behave like `auto`. */
-export function resolveTheme(themeId: string, systemPrefersDark: boolean): Theme {
-  const theme = themeId === AUTO_THEME_ID ? undefined : byId.get(themeId);
+/** Whether `id` is a built-in theme (or `auto`), which user themes can't replace. */
+export function isBuiltIn(id: string): boolean {
+  return id === AUTO_THEME_ID || byId.has(id);
+}
+
+/**
+ * Turns the theme setting into a concrete theme, looking at the user's themes after the
+ * built-in ones; unknown ids (a removed theme) behave like `auto`.
+ */
+export function resolveTheme(
+  themeId: string,
+  systemPrefersDark: boolean,
+  userThemes: readonly Theme[] = [],
+): Theme {
+  const theme =
+    themeId === AUTO_THEME_ID
+      ? undefined
+      : (byId.get(themeId) ?? userThemes.find((t) => t.id === themeId));
   return theme ?? builtIn(systemPrefersDark ? 'dark' : 'light');
 }

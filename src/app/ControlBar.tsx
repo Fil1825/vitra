@@ -5,6 +5,7 @@ import {
   LoaderCircle,
   MicVocal,
   Pause,
+  PictureInPicture2,
   Play,
   Repeat,
   Repeat1,
@@ -18,18 +19,25 @@ import {
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { CoverArt } from '../components/CoverArt/index.ts';
 import { Glass } from '../components/Glass/index.ts';
 import { IconButton } from '../components/ui/IconButton.tsx';
 import { Slider } from '../components/ui/Slider.tsx';
+import { isShown } from '../layout/model.ts';
+import { toggleModule, useLayout } from '../layout/state.ts';
 import { formatTime } from '../lib/format.ts';
 import { library } from '../lib/library.ts';
+import { mini } from '../lib/mini.ts';
 import { artworkUrl, player } from '../lib/player.ts';
 import { hasNext, nextRepeat, queue } from '../lib/queue.ts';
 import { ArtistLinks, LibraryLink } from '../features/library/TrackLinks.tsx';
 import { useCurrentLibraryTrack } from '../features/library/useCurrentTrack.ts';
+import { toggleLyrics } from '../features/lyrics/actions.ts';
+import { useShortcutLabel, withShortcut } from '../shortcuts/useShortcuts.ts';
 import { albumRoute, useNavigation } from '../stores/navigation.ts';
 import { useLivePosition, usePlayer } from '../stores/player.ts';
 import { useQueue } from '../stores/queue.ts';
+import { useSettings } from '../stores/settings.ts';
 import { useUi } from '../stores/ui.ts';
 import styles from './ControlBar.module.css';
 import { playerErrorText } from './playerError.ts';
@@ -56,16 +64,17 @@ export function ControlBar({ className }: { className?: string }) {
   const { t } = useTranslation();
   const state = usePlayer((s) => s.state);
   const queueState = useQueue((s) => s.queue);
-  const sidePanel = useUi((s) => s.sidePanel);
-  const togglePanel = useUi((s) => s.togglePanel);
+  const layout = useLayout();
   const viewArtwork = useUi((s) => s.viewArtwork);
-  const queueOpen = sidePanel === 'queue';
-  const lyricsOpen = sidePanel === 'lyrics';
+  const lyricsVisible = useSettings((s) => s.settings.lyrics.visible);
+  const queueOpen = isShown(layout, 'queue');
+  const lyricsOpen = lyricsVisible && isShown(layout, 'lyrics');
   const go = useNavigation((s) => s.go);
   const libraryTrack = useCurrentLibraryTrack();
   const position = useLivePosition();
   const [scrub, setScrub] = useState<number | null>(null);
   const [volume, setVolume] = useState<number | null>(null);
+  const miniShortcut = useShortcutLabel('mini-player');
 
   const { track, duration } = state;
   // Seeking needs an open file; a link can take a while to open (yt-dlp asks the site first).
@@ -105,7 +114,7 @@ export function ControlBar({ className }: { className?: string }) {
               })
             }
           >
-            <img className={styles.artwork} src={artworkUrl(track.artwork.id)} alt="" />
+            <CoverArt src={artworkUrl(track.artwork.id)} live className={styles.artwork} />
           </button>
         ) : (
           <button
@@ -114,7 +123,7 @@ export function ControlBar({ className }: { className?: string }) {
             aria-label={t('nav.nowPlaying')}
             onClick={() => go({ view: 'nowPlaying' })}
           >
-            <div className={styles.artwork} aria-hidden="true" />
+            <CoverArt src={null} live={track !== null} className={styles.artwork} />
           </button>
         )}
         <div className={styles.trackText}>
@@ -180,9 +189,9 @@ export function ControlBar({ className }: { className?: string }) {
             {loading ? (
               <LoaderCircle size={22} className={styles.spin} />
             ) : playing ? (
-              <Pause size={22} fill="currentColor" />
+              <Pause size={22} fill="currentColor" data-morph="" />
             ) : (
-              <Play size={22} fill="currentColor" />
+              <Play size={22} fill="currentColor" data-morph="" />
             )}
           </IconButton>
           <IconButton
@@ -248,10 +257,16 @@ export function ControlBar({ className }: { className?: string }) {
           onCommit={() => setVolume(null)}
         />
         <IconButton
-          label={t(lyricsOpen ? 'player.hideLyrics' : 'player.showLyrics')}
+          label={t(
+            !lyricsVisible
+              ? 'player.showLyrics'
+              : lyricsOpen
+                ? 'player.closeLyricsPanel'
+                : 'player.openLyricsPanel',
+          )}
           aria-pressed={lyricsOpen}
           className={lyricsOpen ? styles.on : undefined}
-          onClick={() => togglePanel('lyrics')}
+          onClick={toggleLyrics}
         >
           <MicVocal size={17} />
         </IconButton>
@@ -259,9 +274,15 @@ export function ControlBar({ className }: { className?: string }) {
           label={t(queueOpen ? 'player.hideQueue' : 'player.showQueue')}
           aria-pressed={queueOpen}
           className={queueOpen ? styles.on : undefined}
-          onClick={() => togglePanel('queue')}
+          onClick={() => toggleModule('queue')}
         >
           <ListMusic size={17} />
+        </IconButton>
+        <IconButton
+          label={withShortcut(t('mini.open'), miniShortcut)}
+          onClick={() => mini.show().catch(report)}
+        >
+          <PictureInPicture2 size={17} />
         </IconButton>
       </div>
     </Glass>

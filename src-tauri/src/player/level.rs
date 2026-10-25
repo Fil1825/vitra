@@ -18,11 +18,12 @@ pub const POLL: Duration = Duration::from_millis(70);
 pub const IDLE_POLL: Duration = Duration::from_millis(300);
 
 /// The `af add` argument. Only the overall RMS level is measured, over two audio frames
-/// (some 50 ms), which costs next to nothing.
+/// (some 50 ms), on one thread (lavfi's threading costs more than the measuring), which
+/// costs next to nothing.
 pub fn filter() -> String {
     format!(
-        "@{FILTER_LABEL}:lavfi=[astats=metadata=1:reset=2:measure_perchannel=none:\
-         measure_overall=RMS_level]"
+        "@{FILTER_LABEL}:lavfi=graph=[astats=metadata=1:reset=2:measure_perchannel=none:\
+         measure_overall=RMS_level]:o=[threads=1]"
     )
 }
 
@@ -71,7 +72,7 @@ mod tests {
             None
         );
         assert_eq!(rms_db(&json!({})), None);
-        assert!(filter().starts_with("@vitralevel:lavfi=[astats="));
+        assert!(filter().starts_with("@vitralevel:lavfi=graph=[astats="));
     }
 
     #[test]

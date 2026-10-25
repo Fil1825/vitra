@@ -1,8 +1,9 @@
-import { AudioLines, Globe, GripVertical, Heart, Play } from 'lucide-react';
+import { AudioLines, Globe, GripVertical, Heart, Play, Search, SearchX } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { formatTime } from '../../lib/format.ts';
+import type { ImportEntry } from '../../lib/import.ts';
 import type { LibraryTrack } from '../../lib/library.ts';
 import { isRemotePath } from '../../lib/links.ts';
 import { showContextMenu, type MenuEntry } from '../../lib/menu.ts';
@@ -49,6 +50,14 @@ export interface TrackTableProps {
   onMove?(from: number, to: number): void;
   /** Extra context menu entries for the selected rows (indices into `tracks`). */
   extraMenu?(rows: number[]): MenuEntry[];
+  /**
+   * An imported playlist's entries by row (aligned with `tracks`, which has placeholders
+   * for entries still without a track): those rows are greyed and don't play, and doubtful
+   * matches get a "?". Not for sortable tables.
+   */
+  entries?: readonly (ImportEntry | null)[];
+  /** An entry's "?" or a waiting row was clicked (alternatives, Find…). */
+  onEntry?(entry: ImportEntry): void;
 }
 
 /** A virtualized track list: select, play, reorder and open context menus. */
@@ -60,6 +69,8 @@ export function TrackTable({
   sortable = false,
   onMove,
   extraMenu,
+  entries,
+  onEntry,
 }: TrackTableProps) {
   const { t, i18n } = useTranslation();
   const [sort, setSort] = useState<Sort | null>(null);
@@ -88,8 +99,21 @@ export function TrackTable({
     .filter(Boolean)
     .join(' ');
 
-  const ids = () => rows.map((track) => track.id);
-  const play = (index: number) => playTracks(ids(), index);
+  const entryAt = (index: number) => (sort === null ? (entries?.[index] ?? null) : null);
+  /** A row of an imported entry that has no track yet. */
+  const waiting = (index: number) => entryAt(index)?.trackId === null;
+  const play = (index: number) => {
+    const entry = entryAt(index);
+    if (entry && entry.trackId === null) {
+      onEntry?.(entry);
+      return;
+    }
+    const playable = rows.flatMap((track, row) => (waiting(row) ? [] : [{ track, row }]));
+    playTracks(
+      playable.map(({ track }) => track.id),
+      playable.findIndex(({ row }) => row === index),
+    );
+  };
 
   const onRowClick = (index: number, event: MouseEvent) => {
     setFocus(index);
@@ -104,8 +128,13 @@ export function TrackTable({
     setSelection(next);
     setFocus(index);
     const picked = selectedRows(next);
-    const chosen = picked.map((row) => rows[row]).filter((track) => track !== undefined);
-    showContextMenu(trackMenu(chosen, allPlaylists, extraMenu?.(picked))).catch(
+    const chosen = picked
+      .filter((row) => !waiting(row))
+      .map((row) => rows[row])
+      .filter((track) => track !== undefined);
+    const extra = extraMenu?.(picked) ?? [];
+    // Rows still waiting for a track have only the playlist's own entries.
+    showContextMenu(chosen.length > 0 ? trackMenu(chosen, allPlaylists, extra) : extra).catch(
       report('Showing a menu'),
     );
   };
@@ -191,6 +220,8 @@ export function TrackTable({
   };
 
   const cell = (column: Column, track: LibraryTrack, index: number) => {
+    const entry = entryAt(index);
+    const placeholder = entry !== null && entry.trackId === null;
     switch (column) {
       case 'number': {
         const number = numbering === 'index' ? index + 1 : track.trackNumber;
@@ -201,18 +232,20 @@ export function TrackTable({
             ) : (
               <span className={styles.numberText}>{number ?? ''}</span>
             )}
-            <button
-              type="button"
-              className={styles.rowPlay}
-              aria-label={t('library.play')}
-              tabIndex={-1}
-              onClick={(event) => {
-                event.stopPropagation();
-                play(index);
-              }}
-            >
-              <Play size={13} fill="currentColor" />
-            </button>
+            {!placeholder && (
+              <button
+                type="button"
+                className={styles.rowPlay}
+                aria-label={t('library.play')}
+                tabIndex={-1}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  play(index);
+                }}
+              >
+                <Play size={13} fill="currentColor" />
+              </button>
+            )}
           </span>
         );
       }
@@ -221,6 +254,41 @@ export function TrackTable({
           <span key={column} className={styles.titleCell}>
             {covers && <Cover id={track.cover} className={styles.thumb} />}
             <span className={styles.text}>{track.title}</span>
+            {entry?.state === 'pending' && (
+              <Search
+                size={12}
+                className={styles.remote}
+                role="img"
+                aria-label={t('import.pending')}
+              >
+                <title>{t('import.pending')}</title>
+              </Search>
+            )}
+            {entry?.state === 'missing' && (
+              <SearchX
+                size={12}
+                className={styles.remote}
+                role="img"
+                aria-label={t('import.missing')}
+              >
+                <title>{t('import.missing')}</title>
+              </SearchX>
+            )}
+            {entry?.state === 'doubtful' && (
+              <button
+                type="button"
+                className={styles.doubt}
+                aria-label={t('import.doubtful')}
+                title={t('import.doubtful')}
+                tabIndex={-1}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onEntry?.(entry);
+                }}
+              >
+                ?
+              </button>
+            )}
             {isRemotePath(track.path) && (
               <Globe
                 size={12}
@@ -266,20 +334,22 @@ export function TrackTable({
       case 'favorite':
         return (
           <span key={column} className={styles.favoriteCell}>
-            <button
-              type="button"
-              className={styles.favorite}
-              data-on={track.favorite || undefined}
-              aria-pressed={track.favorite}
-              aria-label={t(track.favorite ? 'player.unfavorite' : 'player.favorite')}
-              tabIndex={-1}
-              onClick={(event) => {
-                event.stopPropagation();
-                setFavorite([track.id], !track.favorite);
-              }}
-            >
-              <Heart size={14} fill={track.favorite ? 'currentColor' : 'none'} />
-            </button>
+            {!placeholder && (
+              <button
+                type="button"
+                className={styles.favorite}
+                data-on={track.favorite || undefined}
+                aria-pressed={track.favorite}
+                aria-label={t(track.favorite ? 'player.unfavorite' : 'player.favorite')}
+                tabIndex={-1}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setFavorite([track.id], !track.favorite);
+                }}
+              >
+                <Heart size={14} fill={track.favorite ? 'currentColor' : 'none'} />
+              </button>
+            )}
           </span>
         );
     }
@@ -319,6 +389,7 @@ export function TrackTable({
               data-index={index}
               data-alt={index % 2 === 1 || undefined}
               data-playing={track.id === playingId || undefined}
+              data-waiting={waiting(index) || undefined}
               data-lifted={drag.dragging?.from === index || undefined}
               tabIndex={index === focus ? 0 : -1}
               className={styles.row}

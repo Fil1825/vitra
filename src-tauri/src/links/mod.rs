@@ -161,6 +161,9 @@ struct Inner {
     enriching: Mutex<HashSet<String>>,
     /// Albums looked for a cover this session (see [`LinkService::cover_album_later`]).
     covering: Mutex<HashSet<i64>>,
+    /// Albums checked for missing numbers this session (see
+    /// [`LinkService::renumber_album_later`]).
+    renumbering: Mutex<HashSet<i64>>,
     updating: tokio::sync::Mutex<()>,
 }
 
@@ -229,6 +232,7 @@ impl LinkService {
             thumbnails: Mutex::new(VecDeque::new()),
             enriching: Mutex::new(HashSet::new()),
             covering: Mutex::new(HashSet::new()),
+            renumbering: Mutex::new(HashSet::new()),
             updating: tokio::sync::Mutex::new(()),
         })))
     }
@@ -280,6 +284,16 @@ impl LinkService {
     /// The thumbnail of a link seen recently.
     pub fn thumbnail(&self, url: &str) -> Option<Arc<Vec<u8>>> {
         recall(&self.0.thumbnails, url)
+    }
+
+    /// Keeps a link's thumbnail for a while (the import's searches see many).
+    pub fn remember_thumbnail(&self, url: &str, image: Vec<u8>) {
+        remember(&self.0.thumbnails, url, Arc::new(image));
+    }
+
+    /// A folder for yt-dlp's temporary files.
+    pub fn scratch(&self) -> &Path {
+        &self.0.scratch
     }
 
     /// What a pasted link is. Pages are asked about with yt-dlp; direct files and radio
@@ -360,6 +374,11 @@ impl LinkService {
                 }
             }
             Resolved::Playlist(playlist) => {
+                // Opening an album link repairs the album the library has: tracks it had
+                // before get their album and numbers, and the album keeps the link.
+                if let Err(err) = self.place_listing(&playlist).await {
+                    log::warn!("cannot place {} in its album: {err}", playlist.url);
+                }
                 let url = playlist.url.clone();
                 let playlist_id = library
                     .run(move |db| db.playlist_by_source(&url))
@@ -498,12 +517,15 @@ impl LinkService {
     }
 
     /// Adds an album's tracks to the library as one album with its cover, and fills in their
-    /// metadata in the background.
+    /// metadata in the background. The album keeps the link, for
+    /// [`Self::renumber_album_later`].
     async fn store_album(&self, playlist: &LinkPlaylist) -> Result<Vec<Track>, AppError> {
         let library = self.library()?;
         let tracks: Vec<RemoteTrack> = playlist.tracks.iter().map(|t| remote(t, false)).collect();
         let cover = self.album_cover(playlist).await;
         let covers = library.covers_dir().to_path_buf();
+        let url = playlist.url.clone();
+        let title = playlist.album.as_ref().map(|album| album.title.clone());
         let stored = library
             .run(move |db| {
                 let stored = db.add_remote_tracks(&tracks)?;
@@ -512,6 +534,10 @@ impl LinkService {
                     for album in &albums {
                         db.set_album_artwork(*album, &cover, &covers)?;
                     }
+                }
+                if let Some(title) = title {
+                    let ids: Vec<i64> = stored.iter().map(|t| t.id).collect();
+                    db.keep_album_source(&url, &title, &ids)?;
                 }
                 let ids = stored.iter().map(|t| t.id).collect();
                 db.tracks(&library::TrackFilter::Ids(ids))
@@ -708,6 +734,56 @@ impl LinkService {
                 log::info!("cannot find a cover for album {album_id}: {err}");
             }
         });
+    }
+
+    /// Numbers the tracks of a link album that lack them, in the background: ones the
+    /// library had before the album was imported, stored before listings placed them. The
+    /// album's listing is read again from the link it keeps (only tracks the library has are
+    /// touched). Tried once per album and session; the views reload if anything changed.
+    pub fn renumber_album_later(&self, album_id: i64) {
+        if !lock(&self.0.renumbering).insert(album_id) {
+            return;
+        }
+        let service = self.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(err) = service.renumber_album(album_id).await {
+                log::info!("cannot renumber album {album_id}: {err}");
+            }
+        });
+    }
+
+    async fn renumber_album(&self, album_id: i64) -> Result<(), AppError> {
+        let library = self.library()?;
+        let Some(url) = library
+            .run(move |db| db.album_to_renumber(album_id))
+            .await?
+        else {
+            return Ok(());
+        };
+        if let Resolved::Playlist(playlist) = self.describe(&links::parse_link(&url)?).await? {
+            self.place_listing(&playlist).await?;
+        }
+        Ok(())
+    }
+
+    /// Files the tracks the library has from an album link's listing into that album with
+    /// their numbers, and lets the album keep the link (see
+    /// [`library::Library::place_album_listing`]). Not an import: nothing new is added.
+    async fn place_listing(&self, playlist: &LinkPlaylist) -> Result<(), AppError> {
+        let Some(title) = playlist.album.as_ref().map(|album| album.title.clone()) else {
+            return Ok(());
+        };
+        let library = self.library()?;
+        let listing: Vec<RemoteTrack> = playlist.tracks.iter().map(|t| remote(t, false)).collect();
+        let url = playlist.url.clone();
+        let changed = library
+            .run(move |db| db.place_album_listing(&url, &title, &listing))
+            .await?;
+        if !changed.is_empty() {
+            log::info!("{}: placed {} known tracks", playlist.url, changed.len());
+        }
+        self.tracks_updated(&library, changed);
+        Ok(())
     }
 
     async fn cover_album(&self, album_id: i64) -> Result<(), AppError> {

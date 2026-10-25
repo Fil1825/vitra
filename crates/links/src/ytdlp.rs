@@ -27,6 +27,13 @@ const VERSION_TIMEOUT: Duration = Duration::from_secs(120);
 const ERROR_LINES: usize = 20;
 const IMAGE_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp"];
 
+/// YouTube Music's search for `query`, its "Songs" section (yt-dlp's
+/// `youtube:music:search_url` reads the section from the fragment).
+pub fn music_search_url(query: &str) -> String {
+    let query: String = url::form_urlencoded::byte_serialize(query.trim().as_bytes()).collect();
+    format!("https://music.youtube.com/search?q={query}#songs")
+}
+
 /// Browsers yt-dlp can take cookies from (`--cookies-from-browser`).
 pub const COOKIE_BROWSERS: &[&str] = &[
     "safari", "chrome", "firefox", "edge", "brave", "chromium", "opera", "vivaldi",
@@ -75,6 +82,49 @@ pub fn failure(stderr: &str) -> LinkError {
     } else {
         LinkError::Failed(message)
     }
+}
+
+/// Why a site can't be asked right now, though it may answer later.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Outage {
+    /// "Too many requests": the site wants us to slow down.
+    RateLimited,
+    /// No connection, a timeout, the site's own trouble (5xx).
+    Unreachable,
+}
+
+/// Whether yt-dlp's error is the network's or the site's for now (worth waiting and asking
+/// again) rather than about the page itself (gone, private, not a page yt-dlp reads).
+pub fn outage(message: &str) -> Option<Outage> {
+    let lower = message.to_lowercase();
+    if lower.contains("http error 429") || lower.contains("too many requests") {
+        return Some(Outage::RateLimited);
+    }
+    // A page that isn't there answers with 4xx: that's the page, not the network.
+    if (400..500).any(|code| lower.contains(&format!("http error {code}"))) {
+        return None;
+    }
+    const NETWORK: &[&str] = &[
+        "http error 5",
+        "urlopen error",
+        "connection reset",
+        "connection refused",
+        "connection aborted",
+        "remote end closed",
+        "timed out",
+        "name resolution",
+        "name or service not known",
+        "nodename nor servname",
+        "network is unreachable",
+        "no route to host",
+        "temporarily unavailable",
+        "ssl:",
+        "eof occurred",
+    ];
+    NETWORK
+        .iter()
+        .any(|sign| lower.contains(sign))
+        .then_some(Outage::Unreachable)
 }
 
 /// The last `ERROR:` line yt-dlp printed, or its last line at all.
@@ -235,6 +285,79 @@ impl YtDlp {
         result
     }
 
+    /// The songs YouTube Music finds for `query`, best first: its "Songs" results (the
+    /// labels' audio tracks, not videos), listed without opening each one, so they have a
+    /// title and a link only ([`Self::describe`] tells the rest).
+    pub async fn search(&self, query: &str, limit: usize) -> Result<Vec<LinkTrack>> {
+        let url = music_search_url(query);
+        let mut command = self.command();
+        command
+            .args(["-J", "--flat-playlist", "--playlist-end"])
+            .arg(limit.max(1).to_string())
+            .arg("--")
+            .arg(&url);
+        let output = Self::output(command, RESOLVE_TIMEOUT).await?;
+        Ok(
+            match parse_info(&String::from_utf8_lossy(&output.stdout), &url)? {
+                Resolved::Playlist(playlist) => playlist.tracks,
+                Resolved::Track(track) => vec![track],
+            },
+        )
+    }
+
+    /// Writes the cookies of the browser chosen in the settings into `file` (Netscape format),
+    /// for requests Vitra makes itself (Yandex Music's private playlists). yt-dlp saves its
+    /// cookie jar into `--cookies` when it exits, whatever the run did, so the run asks a
+    /// local address that refuses at once and nothing goes out.
+    pub async fn export_cookies(&self, file: &Path) -> Result<()> {
+        if self.cookies_from_browser.is_none() {
+            return Err(LinkError::Failed("no browser chosen for cookies".into()));
+        }
+        let mut command = self.command();
+        command.arg("--cookies").arg(file).args([
+            "--simulate",
+            "--no-playlist",
+            "--",
+            "http://127.0.0.1:9/",
+        ]);
+        match Self::output(command, RESOLVE_TIMEOUT).await {
+            Ok(_) | Err(LinkError::Failed(_)) => {}
+            Err(err) => return Err(err),
+        }
+        match std::fs::metadata(file) {
+            Ok(meta) if meta.len() > 0 => Ok(()),
+            _ => Err(LinkError::Cookies("yt-dlp wrote no cookies".into())),
+        }
+    }
+
+    /// One track's complete metadata (artists, album, length) and its thumbnail, in one run.
+    /// `scratch` is a directory for temporary files.
+    pub async fn describe(
+        &self,
+        url: &str,
+        scratch: &Path,
+    ) -> Result<(LinkTrack, Option<Vec<u8>>)> {
+        let dir = scratch_dir(scratch)?;
+        let mut command = self.command();
+        command
+            .args(["-J", "--no-playlist"])
+            .args(["--no-simulate", "--skip-download", "--write-thumbnail"])
+            .args(thumbnail_templates(&dir))
+            .current_dir(&dir)
+            .arg("--")
+            .arg(url);
+        let result = Self::output(command, RESOLVE_TIMEOUT)
+            .await
+            .and_then(
+                |output| match parse_info(&String::from_utf8_lossy(&output.stdout), url)? {
+                    Resolved::Track(track) => Ok((track, thumbnail_in(&dir, None))),
+                    Resolved::Playlist(_) => Err(LinkError::Failed("a list, not a track".into())),
+                },
+            );
+        let _ = std::fs::remove_dir_all(&dir);
+        result
+    }
+
     /// Complete metadata and the thumbnail of every entry of `url`, one at a time as yt-dlp
     /// gets them (a playlist listing only has titles). Entries that fail are skipped.
     pub async fn enrich(
@@ -377,6 +500,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn music_search_urls() {
+        assert_eq!(
+            music_search_url(" Кино Группа крови "),
+            "https://music.youtube.com/search?q=%D0%9A%D0%B8%D0%BD%D0%BE+%D0%93%D1%80%D1%83%D0%BF%D0%BF%D0%B0+%D0%BA%D1%80%D0%BE%D0%B2%D0%B8#songs"
+        );
+        assert_eq!(
+            music_search_url("AC/DC & co #1"),
+            "https://music.youtube.com/search?q=AC%2FDC+%26+co+%231#songs"
+        );
+    }
+
+    #[test]
     fn error_messages_prefer_error_lines() {
         assert_eq!(
             error_message("WARNING: slow\nERROR: [youtube] x: Video unavailable\n"),
@@ -402,6 +537,31 @@ mod tests {
             failure("ERROR: [youtube] abc: Video unavailable"),
             LinkError::Failed(message) if message == "[youtube] abc: Video unavailable"
         ));
+    }
+
+    #[test]
+    fn outages_are_told_from_pages() {
+        assert_eq!(
+            outage(
+                "[youtube:music:search_url] x: Unable to download API page: HTTP Error 429: Too Many Requests"
+            ),
+            Some(Outage::RateLimited)
+        );
+        assert_eq!(
+            outage(
+                "[youtube] x: Unable to download webpage: <urlopen error [Errno 8] nodename nor servname provided, or not known>"
+            ),
+            Some(Outage::Unreachable)
+        );
+        assert_eq!(
+            outage("Unable to download webpage: HTTP Error 503: Service Unavailable"),
+            Some(Outage::Unreachable)
+        );
+        assert_eq!(
+            outage("[youtube] x: Unable to download webpage: HTTP Error 404: Not Found"),
+            None
+        );
+        assert_eq!(outage("[youtube] abc: Video unavailable"), None);
     }
 
     #[test]

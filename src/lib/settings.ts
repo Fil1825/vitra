@@ -1,6 +1,8 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
+import { DEFAULT_LAYOUT, type Layout } from '../layout/model.ts';
 import type { AudioFormat } from './links.ts';
+import type { MiniMode, MiniSize } from './mini.ts';
 
 // Mirrors `Settings` in src-tauri/src/settings.rs, which owns and persists them.
 
@@ -23,6 +25,61 @@ export interface AppearanceSettings {
   artworkAccent: boolean;
   /** The animated backdrop swells with the music. */
   backdropPulse: boolean;
+  /** Covers as spinning records: as the theme says (`auto`), always or never. */
+  vinyl: Switch;
+  /** How fast records turn (turns a minute); `null`: the theme's speed, else 33⅓. */
+  vinylSpeed: number | null;
+}
+
+/** Records' speeds to choose from, in turns a minute (Rust keeps them in this range). */
+export const VINYL_SPEED_MIN = 5;
+export const VINYL_SPEED_MAX = 78;
+/** A long-playing record's speed. */
+export const LP_SPEED = 100 / 3;
+
+/** How the level meter draws the spectrum. */
+export type MeterStyle = 'bars' | 'mirror' | 'wave';
+
+export const METER_STYLES: readonly MeterStyle[] = ['bars', 'mirror', 'wave'];
+
+/** The level meter module. */
+export interface MeterSettings {
+  style: MeterStyle;
+}
+
+/** The equalizer's band centres (Hz), low to high. */
+export const EQ_BANDS = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000] as const;
+/** A band's gain and the preamp, in dB. */
+export const EQ_GAIN_MAX = 12;
+/** The longest crossfade, in seconds (0 plays gapless). */
+export const CROSSFADE_MAX = 12;
+
+export interface Equalizer {
+  enabled: boolean;
+  /** The preset the gains came from (`flat`, `rock`, `user:<name>`…); empty once edited. */
+  preset: string;
+  /** dB per band, low to high. */
+  gains: number[];
+  /** dB before the bands, to keep boosts from clipping. */
+  preamp: number;
+}
+
+/** An equalizer preset the user saved. */
+export interface EqPreset {
+  name: string;
+  gains: number[];
+  preamp: number;
+}
+
+/** Evening out loudness between tracks (ReplayGain tags, else Vitra's own measurement). */
+export type Normalization = 'off' | 'track' | 'album';
+
+export interface SoundSettings {
+  equalizer: Equalizer;
+  presets: EqPreset[];
+  normalization: Normalization;
+  /** Seconds two tracks overlap; 0 plays them gapless. */
+  crossfade: number;
 }
 
 /** How a credit like "A feat. B" or "A, B" is split into artists. */
@@ -64,6 +121,18 @@ export const COOKIE_BROWSERS = [
   'vivaldi',
 ] as const;
 
+/** A cookies browser's name as people know it. */
+export const BROWSER_NAMES: Record<(typeof COOKIE_BROWSERS)[number], string> = {
+  safari: 'Safari',
+  chrome: 'Chrome',
+  firefox: 'Firefox',
+  edge: 'Edge',
+  brave: 'Brave',
+  chromium: 'Chromium',
+  opera: 'Opera',
+  vivaldi: 'Vivaldi',
+};
+
 export interface LyricsSettings {
   /** Look lyrics up on LRCLIB when a track has none. */
   online: boolean;
@@ -71,6 +140,31 @@ export interface LyricsSettings {
   fontScale: number;
   /** Show a translation line under the original when the lyrics have one. */
   showTranslation: boolean;
+  /** Show lyrics at all (Now Playing, the side panel, the mini player's lyrics mode). */
+  visible: boolean;
+}
+
+export interface MiniPlayerSettings {
+  mode: MiniMode;
+  size: MiniSize;
+  alwaysOnTop: boolean;
+  /** macOS: above full-screen apps too (the Dock icon goes while it is the only window). */
+  overFullScreen: boolean;
+  /** Opacity of the glass background (0.2–1); artwork, text and buttons stay solid. */
+  opacity: number;
+  snapToEdges: boolean;
+  /** Opens where it was, at the size each mode had. */
+  rememberPosition: boolean;
+  /** Clicks go through; holding ⌥ (Alt) over it makes it usable. */
+  clickThrough: boolean;
+  /** Opening the mini player hides the main window. */
+  hideMainWindow: boolean;
+}
+
+/** A layout saved under a name. */
+export interface LayoutPreset {
+  name: string;
+  layout: Layout;
 }
 
 export interface Settings {
@@ -79,7 +173,27 @@ export interface Settings {
   library: LibrarySettings;
   downloads: DownloadSettings;
   lyrics: LyricsSettings;
+  miniPlayer: MiniPlayerSettings;
+  /** The main window's modules and where they are (normalized by the backend). */
+  layout: Layout;
+  layoutPresets: LayoutPreset[];
+  /** Keyboard shortcuts the user changed: action id → combination, `null` for none. */
+  shortcuts: Record<string, string | null>;
+  /** Shortcuts that work in every app: action id → combination (none by default). */
+  globalShortcuts: Record<string, string>;
+  meter: MeterSettings;
+  sound: SoundSettings;
+  system: SystemSettings;
 }
+
+/** How Vitra sits in the system. */
+export interface SystemSettings {
+  /** The icon in the menu bar (macOS) or the notification area. */
+  trayIcon: boolean;
+}
+
+/** The range of the mini player's background opacity. */
+export const MINI_OPACITY_MIN = 0.2;
 
 export const FONT_SCALE_MIN = 0.7;
 export const FONT_SCALE_MAX = 1.6;
@@ -95,6 +209,8 @@ export const DEFAULT_SETTINGS: Settings = {
     windowMaterial: 'vibrancy',
     artworkAccent: true,
     backdropPulse: true,
+    vinyl: 'auto',
+    vinylSpeed: null,
   },
   library: { addOpenedFiles: true, artistSplitting: { enabled: true, exceptions: [] } },
   downloads: {
@@ -105,7 +221,30 @@ export const DEFAULT_SETTINGS: Settings = {
     albumTemplate: '{album_artist}/{album}/{track} {title}',
     cookiesFromBrowser: '',
   },
-  lyrics: { online: false, fontScale: 1, showTranslation: true },
+  lyrics: { online: false, fontScale: 1, showTranslation: true, visible: true },
+  miniPlayer: {
+    mode: 'compact',
+    size: 'medium',
+    alwaysOnTop: true,
+    overFullScreen: false,
+    opacity: 1,
+    snapToEdges: true,
+    rememberPosition: true,
+    clickThrough: false,
+    hideMainWindow: true,
+  },
+  layout: DEFAULT_LAYOUT,
+  layoutPresets: [],
+  shortcuts: {},
+  globalShortcuts: {},
+  meter: { style: 'bars' },
+  sound: {
+    equalizer: { enabled: false, preset: 'flat', gains: EQ_BANDS.map(() => 0), preamp: 0 },
+    presets: [],
+    normalization: 'off',
+    crossfade: 0,
+  },
+  system: { trayIcon: true },
 };
 
 /** Tauri event carrying the new settings after any window changed them. */

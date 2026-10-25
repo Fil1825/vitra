@@ -204,6 +204,19 @@ and an explicit list of checks that can only be done on a Mac.
 - Settings: always on top / normal, opacity, size, snap to screen edges, remember position,
   optional click-through. Uses the current theme and `<Glass>`.
 - **Mac-only checks**: always-on-top over full-screen apps, click-through.
+- Done and accepted (PR #7), with the owner's choices: click-through is left by holding ⌥ (Alt) over the
+  mini player; opening it hides the main window (a setting); size presets plus dragging, a
+  size per mode; the opacity fades only the background. Also: ⌥⌘M switches windows, it
+  reopens at launch if it was open, "over full-screen apps" on macOS drops the Dock icon
+  while it is the only window (macOS allows nothing else). The tray entry and a global
+  hotkey come with stage 8.
+- **Mac** for stage 6: on top over other apps and Spaces, over full-screen apps with the
+  option, click-through with ⌥, the rounded vibrancy, its shadow and fading, dragging and
+  resizing the borderless window, snapping at the menu bar and Dock.
+- Review round: the compact layout keeps the text its room at every size (it broke on
+  macOS), lyrics can be hidden everywhere (`lyrics.visible`), and an album link numbers
+  tracks the library had before; albums keep their link (migration 7), so an album's page
+  repairs that too.
 
 ## Stage 7 — Customization
 
@@ -217,16 +230,439 @@ and an explicit list of checks that can only be done on a Mac.
   lyrics panel, big artwork, control bar, volume meter); presets, optionally part of a theme.
 - Rebindable in-app hotkeys.
 - Docs: `docs/THEMES.md`.
+- The owner's choices: the layout is **zones and panels** (left and right columns, top and
+  bottom bars around the main view; modules move between zones, columns resize), not a
+  free grid; the theme editor is a **panel over the window**, so the whole app is the
+  live preview.
+- Done and accepted (PR #8; the owner checked it on a Mac, including the review round below):
+  - Themes: the schema gained fonts, a background picture and a layout; `.vitratheme`
+    import (drop or button; the CSS is cleaned and what was taken out is shown; a theme's
+    layout is offered, not forced), export, duplicate, delete; `crates/themes` reads
+    packages defensively and `theme://` serves installed themes' assets.
+  - The editor: colors, glass, type and fonts, corners and spacing, background (gradient,
+    artwork, picture), motion, `custom.css`, assets; every change shows at once.
+  - Layout: modules in zones (left/right columns, top/bottom bars), resizing columns and
+    the split between modules, customize mode with dnd-kit, built-in and saved presets;
+    two new modules, a big artwork panel and a level meter.
+  - Rebindable shortcuts for every action in Settings, by key position (any keyboard
+    layout); a few new actions (queue, lyrics, shuffle, repeat, customize layout).
+  - Examples in `themes/` (Dunes, Neon Grid, Paper) and `docs/THEMES.md`.
+- **Mac** for stage 7: the glass, refraction fallback and backdrop picture under real
+  vibrancy / Liquid Glass; theme fonts and `theme://` assets in a release build (CSP);
+  the traffic lights next to the top bar or the main view when the sidebar moves; ⌘-based
+  shortcuts and the macOS menu's own (⌘Q, ⌘W, ⌘H, ⌘M stay the system's); dragging modules
+  with a trackpad.
+- Review round (the owner's notes after checking it on a Mac):
+  - The level meter is a real spectrum: twenty bands from 40 Hz to 16 kHz measured in mpv's
+    audio chain (files and links alike, nothing measured while the module is hidden), drawn
+    on a canvas sixty times a second with fast rise, slow fall and falling peak caps; bars,
+    mirrored bars or a wave (its context menu), a quiet wave while nothing plays, still with
+    Reduce Motion.
+  - Covers: `artwork.shape` (square, rounded, round) and `artwork.vinyl` in the theme and the
+    editor; records turn at 33⅓ rpm while music plays (the big cover, the artwork module,
+    the control bar, the mini player, the queue's current track), with grooves, a sheen and
+    a label; the user can force them on or off (Settings, the disc button on the big cover).
+  - Vitra Sans: Outfit (Latin) with Onest (Cyrillic), bundled, the built-in themes' font.
+  - The no-cover placeholder is the mono Vitra symbol in the theme's color (or its own,
+    `artwork.placeholderColor`), everywhere a cover shows.
+  - Fixes: the mini player's dark edges (its content is clipped to its rounded corners and
+    the window shadow redrawn); the backdrop's diagonal edge on wide screens (its moving
+    pieces are big squares now).
+- **Mac** for the review round:
+  - The spectrum with real music and a link: bars move with what you hear (no lag or lead),
+    CPU stays low (Activity Monitor: mpv and Vitra), nothing measured with the module hidden.
+  - Records: the spin looks smooth, starts and stops gently with play/pause, stops in place;
+    Reduce Motion (System Settings → Accessibility → Display) keeps them still.
+  - Vitra Sans in a release build (CSP), Latin and Cyrillic mixed on one line look even.
+  - The mini player's edges and corners are clean on light and dark themes, with vibrancy
+    and Liquid Glass, faded and not, and its shadow follows the rounded shape. (Windows 11:
+    rounded corners.)
+  - The backdrop on a 2K (2560×1440) and an ultrawide (21:9) screen in full screen, on the
+    lyrics view too: no edge or diagonal line.
 
 ## Stage 8 — Sound & system
 
 - 10-band EQ with presets and custom presets (`lavfi` `equalizer` chain, updated live).
 - ReplayGain (track/album), volume normalization (`dynaudnorm`/`loudnorm`), crossfade.
 - Media keys and Now Playing via `souvlaki` (macOS, Windows SMTC, Linux MPRIS).
-- Tray / menu-bar icon (`assets/brand/mono.svg`, a template image on macOS) with basic controls; global hotkeys (`tauri-plugin-global-shortcut`).
-- **Mac-only checks**: media keys, Now Playing widget, menu-bar icon.
+  **Required, not optional**: on macOS the system Now Playing widget (Control Center, the
+  lock screen, the menu-bar item of AirPods / headphones) must show the playing track with
+  its artwork, position and play/pause/next/previous/seek, and the media keys (F7–F9, the
+  Touch Bar, headphone buttons) must control Vitra. Today nothing shows there: mpv runs with
+  `--media-controls=no` and `--input-media-keys=no` (key decision 5), on purpose, because
+  the queue is Vitra's, not mpv's. Vitra publishes `MPNowPlayingInfoCenter` and handles
+  `MPRemoteCommandCenter` itself (through `souvlaki`, or `objc2-media-player` directly)
+  from Rust's player state (title, artists, album, artwork from the artwork store,
+  duration, position and rate, updated on seeks and pauses rather than every tick); mpv's
+  own controls stay off so two sources never fight. It must keep
+  working while the mini player is the only window (accessory activation policy) and for
+  streamed links.
+- Tray / menu-bar icon (`assets/brand/mono.svg`, a template image on macOS) with basic
+  controls and the mini player; global hotkeys (`tauri-plugin-global-shortcut`).
+- **Mac-only checks**: the Now Playing widget in Control Center and on the lock screen
+  (track, artwork, progress, the buttons, scrubbing), media keys and headphone buttons with
+  the app in the background, both while only the mini player is open, menu-bar icon.
+- The owner's additions: an animation of its own for every icon; Settings split into pages
+  (it had grown cluttered); an **About** page with the owner's words and a donation link
+  (to be filled in: `features/settings/about.ts`).
+- The owner's choices: each icon moves in its own way (hover and press, under half a
+  second, nothing with Reduce Motion); Settings in **two columns** (a list of pages with a
+  search, still a panel over the window); crossfade **0–12 s on automatic transitions
+  only**, neighbours on one album stay gapless, skipping switches at once; normalization
+  **like Sound Check**: measured once, applied as a gain, ReplayGain tags first.
+- Done and accepted (PR #9; the owner checked it on a Mac, in a `.app` bundle):
+  - Now Playing: `MPNowPlayingInfoCenter` + `MPRemoteCommandCenter` on macOS
+    (`objc2-media-player`), `souvlaki` on Windows (SMTC) and Linux (MPRIS); track,
+    artists, album, artwork, duration, position and rate from Rust's player state, sent
+    only when they change; play, pause, toggle, next, previous, stop and scrubbing back.
+  - Equalizer: ten bands (32 Hz–16 kHz, ±12 dB) and a preamp as one lavfi graph in mpv's
+    chain; twenty-two built-in presets (Flat included) and the user's own; dragging
+    previews live, a kept change replaces the filter in place.
+  - Loudness: ReplayGain tags (track or album) with a preamp to −14 LUFS; tracks without
+    tags are measured once (FFmpeg's EBU R128 for files, ahead of play; mpv's own `ebur128`
+    while a link plays) and get that gain, kept in the library (migration 8); album mode
+    uses the album's measured tracks together.
+  - Crossfade: two mpv decks, an equal-power volume crossing on one clock; same-album
+    neighbours, repeats of one track and short tracks stay gapless on one deck.
+  - Menu-bar / tray icon (a template image of `mono.svg` on macOS) with the track,
+    Play/Pause, Next, Previous, Show Vitra, Mini Player and Quit; Settings → General
+    turns it off.
+  - Shortcuts in every app (`tauri-plugin-global-shortcut`), none by default, for playback
+    and the mini player, recorded in Settings → Keyboard Shortcuts' second column.
+  - Settings: pages with icons and a search (Russian ё = е), General, Sound and About new.
+  - Icons: a motion of its own for each (`src/styles/icons.css`), a morph of play/pause.
+- **Mac** for stage 8:
+  - Control Center → Now Playing and the lock screen: title, artist, album, cover, the
+    progress moving; play/pause, next, previous and dragging the progress work; the same
+    for a link (YouTube) and while only the mini player is open (also with _Over full-screen
+    apps_, when Vitra has no Dock icon).
+  - F7/F8/F9 (or the Touch Bar) and AirPods / headphone buttons (one press: play/pause,
+    two: next, three: previous) with another app in front; the AirPods menu in the menu
+    bar shows Vitra's track.
+  - The menu-bar icon: a template that follows light/dark menu bars and wallpaper tinting,
+    sharp on Retina; its menu in the app's language, Play/Pause following the player;
+    Show Vitra and Mini Player while the other window is in use; Quit; turning it off in
+    Settings → General.
+  - A shortcut in every app (say ⌥⌘P for play/pause) works while Safari is in front;
+    one another app already has shows the warning.
+  - Equalizer, loudness and crossfade by ear with real music: the EQ's live dragging has no
+    clicks; Normalization on with loud and quiet tracks in a row; a crossfade between two
+    albums and none inside one album; CPU stays low with crossfade on (two mpv processes
+    in Activity Monitor, the second idle).
+  - The icons' motions in WebKit (Safari 17 / macOS 14 and later) and with Reduce Motion on.
 
-## Stage 9 — Release
+## Stage 9 — Playlist import from other services
+
+The owner's request (after stage 6): bring playlists over from Spotify, Yandex Music, VK
+Music, Apple Music and others, **as simply as possible for the user**: no accounts, keys
+or settings to set up first. Only the **list** comes over (titles, artists, album,
+duration, ISRC where given); the sound comes from the user's own files or plays as a YouTube
+Music link, like everything else in Vitra. Before My Wave (stage 10), which
+reuses its YouTube Music search and matching when the library runs out.
+
+Chosen (owner, after stage 6): files and pasted text first, then public links, then the
+Music app's library on macOS. Not planned: the services' official APIs with the user's
+account (Spotify's development mode allows 5 users per app since February 2026, so every
+user would have to register their own Client ID; VK has had no audio API for third parties
+since 2016), and link-mapping services such as song.link (they get every track).
+
+### How it works for the user
+
+One rule: **give Vitra the playlist in whatever form you have it, and it does the rest.**
+
+- **Ways in, all leading to the same import:**
+  - paste (⌘V) or drag a playlist link into the window, as YouTube links work today;
+  - drop a playlist file on the window;
+  - **Import Playlist…** (the "+" next to Playlists in the sidebar): one big field that
+    takes a link or any copied text, a "Choose File…" button, and on macOS a **Music**
+    tab listing the Music app's playlists with checkboxes.
+- **No waiting and no review step.** The playlist appears in the sidebar at once, with
+  every track in order. Tracks found in the library play right away; the others are
+  looked up on YouTube Music in the background ("Found 48 of 60…" on the playlist's page)
+  and light up as they are found, while you listen. Confident matches are taken by
+  themselves; a doubtful one gets a small "?" with three alternatives to pick from (if you
+  care to); a track that isn't found stays grey with "Find…" (the search, filled in).
+- **Importing the same link again** updates the playlist and keeps your picks.
+- **Per service, what the user does:**
+  - **Spotify**: Share → Copy link to playlist, then paste. For a private playlist or
+    Liked Songs: in the Spotify app select all tracks (⌘A), copy (⌘C) and paste into
+    Vitra. Spotify copies them as track links, and Vitra reads each one.
+  - **Yandex Music**: Поделиться → Скопировать ссылку, then paste. «Мне нравится» and
+    private playlists work with the cookies setting (the browser you're signed in with);
+    without it Vitra says the playlist is closed and offers that one setting, or making
+    the playlist public.
+  - **Apple Music** (Mac): the **Music** tab of the import, tick the playlists, Import.
+    macOS asks once for access to Media & Apple Music. Someone else's public playlist:
+    paste its link.
+  - **VK Music**: open the playlist in the browser, select all (⌘A), copy (⌘C) and paste.
+    Vitra finds the tracks in the page's text. Or a file from an exporter.
+  - **Deezer, YouTube Music, SoundCloud, Bandcamp**: paste the link.
+  - **Anything else**: a CSV / M3U / text file from TuneMyMusic, Soundiiz, FreeYourMusic or
+    Exportify, or copied text.
+
+### What it is made of
+
+- **yt-dlp** (already here): Yandex Music albums and old-style playlist links
+  (`/users/<login>/playlists/<n>`; it doesn't know the new `/playlists/<uuid>` share
+  links), YouTube Music search (`youtube:music:search_url`, the `#songs` results are the
+  labels' audio tracks, not clips), YouTube, SoundCloud, Bandcamp.
+- **curl** (already here, as for LRCLIB): the JSON that Spotify's embed pages
+  (`open.spotify.com/embed/…`) and Apple Music's pages (`serialized-server-data`) carry,
+  Yandex Music's new share links, Deezer's public API. These are unofficial for Spotify,
+  Apple and Yandex: each reader is small, tested on recorded pages, and fails with a clear
+  "this link can't be read right now, copy the tracks instead" message.
+- **objc2-itunes-library** (same objc2 family as the rest): the Music app's library on
+  macOS, read-only and local.
+- Files: `csv` and `quick-xml` (small, widely used; justified in the PR) for CSV, XSPF and
+  the Music app's XML export; M3U and text by hand.
+
+### Parts
+
+1. **Matching** (`crates/import`, pure): an imported track against the library (the search
+   fold of title and main artist, duration ±3 s, ISRC from `TSRC` / `ISRC` tags), then
+   against YouTube Music results (title / artist similarity, duration), with a confidence
+   score. "Remastered 2011", "feat.", "(Live)", ё/е and Latin/Cyrillic spellings are
+   tested on real titles.
+2. **The imported playlist**: a migration for entries that aren't tracks yet (title,
+   artists, duration, the match state and alternatives) beside the playlist's tracks; a
+   background matcher with progress (`import://progress`), one YouTube Music search every
+   few seconds; picks and "Find…" from the UI; importing the same source again updates it.
+3. **Files and text**: CSV (the exporters' column names), M3U / M3U8, XSPF, the Music app's
+   XML / text export, and the smart paste: one track per line ("Artist — Title",
+   "Title – Artist", a track link), or blocks copied from a page (title, artist, 3:45).
+4. **Links**: Spotify playlists, albums and tracks (embed JSON), Spotify track links in
+   bulk, Yandex Music (yt-dlp, plus the new share links), Apple Music pages, Deezer.
+5. **The Music app** (macOS): its playlists in the import sheet, with counts and artwork;
+   the "Media & Apple Music" usage description in `Info.plist`.
+6. **UI**: Import Playlist… with the field, the file button and the Music tab; the
+   playlist page's progress, "?" and "Find…"; en + ru strings.
+
+### Done and accepted (PR #10)
+
+The owner checked it on a Mac with both review rounds below: every way in with real
+playlists, the matcher's statuses, scroll memory, the moving panels and Record Speed; the
+real pages of Spotify, Apple Music, Deezer and the Yandex Music API that
+`scripts/record-import-fixtures.sh` recorded are read by `cargo test -p import --test pages`.
+
+- `crates/import` (pure): the model (`ImportedTrack`, `ImportedPlaylist`), matching
+  (`normalize.rs`: folding with ё → е, Latin transliteration of Cyrillic, versions such as
+  live / remix / sped up, noise such as "Remastered 2011" and "Official Video", feat.
+  credits; `matching.rs`: title, artist and length similarity, ISRC, a confidence of sure /
+  doubtful / none), text (`text.rs`: lines either way round, numbered lists, blocks copied
+  from a page, links in bulk), tables (`table.rs`: the exporters' column names in English
+  and Russian, tab / comma / semicolon), files (`files.rs`: M3U / M3U8, XSPF, the Music app's
+  XML and text exports, CSV / TSV, text), service links (`links.rs`) and their pages
+  (`pages.rs`: Spotify's embed JSON, Apple Music's page data and JSON-LD, Deezer's API with
+  its pages, Yandex Music's handlers and new share links).
+- Library migration 9: `import_entries` (what the list says, the state, the alternatives),
+  `playlist_items` places that are an entry, a track or both; reimporting keeps found
+  entries and picks, a partial list (Spotify's first 100) keeps what lies past it.
+- `ImportService` (`src-tauri/src/import`): imports at once (library matches by path, name
+  and length), then a background matcher, one entry at a time and at most one YouTube Music
+  request every 3 s (60 s after failures): the library again, then a `#songs` search whose
+  closest two results are opened in full (artists, length, thumbnail). Sure → plays,
+  doubtful → plays with a "?", none → grey. Bulk Spotify / YouTube track links are read
+  when their turn comes. Pages with curl (`http.rs`); Yandex Music's private lists with the
+  cookies of the browser chosen for yt-dlp (exported by yt-dlp, only Yandex's kept, deleted
+  right after).
+- The Music app (macOS): `objc2-itunes-library`, its playlists (folders named, the library's
+  sections left out) in the dialog's Music tab; `Info.plist` asks for Media & Apple Music.
+- UI: "+" → Import Playlist… (field, name, Choose File…, the Music tab); pasted service
+  links and track lists and dropped playlist files go there; the playlist page with grey
+  rows, "?" menus of alternatives, Find… (library + YouTube Music, Listen, Choose), the
+  progress line and Look Again; Update from Source for every imported list.
+- Differences from the plan: CSV is read by hand (RFC 4180 rows, no `csv` crate); Yandex
+  Music is read from the handlers its own pages call, not through yt-dlp; the Music tab
+  shows counts without artwork; ISRC matching works for lists that carry it (Deezer,
+  Spotify pages do not), not yet against library files (their ISRC tags aren't stored).
+- Also: closing the main window keeps the music playing (macOS always, elsewhere while the
+  tray icon is on); `scripts/record-import-fixtures.sh` records real pages for the readers'
+  tests.
+
+### Mac checks for stage 9
+
+- Each way in with the owner's real playlists: a Spotify link (and one of more than 100
+  songs: the dialog then asks for the copied songs, and the playlist gets them all) and
+  Liked Songs copied with ⌘A ⌘C, a Yandex link and «Мне нравится» (with Cookies from
+  browser set to the browser signed in to Yandex), an Apple Music link, a Deezer link, a VK
+  page copied as text, Music app playlists (the permission prompt, then the list), a
+  TuneMyMusic / Exportify file dropped on the window and chosen with Choose File….
+- Order, names (Russian titles, ё), how many found in the library and on YouTube Music,
+  wrong matches: the "?" menu, Find… with Listen and Choose.
+- A few hundred tracks matched in the background without YouTube blocking us, while
+  playback goes on; the progress line under the title.
+- Closing the main window with ⌘W or the red button keeps the music playing; the Dock
+  icon brings the window back.
+
+### Review round (the owner's Mac check of stage 9)
+
+- The background search no longer stalls when cookies can't be read: YouTube Music
+  searches and descriptions run without cookies (about a second each) and retry with them
+  only when YouTube asks to sign in or for an age check. Failures are told apart
+  (`import/status.rs`): a lasting one (the browser's cookies can't be read, no yt-dlp,
+  sign-in needed) stops the search and says so on the playlist page with what to do and a
+  button to Settings (Safari: give Vitra Full Disk Access or pick another browser); a
+  passing one (no network, 429) pauses it with "Paused, trying again in N s" and a "Try
+  Now" button (30 s, doubling to 10 min); one entry failing three times is marked not found
+  and the search goes on. The page shows which track is being looked for. Changing the
+  cookies setting wakes the search.
+- Yandex Music albums, playlists and tracks are read through its public API
+  (`api.music.yandex.net`: `/albums/<id>/with-tracks`, `/users/<owner>/playlists/<kind>`,
+  `/tracks/<id>`, share links `/playlist/<uuid>`), from `.ru`, `.com`, `.by`, `.kz` and
+  the new links; the old `handlers/*.jsx` now answer with the new site's HTML. «Мне
+  нравится» and private lists: the same API on `api.music.yandex.ru` with the browser's
+  Yandex cookies. `scripts/record-import-fixtures.sh` records the API's answers.
+- Every screen of the main area comes back where it was scrolled (this session only, per
+  view and playlist / album / artist / search): from the sidebar, Back / Forward, after
+  Now Playing or Settings. Put back before the first paint, virtual lists included; a list
+  that got shorter stops at its end; scrolling by hand wins.
+- The sidebar and the panels move instead of jumping: hiding the sidebar slides it out
+  past the window's edge (right, if it is in the right column) while its column narrows
+  to nothing and the main view widens with it; showing it plays that backwards; full ↔
+  icons resizes the column while the two crossfade (labels fade, never cut); the queue
+  and lyrics fold open and shut next to other panels. The theme's duration and curve;
+  instant with Reduce Motion and in customize mode.
+- Settings → Appearance → Record Speed (5–78 rpm, 33⅓ / 45 / 78 marked and slightly
+  sticky, live while dragging, a reset button); themes may set `artwork.vinylSpeed`.
+
+### Mac checks for the review round
+
+- Safari chosen for cookies without Full Disk Access: importing a Spotify playlist finds
+  its tracks anyway; a Yandex «Мне нравится» import says the cookies can't be read, the
+  button opens Settings, and giving Full Disk Access (or Chrome) then Try Again works.
+  Wi-Fi off mid-search: "Paused, trying again in …", and it carries on once back.
+- Yandex Music: an album link (`music.yandex.ru/album/3389008`), a playlist link
+  (`music.yandex.ru/users/music-blog/playlists/2075`), a track link, a share link, the same
+  on `.com`; «Мне нравится» with cookies. Then `scripts/record-import-fixtures.sh` to
+  record real pages: `cargo test -p import --test pages` reads them.
+- Scroll a long playlist, go to Albums, another playlist, Settings and Now Playing, and come
+  back by the sidebar and by Back / Forward: the same rows, no jump on the way. New search
+  words start at the top; arrow keys in a list still scroll to the focused row.
+- The sidebar button and ⌥⌘S through full → icons → hidden → full, with the sidebar on the
+  left and moved to the right; the queue and lyrics buttons with and without other panels
+  in their column; the traffic lights stay put and the title bar doesn't jump; long track
+  lists in the main view don't stutter. Reduce Motion: instant.
+- Record Speed: the slider changes the turning records at once and smoothly (Now Playing,
+  the mini player after letting go), the marks hold the thumb a little, the reset button,
+  greyed out while records are off.
+
+### Review round 2
+
+- Customize mode: the frame over a narrow module (the sidebar's icon strip, anything up to
+  about 180 px) now stacks its handle and buttons in a column; before, the move and hide
+  buttons stuck out of the rail over the title bar. **Mac**: the rail on the left under the
+  traffic lights and on the right, and a column dragged to its narrowest, in customize mode.
+
+## Stage 10 — My Wave
+
+An endless stream picked by mood, like Yandex Music's "Моя волна", from the library and,
+when that runs out, from YouTube Music. Added by the owner after stage 6; not in the
+original spec. Each part is its own commit (or a few), testable on its own.
+
+### 10.1 Sound analysis (`crates/mood`)
+
+- One FFmpeg run per track decodes it to mono at 22 050 Hz and prints per-window values
+  with FFmpeg's own filters: `astats` (RMS level) and `aspectralstats` (spectral centroid and
+  spectral flux). No new native dependency and no FFT of our own; the Rust side only reads
+  numbers (`ametadata=print`) and does the statistics. Files are analyzed in three 30 s
+  slices (around 20 %, 50 % and 80 % of the track) rather than whole, which keeps a track
+  to a second or two of CPU.
+- Features: **energy** (mean RMS) and its **spread** (how much the loudness moves),
+  **tempo** (BPM from the autocorrelation of the spectral flux, i.e. the onset strength,
+  folded into 70–180 with a confidence), **brightness** (mean spectral centroid). Optional,
+  last: a **mode / "sadness"** estimate (major vs minor from a chroma profile; FFmpeg has
+  no filter for that, so it needs raw PCM and a small pure-Rust FFT such as `rustfft`, a
+  new dependency to justify in its PR).
+- The mood vector is those features normalized against the library's own distribution
+  (percentiles), so "energetic" means energetic for this library. A `version` number:
+  improving the algorithm re-analyzes everything once.
+- Pure parsing and statistics are unit-tested on recorded FFmpeg output and on generated
+  tones and click tracks (known BPM, known loudness); one opt-in test runs a real FFmpeg.
+
+### 10.2 Background analysis and storage
+
+- A migration: `track_features` (track id, version, source `file` / `stream` / `live`, the
+  file's size and mtime when analyzed, energy, spread, BPM + confidence, brightness,
+  valence, analyzed at). A file is analyzed again only when its size or mtime (or the
+  version) changes; tracks that fail are remembered so they aren't retried every launch.
+- A worker thread analyzes one track at a time at low priority: FFmpeg with `-threads 1`,
+  under `nice -n 15` on macOS / Linux (and the background QoS class on macOS) and
+  `IDLE_PRIORITY_CLASS` on Windows. It pauses while a scan runs and with power saving on,
+  and starts with the tracks most likely to be needed (recently played and favorites).
+- Settings → My Wave: progress ("1 234 of 5 678 analyzed"), pause/resume, analyze links
+  on/off; `wave://progress` events. Quitting stops FFmpeg at once.
+
+### 10.3 Links without downloading
+
+- From the stream: yt-dlp gives the audio URL and its HTTP headers (`-f bestaudio -J`);
+  FFmpeg reads 60–90 s from the middle (`-ss` before `-i`, so only that range is
+  fetched). Slowly, so YouTube doesn't block us: one link at a time with a randomized pause
+  of tens of seconds between them, the cookies setting honored, and a long back-off after a
+  403 / 429 / sign-in error (the existing `ytdlp::failure` classes).
+- While listening: the `@vitralevel` chain that already runs for the backdrop pulse
+  (`player/level.rs`) gets `aspectralstats` too, and the playing link's values are
+  accumulated into a `live` analysis when enough of it has played (no extra traffic).
+- The next 2–3 tracks of a wave are analyzed ahead of the background queue, so a pick
+  never waits on the network.
+- Offline (yt-dlp can't reach the site), the wave uses files and links that are already
+  analyzed; nothing else is a candidate.
+
+### 10.4 The wave (pure, in `crates/mood`)
+
+- State: the **course** (a target point in mood space), the wave's history, likes and
+  dislikes, a seeded RNG (deterministic tests).
+- Each pick scores every analyzed candidate: closeness to the course (weighted per feature)
+  plus artist / genre / year affinity with the wave so far, plus history (what is usually
+  played after what: transitions from the play history), favorites and likes add, skips
+  (in waves and outside them, decaying with time) and recently played tracks subtract.
+- The next track is a weighted random choice among the best few (softmax with a
+  temperature), never the same artist twice in a row and never a track already in this
+  wave. The course drifts a little toward each track that is listened to and gets a small
+  random walk, so the wave doesn't get stuck in one corner.
+- Modes set the starting course: **Energetic** (high energy, tempo, brightness), **Calm**
+  (low energy and tempo, little spread), **Sad** (slow, dark, minor where known), **Like
+  the current track** (the playing track's vector). "Не нравится" skips and pushes the
+  course away from that track; "Нравится" adds it to favorites and holds the course near
+  it for a while.
+- Tested with a synthetic library: modes pick the right region, no artist repeats, dislikes
+  steer away, likes hold, the drift is bounded, 10 000 tracks pick in well under 10 ms.
+
+### 10.5 Playback and UI
+
+- The queue knows it is a wave (`QueueSource::Wave`): Rust keeps 2–3 tracks ahead (so
+  gapless and preloading work as now) and tops it up as tracks play; playing something
+  else ends the wave. Skips and likes reach the wave state; the session restores a wave.
+- "Моя волна" button in the library (sidebar entry and the library header) and in Now
+  Playing, with the mode chooser; during a wave, "Нравится" / "Не нравится" in Now Playing,
+  the control bar and the mini player; the queue panel shows the wave's upcoming picks.
+- Settings section as in 10.2; en + ru strings.
+
+### 10.6 When the library runs out
+
+- When a mode has too few good candidates (a small library, or everything was played
+  recently), similar tracks come from the YouTube Music radio of a seed track:
+  `https://music.youtube.com/watch?v=<id>&list=RDAMVM<id>` through `yt-dlp --flat-playlist`
+  (the seed is the current link, else the track found by stage 9's YouTube Music search
+  and matching).
+- Those entries are analyzed (10.3) before they can be picked, play as links (joining the
+  library under `library.addOpenedFiles`), and are rate-limited like everything else that
+  talks to YouTube.
+
+### Mac checks for stage 10
+
+- Background analysis of the real library (FLAC, ALAC, MP3, M4A): playback never stutters,
+  Activity Monitor shows FFmpeg at low priority with a small energy impact, also on
+  battery; quitting during analysis leaves no FFmpeg behind; tracks in iCloud-offloaded
+  folders are skipped rather than downloaded.
+- Progress in Settings, pause/resume, re-analysis after a file's tags or audio change.
+- Links analyzed over the real network (with Safari cookies if set), no blocks after an
+  hour of waves; with Wi-Fi off the wave keeps playing analyzed tracks only.
+- The modes feel right on the owner's music; "Нравится" / "Не нравится"; no artist twice
+  in a row; the YouTube Music fallback with a small library.
+- The wave from the Now Playing widget and media keys (next) after stage 8, and from the
+  mini player.
+
+## Stage 11 — Release
 
 - Discord Rich Presence, Last.fm scrobbling (both optional).
 - Complete en/ru translations.
@@ -235,6 +671,14 @@ and an explicit list of checks that can only be done on a Mac.
 - `README.md` (+ screenshots/GIF), `README.ru.md`, `CONTRIBUTING.md`, issue/PR templates,
   disclaimer that users are responsible for complying with the terms of sites they play from.
 - First release.
+- Before the release (the owner's notes after stage 8):
+  - **Sidecars inside `Vitra.app`.** A plain `tauri build` bundle has no mpv, yt-dlp,
+    FFmpeg or Deno: a debug build finds them through `CARGO_MANIFEST_DIR`
+    (`src-tauri/sidecars/<triple>/`), a release bundle on another Mac can't play.
+    `npm run bundle` copies them in (key decision 6); the release workflow must build that
+    way (or fetch them on first use, open question 1) and be checked on a clean Mac.
+  - **About**: remind the owner to write their note and donation link
+    (`src/features/settings/about.ts`, `AUTHOR_NOTE`, `DONATE_URL`).
 
 ## Post-v1 roadmap
 
@@ -246,12 +690,12 @@ and an explicit list of checks that can only be done on a Mac.
 | Risk                                                                                       | Plan                                                                                                                                          |
 | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | mpv has no native crossfade                                                                | Crossfade with a second mpv instance and volume ramps (stage 8); gapless stays native. Crossfade and gapless are alternatives per transition. |
-| Shipping `mpv.app` (dylibs) inside the bundle complicates signing/notarization             | Sign nested binaries in the release workflow (stage 9). Unsigned local builds work.                                                           |
+| Shipping `mpv.app` (dylibs) inside the bundle complicates signing/notarization             | Sign nested binaries in the release workflow (stage 11). Unsigned local builds work.                                                          |
 | YouTube changes break yt-dlp                                                               | Updatable yt-dlp in app data + "Update yt-dlp" button; Deno for EJS challenges.                                                               |
 | Installer size: static FFmpeg+ffprobe ≈ 330 MB (Win/Linux), Deno ≈ 100 MB, mpv ≈ 60–100 MB | See open question 1.                                                                                                                          |
 | `backdrop-filter` with SVG filters only works in Chromium                                  | Feature detection + blur/highlight fallback (WebKit on macOS/Linux).                                                                          |
 | Transparent windows on Linux need a compositor                                             | Detect and fall back to an opaque theme background.                                                                                           |
-| A hard crash on Windows can orphan mpv (no fd-passing IPC there)                           | Assign mpv to a Job Object with kill-on-close (stage 9); macOS/Linux already tie mpv's life to the IPC socket.                                |
+| A hard crash on Windows can orphan mpv (no fd-passing IPC there)                           | Assign mpv to a Job Object with kill-on-close (stage 11); macOS/Linux already tie mpv's life to the IPC socket.                               |
 | A huge queue (tens of thousands of items) is sent whole on every change                    | Fine for normal libraries (≈ 2 MB at 10 000 items); send diffs or pages if it shows up in profiles.                                           |
 | Linux inotify watch limits on very large libraries                                         | Watching degrades to manual rescans (logged); raise `fs.inotify.max_user_watches` if needed.                                                  |
 | No GUI in the cloud environment                                                            | Logic in testable crates/modules; UI verified by the owner on macOS following PR instructions.                                                |

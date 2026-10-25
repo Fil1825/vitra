@@ -1,0 +1,79 @@
+.block {
+  display: grid;
+  gap: var(--vitra-space-1);
+}
+
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--vitra-space-2);
+  margin: 0;
+  color: var(--vitra-color-text-secondary);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.now {
+  overflow: hidden;
+  max-width: 40ch;
+  color: var(--vitra-color-text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spin {
+  animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.doubtful {
+  padding: 1px var(--vitra-space-2);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vitra-color-accent) 18%, transparent);
+  color: var(--vitra-color-text);
+  font-size: 12px;
+}
+
+/* A pause or a stop: what happened and what to do. */
+.problem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--vitra-space-2);
+  max-width: 64ch;
+  color: var(--vitra-color-text-secondary);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.problem > svg {
+  flex: none;
+}
+
+.alert {
+  color: var(--vitra-color-danger);
+}
+
+.buttons {
+  display: inline-flex;
+  gap: var(--vitra-space-2);
+}
+
+.retry {
+  padding: 2px var(--vitra-space-3);
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vitra-color-text) 10%, transparent);
+  color: var(--vitra-color-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}

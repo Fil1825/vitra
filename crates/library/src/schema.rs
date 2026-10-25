@@ -172,6 +172,62 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     r"
     ALTER TABLE tracks ADD COLUMN edited INTEGER NOT NULL DEFAULT 0;
     ",
+    // 7: the page an album came from (an album link), so its library page can read the
+    // listing again and number tracks stored before a listing placed them.
+    r"
+    ALTER TABLE albums ADD COLUMN source_url TEXT;
+    ",
+    // 8: loudness Vitra measured for volume normalization (EBU R128), by path, so files
+    // outside the library and links have it too; size and mtime tell when it is stale.
+    r"
+    CREATE TABLE loudness (
+        path        TEXT PRIMARY KEY,
+        integrated  REAL NOT NULL,
+        peak        REAL,
+        file_size   INTEGER,
+        file_mtime  INTEGER
+    );
+    ",
+    // 9: playlists imported from other services and files (stage 9). Their tracks may not
+    // be in the library yet: each place in a playlist is a track, an entry still being
+    // looked for, or both (an entry matched to a track, kept for its alternatives and for
+    // importing the list again). An entry keeps what the source said and how the search
+    // went: `state` pending | sure | doubtful | missing | picked, `candidates` the
+    // alternatives found (JSON). `playlist_items` is rebuilt with `track_id` optional.
+    r"
+    CREATE TABLE import_entries (
+        id           INTEGER PRIMARY KEY,
+        playlist_id  INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+        title        TEXT NOT NULL,
+        artists      TEXT NOT NULL DEFAULT '[]',
+        album        TEXT,
+        duration     REAL,
+        isrc         TEXT,
+        url          TEXT,
+        path         TEXT,
+        swappable    INTEGER NOT NULL DEFAULT 0,
+        state        TEXT NOT NULL DEFAULT 'pending',
+        candidates   TEXT NOT NULL DEFAULT '[]',
+        checked_at   INTEGER
+    );
+    CREATE INDEX import_entries_playlist ON import_entries(playlist_id);
+    CREATE INDEX import_entries_state ON import_entries(state);
+
+    CREATE TABLE playlist_items_new (
+        playlist_id  INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+        position     INTEGER NOT NULL,
+        track_id     INTEGER REFERENCES tracks(id) ON DELETE CASCADE,
+        entry_id     INTEGER REFERENCES import_entries(id) ON DELETE CASCADE,
+        PRIMARY KEY (playlist_id, position),
+        CHECK (track_id IS NOT NULL OR entry_id IS NOT NULL)
+    );
+    INSERT INTO playlist_items_new (playlist_id, position, track_id)
+        SELECT playlist_id, position, track_id FROM playlist_items;
+    DROP TABLE playlist_items;
+    ALTER TABLE playlist_items_new RENAME TO playlist_items;
+    CREATE INDEX playlist_items_track ON playlist_items(track_id);
+    CREATE INDEX playlist_items_entry ON playlist_items(entry_id);
+    ",
 ];
 
 /// Brings the database up to the latest schema.

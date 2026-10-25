@@ -1,13 +1,24 @@
 //! Vitra desktop app: Tauri setup and command registration.
 
+mod browser;
 mod drag;
 mod error;
+mod global_shortcuts;
+mod http;
+mod import;
+mod layout;
 mod library;
 mod links;
 mod lyrics;
+mod mini;
+mod now_playing;
 mod player;
 mod settings;
+mod shortcuts;
 mod sidecar;
+mod sound;
+mod themes;
+mod tray;
 mod window;
 
 use std::path::PathBuf;
@@ -16,6 +27,7 @@ use tauri::http::StatusCode;
 use tauri::{Manager, RunEvent};
 
 use library::LibraryService;
+use mini::MiniPlayer;
 use player::Player;
 
 /// Builds and runs the Tauri application.
@@ -30,6 +42,11 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(global_shortcuts::GlobalKeys::handle)
+                .build(),
+        )
         // Artwork of the playing track (memory) and library album covers (disk), answered off
         // the main thread: a grid of covers means many requests at once.
         .register_asynchronous_uri_scheme_protocol(
@@ -52,16 +69,60 @@ pub fn run() {
                 });
             },
         )
+        // Pictures and fonts of installed themes.
+        .register_asynchronous_uri_scheme_protocol(
+            themes::THEME_SCHEME,
+            |ctx, request, responder| {
+                let app = ctx.app_handle().clone();
+                let path = request.uri().path().to_owned();
+                tauri::async_runtime::spawn_blocking(move || {
+                    let response = app.try_state::<themes::ThemeStore>().map_or_else(
+                        || player::http_status(StatusCode::SERVICE_UNAVAILABLE),
+                        |store| store.respond(&path),
+                    );
+                    responder.respond(response);
+                });
+            },
+        )
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
+            app.manage(themes::ThemeStore::new(
+                app.path().app_data_dir()?.join("themes"),
+            ));
             let settings = settings::SettingsStore::load(config_dir.join("settings.json"));
             let material = settings.get().appearance.window_material;
             app.manage(settings);
 
             let effects = window::WindowEffectsState::default();
-            let main = window::create_from_config(app, "main")?;
-            effects.apply(&main, material);
+            let main = window::create_from_config(app.handle(), mini::MAIN)?;
+            effects.apply(&main, window::Backdrop::plain(material));
             app.manage(effects);
+
+            let mini = MiniPlayer::new(app.handle().clone(), &config_dir);
+            let watcher = mini.clone();
+            main.on_window_event(move |event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    watcher.main_close_requested(api);
+                }
+            });
+            // It was open when the app quit: the app opens in it again.
+            if mini.was_open() {
+                if app
+                    .state::<settings::SettingsStore>()
+                    .get()
+                    .mini_player
+                    .hide_main_window
+                {
+                    main.hide()?;
+                }
+                let mini = mini.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(err) = mini.show().await {
+                        log::warn!("cannot reopen the mini player: {err}");
+                    }
+                });
+            }
+            app.manage(mini);
 
             let data_dir = app.path().app_data_dir()?;
             let library = LibraryService::start(app.handle().clone(), &data_dir)?;
@@ -79,7 +140,13 @@ pub fn run() {
             links.warm_up();
             app.manage(links);
             app.manage(links::Downloads::new(app.handle().clone())?);
+            let importer = import::ImportService::new(app.handle().clone());
+            importer.start();
+            app.manage(importer);
 
+            // Before the player, so its first state reaches the system.
+            app.manage(now_playing::NowPlaying::new(app.handle()));
+            app.manage(sound::LoudnessMeter::new(app.handle().clone()));
             let player = Player::new(app.handle().clone());
             player.start();
             // Files passed on the command line ("Open with" on Windows and Linux).
@@ -90,6 +157,15 @@ pub fn run() {
                 .collect();
             open_files(&player, launch_files);
             app.manage(player);
+
+            let system = app.state::<settings::SettingsStore>().get();
+            // Follows the player from here (`Player::emit_state`).
+            let tray = tray::Tray::new(app.handle(), system.system.tray_icon);
+            tray.update(&app.state::<Player>().state());
+            app.manage(tray);
+            let keys = global_shortcuts::GlobalKeys::default();
+            keys.apply(app.handle(), &system.global_shortcuts);
+            app.manage(keys);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -99,7 +175,24 @@ pub fn run() {
             window::window_effects,
             player::player_state,
             player::player_open,
-            player::player_level_meter,
+            player::player_meters,
+            player::sound_preview_equalizer,
+            browser::open_in_browser,
+            tray::tray_labels,
+            import::commands::import_text,
+            import::commands::import_files,
+            import::commands::import_link,
+            import::commands::import_places,
+            import::commands::import_progress,
+            import::commands::import_pick,
+            import::commands::import_search,
+            import::commands::import_retry,
+            import::commands::music_playlists,
+            import::commands::import_music,
+            import::commands::import_status,
+            import::commands::import_resume,
+            tray::tray_available,
+            global_shortcuts::global_shortcuts_failed,
             player::player_play,
             player::player_pause,
             player::player_toggle,
@@ -174,6 +267,20 @@ pub fn run() {
             lyrics::lyrics_import,
             lyrics::lyrics_export,
             drag::drag_link,
+            mini::mini_show,
+            mini::mini_hide,
+            mini::mini_toggle,
+            mini::mini_expand,
+            mini::app_quit,
+            themes::themes_list,
+            themes::theme_open,
+            themes::theme_install,
+            themes::theme_discard,
+            themes::theme_save,
+            themes::theme_duplicate,
+            themes::theme_add_asset,
+            themes::theme_export,
+            themes::theme_remove,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Vitra");
@@ -187,6 +294,15 @@ pub fn run() {
                 .filter_map(|url| url.to_file_path().ok())
                 .collect();
             open_files(app.state::<Player>().inner(), files);
+        }
+        // The Dock icon brings the main window back from the mini player.
+        #[cfg(target_os = "macos")]
+        RunEvent::Reopen { .. } => {
+            if let Some(mini) = app.try_state::<MiniPlayer>()
+                && let Err(err) = mini.switch_to_main()
+            {
+                log::warn!("cannot show the main window: {err}");
+            }
         }
         RunEvent::Exit => {
             if let Some(library) = app.try_state::<LibraryService>() {

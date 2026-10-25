@@ -1,4 +1,6 @@
-import { useEffect, useState, type RefObject } from 'react';
+import { useLayoutEffect, useState, type RefObject } from 'react';
+
+import { restoreScroll } from './scrollMemory.ts';
 
 export interface Range {
   start: number;
@@ -63,12 +65,15 @@ export function useVirtualRange(
   // Before the first measurement, render one screenful.
   const [range, setRange] = useState<Range>({ start: 0, end: Math.min(count, 40) });
 
-  useEffect(() => {
+  // Measured before paint, after the screen's saved position is back (its scroller
+  // remembers it: see scrollMemory.ts), so a list shown again doesn't flash empty rows.
+  useLayoutEffect(() => {
     const list = listRef.current;
     const scroller = list && scrollParent(list);
     if (!list || !scroller) {
       return;
     }
+    restoreScroll(scroller);
     let frame = 0;
     const update = () => {
       frame = 0;

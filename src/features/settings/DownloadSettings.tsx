@@ -12,7 +12,11 @@ import {
   type YtDlpInfo,
 } from '../../lib/links.ts';
 import { pickFolder } from '../../lib/openFiles.ts';
-import { COOKIE_BROWSERS, type DownloadSettings as Values } from '../../lib/settings.ts';
+import {
+  BROWSER_NAMES,
+  COOKIE_BROWSERS,
+  type DownloadSettings as Values,
+} from '../../lib/settings.ts';
 import { useSettings } from '../../stores/settings.ts';
 import { report } from '../library/actions.ts';
 import styles from './SettingsPanel.module.css';
@@ -130,17 +134,6 @@ function TemplateField({
     </label>
   );
 }
-
-const BROWSER_NAMES: Record<(typeof COOKIE_BROWSERS)[number], string> = {
-  safari: 'Safari',
-  chrome: 'Chrome',
-  firefox: 'Firefox',
-  edge: 'Edge',
-  brave: 'Brave',
-  chromium: 'Chromium',
-  opera: 'Opera',
-  vivaldi: 'Vivaldi',
-};
 
 /** Where downloads go, in what format and under which file name. */
 export function DownloadSettings() {
