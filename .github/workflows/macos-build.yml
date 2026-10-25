@@ -1,0 +1,75 @@
+name: Build Vitra for macOS
+on:
+  push:
+    branches: [codex/windows-test-build]
+    paths:
+      - .github/workflows/macos-build.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  macos:
+    name: macOS ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Apple-Silicon
+            runner: macos-15
+            target: aarch64-apple-darwin
+            node_arch: arm64
+            minimum: '14.0'
+          - name: Intel
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+            node_arch: x64
+            minimum: '15.0'
+    env:
+      APPLE_SIGNING_IDENTITY: '-'
+      MACOSX_DEPLOYMENT_TARGET: ${{ matrix.minimum }}
+    steps:
+      - name: Check out application source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          architecture: ${{ matrix.node_arch }}
+          cache: npm
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Download audio components
+        run: npm run fetch-sidecars
+      - name: Configure minimum macOS for bundled components
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const path = 'src-tauri/tauri.conf.json';
+          const config = JSON.parse(fs.readFileSync(path, 'utf8'));
+          config.bundle.macOS.minimumSystemVersion = process.env.MACOSX_DEPLOYMENT_TARGET;
+          fs.writeFileSync(path, JSON.stringify(config, null, 2));
+          NODE
+      - name: Build macOS disk image with audio components
+        run: npm run bundle -- --bundles dmg
+      - name: Verify application and disk image
+        run: |
+          codesign --verify --deep --strict --verbose=2 target/release/bundle/macos/Vitra.app
+          for dmg in target/release/bundle/dmg/*.dmg; do
+            hdiutil verify "$dmg"
+          done
+      - name: Save disk image
+        uses: actions/upload-artifact@v7
+        with:
+          name: Vitra-macOS-${{ matrix.name }}-${{ github.run_number }}
+          path: target/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
