@@ -207,6 +207,10 @@
     "vinyl": "Covers as Records",
     "vinylHint": "Covers become vinyl records that turn while music plays. “As in Theme” follows the theme; the disc button on a big cover switches it too.",
     "vinylAuto": "As in Theme",
+    "vinylSpeed": "Record Speed",
+    "vinylSpeedHint": "How fast records turn while music plays: a record player’s 33⅓, 45 or 78, or anything from 5 to 78. Records stand still with Reduce Motion.",
+    "vinylSpeedValue": "{{value}} rpm",
+    "vinylSpeedReset": "Back to {{value}} rpm",
     "sections": {
       "general": "General",
       "sound": "Sound",
@@ -717,7 +721,9 @@
       "circle": "Round"
     },
     "vinyl": "Vinyl",
-    "vinylHint": "Covers become round records; the playing track’s turn at 33⅓ rpm while it plays. Applies while Settings → Appearance → Covers as Records is “As in Theme”.",
+    "vinylHint": "Covers become round records; the playing track’s turn while it plays. Applies while Settings → Appearance → Covers as Records is “As in Theme”.",
+    "vinylSpeed": "Record Speed",
+    "vinylSpeedHint": "33⅓ unless the theme says otherwise; a speed chosen in Settings → Appearance wins.",
     "ownPlaceholderColor": "Own Placeholder Color",
     "placeholderColor": "Placeholder"
   },

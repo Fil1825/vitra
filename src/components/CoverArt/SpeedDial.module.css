@@ -1,0 +1,54 @@
+.dial {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--vitra-space-3);
+}
+
+.track {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The classic speeds under the slider, each under the middle of its detent: the thumb's
+   centre runs from half a thumb in from either end (the slider's 12 px thumb). */
+.detents {
+  position: relative;
+  height: 14px;
+  margin-top: 2px;
+}
+
+.detent {
+  position: absolute;
+  top: 0;
+  left: calc(6px + var(--_at) * (100% - 12px));
+  color: var(--vitra-color-text-tertiary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 14px;
+  transform: translateX(-50%);
+}
+
+/* A tick above each name, on the track's line. */
+.detent::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  left: calc(50% - 0.5px);
+  width: 1px;
+  height: 5px;
+  background: currentColor;
+}
+
+.value {
+  flex: none;
+  min-width: 84px;
+  color: var(--vitra-color-text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  text-align: right;
+}
+
+.dial[data-disabled] {
+  opacity: 0.5;
+}

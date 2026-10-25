@@ -111,9 +111,11 @@ Limits: 32 MB per package, 16 MB per file, 64 assets, 512 KB for `theme.json` an
   `circle`. It applies to album and track covers everywhere; artists stay round.
 - `vinyl`: covers become records: round, with grooves, a sheen and a label hole, and the
   playing track's covers (Now Playing, the artwork module, the control bar, the mini player,
-  the queue's current row) turn at 33⅓ rpm while it plays, stopping where they are on pause.
-  The user can turn it on or off for every theme (Settings → Appearance, or the disc button on
-  the big cover); Reduce Motion keeps records still.
+  the queue's current row) turn while it plays, stopping where they are on pause. The user can
+  turn it on or off for every theme (Settings → Appearance, or the disc button on the big
+  cover); Reduce Motion keeps records still.
+- `vinylSpeed`: how fast records turn, in turns a minute, 5 to 78 (left out: 33⅓). A speed the
+  user picks in Settings → Appearance wins over the theme's.
 - `placeholderColor`: the Vitra symbol shown where a track has no cover. Left out, it is the
   theme's text color, faded.
 

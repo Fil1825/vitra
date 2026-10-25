@@ -169,6 +169,9 @@ impl Default for MiniPlayerSettings {
     }
 }
 
+/// Records' speeds the user can choose, in turns a minute (a slow crawl up to a 78).
+pub const VINYL_SPEED: std::ops::RangeInclusive<f64> = 5.0..=78.0;
+
 /// The range of the mini player's background opacity: below it the glass is gone.
 pub const MINI_OPACITY: std::ops::RangeInclusive<f64> = 0.2..=1.0;
 
@@ -308,6 +311,10 @@ pub struct Appearance {
     /// Covers as spinning records: as the theme says (`auto`), or always / never.
     #[serde(deserialize_with = "or_default")]
     pub vinyl: Switch,
+    /// How fast records turn, in turns a minute; `None` (the default) is the theme's speed,
+    /// else 33⅓. Settings files from before it simply lack it.
+    #[serde(deserialize_with = "or_default")]
+    pub vinyl_speed: Option<f64>,
 }
 
 impl Default for Appearance {
@@ -322,6 +329,7 @@ impl Default for Appearance {
             artwork_accent: true,
             backdrop_pulse: true,
             vinyl: Switch::Auto,
+            vinyl_speed: None,
         }
     }
 }
@@ -424,6 +432,11 @@ impl Settings {
         } else {
             1.0
         };
+        self.appearance.vinyl_speed = self
+            .appearance
+            .vinyl_speed
+            .filter(|speed| speed.is_finite())
+            .map(|speed| speed.clamp(*VINYL_SPEED.start(), *VINYL_SPEED.end()));
         let opacity = &mut self.mini_player.opacity;
         *opacity = if opacity.is_finite() && *opacity > 0.0 {
             opacity.clamp(*MINI_OPACITY.start(), *MINI_OPACITY.end())
@@ -596,6 +609,7 @@ mod tests {
                 theme: "aurora-night".into(),
                 power_saving: true,
                 vinyl: Switch::On,
+                vinyl_speed: Some(45.0),
                 ..Appearance::default()
             },
             library: LibrarySettings {
@@ -695,7 +709,8 @@ mod tests {
                     "windowMaterial": "vibrancy",
                     "artworkAccent": true,
                     "backdropPulse": true,
-                    "vinyl": "auto"
+                    "vinyl": "auto",
+                    "vinylSpeed": null
                 },
                 "library": {
                     "addOpenedFiles": true,
@@ -823,6 +838,30 @@ mod tests {
         );
         let old = read(r#"{ "language": "en" }"#);
         assert_eq!(old, LyricsSettings::default());
+    }
+
+    #[test]
+    fn record_speed_is_optional_and_stays_in_range() {
+        let read = |json: &str| -> Option<f64> {
+            serde_json::from_str::<Settings>(json)
+                .unwrap()
+                .sanitized()
+                .appearance
+                .vinyl_speed
+        };
+        // Settings saved before the speed existed: the theme's speed, else 33⅓.
+        assert_eq!(read(r#"{ "appearance": { "vinyl": "on" } }"#), None);
+        assert_eq!(read(r#"{ "appearance": { "vinylSpeed": null } }"#), None);
+        assert_eq!(
+            read(r#"{ "appearance": { "vinylSpeed": 45 } }"#),
+            Some(45.0)
+        );
+        assert_eq!(
+            read(r#"{ "appearance": { "vinylSpeed": 300 } }"#),
+            Some(78.0)
+        );
+        assert_eq!(read(r#"{ "appearance": { "vinylSpeed": 1 } }"#), Some(5.0));
+        assert_eq!(read(r#"{ "appearance": { "vinylSpeed": "fast" } }"#), None);
     }
 
     #[test]

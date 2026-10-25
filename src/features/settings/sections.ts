@@ -64,6 +64,8 @@ export const SECTIONS: Record<SettingsSection, SectionInfo> = {
       'settings.transparency',
       'settings.refraction',
       'settings.vinyl',
+      'settings.vinylSpeed',
+      'settings.vinylSpeedHint',
       'settings.artworkAccent',
       'settings.backdropPulse',
       'settings.powerSaving',
