@@ -559,6 +559,15 @@ An endless stream picked by mood, like Yandex Music's "Моя волна", from 
 when that runs out, from YouTube Music. Added by the owner after stage 6; not in the
 original spec. Each part is its own commit (or a few), testable on its own.
 
+Chosen (owner, at the start of stage 10):
+
+- **Sad** knows major from minor: the mode is estimated from a chroma profile.
+- **"My Wave" with no mood chosen** plays **to the owner's taste**: its course starts at the
+  centre of what is played most and liked, then drifts. The moods are a choice next to it.
+- **The network, by default: everything, slowly.** Links in the library are analyzed in the
+  background and the YouTube Music radio fills in when the library runs out; both can be
+  turned off in Settings.
+
 ### 10.1 Sound analysis (`crates/mood`)
 
 - One FFmpeg run per track decodes it to mono at 22 050 Hz and prints per-window values
