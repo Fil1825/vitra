@@ -27,7 +27,15 @@ export interface AppearanceSettings {
   backdropPulse: boolean;
   /** Covers as spinning records: as the theme says (`auto`), always or never. */
   vinyl: Switch;
+  /** How fast records turn (turns a minute); `null`: the theme's speed, else 33⅓. */
+  vinylSpeed: number | null;
 }
+
+/** Records' speeds to choose from, in turns a minute (Rust keeps them in this range). */
+export const VINYL_SPEED_MIN = 5;
+export const VINYL_SPEED_MAX = 78;
+/** A long-playing record's speed. */
+export const LP_SPEED = 100 / 3;
 
 /** How the level meter draws the spectrum. */
 export type MeterStyle = 'bars' | 'mirror' | 'wave';
@@ -113,6 +121,18 @@ export const COOKIE_BROWSERS = [
   'vivaldi',
 ] as const;
 
+/** A cookies browser's name as people know it. */
+export const BROWSER_NAMES: Record<(typeof COOKIE_BROWSERS)[number], string> = {
+  safari: 'Safari',
+  chrome: 'Chrome',
+  firefox: 'Firefox',
+  edge: 'Edge',
+  brave: 'Brave',
+  chromium: 'Chromium',
+  opera: 'Opera',
+  vivaldi: 'Vivaldi',
+};
+
 export interface LyricsSettings {
   /** Look lyrics up on LRCLIB when a track has none. */
   online: boolean;
@@ -190,6 +210,7 @@ export const DEFAULT_SETTINGS: Settings = {
     artworkAccent: true,
     backdropPulse: true,
     vinyl: 'auto',
+    vinylSpeed: null,
   },
   library: { addOpenedFiles: true, artistSplitting: { enabled: true, exceptions: [] } },
   downloads: {

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { coverKey, isCoverImage, parseCoverKey } from '../features/library/covers.ts';
 import type { CoverTarget } from '../lib/library.ts';
 import { dragLink } from '../lib/links.ts';
+import { isPlaylistFile } from '../lib/import.ts';
 import { isAudioFile } from '../lib/player.ts';
 import { isThemeFile } from '../lib/themes.ts';
 import { useEnvironment } from '../stores/environment.ts';
@@ -12,9 +13,10 @@ import { useUi } from '../stores/ui.ts';
 
 /**
  * What is being dragged over the window: something playable from disk, a web link, an
- * image over a cover that can take it, or a `.vitratheme` to install.
+ * image over a cover that can take it, a `.vitratheme` to install, or playlist files
+ * (`.m3u`, the Music app's `.xml`…) to import.
  */
-export type DropKind = 'files' | 'link' | 'cover' | 'theme';
+export type DropKind = 'files' | 'link' | 'cover' | 'theme' | 'playlist';
 
 interface Point {
   x: number;
@@ -98,9 +100,11 @@ export function useFileDrop(
               setActive(
                 payload.paths.some(isThemeFile)
                   ? 'theme'
-                  : payload.paths.some(isPlayableDrop)
-                    ? 'files'
-                    : null,
+                  : payload.paths.some(isPlaylistFile)
+                    ? 'playlist'
+                    : payload.paths.some(isPlayableDrop)
+                      ? 'files'
+                      : null,
               );
             } else {
               setActive(null);

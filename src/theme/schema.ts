@@ -139,6 +139,8 @@ export const themeSchema = z.object({
       shape: z.enum(['square', 'rounded', 'circle']),
       /** The playing track's covers are records: round, with grooves, turning while it plays. */
       vinyl: z.boolean(),
+      /** How fast the records turn, in turns a minute (33⅓ when left out); the user's choice wins. */
+      vinylSpeed: z.number().min(5).max(78).optional(),
       /** The color of the symbol shown where a track has no cover. */
       placeholderColor: hexColor.optional(),
     })

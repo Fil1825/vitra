@@ -1,15 +1,20 @@
 import { ListMusic, MoreHorizontal } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { IconButton } from '../../components/ui/IconButton.tsx';
 import { confirm } from '../../lib/confirm.ts';
-import { library, playlists } from '../../lib/library.ts';
-import { isRemotePath, links } from '../../lib/links.ts';
+import { canRefresh, importer, type ImportEntry } from '../../lib/import.ts';
+import { playlists } from '../../lib/library.ts';
+import { isRemotePath } from '../../lib/links.ts';
 import { showContextMenu, type MenuEntry } from '../../lib/menu.ts';
 import { useLibraryData } from '../../lib/useLibraryData.ts';
 import { useNavigation } from '../../stores/navigation.ts';
 import { useUi } from '../../stores/ui.ts';
+import { alternativesMenu, placeholderTrack } from '../import/entries.ts';
+import { FindDialog } from '../import/FindDialog.tsx';
+import { ImportStatus } from '../import/ImportStatus.tsx';
+import { useImportProgress } from '../import/useImportProgress.ts';
 import { copyText, downloadTracks, report } from './actions.ts';
 import { EmptyState, LoadError, PlayButtons } from './common.tsx';
 import { coverMenu } from './covers.ts';
@@ -26,17 +31,38 @@ export function PlaylistView({ id }: { id: number }) {
   const renaming = useUi((s) => s.renamingPlaylist === id);
   const renamePlaylist = useUi((s) => s.renamePlaylist);
   const playlist = useLibraryData(`playlist:${id}`, () => playlists.get(id), CHANGES);
-  const tracks = useLibraryData(
-    `playlist-tracks:${id}`,
-    () => library.tracks({ kind: 'playlist', id }),
-    CHANGES,
-  );
+  // Every place: tracks, and imported entries still being looked for.
+  const places = useLibraryData(`playlist-places:${id}`, () => importer.places(id), CHANGES);
+  const progress = useImportProgress(id);
+  const [finding, setFinding] = useState<ImportEntry | null>(null);
+  const { rows, entries } = useMemo(() => {
+    const shown = (places.data ?? []).flatMap((place) => {
+      const track = place.track ?? (place.entry ? placeholderTrack(place.entry) : null);
+      return track ? [{ track, entry: place.entry }] : [];
+    });
+    return {
+      rows: shown.map(({ track }) => track),
+      entries: shown.some(({ entry }) => entry !== null)
+        ? shown.map(({ entry }) => entry)
+        : undefined,
+    };
+  }, [places.data]);
 
   if (playlist.data === null) {
     return <EmptyState title={t('library.nothingHere')} />;
   }
   const data = playlist.data;
-  const list = tracks.data ?? [];
+  // Only rows with a track play.
+  const list = rows.filter((_, index) => entries?.[index]?.trackId !== null);
+  const onEntry = (entry: ImportEntry) => {
+    if (entry.trackId === null) {
+      setFinding(entry);
+    } else {
+      showContextMenu(alternativesMenu(entry, () => setFinding(entry))).catch(
+        report('Showing a menu'),
+      );
+    }
+  };
 
   const remove = async () => {
     if (!data) {
@@ -79,6 +105,7 @@ export function PlaylistView({ id }: { id: number }) {
             </h2>
           )}
           {data && <p className={styles.heroMeta}>{summary(data.trackCount, data.duration)}</p>}
+          {progress && <ImportStatus progress={progress} playlistId={id} />}
           <div className={styles.actions}>
             <PlayButtons ids={list.map((track) => track.id)} />
             <IconButton
@@ -86,30 +113,37 @@ export function PlaylistView({ id }: { id: number }) {
               onClick={() => {
                 const sourceUrl = data?.sourceUrl ?? null;
                 const streamed = list.filter((track) => isRemotePath(track.path));
-                const entries: MenuEntry[] = [
+                const menu: MenuEntry[] = [
                   { label: t('library.renamePlaylist'), action: () => renamePlaylist(id) },
                   ...coverMenu({ kind: 'playlist', id }, data?.customCover ?? false),
                   { label: t('library.deletePlaylist'), action: () => void remove() },
                 ];
-                if (streamed.length > 0 || sourceUrl !== null) {
-                  entries.push('separator');
+                const missing = (progress?.missing ?? 0) > 0;
+                if (streamed.length > 0 || canRefresh(sourceUrl) || missing) {
+                  menu.push('separator');
                 }
                 if (streamed.length > 0) {
-                  entries.push({
+                  menu.push({
                     label: t('links.downloadAll'),
                     action: () => downloadTracks(streamed),
                   });
                 }
-                if (sourceUrl !== null) {
-                  entries.push(
-                    {
-                      label: t('links.refreshPlaylist'),
-                      action: () => void links.import(sourceUrl).catch(report('Refreshing')),
-                    },
-                    { label: t('links.copyLink'), action: () => copyText(sourceUrl) },
-                  );
+                if (missing) {
+                  menu.push({
+                    label: t('import.lookAgain'),
+                    action: () => importer.retry(id).catch(report('Looking again')),
+                  });
                 }
-                showContextMenu(entries).catch(report('Showing a menu'));
+                if (canRefresh(sourceUrl)) {
+                  menu.push({
+                    label: t('links.refreshPlaylist'),
+                    action: () => void importer.link(sourceUrl).catch(report('Refreshing')),
+                  });
+                  if (/^https?:/i.test(sourceUrl)) {
+                    menu.push({ label: t('links.copyLink'), action: () => copyText(sourceUrl) });
+                  }
+                }
+                showContextMenu(menu).catch(report('Showing a menu'));
               }}
             >
               <MoreHorizontal size={18} />
@@ -117,7 +151,7 @@ export function PlaylistView({ id }: { id: number }) {
           </div>
         </div>
       </header>
-      {tracks.data?.length === 0 ? (
+      {places.data?.length === 0 ? (
         <EmptyState
           icon={<ListMusic size={36} aria-hidden="true" />}
           title={t('library.emptyPlaylist')}
@@ -125,19 +159,34 @@ export function PlaylistView({ id }: { id: number }) {
         />
       ) : (
         <TrackTable
-          tracks={list}
+          tracks={rows}
           columns={['number', 'title', 'artist', 'album', 'time', 'favorite']}
           numbering="index"
           covers
+          entries={entries}
+          onEntry={onEntry}
           onMove={(from, to) => playlists.move(id, from, to).catch(report('Reordering'))}
-          extraMenu={(rows) => [
-            {
-              label: t('library.removeFromPlaylist'),
-              action: () => playlists.removeItems(id, rows).catch(report('Removing')),
-            },
-          ]}
+          extraMenu={(picked) => {
+            const [single] = picked;
+            const entry = picked.length === 1 && single !== undefined ? entries?.[single] : null;
+            return [
+              ...(entry
+                ? [
+                    {
+                      label: t(entry.trackId === null ? 'import.find.menu' : 'import.findAnother'),
+                      action: () => setFinding(entry),
+                    },
+                  ]
+                : []),
+              {
+                label: t('library.removeFromPlaylist'),
+                action: () => playlists.removeItems(id, picked).catch(report('Removing')),
+              },
+            ];
+          }}
         />
       )}
+      {finding && <FindDialog entry={finding} onClose={() => setFinding(null)} />}
     </div>
   );
 }

@@ -33,6 +33,8 @@ interface UiState {
   renamingPlaylist: number | null;
   /** The link dialog is open, with this text in its field. */
   linkInput: string | null;
+  /** The Import Playlist dialog is open, with this text in its field. */
+  importInput: string | null;
   /** Opens or closes Settings, at `section` if given. */
   showSettings(open: boolean, section?: SettingsSection): void;
   /** The search field took the focus. */
@@ -44,6 +46,8 @@ interface UiState {
   renamePlaylist(id: number | null): void;
   /** Opens the link dialog (with a pasted or dropped link), or closes it with `null`. */
   openLink(input: string | null): void;
+  /** Opens the Import Playlist dialog (with pasted text or a link), or closes it. */
+  openImport(input: string | null): void;
 }
 
 /**
@@ -58,6 +62,7 @@ export const useUi = create<UiState>((set) => ({
   coverDrop: null,
   renamingPlaylist: null,
   linkInput: null,
+  importInput: null,
   settingsOpen: false,
   settingsSection: 'general',
   showSettings(settingsOpen, section) {
@@ -80,5 +85,8 @@ export const useUi = create<UiState>((set) => ({
   },
   openLink(input) {
     set({ linkInput: input });
+  },
+  openImport(input) {
+    set({ importInput: input });
   },
 }));

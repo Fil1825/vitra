@@ -90,6 +90,15 @@
   --vi-delay: 0.08s;
 }
 
+/* The circle stays; its bars squeeze like the pause button's. */
+.lucide-circle-pause > :nth-child(n + 2) {
+  --vi: vi-squeeze;
+}
+
+.lucide-circle-pause > :nth-child(3) {
+  --vi-delay: 0.08s;
+}
+
 .lucide-skip-forward {
   --vi: vi-dash-right;
 }
@@ -254,6 +263,7 @@
 }
 
 .lucide-image-off,
+.lucide-search-x,
 .lucide-triangle-alert {
   --vi: vi-shake;
 }
@@ -335,6 +345,15 @@
 
 .lucide-minus {
   --vi: vi-squeeze-x;
+}
+
+/* The big star, then the small ones. */
+.lucide-sparkles > * {
+  --vi: vi-pop;
+}
+
+.lucide-sparkles > :nth-child(n + 2) {
+  --vi-delay: 0.08s;
 }
 
 .lucide-check {

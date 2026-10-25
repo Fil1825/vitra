@@ -9,10 +9,10 @@ An open-source desktop music player with a **Liquid Glass** look — fully theme
 virtually any audio format, streams audio from links (YouTube, SoundCloud and hundreds of other
 sites) and shows synced lyrics. Runs on macOS, Windows and Linux.
 
-> **Status:** early development (stage 8 of the [plan](docs/PLAN.md)): local playback, the
+> **Status:** early development (stage 9 of the [plan](docs/PLAN.md)): local playback, the
 > music library, the play queue, playing and downloading links, lyrics, the mini player,
-> themes, the layout, sound settings and system integration work; importing playlists from
-> other services and releases come later. Nothing to install yet.
+> themes, the layout, sound settings, system integration and importing playlists from other
+> services work; My Wave and releases come later. Nothing to install yet.
 
 ## Links
 
@@ -33,6 +33,23 @@ title: **Edit Tags…** on a link corrects its title, artists and album (or move
 album you already have, which then lends it its cover). The corrections stay in Vitra's
 library, survive opening the link again, and go into the file's tags when you download it.
 **Restore Site Details** in the same window takes the site's details back.
+
+## Importing playlists
+
+Bring a playlist over from another service as you have it — no accounts or keys: paste its
+link anywhere in the window (Spotify, Apple Music, Deezer, Yandex Music), drop a playlist file
+on the window (M3U, XSPF, the Music app's XML export, CSV from Exportify, Soundiiz or
+TuneMyMusic), or use **Import Playlist…** under the "+" next to Playlists, which also takes
+copied tracks ("Artist — Title" per line, or a page's text such as a VK playlist selected and
+copied in the browser) and, on a Mac, lists the **Music** app's playlists. Only the list comes
+over: songs your library has play at once, the others are looked for on YouTube Music in the
+background and light up as they're found. A match Vitra isn't sure of has a **?** with the
+alternatives; one it didn't find stays grey — click it to search yourself. Importing the same
+link again (or **Update from Source**) brings the playlist up to date and keeps your choices.
+Spotify shows visitors the first 100 songs of a playlist: for the rest (and for Liked Songs),
+select the songs in Spotify, copy them and paste them into the import. Yandex Music's «Мне
+нравится» and private playlists use the browser chosen in Settings → Downloads → Cookies from
+browser.
 
 ## Library
 

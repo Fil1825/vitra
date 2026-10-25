@@ -1,0 +1,83 @@
+.wanted {
+  display: grid;
+  gap: 2px;
+  padding: var(--vitra-space-3) var(--vitra-space-5) 0;
+}
+
+.wantedName {
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.wantedMeta {
+  color: var(--vitra-color-text-tertiary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.results {
+  display: grid;
+  max-height: 340px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border-radius: var(--vitra-radius-sm);
+  background: color-mix(in srgb, var(--vitra-color-text) 4%, transparent);
+}
+
+.results li + li {
+  border-top: 1px solid var(--vitra-color-separator);
+}
+
+.result {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--vitra-space-2);
+  padding: 6px var(--vitra-space-2) 6px var(--vitra-space-1);
+}
+
+.resultText {
+  display: grid;
+  min-width: 0;
+}
+
+.resultTitle,
+.resultMeta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resultTitle {
+  font-size: 13px;
+}
+
+.resultMeta {
+  color: var(--vitra-color-text-secondary);
+  font-size: 12px;
+}
+
+.resultSide {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+
+.resultTime {
+  color: var(--vitra-color-text-tertiary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 480px) {
+  .resultSide {
+    display: none;
+  }
+
+  .result {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+}

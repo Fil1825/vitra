@@ -24,6 +24,9 @@ import { CSS } from '@dnd-kit/utilities';
 import { EyeOff, GripVertical, MoveRight } from 'lucide-react';
 import {
   Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -41,6 +44,9 @@ import { LibraryView } from '../features/library/LibraryView.tsx';
 import { LyricsPanel } from '../features/lyrics/LyricsPanel.tsx';
 import { QueuePanel } from '../features/queue/QueuePanel.tsx';
 import { showContextMenu } from '../lib/menu.ts';
+import { routeKey } from '../lib/scrollMemory.ts';
+import { useScrollMemory } from '../lib/useScrollMemory.ts';
+import { useAppearance } from '../stores/appearance.ts';
 import { useEnvironment } from '../stores/environment.ts';
 import { useNavigation } from '../stores/navigation.ts';
 import { useSettings } from '../stores/settings.ts';
@@ -62,6 +68,17 @@ import {
 import { ArtworkPanel } from './modules/ArtworkPanel.tsx';
 import { LevelMeter } from './modules/LevelMeter.tsx';
 import { CustomizePalette, ModuleChip } from './Palette.tsx';
+import {
+  isMoving,
+  nextLayoutPresence,
+  settle,
+  settledLayout,
+  settleLayout,
+  splitPhase,
+  zoneMotion,
+  type LayoutPresence,
+  type Phase,
+} from './presence.ts';
 import { setModuleShown, updateLayout, useCustomizing, useLayout } from './state.ts';
 import styles from './Workspace.module.css';
 
@@ -115,6 +132,7 @@ export function Workspace({ onOpenSettings }: { onOpenSettings(): void }) {
     Zone,
     ModuleId[]
   >;
+  const presence = usePresence(shown, !customizing);
 
   // macOS draws the traffic lights at the window's top-left corner: whatever is there makes
   // room for them (the sidebar has its own room).
@@ -136,27 +154,90 @@ export function Workspace({ onOpenSettings }: { onOpenSettings(): void }) {
         data-dragging={dragging || undefined}
         data-lights={lights}
       >
-        <ZoneView zone="top" modules={shown.top} layout={layout} />
+        <ZoneView zone="top" presence={presence} layout={layout} />
         <div className={styles.middle}>
-          <ZoneView zone="left" modules={shown.left} layout={layout} />
+          <ZoneView zone="left" presence={presence} layout={layout} />
           <div className={styles.center} data-part="center">
             <TitleBar className={styles.header} onOpenSettings={onOpenSettings} />
-            {/* Keyed by route so each view starts at the top. */}
-            <main
-              key={JSON.stringify(route)}
-              className={styles.main}
-              data-part="main"
-              data-scroll-container
-            >
-              <LibraryView />
-            </main>
+            {/* Keyed by route: each screen comes back where it was left (MainArea). */}
+            <MainArea key={JSON.stringify(route)} scrollKey={routeKey(route)} />
           </div>
-          <ZoneView zone="right" modules={shown.right} layout={layout} />
+          <ZoneView zone="right" presence={presence} layout={layout} />
         </div>
-        <ZoneView zone="bottom" modules={shown.bottom} layout={layout} />
+        <ZoneView zone="bottom" presence={presence} layout={layout} />
       </div>
       {customizing && <CustomizePalette layout={layout} />}
     </LayoutDnd>
+  );
+}
+
+interface PresenceState {
+  zones: LayoutPresence;
+  /** A module's arrival or exit ended. */
+  settled(zone: Zone, module: ModuleId): void;
+}
+
+/**
+ * What each zone renders: the modules shown, plus those just hidden until they have left
+ * (presence.ts). Without motion, or in customize mode, changes are instant.
+ */
+function usePresence(shown: Record<Zone, ModuleId[]>, animate: boolean): PresenceState {
+  const motion = useAppearance((s) => s.effects.motion);
+  const duration = useAppearance((s) => s.theme.motion.duration);
+  const key = JSON.stringify(shown);
+  const [zones, setZones] = useState(() => settledLayout(shown));
+  const [lastKey, setLastKey] = useState(key);
+  if (key !== lastKey) {
+    setLastKey(key);
+    setZones(motion && animate ? nextLayoutPresence(zones, shown) : settledLayout(shown));
+  }
+
+  // A safety net for an end event that never comes (e.g. a theme's CSS stopped the motion).
+  const moving = isMoving(zones);
+  useEffect(() => {
+    if (!moving) return;
+    const timer = window.setTimeout(() => setZones(settleLayout), duration + 250);
+    return () => window.clearTimeout(timer);
+  }, [moving, zones, duration]);
+
+  const settled = useCallback(
+    (zone: Zone, module: ModuleId) =>
+      setZones((current) => ({ ...current, [zone]: settle(current[zone], module) })),
+    [],
+  );
+  return { zones, settled };
+}
+
+/** True for a moment (`ms`) after `value` changes, not when it first renders. */
+function useJustChanged(value: unknown, ms: number): boolean {
+  const [last, setLast] = useState(value);
+  const [changed, setChanged] = useState(false);
+  if (value !== last) {
+    setLast(value);
+    setChanged(true);
+  }
+  useEffect(() => {
+    if (!changed) return;
+    const timer = window.setTimeout(() => setChanged(false), ms);
+    return () => window.clearTimeout(timer);
+  }, [changed, last, ms]);
+  return changed;
+}
+
+/** The main view of one screen, scrolled where it was left. */
+function MainArea({ scrollKey }: { scrollKey: string }) {
+  const ref = useRef<HTMLElement>(null);
+  useScrollMemory(ref, scrollKey);
+  return (
+    <main
+      ref={ref}
+      className={styles.main}
+      data-part="main"
+      data-scroll-container
+      data-scroll-key={scrollKey}
+    >
+      <LibraryView />
+    </main>
   );
 }
 
@@ -219,24 +300,39 @@ function LayoutDnd({ layout, children }: { layout: Layout; children: ReactNode }
   );
 }
 
-function ZoneView({ zone, modules, layout }: { zone: Zone; modules: ModuleId[]; layout: Layout }) {
+function ZoneView({
+  zone,
+  presence,
+  layout,
+}: {
+  zone: Zone;
+  presence: PresenceState;
+  layout: Layout;
+}) {
   const { t } = useTranslation();
   const customizing = useCustomizing((s) => s.on);
   const dragging = useDragging((s) => s.module);
+  const duration = useAppearance((s) => s.theme.motion.duration);
   const { setNodeRef } = useDroppable({ id: `${ZONE_PREFIX}${zone}`, disabled: !customizing });
   // Over the zone itself or over a module in it.
   const isOver = zoneOfTarget(layout, useDndContext().over?.id) === zone;
   // A column's width while its edge is dragged; saved when the drag ends.
   const [width, setLiveWidth] = useState<number | null>(null);
-
-  if (modules.length === 0 && !customizing) {
-    return null;
-  }
+  const entries = presence.zones[zone];
   const column = isColumn(zone);
   const rail =
-    column && modules.length === 1 && modules[0] === 'sidebar' && layout.sidebar === 'rail';
+    column && entries.length === 1 && entries[0]?.module === 'sidebar' && layout.sidebar === 'rail';
+  // Between the full sidebar and the rail the column's width moves (a transition, only
+  // then: a column following a dragged edge or the window's width mustn't lag behind).
+  const morphing = useJustChanged(rail, duration + 50);
+
+  if (entries.length === 0 && !customizing) {
+    return null;
+  }
+  const modules = entries.map((entry) => entry.module);
+  const motion = column ? zoneMotion(entries) : undefined;
   const style = column
-    ? ({ '--_width': rail ? undefined : `${width ?? layout.widths[zone]}px` } as CSSProperties)
+    ? ({ '--_width': `${width ?? layout.widths[zone]}px` } as CSSProperties)
     : undefined;
   const refuses = dragging !== null && !FITS[dragging].includes(zone);
 
@@ -245,8 +341,10 @@ function ZoneView({ zone, modules, layout }: { zone: Zone; modules: ModuleId[]; 
       ref={setNodeRef}
       className={column ? styles.column : styles.bar}
       data-zone={zone}
-      data-empty={modules.length === 0 || undefined}
+      data-empty={entries.length === 0 || undefined}
       data-rail={rail || undefined}
+      data-presence={motion}
+      data-morphing={(morphing && width === null) || undefined}
       data-over={(customizing && isOver && !refuses) || undefined}
       data-refuses={refuses || undefined}
       style={style}
@@ -255,19 +353,31 @@ function ZoneView({ zone, modules, layout }: { zone: Zone; modules: ModuleId[]; 
         items={modules}
         strategy={column ? verticalListSortingStrategy : horizontalListSortingStrategy}
       >
-        {modules.map((module, index) => (
+        {entries.map(({ module, phase }, index) => (
           <Fragment key={module}>
             {column && index > 0 && (
-              <SplitHandle above={modules[index - 1] as ModuleId} below={module} layout={layout} />
+              <SplitHandle
+                above={modules[index - 1] as ModuleId}
+                below={module}
+                layout={layout}
+                phase={splitPhase(entries, index)}
+              />
             )}
-            <ModuleFrame module={module} zone={zone} layout={layout} rail={rail} />
+            <ModuleFrame
+              module={module}
+              zone={zone}
+              layout={layout}
+              rail={rail}
+              phase={phase}
+              onSettled={presence.settled}
+            />
           </Fragment>
         ))}
       </SortableContext>
-      {customizing && modules.length === 0 && (
+      {customizing && entries.length === 0 && (
         <div className={styles.dropHint}>{t(`layout.zones.${zone}`)}</div>
       )}
-      {column && !rail && modules.length > 0 && (
+      {column && !rail && motion === undefined && entries.length > 0 && (
         <ColumnResizer column={zone} width={layout.widths[zone]} onLive={setLiveWidth} />
       )}
     </div>
@@ -279,11 +389,15 @@ function ModuleFrame({
   zone,
   layout,
   rail,
+  phase,
+  onSettled,
 }: {
   module: ModuleId;
   zone: Zone;
   layout: Layout;
   rail: boolean;
+  phase: Phase;
+  onSettled(zone: Zone, module: ModuleId): void;
 }) {
   const { t } = useTranslation();
   const customizing = useCustomizing((s) => s.on);
@@ -291,6 +405,25 @@ function ModuleFrame({
     id: module,
     disabled: !customizing,
   });
+  const element = useRef<HTMLDivElement | null>(null);
+  const setRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      element.current = node;
+      setNodeRef(node);
+    },
+    [setNodeRef],
+  );
+  // A module on its way out takes no focus or clicks; focus in it goes back to the page.
+  useLayoutEffect(() => {
+    const focused = document.activeElement;
+    if (
+      phase === 'leaving' &&
+      focused instanceof HTMLElement &&
+      element.current?.contains(focused)
+    ) {
+      focused.blur();
+    }
+  }, [phase]);
   const style: CSSProperties = {
     flex: isColumn(zone) ? `${weightOf(layout, module)} 1 0` : undefined,
     transform: CSS.Translate.toString(transform),
@@ -311,36 +444,46 @@ function ModuleFrame({
 
   return (
     <div
-      ref={setNodeRef}
+      ref={setRef}
       className={styles.module}
       data-module={module}
       data-part={module}
       data-dragging={isDragging || undefined}
+      data-phase={phase === 'present' ? undefined : phase}
+      inert={phase === 'leaving'}
       style={style}
+      onAnimationEnd={(event) => {
+        if (phase !== 'present' && event.target === event.currentTarget) {
+          onSettled(zone, module);
+        }
+      }}
     >
       <ModuleContent module={module} rail={rail} />
       {customizing && (
         <div className={styles.frame} {...attributes} {...listeners}>
-          <span className={styles.frameLabel}>
-            <GripVertical size={14} aria-hidden="true" />
-            <span className={styles.frameName}>{t(`layout.modules.${module}`)}</span>
-          </span>
-          <span className={styles.frameButtons}>
-            <IconButton
-              label={t('layout.move')}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={moveMenu}
-            >
-              <MoveRight size={15} />
-            </IconButton>
-            <IconButton
-              label={t('layout.hide')}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={() => setModuleShown(module, false)}
-            >
-              <EyeOff size={15} />
-            </IconButton>
-          </span>
+          {/* The frame measures itself (a container): a narrow module stacks these. */}
+          <div className={styles.frameBar}>
+            <span className={styles.frameLabel} title={t(`layout.modules.${module}`)}>
+              <GripVertical size={14} aria-hidden="true" />
+              <span className={styles.frameName}>{t(`layout.modules.${module}`)}</span>
+            </span>
+            <span className={styles.frameButtons}>
+              <IconButton
+                label={t('layout.move')}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={moveMenu}
+              >
+                <MoveRight size={15} />
+              </IconButton>
+              <IconButton
+                label={t('layout.hide')}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => setModuleShown(module, false)}
+              >
+                <EyeOff size={15} />
+              </IconButton>
+            </span>
+          </div>
         </div>
       )}
     </div>
@@ -430,10 +573,13 @@ function SplitHandle({
   above,
   below,
   layout,
+  phase,
 }: {
   above: ModuleId;
   below: ModuleId;
   layout: Layout;
+  /** Coming or going with a module next to it (one line fewer either way). */
+  phase: Phase;
 }) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
@@ -452,6 +598,7 @@ function SplitHandle({
     <div
       ref={ref}
       className={styles.split}
+      data-phase={phase === 'present' ? undefined : phase}
       role="separator"
       aria-orientation="horizontal"
       aria-label={t('layout.resize')}

@@ -24,6 +24,9 @@ pub enum AppError {
     Link(#[from] links::LinkError),
     #[error(transparent)]
     Theme(#[from] themes::Error),
+    /// A playlist import that couldn't be read (the message says what to do instead).
+    #[error("{0}")]
+    Import(String),
     /// A background task that didn't finish (it panicked or was cancelled).
     #[error("{0}")]
     Task(String),

@@ -25,6 +25,7 @@ use geometry::{Rect, Saved, Size};
 
 use crate::error::AppError;
 use crate::settings::{MiniPlayerSettings, SettingsStore, WindowMaterial};
+use crate::tray::Tray;
 use crate::window::{self, Backdrop};
 
 /// The mini player's window label (`tauri.conf.json`).
@@ -203,13 +204,18 @@ impl MiniPlayer {
         }
     }
 
-    /// The main window is being closed: with the mini player open the app goes on in it, else
-    /// the app quits as before (a hidden mini player window would keep it running).
+    /// The main window is being closed. The app goes on with it hidden while the mini player
+    /// is open, on macOS (an app stays until ⌘Q; the Dock icon brings the window back), and
+    /// elsewhere while the tray icon is there to bring it back; otherwise it quits (a hidden
+    /// mini player window would keep it running).
     pub fn main_close_requested(&self, api: &tauri::CloseRequestApi) {
-        let Some(window) = self.window() else {
-            return;
-        };
-        if Self::visible(Some(&window)) {
+        let window = self.window();
+        let tray = self
+            .0
+            .app
+            .try_state::<Tray>()
+            .is_some_and(|tray| tray.shown());
+        if Self::visible(window.as_ref()) || cfg!(target_os = "macos") || tray {
             api.prevent_close();
             if let Some(main) = self.main()
                 && let Err(err) = main.hide()
@@ -217,7 +223,9 @@ impl MiniPlayer {
                 log::warn!("cannot hide the main window: {err}");
             }
             self.update_activation_policy();
-        } else if let Err(err) = window.destroy() {
+        } else if let Some(window) = window
+            && let Err(err) = window.destroy()
+        {
             log::warn!("cannot close the mini player: {err}");
         }
     }

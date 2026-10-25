@@ -1,0 +1,26 @@
+[package]
+name = "import"
+description = "Playlist import: reading playlists from files, pasted text and service pages, and matching their tracks"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+# Its decoder reads files in UTF-8, UTF-16 (the Music app's text export) or Windows-1251.
+lyrics = { version = "0.1.0", path = "../lyrics" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+# Already in the tree via Tauri: link parsing.
+url = "2.5"
+# Already in the tree via Tauri (Info.plist handling): the Music app's XML export is a plist.
+plist = { version = "1.10", default-features = false }
+# Already in the tree via plist: XSPF playlists.
+quick-xml = "0.42"
+
+[lints]
+workspace = true

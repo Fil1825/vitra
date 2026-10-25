@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { Glass } from '../../components/Glass/index.ts';
 import { IconButton } from '../../components/ui/IconButton.tsx';
 import { formatTime } from '../../lib/format.ts';
+import { isServiceLink } from '../../lib/import.ts';
 import {
   links,
   type AlbumPreview,
@@ -26,6 +27,7 @@ import {
 } from '../../lib/links.ts';
 import { artworkUrl } from '../../lib/player.ts';
 import { useNavigation } from '../../stores/navigation.ts';
+import { useUi } from '../../stores/ui.ts';
 import { linkError } from './errors.ts';
 import styles from './LinkDialog.module.css';
 
@@ -156,6 +158,12 @@ export function LinkDialog({ initial, onClose }: { initial: string; onClose(): v
 
   const resolve = (text: string) => {
     const value = text.trim();
+    // Spotify, Apple Music…: their lists are imported, not played.
+    if (isServiceLink(value)) {
+      onClose();
+      useUi.getState().openImport(value);
+      return;
+    }
     if (value) {
       setLookup({ state: 'resolving', input: value });
       fetchPreview(value);

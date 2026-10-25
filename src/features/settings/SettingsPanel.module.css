@@ -337,6 +337,22 @@
   font-size: 12px;
 }
 
+/* The record speed slider with its reset button, level with the slider's line. */
+.speed {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--vitra-space-2);
+}
+
+.speed > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.speed > button {
+  margin-top: -6px;
+}
+
 .warning {
   margin: 0;
   padding: var(--vitra-space-2) var(--vitra-space-3);

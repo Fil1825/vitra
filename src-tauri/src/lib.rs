@@ -4,6 +4,8 @@ mod browser;
 mod drag;
 mod error;
 mod global_shortcuts;
+mod http;
+mod import;
 mod layout;
 mod library;
 mod links;
@@ -138,6 +140,9 @@ pub fn run() {
             links.warm_up();
             app.manage(links);
             app.manage(links::Downloads::new(app.handle().clone())?);
+            let importer = import::ImportService::new(app.handle().clone());
+            importer.start();
+            app.manage(importer);
 
             // Before the player, so its first state reaches the system.
             app.manage(now_playing::NowPlaying::new(app.handle()));
@@ -174,6 +179,18 @@ pub fn run() {
             player::sound_preview_equalizer,
             browser::open_in_browser,
             tray::tray_labels,
+            import::commands::import_text,
+            import::commands::import_files,
+            import::commands::import_link,
+            import::commands::import_places,
+            import::commands::import_progress,
+            import::commands::import_pick,
+            import::commands::import_search,
+            import::commands::import_retry,
+            import::commands::music_playlists,
+            import::commands::import_music,
+            import::commands::import_status,
+            import::commands::import_resume,
             tray::tray_available,
             global_shortcuts::global_shortcuts_failed,
             player::player_play,

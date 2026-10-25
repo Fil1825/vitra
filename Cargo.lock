@@ -1699,6 +1699,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "import"
+version = "0.1.0"
+dependencies = [
+ "lyrics",
+ "plist",
+ "quick-xml",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "url",
+]
+
+[[package]]
 name = "indexmap"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2011,6 +2024,7 @@ name = "library"
 version = "0.1.0"
 dependencies = [
  "image",
+ "import",
  "log",
  "lyrics",
  "media",
@@ -2511,6 +2525,16 @@ dependencies = [
  "bitflags 2.13.2",
  "objc2",
  "objc2-core-foundation",
+]
+
+[[package]]
+name = "objc2-itunes-library"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d099084c1c266bb91cc050ff8bde5a40f4e3840932c6a79428819177e24ebd1e"
+dependencies = [
+ "objc2",
+ "objc2-foundation",
 ]
 
 [[package]]
@@ -4408,6 +4432,7 @@ name = "vitra"
 version = "0.1.0"
 dependencies = [
  "block2",
+ "import",
  "library",
  "links",
  "log",
@@ -4419,6 +4444,7 @@ dependencies = [
  "objc2-app-kit",
  "objc2-core-foundation",
  "objc2-foundation",
+ "objc2-itunes-library",
  "objc2-media-player",
  "objc2-quartz-core",
  "serde",

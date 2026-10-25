@@ -1,0 +1,108 @@
+.tabs {
+  display: flex;
+  padding: var(--vitra-space-3) var(--vitra-space-5) 0;
+}
+
+.body {
+  display: grid;
+  gap: var(--vitra-space-3);
+  padding: var(--vitra-space-3) var(--vitra-space-5) var(--vitra-space-5);
+}
+
+.text {
+  min-height: 160px;
+  padding: var(--vitra-space-2) var(--vitra-space-3);
+  border: 1px solid var(--vitra-color-separator);
+  border-radius: var(--vitra-radius-sm);
+  background: color-mix(in srgb, var(--vitra-color-text) 6%, transparent);
+  color: var(--vitra-color-text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  user-select: text;
+}
+
+.text:focus {
+  border-color: var(--vitra-color-accent);
+  outline: none;
+}
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--vitra-space-2);
+  margin: 0;
+  color: var(--vitra-color-text-secondary);
+  font-size: 13px;
+}
+
+.notice svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--vitra-color-accent);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--vitra-space-2);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.music {
+  display: grid;
+  max-height: 300px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border-radius: var(--vitra-radius-sm);
+  background: color-mix(in srgb, var(--vitra-color-text) 4%, transparent);
+}
+
+.music li + li {
+  border-top: 1px solid var(--vitra-color-separator);
+}
+
+.musicRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--vitra-space-3);
+  padding: 6px var(--vitra-space-3);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.musicRow input {
+  margin: 0;
+  accent-color: var(--vitra-color-accent);
+}
+
+.musicName {
+  display: grid;
+  overflow: hidden;
+}
+
+.musicName,
+.folder {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder {
+  overflow: hidden;
+  color: var(--vitra-color-text-tertiary);
+  font-size: 11px;
+}
+
+.musicCount {
+  color: var(--vitra-color-text-tertiary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}

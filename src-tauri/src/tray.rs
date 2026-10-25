@@ -5,6 +5,7 @@
 //! The menu's words come from the main window (`tray_labels`), where the translations live;
 //! English stands in until it has loaded.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use serde::Deserialize;
@@ -121,6 +122,7 @@ struct Inner {
     icon: Option<TrayIcon>,
     items: Option<Items>,
     shown: Mutex<Shown>,
+    visible: AtomicBool,
 }
 
 #[derive(Clone)]
@@ -150,6 +152,7 @@ impl Tray {
                 labels: Labels::default(),
                 view: View::default(),
             }),
+            visible: AtomicBool::new(false),
         }));
         tray.set_visible(visible);
         tray
@@ -160,11 +163,18 @@ impl Tray {
     }
 
     pub fn set_visible(&self, visible: bool) {
-        if let Some(icon) = &self.0.icon
-            && let Err(err) = icon.set_visible(visible)
-        {
-            log::warn!("cannot show or hide the tray icon: {err}");
+        let Some(icon) = &self.0.icon else {
+            return;
+        };
+        match icon.set_visible(visible) {
+            Ok(()) => self.0.visible.store(visible, Ordering::Relaxed),
+            Err(err) => log::warn!("cannot show or hide the tray icon: {err}"),
         }
+    }
+
+    /// Whether the icon is up, so a hidden window can be brought back from it.
+    pub fn shown(&self) -> bool {
+        self.0.visible.load(Ordering::Relaxed)
     }
 
     /// Follows the player: the track and Play or Pause.

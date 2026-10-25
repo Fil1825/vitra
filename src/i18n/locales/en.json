@@ -10,6 +10,7 @@
     "favorites": "Favorites",
     "playlists": "Playlists",
     "newPlaylist": "New Playlist",
+    "addPlaylist": "Add Playlist",
     "playlistName": "Playlist name",
     "search": "Search",
     "clearSearch": "Clear search",
@@ -206,6 +207,10 @@
     "vinyl": "Covers as Records",
     "vinylHint": "Covers become vinyl records that turn while music plays. “As in Theme” follows the theme; the disc button on a big cover switches it too.",
     "vinylAuto": "As in Theme",
+    "vinylSpeed": "Record Speed",
+    "vinylSpeedHint": "How fast records turn while music plays: a record player’s 33⅓, 45 or 78, or anything from 5 to 78. Records stand still with Reduce Motion.",
+    "vinylSpeedValue": "{{value}} rpm",
+    "vinylSpeedReset": "Back to {{value}} rpm",
     "sections": {
       "general": "General",
       "sound": "Sound",
@@ -224,7 +229,10 @@
         "windows": "Icon in the notification area",
         "linux": "Icon in the system tray"
       },
-      "trayHint": "The track, playback buttons, the mini player and Quit, even with every window closed to the mini player.",
+      "trayHint": {
+        "macos": "The track, playback buttons, the mini player and Quit. Closing the window keeps the music playing; ⌘Q or Quit Vitra quits.",
+        "other": "The track, playback buttons, the mini player and Quit. While it is on, closing the window keeps the music playing here."
+      },
       "trayUnavailable": "This desktop has no place for it: install the AppIndicator library (libayatana-appindicator3).",
       "globalShortcuts": "Shortcuts in Every App",
       "globalHint": "Play, pause or skip while another app is in front: set them in Keyboard Shortcuts.",
@@ -383,6 +391,93 @@
     "listen": "Listen",
     "downloadAlbum": "Download Album",
     "openAlbum": "Show Album"
+  },
+  "import": {
+    "openImport": "Import Playlist…",
+    "title": "Import Playlist",
+    "source": "Import from",
+    "tabs": {
+      "text": "Link, Text or File",
+      "music": "Music App"
+    },
+    "textLabel": "Link or tracks",
+    "placeholder": "Paste a link to a playlist or album on Spotify, Apple Music, Deezer or Yandex Music — or tracks, one per line: Artist — Title",
+    "completePlaceholder": "Paste the copied tracks here",
+    "hint": "Tracks your library has play at once; the others are looked for on YouTube Music in the background. Playlist files: M3U, XSPF, the Music app’s XML, CSV from Exportify, Soundiiz or TuneMyMusic. VK: open the playlist in your browser, select all, copy and paste here.",
+    "defaultName": "Imported Playlist",
+    "chooseFile": "Choose File…",
+    "playlistFiles": "Playlists",
+    "import": "Import",
+    "complete": "Complete Playlist",
+    "done": "Done",
+    "reading": "Reading the playlist…",
+    "partial_one": "“{{name}}” is imported with the {{count}} track the page shows. For all of them: open the playlist in Spotify, select its tracks (⌘A or Ctrl+A), copy (⌘C or Ctrl+C) and paste here.",
+    "partial_other": "“{{name}}” is imported with the first {{count}} tracks the page shows. For all of them: open the playlist in Spotify, select its tracks (⌘A or Ctrl+A), copy (⌘C or Ctrl+C) and paste here.",
+    "dropToImport": "Drop to import the playlist",
+    "music": {
+      "loading": "Reading the Music library…",
+      "empty": "The Music app has no playlists of yours.",
+      "hint": "Songs from your Music library play at once; songs from Apple Music’s catalogue are looked for on YouTube Music.",
+      "all": "Select All",
+      "none": "Select None",
+      "import_one": "Import {{count}} Playlist",
+      "import_other": "Import {{count}} Playlists"
+    },
+    "inLibrary": "in the library",
+    "pending": "Looking for this track…",
+    "missing": "Not found: use Find… to look for it",
+    "doubtful": "Maybe not the right track: choose another",
+    "wanted": "In the list: {{name}}",
+    "findAnother": "Choose Another Track…",
+    "lookAgain": "Look Again",
+    "progress": {
+      "looking_one": "Looking for {{count}} of {{total}} tracks on YouTube Music…",
+      "looking_other": "Looking for {{count}} of {{total}} tracks on YouTube Music…",
+      "found_one": "{{count}} of {{total}} tracks found",
+      "found_other": "{{count}} of {{total}} tracks found",
+      "doubtful_one": "{{count}} to check (?)",
+      "doubtful_other": "{{count}} to check (?)"
+    },
+    "status": {
+      "searching": "looking for “{{title}}”…",
+      "queued": "waiting while another playlist's tracks are looked for…",
+      "rateLimited": "YouTube Music asked to slow down: trying again in {{seconds}} s.",
+      "offline": "YouTube Music doesn't answer: trying again in {{seconds}} s.",
+      "retryNow": "Try Now",
+      "cookiesSafari": "Vitra can't read Safari's cookies, which YouTube asked for. Give Vitra Full Disk Access (System Settings → Privacy & Security) or choose another browser in Settings → Links & Downloads.",
+      "cookies": "Vitra can't read {{browser}}'s cookies, which YouTube asked for. Check that {{browser}} is installed and you're signed in to YouTube, or choose another browser in Settings → Links & Downloads.",
+      "ytDlpMissing": "yt-dlp wasn't found, so tracks can't be looked for on YouTube Music. Settings → Links & Downloads shows where Vitra looks for it.",
+      "signIn": "YouTube asks to sign in. Choose the browser you're signed in to YouTube with in Settings → Links & Downloads → Cookies from browser.",
+      "openSettings": "Open Settings",
+      "retry": "Retry"
+    },
+    "find": {
+      "title": "Find the Track",
+      "menu": "Find…",
+      "inList": "In the list",
+      "query": "Search for",
+      "search": "Search",
+      "searching": "Searching the library and YouTube Music…",
+      "nothing": "Nothing found. Try other words: the artist and the title are enough.",
+      "listen": "Listen",
+      "youtubeMusic": "YouTube Music",
+      "choose": "Choose"
+    },
+    "errors": {
+      "noTracks": "No tracks found in the text. Write one per line: Artist — Title.",
+      "notList": "Vitra can’t read a playlist from this link. Copy the playlist’s tracks and paste them instead.",
+      "shortLink": "The short link leads somewhere Vitra doesn’t know. Open it in the browser and copy the full link.",
+      "timeout": "The service didn’t answer in time. Try again later.",
+      "musicGone": "This playlist is no longer in the Music app.",
+      "vk": "VK shows playlists only to signed-in visitors: open the playlist in your browser, select all (⌘A or Ctrl+A), copy and paste here.",
+      "notFound": "The service has no such playlist. Is the link complete?",
+      "private": "The playlist is private. Make it public, or copy its tracks and paste them here.",
+      "yandexPrivate": "Yandex Music shows this playlist only to its owner. Choose the browser you’re signed in to Yandex with in Settings → Downloads → Cookies from browser, or make the playlist public.",
+      "unreadable": "The page can’t be read right now. Copy the playlist’s tracks and paste them here.",
+      "offline": "Couldn’t reach the service. Check the connection.",
+      "musicAccess": "Vitra can’t read the Music library. Allow it in System Settings → Privacy & Security → Media & Apple Music.",
+      "failed": "Couldn’t import: {{message}}"
+    }
   },
   "downloads": {
     "title": "Downloads",
@@ -626,7 +721,9 @@
       "circle": "Round"
     },
     "vinyl": "Vinyl",
-    "vinylHint": "Covers become round records; the playing track’s turn at 33⅓ rpm while it plays. Applies while Settings → Appearance → Covers as Records is “As in Theme”.",
+    "vinylHint": "Covers become round records; the playing track’s turn while it plays. Applies while Settings → Appearance → Covers as Records is “As in Theme”.",
+    "vinylSpeed": "Record Speed",
+    "vinylSpeedHint": "33⅓ unless the theme says otherwise; a speed chosen in Settings → Appearance wins.",
     "ownPlaceholderColor": "Own Placeholder Color",
     "placeholderColor": "Placeholder"
   },

@@ -4,10 +4,12 @@ import { motion } from 'motion/react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { SpeedDial } from '../../components/CoverArt/index.ts';
 import { Glass } from '../../components/Glass/index.ts';
 import { IconButton } from '../../components/ui/IconButton.tsx';
 import { SegmentedControl } from '../../components/ui/SegmentedControl.tsx';
 import { Switch } from '../../components/ui/Switch.tsx';
+import { LP_SPEED } from '../../lib/settings.ts';
 import { useSettings } from '../../stores/settings.ts';
 import type { ThemeDraft } from '../../stores/themeEditor.ts';
 import { joinColor, percent } from '../../theme/color.ts';
@@ -696,6 +698,20 @@ function ArtworkFields({ theme }: { theme: Theme }) {
         />
       </Field>
       <p className={styles.hint}>{t('themeEditor.vinylHint')}</p>
+      {artwork.vinyl && (
+        <>
+          <Field label={t('themeEditor.vinylSpeed')}>
+            <SpeedDial
+              label={t('themeEditor.vinylSpeed')}
+              speed={artwork.vinylSpeed ?? LP_SPEED}
+              onChange={(speed) =>
+                setArtwork({ vinylSpeed: Math.abs(speed - LP_SPEED) < 0.01 ? undefined : speed })
+              }
+            />
+          </Field>
+          <p className={styles.hint}>{t('themeEditor.vinylSpeedHint')}</p>
+        </>
+      )}
       <Field label={t('themeEditor.ownPlaceholderColor')}>
         <Switch
           label={t('themeEditor.ownPlaceholderColor')}

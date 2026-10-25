@@ -74,6 +74,40 @@ button.headerCell:hover,
   font-weight: 600;
 }
 
+/* An imported track not found yet: shown in its place, greyed, nothing to play. */
+.row[data-waiting] .text,
+.row[data-waiting] .numeric {
+  color: var(--vitra-color-text-tertiary);
+}
+
+.row[data-waiting]:hover .numberText {
+  visibility: visible;
+}
+
+/* A doubtful match: opens the alternatives. */
+.doubt {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--vitra-color-accent) 24%, transparent);
+  color: var(--vitra-color-text);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.doubt:hover {
+  background: var(--vitra-color-accent);
+  color: var(--vitra-color-accent-contrast);
+}
+
 .text {
   overflow: hidden;
   text-overflow: ellipsis;

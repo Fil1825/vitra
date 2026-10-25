@@ -38,5 +38,9 @@ export default defineConfig({
     environment: 'node',
     // Stylesheets reach tests empty, except the icons' motions (a test checks them).
     css: { include: [/styles\/icons\.css/] },
+    // Kept transforms are keyed by the file's own text, so a test's `import.meta.glob`
+    // (the icons' test reads every source) kept missing files added since: local runs
+    // passed where CI failed.
+    fsModuleCache: false,
   },
 });

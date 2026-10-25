@@ -1,33 +1,37 @@
+import { useAppearance } from '../../stores/appearance.ts';
 import { usePlayer } from '../../stores/player.ts';
+import { useSettings } from '../../stores/settings.ts';
+import { vinylSpeed } from '../../theme/artwork.ts';
+import { degreesPerSecond, nextVelocity } from './platter.ts';
 
 /**
  * Covers turning like records: one shared angle for every playing cover in the window
- * (they are the same record), at 33⅓ turns a minute while music plays. Speeding up and
- * slowing down take a moment, like a turntable's platter; a pause stops the record where
+ * (they are the same record), at the chosen speed (33⅓ turns a minute unless the user or
+ * the theme says otherwise) while music plays. Speeding up and slowing down take a moment,
+ * like a turntable's platter, also when the speed changes; a pause stops the record where
  * it is, so it carries on from there. Only `transform` changes, so nothing is laid out again.
  */
-
-/** 33⅓ turns a minute, in degrees per second. */
-const SPEED = (360 * 100) / 3 / 60;
-/** Seconds to reach full speed, and to come to a stop. */
-const SPIN_UP_S = 0.8;
-const SPIN_DOWN_S = 1.4;
 
 const discs = new Set<HTMLElement>();
 let angle = 0;
 let velocity = 0;
 let frame = 0;
 let last = 0;
+/** A speed being tried out (the slider in Settings while it is dragged). */
+let preview: number | null = null;
 
-const goal = () => (usePlayer.getState().state.status === 'playing' ? SPEED : 0);
+/** The record's speed in degrees a second, read every frame so changes apply at once. */
+function fullSpeed(): number {
+  const setting = useSettings.getState().settings.appearance.vinylSpeed;
+  return degreesPerSecond(preview ?? vinylSpeed(useAppearance.getState().theme, setting));
+}
 
 function tick(now: number): void {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
-  const target = goal();
-  const rate = (target > velocity ? SPEED / SPIN_UP_S : SPEED / SPIN_DOWN_S) * dt;
-  velocity =
-    target > velocity ? Math.min(target, velocity + rate) : Math.max(target, velocity - rate);
+  const full = fullSpeed();
+  const target = usePlayer.getState().state.status === 'playing' ? full : 0;
+  velocity = nextVelocity(velocity, target, full, dt);
   angle = (angle + velocity * dt) % 360;
   const transform = `rotate(${angle.toFixed(2)}deg)`;
   for (const disc of discs) disc.style.transform = transform;
@@ -44,6 +48,11 @@ function wake(): void {
 usePlayer.subscribe((state, previous) => {
   if (state.state.status !== previous.state.status) wake();
 });
+
+/** Turns the records at `rpm` until called with `null` (then the setting's speed again). */
+export function previewVinylSpeed(rpm: number | null): void {
+  preview = rpm;
+}
 
 /** Turns `disc` with the others from now on; the returned function stops it. */
 export function spin(disc: HTMLElement): () => void {

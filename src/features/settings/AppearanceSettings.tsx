@@ -1,5 +1,14 @@
+import { RotateCcw } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import {
+  formatSpeed,
+  previewVinylSpeed,
+  SpeedDial,
+  useVinyl,
+} from '../../components/CoverArt/index.ts';
+import { IconButton } from '../../components/ui/IconButton.tsx';
 import { SegmentedControl, type SegmentedOption } from '../../components/ui/SegmentedControl.tsx';
 import { Switch } from '../../components/ui/Switch.tsx';
 import type {
@@ -8,9 +17,12 @@ import type {
   Switch as Toggle,
   WindowMaterial,
 } from '../../lib/settings.ts';
+import { useAppearance } from '../../stores/appearance.ts';
 import { useEnvironment } from '../../stores/environment.ts';
 import { useSettings } from '../../stores/settings.ts';
+import { vinylSpeed } from '../../theme/artwork.ts';
 import { Group, Row } from './Row.tsx';
+import styles from './SettingsPanel.module.css';
 import { ThemePicker } from './ThemePicker.tsx';
 
 /** Settings → Appearance: the theme, the window's glass, motion and covers. */
@@ -133,6 +145,9 @@ export function AppearanceSettings() {
             onChange={(vinyl) => set({ vinyl })}
           />
         </Row>
+        <Row label={t('settings.vinylSpeed')} hint={t('settings.vinylSpeedHint')}>
+          <VinylSpeed />
+        </Row>
         <Row
           label={t('settings.artworkAccent')}
           hint={t('settings.artworkAccentHint')}
@@ -146,5 +161,58 @@ export function AppearanceSettings() {
         </Row>
       </Group>
     </>
+  );
+}
+
+/**
+ * How fast records turn: tried out live while the slider moves (the spin clock reads the
+ * preview), saved when it is let go. A speed equal to the theme's (else 33⅓) is no choice
+ * of the user's: it is saved as none, so the theme's speed applies again.
+ */
+function VinylSpeed() {
+  const { t, i18n } = useTranslation();
+  const setting = useSettings((s) => s.settings.appearance.vinylSpeed);
+  const update = useSettings((s) => s.update);
+  const theme = useAppearance((s) => s.theme);
+  const records = useVinyl();
+  const [dragged, setDragged] = useState<number | null>(null);
+  const usual = vinylSpeed(theme, null);
+
+  // Leaving the page mid-drag doesn't leave the records at the tried speed.
+  useEffect(() => () => previewVinylSpeed(null), []);
+
+  const save = (speed: number | null) =>
+    void update((current) => ({
+      ...current,
+      appearance: {
+        ...current.appearance,
+        vinylSpeed: speed === null || Math.abs(speed - usual) < 0.01 ? null : speed,
+      },
+    }));
+
+  return (
+    <div className={styles.speed}>
+      <SpeedDial
+        label={t('settings.vinylSpeed')}
+        speed={dragged ?? vinylSpeed(theme, setting)}
+        disabled={!records}
+        onChange={(speed) => {
+          setDragged(speed);
+          previewVinylSpeed(speed);
+        }}
+        onCommit={(speed) => {
+          setDragged(null);
+          previewVinylSpeed(null);
+          save(speed);
+        }}
+      />
+      <IconButton
+        label={t('settings.vinylSpeedReset', { value: formatSpeed(usual, i18n.language) })}
+        disabled={setting === null || !records}
+        onClick={() => save(null)}
+      >
+        <RotateCcw size={14} />
+      </IconButton>
+    </div>
   );
 }
