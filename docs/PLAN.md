@@ -437,7 +437,12 @@ One rule: **give Vitra the playlist in whatever form you have it, and it does th
 6. **UI**: Import Playlist… with the field, the file button and the Music tab; the
    playlist page's progress, "?" and "Find…"; en + ru strings.
 
-### Done (in review, PR #10)
+### Done and accepted (PR #10)
+
+The owner checked it on a Mac with both review rounds below: every way in with real
+playlists, the matcher's statuses, scroll memory, the moving panels and Record Speed; the
+real pages of Spotify, Apple Music, Deezer and the Yandex Music API that
+`scripts/record-import-fixtures.sh` recorded are read by `cargo test -p import --test pages`.
 
 - `crates/import` (pure): the model (`ImportedTrack`, `ImportedPlaylist`), matching
   (`normalize.rs`: folding with ё → е, Latin transliteration of Cyrillic, versions such as
