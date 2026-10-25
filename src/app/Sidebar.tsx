@@ -26,6 +26,7 @@ import { coverUrl, playlists } from '../lib/library.ts';
 import { isActive } from '../lib/links.ts';
 import { showContextMenu } from '../lib/menu.ts';
 import { useDownloads } from '../stores/downloads.ts';
+import { useAppearance } from '../stores/appearance.ts';
 import { useNavigation, type Route } from '../stores/navigation.ts';
 import { useUi } from '../stores/ui.ts';
 import styles from './Sidebar.module.css';
@@ -228,7 +229,14 @@ export function Sidebar({
   const renamePlaylist = useUi((s) => s.renamePlaylist);
   const activeDownloads = useDownloads((s) => s.jobs.filter((job) => isActive(job.status)).length);
   const hasDownloads = useDownloads((s) => s.jobs.length > 0);
-  const rail = mode === 'rail';
+  const motion = useAppearance((s) => s.effects.motion);
+  // The mode just left, fading out over the new one.
+  const [fading, setFading] = useState<typeof mode | null>(null);
+  const [lastMode, setLastMode] = useState(mode);
+  if (mode !== lastMode) {
+    setLastMode(mode);
+    setFading(motion ? lastMode : null);
+  }
   const items: { route: Route; label: string; icon: LucideIcon }[] = [
     { route: { view: 'nowPlaying' }, label: t('nav.nowPlaying'), icon: AudioLines },
     { route: { view: 'recent' }, label: t('nav.recent'), icon: Clock3 },
@@ -276,72 +284,95 @@ export function Sidebar({
     ]).catch(report('Showing a menu'));
   };
 
+  // What one mode shows. Switching between the full sidebar and the rail crossfades the
+  // two (the column's width moves meanwhile), so the data hooks stay up here.
+  const layer = (layerMode: typeof mode, leaving: boolean) => {
+    const rail = layerMode === 'rail';
+    return (
+      <div
+        key={layerMode}
+        className={styles.layer}
+        data-mode={layerMode}
+        data-leaving={leaving || undefined}
+        aria-hidden={leaving || undefined}
+        inert={leaving}
+        onAnimationEnd={(event) => {
+          if (leaving && event.target === event.currentTarget) setFading(null);
+        }}
+      >
+        {/* Room for the macOS traffic lights; also lets the user drag the window from here. */}
+        <div className={styles.dragArea} data-tauri-drag-region />
+        {rail ? <SearchButton /> : <SearchField />}
+        <div className={styles.scroll}>
+          {rail ? (
+            <hr className={styles.divider} />
+          ) : (
+            <p className={styles.section}>{t('nav.library')}</p>
+          )}
+          <ul className={styles.list}>
+            {items.map((item) => (
+              <NavItem key={item.route.view} {...item} rail={rail} />
+            ))}
+            {/* Shown once there is something to show, or while it is open. */}
+            <DownloadsItem visible={hasDownloads} badge={activeDownloads} rail={rail} />
+          </ul>
+          {rail ? (
+            <hr className={styles.divider} />
+          ) : (
+            <div className={styles.sectionRow}>
+              <p className={styles.section}>{t('nav.playlists')}</p>
+              <IconButton
+                label={t('nav.addPlaylist')}
+                className={styles.add}
+                onClick={addPlaylistMenu}
+              >
+                <Plus size={14} />
+              </IconButton>
+            </div>
+          )}
+          <ul className={styles.list}>
+            {all.map((playlist) => (
+              <NavItem
+                key={playlist.id}
+                route={{ view: 'playlist', id: playlist.id }}
+                label={playlist.name}
+                icon={ListMusic}
+                rail={rail}
+                monogram
+                image={playlist.customCover ? playlist.cover : null}
+                onContextMenu={playlistMenu(playlist.id, playlist.name, playlist.customCover)}
+              />
+            ))}
+            {rail && (
+              <li>
+                <button
+                  type="button"
+                  className={styles.item}
+                  aria-label={t('nav.addPlaylist')}
+                  title={t('nav.addPlaylist')}
+                  onClick={addPlaylistMenu}
+                >
+                  <Plus size={16} className={styles.icon} aria-hidden="true" />
+                </button>
+              </li>
+            )}
+          </ul>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Glass
       as="nav"
       className={`${styles.sidebar} ${className ?? ''}`}
       aria-label={t('nav.label')}
       data-mode={mode}
+      data-morphing={fading !== null || undefined}
       priority={2}
     >
-      {/* Room for the macOS traffic lights; also lets the user drag the window from here. */}
-      <div className={styles.dragArea} data-tauri-drag-region />
-      {rail ? <SearchButton /> : <SearchField />}
-      <div className={styles.scroll}>
-        {rail ? (
-          <hr className={styles.divider} />
-        ) : (
-          <p className={styles.section}>{t('nav.library')}</p>
-        )}
-        <ul className={styles.list}>
-          {items.map((item) => (
-            <NavItem key={item.route.view} {...item} rail={rail} />
-          ))}
-          {/* Shown once there is something to show, or while it is open. */}
-          <DownloadsItem visible={hasDownloads} badge={activeDownloads} rail={rail} />
-        </ul>
-        {rail ? (
-          <hr className={styles.divider} />
-        ) : (
-          <div className={styles.sectionRow}>
-            <p className={styles.section}>{t('nav.playlists')}</p>
-            <IconButton
-              label={t('nav.addPlaylist')}
-              className={styles.add}
-              onClick={addPlaylistMenu}
-            >
-              <Plus size={14} />
-            </IconButton>
-          </div>
-        )}
-        <ul className={styles.list}>
-          {all.map((playlist) => (
-            <NavItem
-              key={playlist.id}
-              route={{ view: 'playlist', id: playlist.id }}
-              label={playlist.name}
-              icon={ListMusic}
-              rail={rail}
-              monogram
-              image={playlist.customCover ? playlist.cover : null}
-              onContextMenu={playlistMenu(playlist.id, playlist.name, playlist.customCover)}
-            />
-          ))}
-          {rail && (
-            <li>
-              <button
-                type="button"
-                className={styles.item}
-                aria-label={t('nav.addPlaylist')}
-                title={t('nav.addPlaylist')}
-                onClick={addPlaylistMenu}
-              >
-                <Plus size={16} className={styles.icon} aria-hidden="true" />
-              </button>
-            </li>
-          )}
-        </ul>
-      </div>
+      {fading !== null && layer(fading, true)}
+      {layer(mode, false)}
     </Glass>
   );
 }

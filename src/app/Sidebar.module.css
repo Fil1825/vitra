@@ -2,8 +2,56 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 0 var(--vitra-space-2) var(--vitra-space-2);
   overflow: hidden;
+}
+
+/* What one mode shows: the full sidebar or the rail. */
+.layer {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0 var(--vitra-space-2) var(--vitra-space-2);
+}
+
+/* Between the full sidebar and the rail the column's width moves (Workspace) and the two
+   crossfade, each at its own width so nothing reflows or gets cut mid-word: the one left
+   fades out over the first half, the new one comes in from a quarter of the way. Only the contents
+   fade: the glass itself stays (opacity here is inside it, not around it). */
+.layer[data-leaving] {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  pointer-events: none;
+  animation: layer-out calc(var(--vitra-motion-duration) * 0.5) var(--vitra-motion-easing) both;
+}
+
+.sidebar[data-morphing] > .layer:not([data-leaving]) {
+  animation: layer-in calc(var(--vitra-motion-duration) * 0.75) var(--vitra-motion-easing)
+    calc(var(--vitra-motion-duration) * 0.25) both;
+}
+
+/* `--column-width` is the column's full width, `--sidebar-rail-width` the rail's (both set
+   by Workspace). */
+.sidebar[data-morphing] > .layer[data-mode='expanded'] {
+  width: var(--column-width, 100%);
+}
+
+.sidebar[data-morphing] > .layer[data-mode='rail'] {
+  width: var(--sidebar-rail-width, 100%);
+}
+
+@keyframes layer-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes layer-in {
+  from {
+    opacity: 0;
+  }
 }
 
 .dragArea {
@@ -163,15 +211,15 @@
 }
 
 /* The rail: icons only, centered, with the labels as tooltips. */
-.sidebar[data-mode='rail'] .scroll {
+.layer[data-mode='rail'] .scroll {
   scrollbar-width: none;
 }
 
-.sidebar[data-mode='rail'] .scroll::-webkit-scrollbar {
+.layer[data-mode='rail'] .scroll::-webkit-scrollbar {
   display: none;
 }
 
-.sidebar[data-mode='rail'] .item {
+.layer[data-mode='rail'] .item {
   position: relative;
   justify-content: center;
   padding: var(--vitra-space-2) 0;
@@ -213,7 +261,7 @@
 }
 
 /* A running download in the rail: a dot on the icon's corner instead of the count. */
-.sidebar[data-mode='rail'] .badge {
+.layer[data-mode='rail'] .badge {
   position: absolute;
   top: 5px;
   left: calc(50% + 5px);

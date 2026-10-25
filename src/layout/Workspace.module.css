@@ -34,6 +34,7 @@
 .header {
   flex: none;
   height: 44px;
+  transition: padding var(--vitra-motion-duration) var(--vitra-motion-easing);
 }
 
 .main {
@@ -44,18 +45,29 @@
 }
 
 /* A column: its modules stacked, sharing the height by weight (set inline). Narrow windows
-   keep some room for the main view whatever width was chosen. */
+   keep some room for the main view whatever width was chosen. `--column-width` stays the
+   full width in the rail too (the sidebar's crossfade between the two uses it). */
 .column {
+  --column-width: min(var(--_width, 280px), 34vw);
+
   position: relative;
   display: flex;
   flex: none;
   flex-direction: column;
-  width: min(var(--_width, 280px), 34vw);
+  width: var(--column-width);
   min-height: 0;
+  transition: padding var(--vitra-motion-duration) var(--vitra-motion-easing);
 }
 
 .column[data-rail] {
   width: var(--sidebar-rail-width);
+}
+
+/* Between the full sidebar and the rail. */
+.column[data-morphing] {
+  transition:
+    width var(--vitra-motion-duration) var(--vitra-motion-easing),
+    padding var(--vitra-motion-duration) var(--vitra-motion-easing);
 }
 
 .bar {
@@ -63,6 +75,195 @@
   display: flex;
   flex: none;
   gap: var(--vitra-space-2);
+  transition: padding var(--vitra-motion-duration) var(--vitra-motion-easing);
+}
+
+/* Modules coming and going (presence.ts; none of this runs with Reduce Motion or in
+   customize mode). Only `transform` moves around the glass, and its fade is on the glass
+   itself (`.fill`), never on an ancestor: that would cut it off from the backdrop. */
+
+/* A column opening or closing: its width goes from or to nothing, with the gap beside it,
+   so the main view widens or narrows smoothly; its modules keep their full width and slide
+   in from, or out past, the window's edge in step with the column's inner edge. */
+.column[data-presence] {
+  animation: var(--vitra-motion-duration) var(--vitra-motion-easing) both;
+}
+
+.column[data-zone='left'][data-presence='opening'] {
+  animation-name: open-left;
+}
+
+.column[data-zone='left'][data-presence='closing'] {
+  animation-name: close-left;
+}
+
+.column[data-zone='right'][data-presence='opening'] {
+  animation-name: open-right;
+}
+
+.column[data-zone='right'][data-presence='closing'] {
+  animation-name: close-right;
+}
+
+.column[data-presence] > .module {
+  width: var(--column-width);
+}
+
+.column[data-presence][data-rail] > .module {
+  width: var(--sidebar-rail-width);
+}
+
+/* The right column narrows towards the window's edge: its modules hang from that side. */
+.column[data-zone='right'][data-presence] > .module {
+  align-self: flex-end;
+}
+
+.column[data-presence] > .module[data-phase] {
+  animation: var(--vitra-motion-duration) var(--vitra-motion-easing) both;
+}
+
+.column[data-zone='left'][data-presence] > .module[data-phase='entering'] {
+  animation-name: slide-in-left;
+}
+
+.column[data-zone='left'][data-presence] > .module[data-phase='leaving'] {
+  animation-name: slide-out-left;
+}
+
+.column[data-zone='right'][data-presence] > .module[data-phase='entering'] {
+  animation-name: slide-in-right;
+}
+
+.column[data-zone='right'][data-presence] > .module[data-phase='leaving'] {
+  animation-name: slide-out-right;
+}
+
+/* A module coming or going next to others: it folds open or shut, the others making room
+   (the line beside it with it). */
+.column:not([data-presence]) > .module[data-phase] {
+  overflow: hidden;
+  animation: var(--vitra-motion-duration) var(--vitra-motion-easing) both;
+}
+
+.column:not([data-presence]) > .module[data-phase='entering'] {
+  animation-name: fold-in;
+}
+
+.column:not([data-presence]) > .module[data-phase='leaving'] {
+  animation-name: fold-out;
+}
+
+.column:not([data-presence]) > .split[data-phase] {
+  animation: var(--vitra-motion-duration) var(--vitra-motion-easing) both;
+}
+
+.column:not([data-presence]) > .split[data-phase='entering'] {
+  animation-name: split-in;
+}
+
+.column:not([data-presence]) > .split[data-phase='leaving'] {
+  animation-name: split-out;
+}
+
+/* The glass fades a little on its way, wherever it goes. */
+.module[data-phase] > .fill {
+  animation: var(--vitra-motion-duration) var(--vitra-motion-easing) both;
+}
+
+.module[data-phase='entering'] > .fill {
+  animation-name: glass-in;
+}
+
+.module[data-phase='leaving'] > .fill {
+  animation-name: glass-out;
+}
+
+@keyframes open-left {
+  from {
+    width: 0;
+    margin-right: calc(-1 * var(--vitra-space-2));
+  }
+}
+
+@keyframes close-left {
+  to {
+    width: 0;
+    margin-right: calc(-1 * var(--vitra-space-2));
+  }
+}
+
+@keyframes open-right {
+  from {
+    width: 0;
+    margin-left: calc(-1 * var(--vitra-space-2));
+  }
+}
+
+@keyframes close-right {
+  to {
+    width: 0;
+    margin-left: calc(-1 * var(--vitra-space-2));
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    transform: translateX(calc(-100% - var(--vitra-space-2)));
+  }
+}
+
+@keyframes slide-out-left {
+  to {
+    transform: translateX(calc(-100% - var(--vitra-space-2)));
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(calc(100% + var(--vitra-space-2)));
+  }
+}
+
+@keyframes slide-out-right {
+  to {
+    transform: translateX(calc(100% + var(--vitra-space-2)));
+  }
+}
+
+@keyframes fold-in {
+  from {
+    flex-grow: 0;
+  }
+}
+
+@keyframes fold-out {
+  to {
+    flex-grow: 0;
+  }
+}
+
+@keyframes split-in {
+  from {
+    height: 0;
+  }
+}
+
+@keyframes split-out {
+  to {
+    height: 0;
+  }
+}
+
+@keyframes glass-in {
+  from {
+    opacity: 0.35;
+  }
+}
+
+@keyframes glass-out {
+  to {
+    opacity: 0.35;
+  }
 }
 
 /* Rounded like the glass inside it, so a theme's shadow or outline on `[data-part]` follows
