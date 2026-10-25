@@ -7,3 +7,6 @@ pub mod ffmpeg;
 pub mod fft;
 
 pub use features::{AnalysisError, Features, SAMPLE_RATE, VERSION, analyze};
+pub mod wave;
+
+pub use wave::{Candidate, Habits, Mode, Pick, Pool, Wave};
