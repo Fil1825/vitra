@@ -61,9 +61,14 @@ jobs:
         run: npm run bundle -- --bundles dmg
       - name: Verify application and disk image
         run: |
-          codesign --verify --deep --strict --verbose=2 target/release/bundle/macos/Vitra.app
           for dmg in target/release/bundle/dmg/*.dmg; do
             hdiutil verify "$dmg"
+            mount_dir="$(mktemp -d)"
+            hdiutil attach "$dmg" -readonly -nobrowse -mountpoint "$mount_dir"
+            trap 'hdiutil detach "$mount_dir"' EXIT
+            codesign --verify --deep --strict --verbose=2 "$mount_dir/Vitra.app"
+            hdiutil detach "$mount_dir"
+            trap - EXIT
           done
       - name: Save disk image
         uses: actions/upload-artifact@v7
