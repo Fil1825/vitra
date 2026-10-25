@@ -82,10 +82,12 @@ impl WaveService {
     }
 
     async fn fetch_radio(&self) -> Result<usize, AppError> {
+        // Every attempt counts, a failed search included: YouTube is asked at most this often
+        // even while it can't be reached.
+        *lock(&self.0.radio.last) = Some(Instant::now());
         let Some(seed) = self.radio_seed().await? else {
             return Ok(0);
         };
-        *lock(&self.0.radio.last) = Some(Instant::now());
         lock(&self.0.radio.seeds).insert(seed.clone());
         let links = self
             .0

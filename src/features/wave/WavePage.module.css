@@ -84,7 +84,7 @@
     transform var(--vitra-motion-duration) var(--vitra-motion-easing);
 }
 
-.mood:hover:not(:disabled) {
+.mood:hover:not(:disabled, [aria-pressed='true']) {
   background: color-mix(in srgb, var(--vitra-color-text) 8%, transparent);
 }
 
