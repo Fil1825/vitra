@@ -143,6 +143,16 @@
   --vi-time: 0.6s;
 }
 
+/* "Don't like": the thumb goes down. */
+.lucide-thumbs-down {
+  --vi: vi-drop;
+}
+
+/* Stop: pressed in. */
+.lucide-square {
+  --vi: vi-press;
+}
+
 .lucide-mic-vocal {
   --vi: vi-sing;
   --vi-time: 0.6s;

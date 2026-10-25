@@ -310,6 +310,7 @@
   "queue": {
     "title": "Queue",
     "upNext": "Up Next",
+    "upNextInWave": "Next in My Wave",
     "history": "History",
     "playing": "Playing",
     "clear": "Clear",
@@ -907,6 +908,33 @@
   },
   "wave": {
     "title": "My Wave",
+    "like": "Like",
+    "dislike": "Don’t Like",
+    "fromTrack": "My Wave Like This Track",
+    "badge": "My Wave · {{mood}}",
+    "moods": {
+      "taste": "Your Taste",
+      "energetic": "Energetic",
+      "calm": "Calm",
+      "sad": "Sad",
+      "likeTrack": "Like This Track"
+    },
+    "page": {
+      "lead": "An endless stream from your library, picked by how the music sounds. It learns from what you play, skip, like and dislike.",
+      "start": "Listen",
+      "resume": "Resume",
+      "stop": "Stop Wave",
+      "moods": "Mood",
+      "likeTrackHint": "A wave like “{{title}}”",
+      "analyzing": "Vitra has listened to {{done}} of {{total}} files; the wave gets better as it goes on.",
+      "trackUnmeasured": "This track couldn’t be listened to yet (no connection, or FFmpeg wasn’t found), so there is no wave like it.",
+      "nothingPaused": "The wave has nothing to pick from yet, and the analysis is paused.",
+      "nothingInLibrary": "The wave picks from your library: add a folder with music first.",
+      "nothingYet": "The wave has nothing to pick from yet: Vitra is still listening to your library ({{done}} of {{total}}). Try again in a minute.",
+      "settings": "My Wave Settings",
+      "upNext": "Next in the Wave",
+      "picking": "Picking the next tracks…"
+    },
     "analysis": {
       "title": "Analysis",
       "label": "What Your Music Sounds Like",

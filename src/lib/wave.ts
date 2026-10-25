@@ -4,6 +4,27 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 
 export const WAVE_PROGRESS_EVENT = 'wave://progress';
 
+/** The moods a wave starts from (mirrors `mood::Mode`). */
+export type WaveMood = 'taste' | 'energetic' | 'calm' | 'sad';
+export type WaveMode = { kind: WaveMood } | { kind: 'likeTrack'; track: number };
+
+export const WAVE_MOODS: readonly WaveMood[] = ['taste', 'energetic', 'calm', 'sad'];
+
+/**
+ * How starting a wave went: nothing could be picked while the analysis hasn't measured a track
+ * yet, or the track to start from couldn't be measured (offline, no FFmpeg).
+ */
+export type StartOutcome = 'started' | 'nothingMeasured' | 'trackUnmeasured';
+
+export function sameMode(a: WaveMode | null, b: WaveMode | null): boolean {
+  if (a === null || b === null) {
+    return a === b;
+  }
+  return (
+    a.kind === b.kind && (a.kind !== 'likeTrack' || (b.kind === 'likeTrack' && a.track === b.track))
+  );
+}
+
 /**
  * What the background analysis does: `paused` by the user, waiting while a `scanning` runs or
  * with `powerSaving` on, or unable to run (`noFfmpeg`).
@@ -49,4 +70,10 @@ const call = <T>(command: string, args?: Record<string, unknown>): Promise<T> =>
 
 export const wave = {
   analysis: () => call<AnalysisStatus>('wave_analysis'),
+  /** Replaces the queue with a wave in this mood (a wave like the playing track keeps it). */
+  start: (mode: WaveMode) => call<StartOutcome>('wave_start', { mode }),
+  /** "Don't like": the wave leaves the track out from now on (and skips it if it plays). */
+  dislike: (trackId: number) => call<void>('wave_dislike', { trackId }),
+  /** The wave stops picking; its queue stays. */
+  stop: () => call<void>('wave_stop'),
 };

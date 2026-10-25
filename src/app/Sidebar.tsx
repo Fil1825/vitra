@@ -9,6 +9,7 @@ import {
   Plus,
   Search,
   Users,
+  Waves,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -239,6 +240,7 @@ export function Sidebar({
   }
   const items: { route: Route; label: string; icon: LucideIcon }[] = [
     { route: { view: 'nowPlaying' }, label: t('nav.nowPlaying'), icon: AudioLines },
+    { route: { view: 'wave' }, label: t('wave.title'), icon: Waves },
     { route: { view: 'recent' }, label: t('nav.recent'), icon: Clock3 },
     { route: { view: 'albums' }, label: t('nav.albums'), icon: Disc3 },
     { route: { view: 'artists' }, label: t('nav.artists'), icon: Users },

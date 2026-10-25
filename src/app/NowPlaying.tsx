@@ -5,6 +5,12 @@ import { ArtworkPlaceholder, CoverArt, VinylToggle } from '../components/CoverAr
 import { Glass } from '../components/Glass/index.ts';
 import { ArtistLinks, LibraryLink } from '../features/library/TrackLinks.tsx';
 import { useCurrentLibraryTrack } from '../features/library/useCurrentTrack.ts';
+import {
+  DislikeButton,
+  LikeButton,
+  WaveBadge,
+  WaveFromTrackButton,
+} from '../features/wave/WaveButtons.tsx';
 import { isRemotePath } from '../lib/links.ts';
 import { pickAndPlay } from '../lib/openFiles.ts';
 import { artworkUrl, type PlayerError, type TrackMetadata } from '../lib/player.ts';
@@ -105,6 +111,18 @@ export function NowPlaying() {
           )}
         </p>
       )}
+      {libraryTrack && (
+        <div className={styles.actions}>
+          <LikeButton
+            trackId={libraryTrack.id}
+            favorite={libraryTrack.favorite}
+            onClassName={styles.on}
+          />
+          <DislikeButton trackId={libraryTrack.id} />
+          <WaveFromTrackButton trackId={libraryTrack.id} />
+        </div>
+      )}
+      <WaveBadge className={styles.waveBadge} />
       {status === 'loading' ? (
         <p className={styles.technical} role="status">
           <LoaderCircle size={13} className={styles.spin} aria-hidden="true" />

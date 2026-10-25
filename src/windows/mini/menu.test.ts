@@ -62,4 +62,24 @@ describe('miniMenu', () => {
     ]);
     expect(showLyrics.mock.calls).toEqual([[false]]);
   });
+
+  it('offers the wave its like and dislike while one plays', () => {
+    const base = {
+      change: vi.fn(),
+      showLyrics: vi.fn(),
+      expand: vi.fn(),
+      close: vi.fn(),
+      quit: vi.fn(),
+    };
+    expect(find(miniMenu(DEFAULT_SETTINGS, t, base), 'wave.dislike')).toBeUndefined();
+    const dislike = vi.fn();
+    const entries = miniMenu(DEFAULT_SETTINGS, t, {
+      ...base,
+      wave: { favorite: true, like: vi.fn(), dislike },
+    });
+    expect(entries[0]).toMatchObject({ label: 'wave.like', checked: true });
+    const entry = find(entries, 'wave.dislike');
+    if (entry && 'action' in entry) entry.action();
+    expect(dislike).toHaveBeenCalledOnce();
+  });
 });

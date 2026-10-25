@@ -3,6 +3,7 @@ import { create } from 'zustand';
 /** What the main area shows. */
 export type Route =
   | { view: 'nowPlaying' }
+  | { view: 'wave' }
   | { view: 'recent' }
   | { view: 'albums' }
   | { view: 'album'; id: number }

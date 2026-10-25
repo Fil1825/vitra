@@ -148,7 +148,9 @@ function UpNext() {
       )}
       <section className={styles.section}>
         <div className={styles.sectionHeader}>
-          <h3 className={styles.sectionTitle}>{t('queue.upNext')}</h3>
+          <h3 className={styles.sectionTitle}>
+            {state.wave ? t('queue.upNextInWave') : t('queue.upNext')}
+          </h3>
           {upcoming.length > 0 && (
             <button
               type="button"

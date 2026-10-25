@@ -1,6 +1,5 @@
 import {
   AlertTriangle,
-  Heart,
   ListMusic,
   LoaderCircle,
   MicVocal,
@@ -26,13 +25,13 @@ import { Slider } from '../components/ui/Slider.tsx';
 import { isShown } from '../layout/model.ts';
 import { toggleModule, useLayout } from '../layout/state.ts';
 import { formatTime } from '../lib/format.ts';
-import { library } from '../lib/library.ts';
 import { mini } from '../lib/mini.ts';
 import { artworkUrl, player } from '../lib/player.ts';
 import { hasNext, nextRepeat, queue } from '../lib/queue.ts';
 import { ArtistLinks, LibraryLink } from '../features/library/TrackLinks.tsx';
 import { useCurrentLibraryTrack } from '../features/library/useCurrentTrack.ts';
 import { toggleLyrics } from '../features/lyrics/actions.ts';
+import { DislikeButton, LikeButton } from '../features/wave/WaveButtons.tsx';
 import { useShortcutLabel, withShortcut } from '../shortcuts/useShortcuts.ts';
 import { albumRoute, useNavigation } from '../stores/navigation.ts';
 import { useLivePosition, usePlayer } from '../stores/player.ts';
@@ -44,21 +43,6 @@ import { playerErrorText } from './playerError.ts';
 import { SpeedMenu } from './SpeedMenu.tsx';
 
 const report = (err: unknown) => console.error('Player command failed', err);
-
-/** Heart for the playing track, if it is in the library. */
-function FavoriteButton({ trackId, favorite }: { trackId: number; favorite: boolean }) {
-  const { t } = useTranslation();
-  return (
-    <IconButton
-      label={t(favorite ? 'player.unfavorite' : 'player.favorite')}
-      aria-pressed={favorite}
-      className={favorite ? styles.on : undefined}
-      onClick={() => library.setFavorite(trackId, !favorite).catch(report)}
-    >
-      <Heart size={16} fill={favorite ? 'currentColor' : 'none'} />
-    </IconButton>
-  );
-}
 
 export function ControlBar({ className }: { className?: string }) {
   const { t } = useTranslation();
@@ -158,7 +142,14 @@ export function ControlBar({ className }: { className?: string }) {
           ) : null}
         </div>
         {libraryTrack && (
-          <FavoriteButton trackId={libraryTrack.id} favorite={libraryTrack.favorite} />
+          <>
+            <LikeButton
+              trackId={libraryTrack.id}
+              favorite={libraryTrack.favorite}
+              onClassName={styles.on}
+            />
+            <DislikeButton trackId={libraryTrack.id} />
+          </>
         )}
       </div>
 

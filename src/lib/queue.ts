@@ -1,5 +1,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
+import type { WaveMode } from './wave.ts';
+
 // Mirrors src-tauri/src/player/queue.rs.
 
 export type Repeat = 'off' | 'all' | 'one';
@@ -23,21 +25,30 @@ export interface QueueState {
   current: number | null;
   shuffle: boolean;
   repeat: Repeat;
+  /** My Wave's mood while it picks what comes next. */
+  wave: WaveMode | null;
 }
 
 export const QUEUE_CHANGED_EVENT = 'queue://changed';
 
-export const EMPTY_QUEUE: QueueState = { items: [], current: null, shuffle: false, repeat: 'off' };
+export const EMPTY_QUEUE: QueueState = {
+  items: [],
+  current: null,
+  shuffle: false,
+  repeat: 'off',
+  wave: null,
+};
 
 /** The repeat mode the repeat button switches to. */
 export function nextRepeat(repeat: Repeat): Repeat {
   return repeat === 'off' ? 'all' : repeat === 'all' ? 'one' : 'off';
 }
 
-/** Whether Next has somewhere to go. */
+/** Whether Next has somewhere to go (a wave always finds more). */
 export function hasNext(queue: QueueState): boolean {
   return (
-    queue.current !== null && (queue.current + 1 < queue.items.length || queue.repeat !== 'off')
+    queue.current !== null &&
+    (queue.current + 1 < queue.items.length || queue.repeat !== 'off' || queue.wave !== null)
   );
 }
 

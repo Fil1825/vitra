@@ -7,6 +7,7 @@ import { usePlayer } from '../../stores/player.ts';
 import { useSettings } from '../../stores/settings.ts';
 import { DownloadsView } from '../links/DownloadsView.tsx';
 import { LyricsView } from '../lyrics/LyricsView.tsx';
+import { WavePage } from '../wave/WavePage.tsx';
 import { AlbumsView } from './AlbumsView.tsx';
 import { AlbumView } from './AlbumView.tsx';
 import { ArtistsView } from './ArtistsView.tsx';
@@ -22,6 +23,8 @@ export function LibraryView() {
   switch (route.view) {
     case 'nowPlaying':
       return <NowPlayingStage />;
+    case 'wave':
+      return <WavePage />;
     case 'recent':
       return <AlbumsView recent />;
     case 'albums':
