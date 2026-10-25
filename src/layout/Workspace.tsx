@@ -41,6 +41,8 @@ import { LibraryView } from '../features/library/LibraryView.tsx';
 import { LyricsPanel } from '../features/lyrics/LyricsPanel.tsx';
 import { QueuePanel } from '../features/queue/QueuePanel.tsx';
 import { showContextMenu } from '../lib/menu.ts';
+import { routeKey } from '../lib/scrollMemory.ts';
+import { useScrollMemory } from '../lib/useScrollMemory.ts';
 import { useEnvironment } from '../stores/environment.ts';
 import { useNavigation } from '../stores/navigation.ts';
 import { useSettings } from '../stores/settings.ts';
@@ -141,15 +143,8 @@ export function Workspace({ onOpenSettings }: { onOpenSettings(): void }) {
           <ZoneView zone="left" modules={shown.left} layout={layout} />
           <div className={styles.center} data-part="center">
             <TitleBar className={styles.header} onOpenSettings={onOpenSettings} />
-            {/* Keyed by route so each view starts at the top. */}
-            <main
-              key={JSON.stringify(route)}
-              className={styles.main}
-              data-part="main"
-              data-scroll-container
-            >
-              <LibraryView />
-            </main>
+            {/* Keyed by route: each screen comes back where it was left (MainArea). */}
+            <MainArea key={JSON.stringify(route)} scrollKey={routeKey(route)} />
           </div>
           <ZoneView zone="right" modules={shown.right} layout={layout} />
         </div>
@@ -157,6 +152,23 @@ export function Workspace({ onOpenSettings }: { onOpenSettings(): void }) {
       </div>
       {customizing && <CustomizePalette layout={layout} />}
     </LayoutDnd>
+  );
+}
+
+/** The main view of one screen, scrolled where it was left. */
+function MainArea({ scrollKey }: { scrollKey: string }) {
+  const ref = useRef<HTMLElement>(null);
+  useScrollMemory(ref, scrollKey);
+  return (
+    <main
+      ref={ref}
+      className={styles.main}
+      data-part="main"
+      data-scroll-container
+      data-scroll-key={scrollKey}
+    >
+      <LibraryView />
+    </main>
   );
 }
 
