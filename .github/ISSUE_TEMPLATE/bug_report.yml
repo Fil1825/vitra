@@ -1,0 +1,29 @@
+name: Bug report
+description: Report a reproducible problem in Vitra.
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Vitra version and installation source
+      placeholder: Version from Settings → About; release package or source build
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and architecture
+      placeholder: macOS 15 Apple Silicon, Windows 11 x64, Ubuntu 24.04 x64…
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include expected behavior and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs or screenshots
+      description: Remove credentials, cookies, and private media URLs before attaching logs.

@@ -9,10 +9,41 @@ An open-source desktop music player with a **Liquid Glass** look — fully theme
 virtually any audio format, streams audio from links (YouTube, SoundCloud and hundreds of other
 sites) and shows synced lyrics. Runs on macOS, Windows and Linux.
 
-> **Status:** early development (stage 9 of the [plan](docs/PLAN.md)): local playback, the
-> music library, the play queue, playing and downloading links, lyrics, the mini player,
-> themes, the layout, sound settings, system integration and importing playlists from other
-> services work; My Wave and releases come later. Nothing to install yet.
+English · [Русский](README.ru.md)
+
+> **Status:** release preparation (stage 11 of the [plan](docs/PLAN.md)). My Wave, the library,
+> playback, downloads, lyrics, themes, layouts, and playlist import are implemented. A stable
+> public release has not been published yet. Discord and Last.fm are outside this release.
+
+![My Wave in the English interface](docs/screenshots/my-wave-en.png)
+
+Interface preview in Chromium, using the Aurora Night theme. Native window materials vary
+by platform. [Russian appearance settings](docs/screenshots/settings-ru.png).
+
+## Install a build candidate
+
+The **Release candidates** GitHub Actions workflow prepares macOS DMGs (Apple Silicon and
+Intel), a Windows x64 installer, and a Linux x64 Debian package. Download artifacts only
+from a successful workflow run. See [release preparation](docs/RELEASING.md) for the build
+and verification steps.
+
+- macOS: open the DMG and move Vitra to Applications. Requires macOS 14+ on Apple Silicon,
+  or macOS 15+ on Intel. Current candidates use ad-hoc signatures and are not notarized.
+- Windows 10/11 x64: run the NSIS installer. Current candidates are unsigned.
+- Ubuntu 24.04 / compatible Debian x64: install the `.deb` with
+  `sudo apt install ./Vitra_0.1.0_amd64.deb`; mpv is installed as a package dependency.
+
+The packages include yt-dlp, FFmpeg, ffprobe, and Deno; macOS and Windows also include mpv.
+They do not require Node.js or Rust on the listener's machine. Official signing and
+clean-machine acceptance are tracked in the release guide.
+
+## My Wave
+
+An endless queue picked by how music sounds: Your Taste, Energetic, Calm, Sad, or a wave
+like a chosen track. Vitra measures local files and, when enabled, stretches of link audio.
+Likes, dislikes, and skips shape later picks. Optional YouTube Music radio finds related
+songs when the library runs short. Settings → My Wave controls analysis and online access,
+and shows recurring stream-decoder problems. Analysis uses OS certificates for HTTPS.
 
 ## Links
 
@@ -140,6 +171,11 @@ npm run tauri dev
 
 On Linux, install mpv from your package manager (`sudo apt install mpv`); there are no official
 Linux mpv binaries to download.
+
+For a distributable installer use `npm run bundle`, which includes the fetched helper
+programs and refuses incomplete downloads. A plain `npm run tauri build` is intended for
+developers who provide those tools themselves. See [CONTRIBUTING.md](CONTRIBUTING.md),
+[the release guide](docs/RELEASING.md), and [the TLS regression checks](docs/TLS.md).
 
 ## Disclaimer
 

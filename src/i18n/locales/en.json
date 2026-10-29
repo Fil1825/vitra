@@ -237,7 +237,14 @@
       "globalShortcuts": "Shortcuts in Every App",
       "globalHint": "Play, pause or skip while another app is in front: set them in Keyboard Shortcuts.",
       "openShortcuts": "Keyboard Shortcuts…"
-    }
+    },
+    "sidecarSources": {
+      "appData": "App data",
+      "bundled": "Included with Vitra",
+      "dev": "Development build",
+      "system": "System"
+    },
+    "browserPreview": "Browser preview"
   },
   "library": {
     "emptyTitle": "Your library is empty",
@@ -973,5 +980,8 @@
       "label": "YouTube Music Radio",
       "hint": "When the library runs out of tracks for the mood, similar songs come from YouTube Music’s radio of the playing track. They join the library as links and are analyzed first. Needs “Analyze Links” and “Add opened files to the library”."
     }
+  },
+  "app": {
+    "startupFailed": "Vitra could not start: {{message}}"
   }
 }

@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { initI18n, resolveLocale } from '../../i18n/index.ts';
+import { startupFailure } from '../../i18n/startup.ts';
 import { startBackendBridge } from '../../lib/bridge.ts';
 import { suppressWebViewMenu } from '../../lib/webview.ts';
 import { initEnvironment } from '../../stores/environment.ts';
@@ -40,7 +41,7 @@ const root = document.getElementById('root');
 if (!root) {
   throw new Error('Root element #root not found');
 }
-boot(root).catch((err: unknown) => {
+boot(root).catch(async (err: unknown) => {
   console.error('The mini player failed to start', err);
-  root.textContent = `The mini player failed to start: ${String(err)}`;
+  root.textContent = await startupFailure(err, navigator.languages);
 });

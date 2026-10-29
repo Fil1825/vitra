@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 
 import { App } from './app/App.tsx';
 import { initI18n, resolveLocale } from './i18n/index.ts';
+import { startupFailure } from './i18n/startup.ts';
 import { adoptOldPanels } from './layout/state.ts';
 import { startBackendBridge } from './lib/bridge.ts';
 import { suppressWebViewMenu } from './lib/webview.ts';
@@ -45,7 +46,7 @@ const root = document.getElementById('root');
 if (!root) {
   throw new Error('Root element #root not found');
 }
-boot(root).catch((err: unknown) => {
+boot(root).catch(async (err: unknown) => {
   console.error('Vitra failed to start', err);
-  root.textContent = `Vitra failed to start: ${String(err)}`;
+  root.textContent = await startupFailure(err, navigator.languages);
 });

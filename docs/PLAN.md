@@ -727,7 +727,7 @@ What the cloud can't check (no Mac, no YouTube, no real music):
 
 ## Stage 11 — Release
 
-- Discord Rich Presence, Last.fm scrobbling (both optional).
+- Discord and Last.fm are excluded from the release scope by the owner.
 - Complete en/ru translations.
 - CI: builds for macOS (arm64 + x64), Windows x64, Linux on tag via `tauri-action`; sidecars
   fetched in CI; signing/notarization notes.
@@ -765,12 +765,10 @@ What the cloud can't check (no Mac, no YouTube, no real music):
 
 ## Open questions
 
-1. **Sidecar distribution.** Bundle everything in the installer (simple, works offline, but
-   +500 MB on Windows/Linux), or bundle only mpv and download yt-dlp/FFmpeg/Deno into the app
-   data dir the first time a link feature is used (with consent and progress)? The second
-   option keeps the installer small and matches the "update yt-dlp" flow.
-2. **macOS support range.** Official mpv builds need macOS 14+ (Apple Silicon) / 15+ (Intel).
-   Is that acceptable, and is Intel support needed at all?
+1. **Sidecar distribution.** Include the fetched sidecars in macOS/Windows installers.
+   Linux Debian packages declare system mpv as a dependency and include the other helpers.
+   Keep the downloadable-component manifest with each build for provenance.
+2. **macOS support range.** macOS 14+ (Apple Silicon) / 15+ (Intel), matching official mpv.
 3. **Bundle identifier** `io.github.fil1825.vitra` — fine? It must not change after the first
    release (it determines the app data location).
 4. **Workflow**: start each stage from `main` after the previous PR is merged, or stack stage

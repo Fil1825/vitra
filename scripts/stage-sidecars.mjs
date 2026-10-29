@@ -14,11 +14,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { bundledEntries, hostTarget } from './sidecars/plan.mjs';
+import { assertSidecars } from './release/sidecars.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const target = process.env.TAURI_ENV_TARGET_TRIPLE || hostTarget();
 const source = path.join(ROOT, 'src-tauri', 'sidecars', target);
 const dest = path.join(ROOT, 'src-tauri', 'sidecars', 'bundle');
+
+// Fail before replacing a previous valid staging directory if a fetch is incomplete.
+assertSidecars(source, target);
 
 fs.rmSync(dest, { recursive: true, force: true });
 fs.mkdirSync(dest, { recursive: true });
@@ -38,9 +42,4 @@ for (const name of names) {
   }
 }
 
-if (names.length === 0) {
-  // The bundle still builds; the app then looks for the programs on the system.
-  console.warn(`stage-sidecars: nothing in ${path.relative(ROOT, source)}; run fetch-sidecars`);
-} else {
-  console.log(`stage-sidecars: ${names.join(', ')} → ${path.relative(ROOT, dest)}`);
-}
+console.log(`stage-sidecars: ${names.join(', ')} → ${path.relative(ROOT, dest)}`);

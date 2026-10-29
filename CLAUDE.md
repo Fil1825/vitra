@@ -14,20 +14,20 @@ the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Stage status
 
-| #   | Stage                                                  | Status             |
-| --- | ------------------------------------------------------ | ------------------ |
-| 0   | Preparation: environment, structure, sidecars, plan    | in review (PR #1)  |
-| 1   | Shell: transparent window, vibrancy, `<Glass>`, themes | in review (PR #2)  |
-| 2   | Engine: mpv IPC, transport controls, artwork backdrop  | in review (PR #3)  |
-| 3   | Library & queue: scan, SQLite, views, search, session  | in review (PR #4)  |
-| 4   | Links: yt-dlp playback, playlists, downloads           | in review (PR #5)  |
-| 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | accepted (PR #6)   |
-| 6   | Mini player                                            | accepted (PR #7)   |
-| 7   | Customization: theme editor, `.vitratheme`, layout     | accepted (PR #8)   |
-| 8   | Sound & system: EQ, crossfade, media keys, tray        | accepted (PR #9)   |
-| 9   | Playlist import: Spotify, Yandex, VK, Apple Music…     | accepted (PR #10)  |
-| 10  | My Wave: mood analysis, endless mood-based queue       | in review (PR #11) |
-| 11  | Integrations, i18n, CI builds, README, first release   | not started        |
+| #   | Stage                                                  | Status              |
+| --- | ------------------------------------------------------ | ------------------- |
+| 0   | Preparation: environment, structure, sidecars, plan    | in review (PR #1)   |
+| 1   | Shell: transparent window, vibrancy, `<Glass>`, themes | in review (PR #2)   |
+| 2   | Engine: mpv IPC, transport controls, artwork backdrop  | in review (PR #3)   |
+| 3   | Library & queue: scan, SQLite, views, search, session  | in review (PR #4)   |
+| 4   | Links: yt-dlp playback, playlists, downloads           | in review (PR #5)   |
+| 5   | Lyrics: LRC parser, tags, display, tap-sync editor     | accepted (PR #6)    |
+| 6   | Mini player                                            | accepted (PR #7)    |
+| 7   | Customization: theme editor, `.vitratheme`, layout     | accepted (PR #8)    |
+| 8   | Sound & system: EQ, crossfade, media keys, tray        | accepted (PR #9)    |
+| 9   | Playlist import: Spotify, Yandex, VK, Apple Music…     | accepted (PR #10)   |
+| 10  | My Wave: mood analysis, endless mood-based queue       | in review (PR #11)  |
+| 11  | Release: translations, bundles, signing, documentation | prepared for review |
 
 ## Commands
 
