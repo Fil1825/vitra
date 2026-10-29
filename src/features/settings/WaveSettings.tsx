@@ -57,6 +57,8 @@ export function WaveSettings() {
         return t('wave.links.offline', { time: at });
       case 'noYtDlp':
         return t('wave.links.noYtDlp');
+      case 'decodeFailed':
+        return t('wave.links.decodeRetry', { time: at });
       default:
         return null;
     }
@@ -124,6 +126,11 @@ export function WaveSettings() {
             {t('wave.links.count', { done: status.linksDone, total: status.linksTotal })}
             {linksText ? ` · ${linksText}` : ''}
           </span>
+        )}
+        {settings.analyzeLinks && status.linksProblem && (
+          <p className={styles.hint} role="status">
+            {t(`wave.links.${status.linksProblem}`)}
+          </p>
         )}
         <Row label={t('wave.radio.label')} hint={t('wave.radio.hint')} layout="inline">
           <Switch

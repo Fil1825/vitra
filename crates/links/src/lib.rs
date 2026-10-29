@@ -9,6 +9,7 @@ mod info;
 mod progress;
 pub mod release;
 mod template;
+pub mod tls;
 pub mod ytdlp;
 
 pub use ytdlp::{

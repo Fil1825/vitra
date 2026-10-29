@@ -33,7 +33,7 @@ export type AnalysisState =
   'idle' | 'analyzing' | 'paused' | 'scanning' | 'powerSaving' | 'noFfmpeg';
 
 /** Where the links' analysis stands: `rateLimited` and `offline` wait until `linksRetryAt`. */
-export type LinksState = 'off' | 'waiting' | 'rateLimited' | 'offline' | 'noYtDlp';
+export type LinksState = 'off' | 'waiting' | 'rateLimited' | 'offline' | 'noYtDlp' | 'decodeFailed';
 
 export interface AnalysisStatus {
   filesDone: number;
@@ -48,6 +48,7 @@ export interface AnalysisStatus {
   links: LinksState;
   /** Unix ms. */
   linksRetryAt: number | null;
+  linksProblem: 'certificates' | 'decoder' | null;
   /** Files left out this session: missing, or kept in iCloud only. */
   skipped: number;
 }
@@ -62,6 +63,7 @@ export const NO_ANALYSIS: AnalysisStatus = {
   current: null,
   links: 'waiting',
   linksRetryAt: null,
+  linksProblem: null,
   skipped: 0,
 };
 

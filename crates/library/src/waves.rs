@@ -108,16 +108,18 @@ impl Library {
         Ok(jobs)
     }
 
-    /// Links still to measure for `version`, the likeliest first.
+    /// Links still to measure for `version`, the likeliest first. Decoder failures may be
+    /// environmental (TLS, a sidecar update); retry after five minutes, not in a tight loop.
     pub fn links_to_analyze(&self, version: i64, limit: i64) -> Result<Vec<AnalysisJob>> {
         let mut statement = self.conn.prepare_cached(&format!(
             "SELECT t.id, t.path, t.duration, t.title
              FROM tracks t LEFT JOIN track_features f ON f.track_id = t.id
-             WHERE {IS_LINK} AND (f.track_id IS NULL OR f.version < ?1)
+             WHERE {IS_LINK} AND (f.track_id IS NULL OR f.version < ?1
+                 OR (f.error LIKE 'FFmpeg failed:%' AND f.analyzed_at <= ?3))
              ORDER BY {LIKELY_FIRST} LIMIT ?2"
         ))?;
         let jobs = statement
-            .query_map(params![version, limit], |row| {
+            .query_map(params![version, limit, crate::now() - 300], |row| {
                 Ok(AnalysisJob {
                     track_id: row.get(0)?,
                     path: row.get(1)?,
@@ -513,6 +515,103 @@ mod tests {
             }
         );
         assert_eq!(library.analysis_progress(2).unwrap().files_done, 0);
+    }
+
+    #[test]
+    fn stream_decoder_errors_retry_after_a_cooldown() {
+        let library = sample_library();
+        let link = add_link(&library, "https://music.example/retry");
+        let failed = |at| {
+            library
+                .set_features(
+                    link,
+                    1,
+                    FeatureSource::Stream,
+                    None,
+                    Err("FFmpeg failed: certificate verify failed".into()),
+                    at,
+                )
+                .unwrap()
+        };
+        failed(crate::now());
+        assert!(library.links_to_analyze(1, 10).unwrap().is_empty());
+        failed(crate::now() - 301);
+        assert_eq!(library.links_to_analyze(1, 10).unwrap()[0].track_id, link);
+        library
+            .set_features(
+                link,
+                1,
+                FeatureSource::Stream,
+                None,
+                Ok(sound(-9.0)),
+                crate::now(),
+            )
+            .unwrap();
+        assert!(library.links_to_analyze(1, 10).unwrap().is_empty());
+    }
+
+    #[test]
+    fn tls_upgrade_retries_only_failed_stream_decodes_once() {
+        let mut library = sample_library();
+        let retry = add_link(&library, "https://music.example/tls");
+        let good = add_link(&library, "https://music.example/good");
+        let unavailable = add_link(&library, "https://music.example/gone");
+        let file = id_of(&library, "/m/b/1.flac");
+        for (id, source, result) in [
+            (
+                retry,
+                FeatureSource::Stream,
+                Err("FFmpeg failed: Input/output error".into()),
+            ),
+            (good, FeatureSource::Stream, Ok(sound(-8.0))),
+            (
+                unavailable,
+                FeatureSource::Stream,
+                Err("Video unavailable".into()),
+            ),
+            (
+                file,
+                FeatureSource::File,
+                Err("FFmpeg failed: invalid file".into()),
+            ),
+        ] {
+            library
+                .set_features(id, 1, source, None, result, crate::now())
+                .unwrap();
+        }
+        library
+            .conn
+            .pragma_update(None, "user_version", 10)
+            .unwrap();
+        crate::schema::migrate(&mut library.conn).unwrap();
+        assert_eq!(
+            library
+                .links_to_analyze(1, 10)
+                .unwrap()
+                .iter()
+                .map(|j| j.track_id)
+                .collect::<Vec<_>>(),
+            [retry]
+        );
+        assert_eq!(library.features(good).unwrap(), Some(sound(-8.0)));
+        let rows: i64 = library
+            .conn
+            .query_row("SELECT COUNT(*) FROM track_features", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rows, 3);
+        // Reopening the upgraded database must not delete newly recorded failures again.
+        library
+            .set_features(
+                retry,
+                1,
+                FeatureSource::Stream,
+                None,
+                Err("FFmpeg failed: still broken".into()),
+                crate::now(),
+            )
+            .unwrap();
+        crate::schema::migrate(&mut library.conn).unwrap();
+        assert!(library.links_to_analyze(1, 10).unwrap().is_empty());
     }
 
     #[test]

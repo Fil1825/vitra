@@ -258,6 +258,14 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     );
     CREATE INDEX wave_marks_track ON wave_marks(track_id);
     ",
+    // 11: Retry stream decodes that failed before the sidecar received OS TLS roots.
+    // Successful measurements and failures of local files/unavailable videos stay intact.
+    r"
+    DELETE FROM track_features
+    WHERE source = 'stream' AND error LIKE 'FFmpeg failed:%'
+      AND track_id IN (SELECT id FROM tracks
+                       WHERE path LIKE 'http://%' OR path LIKE 'https://%');
+    ",
 ];
 
 /// Brings the database up to the latest schema.

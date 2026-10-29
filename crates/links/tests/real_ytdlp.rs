@@ -41,6 +41,7 @@ fn ytdlp() -> Option<YtDlp> {
     Some(YtDlp {
         binary,
         ffmpeg,
+        deno: env_path("VITRA_DENO"),
         ..YtDlp::default()
     })
 }

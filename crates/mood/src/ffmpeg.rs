@@ -103,6 +103,14 @@ pub fn file_args(path: &OsStr, slices: &[Slice]) -> Vec<OsString> {
 /// the site expects). `-ss` before `-i` makes FFmpeg ask for that range only.
 pub fn stream_args(url: &str, headers: &[(String, String)], slice: Slice) -> Vec<OsString> {
     let mut args = base_args();
+    // Sidecars use different TLS backends/defaults. Always authenticate HTTPS inputs.
+    // Plain HTTP does not accept this protocol option (including internet radio).
+    if url
+        .get(..8)
+        .is_some_and(|scheme| scheme.eq_ignore_ascii_case("https://"))
+    {
+        args.extend(["-tls_verify".into(), "1".into()]);
+    }
     if !headers.is_empty() {
         let joined: String = headers
             .iter()
@@ -206,11 +214,24 @@ mod tests {
         let at = args.iter().position(|a| a == "-headers").unwrap();
         assert_eq!(args[at + 1], "User-Agent: Mozilla/5.0\r\n");
         let input = args.iter().position(|a| a == "-i").unwrap();
+        let tls = args.iter().position(|a| a == "-tls_verify").unwrap();
+        assert_eq!(args[tls + 1], "1");
+        assert!(tls < input);
         assert_eq!(
             &args[input - 4..=input + 1],
             ["-ss", "70", "-t", "75", "-i", "https://a.example/s"]
         );
         assert_eq!(stream_slice(None).start, 60.0);
+    }
+
+    #[test]
+    fn plain_http_does_not_receive_https_only_options() {
+        let args = strings(&stream_args(
+            "http://radio.example/live",
+            &[],
+            stream_slice(None),
+        ));
+        assert!(!args.iter().any(|arg| arg == "-tls_verify"));
     }
 
     #[test]

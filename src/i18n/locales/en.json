@@ -964,7 +964,10 @@
       "count": "Links: {{done}} of {{total}}",
       "rateLimited": "the site asked to slow down, going on at {{time}}",
       "offline": "no connection, trying again at {{time}}",
-      "noYtDlp": "yt-dlp wasn’t found"
+      "noYtDlp": "yt-dlp wasn’t found",
+      "decodeRetry": "stream analysis failed repeatedly; trying again at {{time}}",
+      "certificates": "Streams cannot be analyzed because FFmpeg cannot load or verify HTTPS certificates. Check your certificate settings and update Vitra. Analysis will retry automatically.",
+      "decoder": "FFmpeg repeatedly failed to read audio streams. Check your connection and update the sidecars. Analysis will retry automatically."
     },
     "radio": {
       "label": "YouTube Music Radio",

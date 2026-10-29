@@ -9,6 +9,7 @@ mod analysis;
 mod commands;
 mod process;
 mod radio;
+mod trouble;
 
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};

@@ -18,6 +18,7 @@ use tauri::{AppHandle, Emitter, Listener, Manager};
 use tokio::sync::Notify;
 
 use super::process::{self, Running};
+use super::trouble::{StreamFailures, StreamProblem};
 use crate::library::{CHANGED_EVENT, LibraryService, SCAN_EVENT};
 use crate::links::LinkService;
 use crate::settings::SettingsStore;
@@ -69,6 +70,8 @@ pub enum LinksState {
     Offline,
     /// No yt-dlp to find streams with.
     NoYtDlp,
+    /// Several stream decodes failed in a row; wait before asking again.
+    DecodeFailed,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
@@ -82,6 +85,8 @@ pub struct AnalysisStatus {
     pub links: LinksState,
     /// When links go on (Unix ms), while they wait after a refusal or offline.
     pub links_retry_at: Option<u64>,
+    /// A recurring decoder problem, retained until a stream decodes successfully.
+    pub links_problem: Option<StreamProblem>,
     /// Files left out this session: missing (an unplugged drive) or kept in iCloud only.
     pub skipped: u32,
 }
@@ -89,6 +94,7 @@ pub struct AnalysisStatus {
 /// How measuring one link went, for the pace of the next.
 enum LinkOutcome {
     Done,
+    DecodeFailed,
     Outage(Outage),
     NoYtDlp,
 }
@@ -107,6 +113,7 @@ struct Inner {
     wanted: Mutex<VecDeque<i64>>,
     /// Links that can't be read with the chosen browser's cookies, this session.
     unreadable: Mutex<HashSet<i64>>,
+    failures: Mutex<StreamFailures>,
 }
 
 #[derive(Clone)]
@@ -144,6 +151,7 @@ impl Analyzer {
             skipped: Mutex::new(HashSet::new()),
             wanted: Mutex::new(VecDeque::new()),
             unreadable: Mutex::new(HashSet::new()),
+            failures: Mutex::new(StreamFailures::default()),
         }))
     }
 
@@ -228,6 +236,7 @@ impl Analyzer {
                 next.progress = progress;
             }
             next.skipped = lock(&self.0.skipped).len() as u32;
+            next.links_problem = lock(&self.0.failures).problem();
             update(&mut next);
             if next == *status {
                 return;
@@ -342,6 +351,26 @@ impl Analyzer {
                         self.publish(|s| {
                             s.links = LinksState::Waiting;
                             s.links_retry_at = None;
+                        })
+                        .await;
+                    }
+                    LinkOutcome::DecodeFailed => {
+                        backoff = 0;
+                        let persistent = lock(&self.0.failures).problem().is_some();
+                        links_at = Instant::now()
+                            + if persistent {
+                                OFFLINE_RETRY
+                            } else {
+                                jitter(LINK_PAUSE_SECONDS)
+                            };
+                        let retry = unix_ms(links_at);
+                        self.publish(|s| {
+                            s.links = if persistent {
+                                LinksState::DecodeFailed
+                            } else {
+                                LinksState::Waiting
+                            };
+                            s.links_retry_at = Some(retry);
                         })
                         .await;
                     }
@@ -567,16 +596,18 @@ impl Analyzer {
             Ok(bytes) => analyze(bytes).await,
             Err(_) if self.stopping() => return LinkOutcome::Done,
             Err(error) => {
-                // A media server's refusal is the site throttling us, not a broken link.
-                if error.contains("403") || error.contains("429") {
-                    return LinkOutcome::Outage(Outage::RateLimited);
-                }
-                if let Some(outage) = links::ytdlp::outage(&error) {
+                if let Some(outage) = super::trouble::outage(&error) {
                     return LinkOutcome::Outage(outage);
                 }
-                Err(error)
+                lock(&self.0.failures).failed(&error);
+                self.store(library, &job, FeatureSource::Stream, Err(error))
+                    .await;
+                return LinkOutcome::DecodeFailed;
             }
         };
+        // Only a successful decode proves the environment recovered. An unavailable video
+        // or a metadata error must not hide a persistent FFmpeg problem.
+        lock(&self.0.failures).recovered();
         self.store(library, &job, FeatureSource::Stream, measured)
             .await;
         LinkOutcome::Done

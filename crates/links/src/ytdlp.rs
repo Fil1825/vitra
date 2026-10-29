@@ -341,6 +341,7 @@ impl YtDlp {
     }
 
     async fn output(mut command: Command, timeout: Duration) -> Result<Output> {
+        crate::tls::configure(command.as_std_mut())?;
         let child = command.spawn().map_err(Self::spawn_error)?;
         let output = tokio::time::timeout(timeout, child.wait_with_output())
             .await
@@ -517,6 +518,7 @@ impl YtDlp {
             .current_dir(&dir)
             .arg("--")
             .arg(url);
+        crate::tls::configure(command.as_std_mut())?;
         let mut child = command.spawn().map_err(Self::spawn_error)?;
         let mut stderr = child.stderr.take();
         let stderr_task = tokio::spawn(async move {
@@ -570,6 +572,7 @@ impl YtDlp {
         std::fs::create_dir_all(&options.temp_dir)?;
         let mut command = self.command();
         command.args(download_args(url, options));
+        crate::tls::configure(command.as_std_mut())?;
         let mut child = command.spawn().map_err(Self::spawn_error)?;
         // Download progress goes to stdout but post-processing progress to stderr, so both
         // are read, through one channel that closes when yt-dlp closes both.
@@ -635,6 +638,35 @@ impl YtDlp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn all_operations_use_the_configured_deno_even_without_cookies() {
+        let signed_in = YtDlp {
+            binary: "yt-dlp".into(),
+            deno: Some("/sidecars/a space/deno".into()),
+            cookies_from_browser: Some("firefox".into()),
+            ..YtDlp::default()
+        };
+        let plain = YtDlp {
+            cookies_from_browser: None,
+            ..signed_in.clone()
+        };
+        for runner in [&signed_in, &plain] {
+            let command = runner.command();
+            let args: Vec<_> = command.as_std().get_args().collect();
+            assert!(
+                args.windows(2)
+                    .any(|pair| pair == ["--js-runtimes", "deno:/sidecars/a space/deno"])
+            );
+        }
+        let command = plain.command();
+        assert!(
+            !command
+                .as_std()
+                .get_args()
+                .any(|arg| arg == "--cookies-from-browser")
+        );
+    }
 
     #[test]
     fn a_stream_is_its_address_and_headers() {
