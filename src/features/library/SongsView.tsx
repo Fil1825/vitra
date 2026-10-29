@@ -8,6 +8,7 @@ import styles from './Library.module.css';
 import { useListSummary } from './summary.ts';
 import { LibraryEmpty } from './LibraryEmpty.tsx';
 import { TrackTable } from './TrackTable.tsx';
+import { WaveStartButton } from '../wave/WaveButtons.tsx';
 
 /** Every song in a sortable table, or (`favorites`) just the favorites. */
 export function SongsView({ favorites = false }: { favorites?: boolean }) {
@@ -24,7 +25,9 @@ export function SongsView({ favorites = false }: { favorites?: boolean }) {
         {tracks.length > 0 && (
           <div className={styles.actions}>
             <span className={styles.scanNote}>{summary(tracks.length, total)}</span>
-            <PlayButtons ids={tracks.map((track) => track.id)} />
+            <PlayButtons ids={tracks.map((track) => track.id)}>
+              {!favorites && <WaveStartButton />}
+            </PlayButtons>
           </div>
         )}
       </PageHeader>

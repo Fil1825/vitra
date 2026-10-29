@@ -48,6 +48,12 @@ jobs:
         env:
           VITRA_MPV_TESTS: '1'
           VITRA_MPV_ARGS: --ao=null
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node scripts/fetch-sidecars.mjs --only ffmpeg --require-checksums
+      - name: Authenticate HTTPS with the release FFmpeg sidecar
+        run: python3 scripts/test-ffmpeg-tls.py --ffmpeg src-tauri/sidecars/x86_64-unknown-linux-gnu/ffmpeg
 
   cross:
     name: Rust (macOS + Windows type-check)
@@ -95,6 +101,8 @@ jobs:
       - run: cargo test --workspace
       # yt-dlp's folder build and the macOS FFmpeg, set up the way developers get them.
       - run: node scripts/fetch-sidecars.mjs --only yt-dlp,ffmpeg
+      - name: Authenticate HTTPS with the macOS FFmpeg sidecar
+        run: python3 scripts/test-ffmpeg-tls.py --ffmpeg src-tauri/sidecars/aarch64-apple-darwin/ffmpeg
       - run: cargo test -p links --test real_ytdlp
         env:
           VITRA_YTDLP: ${{ github.workspace }}/src-tauri/sidecars/aarch64-apple-darwin/yt-dlp/yt-dlp_macos

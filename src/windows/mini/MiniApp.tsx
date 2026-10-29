@@ -21,8 +21,12 @@ import { Slider } from '../../components/ui/Slider.tsx';
 import { lyricsClock, useFrames } from '../../features/lyrics/clock.ts';
 import { setLyricsVisible } from '../../features/lyrics/actions.ts';
 import { Karaoke } from '../../features/lyrics/Karaoke.tsx';
+import { useCurrentLibraryTrack } from '../../features/library/useCurrentTrack.ts';
+import { dislikeTrack } from '../../features/wave/actions.ts';
+import { DislikeButton, LikeButton } from '../../features/wave/WaveButtons.tsx';
 import { bus } from '../../lib/bus.ts';
 import { formatTime } from '../../lib/format.ts';
+import { library } from '../../lib/library.ts';
 import { lineAt, lineEnd } from '../../lib/lyrics.ts';
 import { showContextMenu } from '../../lib/menu.ts';
 import { mini } from '../../lib/mini.ts';
@@ -65,6 +69,8 @@ export function MiniApp() {
   const interactive = useInteractive();
   const artwork = usePlayer((s) => s.state.track?.artwork ?? null);
   const washed = useAppearance((s) => s.theme.background.useArtwork);
+  const inWave = useQueue((s) => s.queue.wave !== null);
+  const libraryTrack = useCurrentLibraryTrack();
 
   const onPointerDown = (event: PointerEvent<HTMLElement>) => {
     if (event.button !== 0 || (event.target as Element).closest(CONTROLS)) {
@@ -85,6 +91,17 @@ export function MiniApp() {
         expand: () => void mini.expand().catch(report('Expanding')),
         close: () => void mini.hide().catch(report('Closing the mini player')),
         quit: () => void mini.quit().catch(report('Quitting')),
+        wave:
+          inWave && libraryTrack
+            ? {
+                favorite: libraryTrack.favorite,
+                like: () =>
+                  void library
+                    .setFavorite(libraryTrack.id, !libraryTrack.favorite)
+                    .catch(report('Favoriting')),
+                dislike: () => dislikeTrack(libraryTrack.id),
+              }
+            : undefined,
       }),
     ).catch(report('The menu'));
 
@@ -142,14 +159,27 @@ function WindowButtons() {
   );
 }
 
-function Transport() {
+/** Previous, play/pause, next; in a wave (`wave`), the heart and "don't like" around them. */
+function Transport({ wave = false }: { wave?: boolean }) {
   const { t } = useTranslation();
   const state = usePlayer((s) => s.state);
   const canNext = useQueue((s) => hasNext(s.queue));
+  const inWave = useQueue((s) => s.queue.wave !== null);
+  const libraryTrack = useCurrentLibraryTrack();
   const loading = state.track !== null && state.status === 'loading';
   const playing = state.status === 'playing' || loading;
+  const waveTrack = wave && inWave ? libraryTrack : undefined;
   return (
     <div className={styles.transport}>
+      {waveTrack && (
+        <LikeButton
+          trackId={waveTrack.id}
+          favorite={waveTrack.favorite}
+          className={styles.button}
+          onClassName={styles.on}
+          size="0.9em"
+        />
+      )}
       <IconButton
         className={styles.button}
         label={t('player.previous')}
@@ -181,6 +211,7 @@ function Transport() {
       >
         <SkipForward size="1em" fill="currentColor" />
       </IconButton>
+      {waveTrack && <DislikeButton trackId={waveTrack.id} className={styles.button} size="0.9em" />}
     </div>
   );
 }
@@ -254,7 +285,7 @@ function Compact() {
       <span className={styles.subtitle} title={subtitle}>
         {subtitle}
       </span>
-      <Transport />
+      <Transport wave />
       {!narrow && progress}
     </div>
   );

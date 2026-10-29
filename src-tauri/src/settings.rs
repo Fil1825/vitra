@@ -65,6 +65,35 @@ pub struct Settings {
     pub sound: SoundSettings,
     #[serde(deserialize_with = "or_default")]
     pub system: SystemSettings,
+    /// My Wave: what may run in the background for it (see `wave/`).
+    #[serde(deserialize_with = "or_default")]
+    pub wave: WaveSettings,
+}
+
+/// My Wave's background work. Everything is on by default, and slow (the owner's choice).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct WaveSettings {
+    /// Measures the library's files in the background (off = paused).
+    #[serde(deserialize_with = "or_true")]
+    pub analyze: bool,
+    /// Measures the library's links too, a stretch of each stream, one every few tens of
+    /// seconds.
+    #[serde(deserialize_with = "or_true")]
+    pub analyze_links: bool,
+    /// When the library runs out, similar tracks come from YouTube Music's radio.
+    #[serde(deserialize_with = "or_true")]
+    pub radio: bool,
+}
+
+impl Default for WaveSettings {
+    fn default() -> Self {
+        Self {
+            analyze: true,
+            analyze_links: true,
+            radio: true,
+        }
+    }
 }
 
 /// How Vitra sits in the system.
@@ -560,6 +589,13 @@ pub fn set_settings(
     {
         player.sound_changed(&previous.sound, &saved.sound);
     }
+    if (saved.wave != previous.wave
+        || saved.appearance.power_saving != previous.appearance.power_saving
+        || saved.downloads.cookies_from_browser != previous.downloads.cookies_from_browser)
+        && let Some(wave) = app.try_state::<crate::wave::WaveService>()
+    {
+        wave.settings_changed();
+    }
     if saved.system.tray_icon != previous.system.tray_icon
         && let Some(tray) = app.try_state::<Tray>()
     {
@@ -686,6 +722,11 @@ mod tests {
                 crossfade: 6.0,
             },
             system: SystemSettings { tray_icon: false },
+            wave: WaveSettings {
+                analyze: false,
+                analyze_links: false,
+                radio: true,
+            },
         };
 
         store_in(tmp.path()).set(settings.clone()).unwrap();
@@ -768,7 +809,8 @@ mod tests {
                     "normalization": "off",
                     "crossfade": 0.0
                 },
-                "system": { "trayIcon": true }
+                "system": { "trayIcon": true },
+                "wave": { "analyze": true, "analyzeLinks": true, "radio": true }
             })
         );
     }

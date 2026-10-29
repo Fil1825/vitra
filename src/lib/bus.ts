@@ -5,6 +5,7 @@ import type { CurrentLyrics, LineUpdate } from './lyrics.ts';
 import type { Settings } from './settings.ts';
 import type { PlayerState, PositionUpdate, Track } from './player.ts';
 import type { QueueState } from './queue.ts';
+import type { AnalysisStatus } from './wave.ts';
 import type { WindowEffects } from './window.ts';
 import type { Effects } from '../theme/effects.ts';
 import type { Theme } from '../theme/schema.ts';
@@ -39,6 +40,8 @@ export interface VitraEvents {
   'import:progress': ImportProgressUpdate;
   /** The background search started on another track, paused or stopped. */
   'import:status': MatcherStatus;
+  /** My Wave's background analysis moved on (a track measured, paused, waiting). */
+  'wave:progress': AnalysisStatus;
   /** The download queue changed (a job was added, progressed or finished). */
   'downloads:changed': DownloadJob[];
   /** The playing track's lyrics (or their loading state, or the sync offset) changed. */

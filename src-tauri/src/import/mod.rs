@@ -736,6 +736,19 @@ impl ImportService {
         Ok(scored)
     }
 
+    /// A YouTube Music song for a library track (the seed of My Wave's radio), if one
+    /// matches at least doubtfully.
+    pub async fn find_on_youtube(
+        &self,
+        wanted: &ImportedTrack,
+    ) -> Result<Option<String>, AppError> {
+        let found = self.search_online(wanted, None).await?;
+        Ok(found
+            .into_iter()
+            .find(|(_, score)| Confidence::of(*score) != Confidence::None)
+            .map(|(track, _)| track.url))
+    }
+
     /// Reads a bare link entry's page (Spotify tracks pasted in bulk) for its names.
     async fn describe_entry(&self, entry: &ImportEntry) -> Result<Option<ImportedTrack>, AppError> {
         let Some(url) = &entry.source.url else {

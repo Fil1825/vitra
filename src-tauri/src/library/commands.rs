@@ -7,12 +7,13 @@ use library::{
 };
 use media::{CoverChange, TagValues};
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
 use super::{Change, LibraryService, ScanStatus};
 use crate::error::AppError;
 use crate::links::LinkService;
 use crate::player::Player;
+use crate::wave::WaveService;
 
 /// Which tracks a view lists.
 #[derive(Debug, Clone, Deserialize)]
@@ -223,6 +224,7 @@ pub async fn library_search(
 
 #[tauri::command]
 pub async fn library_set_favorite(
+    app: AppHandle,
     library: State<'_, LibraryService>,
     track_id: i64,
     favorite: bool,
@@ -231,6 +233,10 @@ pub async fn library_set_favorite(
         .run(move |db| db.set_favorite(track_id, favorite))
         .await?;
     library.changed(Change::Tracks);
+    // The heart is My Wave's "like".
+    if favorite && let Some(wave) = app.try_state::<WaveService>() {
+        wave.liked(track_id);
+    }
     Ok(())
 }
 

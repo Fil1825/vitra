@@ -41,6 +41,7 @@ fn ytdlp() -> Option<YtDlp> {
     Some(YtDlp {
         binary,
         ffmpeg,
+        deno: env_path("VITRA_DENO"),
         ..YtDlp::default()
     })
 }
@@ -217,4 +218,22 @@ async fn reports_unsupported_links() {
         .unwrap_err();
     assert!(matches!(error, LinkError::Failed(_)), "{error:?}");
     assert!(!ytdlp.version().await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn finds_a_pages_audio_stream() {
+    let Some(ytdlp) = ytdlp() else {
+        eprintln!("VITRA_YTDLP not set: skipped");
+        return;
+    };
+    let base = serve();
+    let scratch = tempfile::tempdir().unwrap();
+    let page = format!("{base}/song.html");
+    let stream = ytdlp
+        .audio_stream(&page, scratch.path())
+        .await
+        .expect("the page's audio");
+    assert_eq!(stream.url, format!("{base}/one.flac"));
+    // Described under the page's own address.
+    assert_eq!(stream.track.map(|t| t.url), Some(page));
 }

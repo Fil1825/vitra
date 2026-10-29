@@ -1,0 +1,51 @@
+{
+  "_type": "playlist",
+  "id": "RDAMVMMgNrAu2pzNs",
+  "title": "Mix – Soundtrack",
+  "webpage_url": "https://music.youtube.com/watch?v=MgNrAu2pzNs&list=RDAMVMMgNrAu2pzNs",
+  "original_url": "https://music.youtube.com/watch?v=MgNrAu2pzNs&list=RDAMVMMgNrAu2pzNs",
+  "extractor": "youtube:tab",
+  "extractor_key": "YoutubeTab",
+  "entries": [
+    {
+      "_type": "url",
+      "ie_key": "Youtube",
+      "id": "MgNrAu2pzNs",
+      "url": "https://music.youtube.com/watch?v=MgNrAu2pzNs",
+      "title": "Soundtrack",
+      "duration": 219,
+      "channel": "Kaskade",
+      "uploader": "Kaskade - Topic"
+    },
+    {
+      "_type": "url",
+      "ie_key": "Youtube",
+      "id": "bbbbbbbbbbb",
+      "url": "https://music.youtube.com/watch?v=bbbbbbbbbbb",
+      "title": "Strobe",
+      "duration": 637,
+      "channel": "deadmau5",
+      "uploader": "deadmau5 - Topic"
+    },
+    {
+      "_type": "url",
+      "ie_key": "Youtube",
+      "id": "ccccccccccc",
+      "url": "https://music.youtube.com/watch?v=ccccccccccc",
+      "title": "Midnight City",
+      "duration": 244,
+      "channel": "M83",
+      "uploader": "M83 - Topic"
+    },
+    {
+      "_type": "url",
+      "ie_key": "Youtube",
+      "id": "ddddddddddd",
+      "url": "https://music.youtube.com/watch?v=ddddddddddd",
+      "title": "Nightcall",
+      "duration": 258,
+      "channel": "Kavinsky",
+      "uploader": "Kavinsky - Topic"
+    }
+  ]
+}

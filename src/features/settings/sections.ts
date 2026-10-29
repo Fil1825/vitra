@@ -11,6 +11,7 @@ import {
   Palette,
   PictureInPicture2,
   Settings2,
+  Waves,
 } from 'lucide-react';
 
 import { ACTION_IDS } from '../../shortcuts/actions.ts';
@@ -23,6 +24,7 @@ export const SECTION_IDS = [
   'library',
   'links',
   'lyrics',
+  'wave',
   'mini',
   'layout',
   'shortcuts',
@@ -111,6 +113,17 @@ export const SECTIONS: Record<SettingsSection, SectionInfo> = {
     icon: MicVocal,
     title: 'settings.lyrics.title',
     keywords: ['settings.lyrics.visible', 'settings.lyrics.online', 'settings.lyrics.translation'],
+  },
+  wave: {
+    icon: Waves,
+    title: 'wave.title',
+    keywords: [
+      'wave.analysis.title',
+      'wave.analysis.label',
+      'wave.analysis.pause',
+      'wave.links.label',
+      'wave.radio.label',
+    ],
   },
   mini: {
     icon: PictureInPicture2,

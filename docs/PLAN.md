@@ -559,6 +559,15 @@ An endless stream picked by mood, like Yandex Music's "Моя волна", from 
 when that runs out, from YouTube Music. Added by the owner after stage 6; not in the
 original spec. Each part is its own commit (or a few), testable on its own.
 
+Chosen (owner, at the start of stage 10):
+
+- **Sad** knows major from minor: the mode is estimated from a chroma profile.
+- **"My Wave" with no mood chosen** plays **to the owner's taste**: its course starts at the
+  centre of what is played most and liked, then drifts. The moods are a choice next to it.
+- **The network, by default: everything, slowly.** Links in the library are analyzed in the
+  background and the YouTube Music radio fills in when the library runs out; both can be
+  turned off in Settings.
+
 ### 10.1 Sound analysis (`crates/mood`)
 
 - One FFmpeg run per track decodes it to mono at 22 050 Hz and prints per-window values
@@ -648,19 +657,73 @@ original spec. Each part is its own commit (or a few), testable on its own.
   library under `library.addOpenedFiles`), and are rate-limited like everything else that
   talks to YouTube.
 
+### Done (in review, PR #11)
+
+Checked in the cloud with `npm run check:all`, `npm run check:cross`, the opt-in real FFmpeg
+and yt-dlp tests, and the real app under Xvfb with a generated library (24 files: fast
+bright click tracks, soft major pads, slow minor pulses): every file analyzed in about
+1.5 s, a Sad wave played the minor ones with the artists alternating, Don't Like skipped
+and marked, Like held the course, a wave like the playing track went on without
+restarting it, and a restart brought the wave back and topped it up.
+
+- `crates/mood` (pure): FFmpeg decodes three 30 s slices (75 s from the middle of a link's
+  stream) to mono 22 050 Hz samples; Rust measures energy and its spread (0.5 s RMS),
+  brightness (spectral centroid), tempo (autocorrelation of the onset envelope, a prior
+  around 120 BPM, folded into 70–180, with a confidence that a steady tone can't fake) and
+  valence (chroma against the Krumhansl–Kessler major and minor profiles). The wave
+  (`wave.rs`): five axes ranked against the library, a course per mood (Your Taste is the
+  centre of plays and favorites), picks by closeness plus artist / genre / year affinity,
+  habitual sequences, favorites, skips and recent plays, a softmax over the best twelve,
+  no artist twice in a row while anything else is left, a bounded drift.
+- Library migration 10: `track_features` (version, file or stream, the file's size and
+  mtime, the values or why there are none) and `wave_marks` (skips in and out of waves,
+  dislikes; a favorite takes a dislike back).
+- `src-tauri/src/wave`: the background analysis (one track at a time, FFmpeg under
+  `taskpolicy -b` / `nice -n 15` / the idle priority class, killed on quit; waits while a
+  scan runs, with power saving on or when paused; iCloud-only files are skipped), links
+  slowly (yt-dlp finds the stream without cookies first, 20–60 s between links, 15 min to
+  6 h after a refusal, 5 min offline; the same run describes the link and writes its
+  thumbnail, so a listing's song gets its details and a cover). `WaveService` keeps three
+  tracks ahead, steers with listens, skips, likes (the heart) and dislikes, and saves its
+  course with the session (`wave.state`); the queue carries the mood (`Queue::wave`).
+- When the library runs short (picks come up short, or three poor ones in a row), the
+  radio of the playing track (`RDAMVM<id>`; a file is found on YouTube Music first, with
+  the importer's search) brings 25 songs into the library as links, measured before any
+  other link; at most one attempt every 10 minutes. When nothing measured is left they
+  play as they are rather than the music stopping.
+- UI: My Wave in the sidebar (its page: the moods, Listen / Pause / Stop Wave, the next
+  picks, why it can't start yet), in the Albums and Songs headers, "My Wave Like This
+  Track" in Now Playing and the track menu; Like / Don't Like in Now Playing, the control
+  bar, the mini player (compact mode and its menu); the queue panel says "Next in My
+  Wave"; Settings → My Wave (progress, pause, links, radio).
+- Differences from the plan: the features need raw samples, so FFmpeg only decodes and
+  Rust does the measuring, with a small FFT of its own (`fft.rs`) instead of `rustfft` or
+  FFmpeg's `aspectralstats` (no new dependency). No "live" measurement of links while they
+  play: mpv's filters hand out statistics, not samples, and two kinds of measurement would
+  put the same track in two places. Next is a skip only before the play counted.
+
 ### Mac checks for stage 10
 
-- Background analysis of the real library (FLAC, ALAC, MP3, M4A): playback never stutters,
-  Activity Monitor shows FFmpeg at low priority with a small energy impact, also on
-  battery; quitting during analysis leaves no FFmpeg behind; tracks in iCloud-offloaded
-  folders are skipped rather than downloaded.
-- Progress in Settings, pause/resume, re-analysis after a file's tags or audio change.
-- Links analyzed over the real network (with Safari cookies if set), no blocks after an
-  hour of waves; with Wi-Fi off the wave keeps playing analyzed tracks only.
-- The modes feel right on the owner's music; "Нравится" / "Не нравится"; no artist twice
-  in a row; the YouTube Music fallback with a small library.
-- The wave from the Now Playing widget and media keys (next) after stage 8, and from the
-  mini player.
+What the cloud can't check (no Mac, no YouTube, no real music):
+
+- Background analysis of the real library (FLAC, ALAC, MP3, M4A, a few thousand files):
+  playback never stutters, Activity Monitor shows `ffmpeg` (started by `taskpolicy`) with a
+  low energy impact, also on battery; quitting during the analysis leaves no `ffmpeg`
+  behind; files in iCloud-offloaded folders are counted as left out, not downloaded.
+- Settings → My Wave: the progress moves, Pause / Resume, power saving pauses it; a file
+  whose tags are edited is analyzed again.
+- Links over the real network (Safari cookies set and not): they are analyzed one by one
+  with long pauses and get their details and covers; no "sign in to confirm you're not a
+  bot" after an hour of waves; with Wi-Fi off the wave keeps to files.
+- The moods on the owner's music: Your Taste, Energetic, Calm, Sad and Like This Track feel
+  right; no artist twice in a row; Like (the heart) and Don't Like (skips, never comes
+  back) in Now Playing, the control bar and the mini player.
+- The YouTube Music radio with a small library (a folder of a dozen songs): songs come in
+  as links with covers, play, and the wave stays in the mood.
+- A restart in the middle of a wave continues it; Next from media keys, the menu-bar icon
+  and the system's Now Playing skips in the wave and it tops up; Stop Wave keeps the queue.
+- The page and buttons in the light and dark themes and with Reduce Motion (the orb stays
+  still).
 
 ## Stage 11 — Release
 

@@ -19,6 +19,12 @@ url = "2.5"
 sha2 = "0.10"
 tokio = { version = "1.54", features = ["io-util", "macros", "process", "rt", "sync", "time"] }
 
+[target.'cfg(windows)'.dependencies]
+# OpenSSL sidecars need PEM roots; read Windows trust through the OS, not a bundled list.
+rustls-native-certs = "0.8"
+base64 = "0.22"
+tempfile = "3"
+
 [dev-dependencies]
 tokio = { version = "1.54", features = ["io-util", "macros", "process", "rt", "rt-multi-thread", "sync", "time"] }
 tempfile = "3"

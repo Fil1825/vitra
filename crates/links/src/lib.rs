@@ -9,9 +9,13 @@ mod info;
 mod progress;
 pub mod release;
 mod template;
+pub mod tls;
 pub mod ytdlp;
 
-pub use ytdlp::{COOKIE_BROWSERS, Outage, YtDlp, music_search_url};
+pub use ytdlp::{
+    AudioStream, COOKIE_BROWSERS, Outage, YtDlp, music_search_url, parse_stream, radio_url,
+    youtube_id,
+};
 
 pub use classify::{Link, LinkKind, is_remote, link_title, parse_link};
 pub use download::{AudioFormat, DownloadOptions, DownloadStatus, MP3_BITRATES, download_args};

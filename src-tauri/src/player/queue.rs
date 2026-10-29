@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 
+use mood::Mode;
 use serde::{Deserialize, Serialize};
 
 /// Something to play, with what's known about it for display before its tags are read.
@@ -46,6 +47,8 @@ pub struct QueueView {
     pub current: Option<usize>,
     pub shuffle: bool,
     pub repeat: Repeat,
+    /// My Wave's mood, while it picks what comes next (and keeps a few tracks ahead).
+    pub wave: Option<Mode>,
 }
 
 /// Items in play order. Items before `current` were played; the ones after it are up next.
@@ -62,6 +65,10 @@ pub struct Queue {
     unshuffled: Vec<u64>,
     #[serde(default)]
     next_uid: u64,
+    /// The queue is My Wave's (in this mood): it is topped up as tracks play, and anything
+    /// that replaces or shuffles it ends the wave.
+    #[serde(default)]
+    wave: Option<Mode>,
 }
 
 /// Fisher–Yates with xorshift64; the queue doesn't need a cryptographic generator.
@@ -83,6 +90,19 @@ impl Queue {
             current: self.current,
             shuffle: self.shuffle,
             repeat: self.repeat,
+            wave: self.wave,
+        }
+    }
+
+    pub fn is_wave(&self) -> bool {
+        self.wave.is_some()
+    }
+
+    /// How many items come after the playing one.
+    pub fn upcoming(&self) -> usize {
+        match self.current {
+            Some(index) => self.items.len() - index - 1,
+            None => self.items.len(),
         }
     }
 
@@ -114,6 +134,7 @@ impl Queue {
     /// Replaces the queue, starting at `start` (with shuffle on, that item plays first and
     /// the rest are shuffled).
     pub fn replace(&mut self, entries: Vec<Entry>, start: usize, seed: u64) {
+        self.wave = None;
         self.items = self.make(entries);
         self.unshuffled.clear();
         if self.items.is_empty() {
@@ -125,6 +146,36 @@ impl Queue {
             self.shuffle = false;
             self.set_shuffle(true, seed);
         }
+    }
+
+    /// Replaces the queue with My Wave's first picks, in their order (a wave isn't shuffled:
+    /// it chooses its own order).
+    pub fn replace_wave(&mut self, entries: Vec<Entry>, mode: Mode) {
+        self.shuffle = false;
+        self.replace(entries, 0, 0);
+        self.wave = (!self.items.is_empty()).then_some(mode);
+    }
+
+    /// A wave that goes on from the playing item (a wave "like this track" started while it
+    /// plays): that item stays, the wave's picks follow it, the rest goes. False with
+    /// nothing playing.
+    pub fn wave_from_current(&mut self, entries: Vec<Entry>, mode: Mode) -> bool {
+        let Some(index) = self.current else {
+            return false;
+        };
+        let current = self.items.swap_remove(index);
+        let new = self.make(entries);
+        self.items = std::iter::once(current).chain(new).collect();
+        self.current = Some(0);
+        self.shuffle = false;
+        self.unshuffled.clear();
+        self.wave = Some(mode);
+        true
+    }
+
+    /// The wave ends (its queue stays, as an ordinary one).
+    pub fn end_wave(&mut self) {
+        self.wave = None;
     }
 
     /// Inserts entries right after the current item.
@@ -241,6 +292,8 @@ impl Queue {
         }
         self.shuffle = on;
         if on {
+            // A wave chooses its own order.
+            self.wave = None;
             self.unshuffled = self.items.iter().map(|item| item.uid).collect();
             let current = self.current.map(|index| self.items.remove(index));
             shuffle_slice(&mut self.items, seed);
@@ -571,6 +624,55 @@ mod tests {
         assert_eq!(json["items"][0]["title"], "a");
         assert_eq!(json["current"], 0);
         assert_eq!(json["repeat"], "off");
+    }
+
+    #[test]
+    fn a_wave_is_its_own_queue_until_something_replaces_it() {
+        let mut queue = queue(&["a", "b"], 0);
+        queue.set_shuffle(true, 3);
+        queue.replace_wave(entries(&["w1", "w2", "w3"]), Mode::Calm);
+        assert_eq!(queue.view().wave, Some(Mode::Calm));
+        assert!(!queue.view().shuffle);
+        assert_eq!(titles(&queue), ["w1", "w2", "w3"]);
+        assert_eq!(queue.upcoming(), 2);
+        // Topped up as it plays.
+        queue.advance(false);
+        queue.append(entries(&["w4"]));
+        assert_eq!(queue.upcoming(), 2);
+        assert!(queue.is_wave());
+        assert_eq!(
+            serde_json::to_value(queue.view()).unwrap()["wave"],
+            serde_json::json!({ "kind": "calm" })
+        );
+        // The session keeps it.
+        let saved = serde_json::to_string(&queue).unwrap();
+        assert!(serde_json::from_str::<Queue>(&saved).unwrap().is_wave());
+        // Playing an album ends it, and so does shuffle.
+        queue.replace(entries(&["x"]), 0, 1);
+        assert!(!queue.is_wave());
+        queue.replace_wave(entries(&["w1", "w2"]), Mode::Taste);
+        queue.set_shuffle(true, 3);
+        assert!(!queue.is_wave());
+        // An empty wave is none.
+        queue.replace_wave(Vec::new(), Mode::Taste);
+        assert!(!queue.is_wave());
+        assert_eq!(queue.upcoming(), 0);
+        // A session from before the wave has none.
+        let old = r#"{"items":[],"current":null,"shuffle":false,"repeat":"off"}"#;
+        assert!(!serde_json::from_str::<Queue>(old).unwrap().is_wave());
+    }
+
+    #[test]
+    fn a_wave_like_the_playing_track_keeps_it_playing() {
+        let mut queue = queue(&["a", "b", "c"], 1);
+        let uid = queue.current().unwrap().uid;
+        assert!(queue.wave_from_current(entries(&["w1", "w2"]), Mode::LikeTrack(7)));
+        assert_eq!(titles(&queue), ["b", "w1", "w2"]);
+        assert_eq!(queue.current().unwrap().uid, uid);
+        assert_eq!(queue.view().wave, Some(Mode::LikeTrack(7)));
+        let mut empty = Queue::default();
+        assert!(!empty.wave_from_current(entries(&["w1"]), Mode::Taste));
+        assert!(!empty.is_wave());
     }
 
     /// Random operation sequences keep the invariants.

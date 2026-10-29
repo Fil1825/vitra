@@ -19,6 +19,7 @@ import { SECTIONS, SECTION_IDS, matchingSections, type SettingsSection } from '.
 import styles from './SettingsPanel.module.css';
 import { ShortcutSettings } from './ShortcutSettings.tsx';
 import { SoundSettings } from './SoundSettings.tsx';
+import { WaveSettings } from './WaveSettings.tsx';
 
 function page(section: SettingsSection, onClose: () => void): ReactNode {
   switch (section) {
@@ -46,6 +47,8 @@ function page(section: SettingsSection, onClose: () => void): ReactNode {
           <LyricsSettings />
         </Group>
       );
+    case 'wave':
+      return <WaveSettings />;
     case 'mini':
       return (
         <Group>

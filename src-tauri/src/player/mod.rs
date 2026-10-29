@@ -42,6 +42,7 @@ use crate::settings::{AudioMeters, SettingsStore};
 use crate::sidecar::{self, Sidecar};
 use crate::sound::{self, Equalizer, LoudnessMeter, Normalization, SoundSettings, loudness};
 use crate::tray::Tray;
+use crate::wave::WaveService;
 
 pub use artwork::{
     ArtworkStore, COVER_PREFIX, SCHEME as ARTWORK_SCHEME, respond_cover, status as http_status,
@@ -582,6 +583,77 @@ impl Player {
         }
     }
 
+    /// Starts My Wave with its first picks. With `from_current` (a wave like the playing
+    /// track), that track goes on and the picks follow it; otherwise they replace the queue.
+    pub async fn play_wave(
+        &self,
+        entries: Vec<Entry>,
+        mode: mood::Mode,
+        from_current: bool,
+    ) -> Result<(), AppError> {
+        let _transport = self.0.transport.lock().await;
+        let load = {
+            let mut queue = lock(&self.0.queue);
+            if from_current && queue.current().is_some() {
+                queue.wave_from_current(entries, mode);
+                None
+            } else {
+                queue.replace_wave(entries, mode);
+                queue.current().cloned()
+            }
+        };
+        match load {
+            Some(item) => {
+                self.emit_queue();
+                self.load(&item).await
+            }
+            None => self.queue_changed().await,
+        }
+    }
+
+    /// Adds the wave's next picks at the end, if the queue is still a wave. Playback that
+    /// stopped at the wave's end (it ran out meanwhile) goes on with them.
+    pub async fn append_wave(&self, entries: Vec<Entry>) -> Result<bool, AppError> {
+        if entries.is_empty() {
+            return Ok(false);
+        }
+        let _transport = self.0.transport.lock().await;
+        let resume = {
+            let mut queue = lock(&self.0.queue);
+            if !queue.is_wave() {
+                return Ok(false);
+            }
+            let ended = queue.upcoming() == 0 && lock(&self.0.state).status == Status::Idle;
+            queue.append(entries);
+            if ended {
+                queue.advance(true).cloned()
+            } else {
+                None
+            }
+        };
+        match resume {
+            Some(item) => {
+                self.emit_queue();
+                self.load(&item).await?;
+            }
+            None => self.queue_changed().await?,
+        }
+        Ok(true)
+    }
+
+    /// The wave ends; its tracks stay queued.
+    pub fn end_wave(&self) {
+        let ended = {
+            let mut queue = lock(&self.0.queue);
+            let was = queue.is_wave();
+            queue.end_wave();
+            was
+        };
+        if ended {
+            self.emit_queue();
+        }
+    }
+
     /// Adds entries after the current item or at the end. Adding to an empty queue starts
     /// playing.
     pub async fn enqueue(&self, entries: Vec<Entry>, next: bool) -> Result<(), AppError> {
@@ -625,6 +697,7 @@ impl Player {
     }
 
     pub async fn next(&self) -> Result<(), AppError> {
+        self.note_skip();
         let _transport = self.0.transport.lock().await;
         let item = lock(&self.0.queue).advance(true).cloned();
         match item {
@@ -837,6 +910,27 @@ impl Player {
         self.emit_queue();
     }
 
+    /// Next before the play counted: a skip, which My Wave weighs (in a wave or not).
+    fn note_skip(&self) {
+        let (track, status) = {
+            let state = lock(&self.0.state);
+            (
+                state.track.as_ref().and_then(|t| t.library_id),
+                state.status,
+            )
+        };
+        let Some(track_id) = track else {
+            return;
+        };
+        if lock(&self.0.mirror).counted || status == Status::Idle {
+            return;
+        }
+        let in_wave = lock(&self.0.queue).is_wave();
+        if let Some(wave) = self.0.app.try_state::<WaveService>() {
+            wave.skipped(track_id, in_wave);
+        }
+    }
+
     /// Counts a play of a library track once enough of it was heard.
     fn count_play(&self) {
         let (position, duration, library_id) = {
@@ -865,6 +959,11 @@ impl Player {
         }
         if let Some(library) = self.library() {
             library.record_play(track_id);
+        }
+        if lock(&self.0.queue).is_wave()
+            && let Some(wave) = self.0.app.try_state::<WaveService>()
+        {
+            wave.listened(track_id);
         }
     }
 
@@ -2362,6 +2461,14 @@ impl Player {
         self.0.queue_dirty.store(true, Ordering::Relaxed);
         let view = self.queue();
         self.emit(QUEUE_EVENT, &view);
+        // My Wave keeps a few tracks ahead of the playing one.
+        let wants_more = {
+            let queue = lock(&self.0.queue);
+            queue.is_wave() && queue.upcoming() < crate::wave::AHEAD
+        };
+        if wants_more && let Some(wave) = self.0.app.try_state::<WaveService>() {
+            wave.top_up();
+        }
     }
 
     fn emit<S: Serialize + Clone>(&self, event: &str, payload: &S) {

@@ -15,6 +15,7 @@ import type { MenuEntry } from '../../lib/menu.ts';
 import { pickFolder } from '../../lib/openFiles.ts';
 import { queue } from '../../lib/queue.ts';
 import { useNavigation } from '../../stores/navigation.ts';
+import { startWave } from '../wave/actions.ts';
 import { useUi } from '../../stores/ui.ts';
 
 export const report = (what: string) => (err: unknown) => console.error(`${what} failed`, err);
@@ -168,6 +169,15 @@ export function trackMenu(
       action: () => setFavorite(ids, !allFavorite),
     },
   ];
+  if (single) {
+    entries.unshift(
+      {
+        label: i18n.t('wave.fromTrack'),
+        action: () => void startWave({ kind: 'likeTrack', track: single.id }),
+      },
+      'separator',
+    );
+  }
   const streamed = tracks.filter((track) => isRemotePath(track.path));
   if (streamed.length > 0) {
     entries.push('separator', {

@@ -202,6 +202,11 @@
   border-radius: 0.5em;
 }
 
+.mini .on,
+.mini .on:hover {
+  color: var(--vitra-color-accent);
+}
+
 .mini .play {
   width: 2.4em;
   height: 2.4em;

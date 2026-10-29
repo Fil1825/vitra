@@ -17,6 +17,7 @@ mod schema;
 mod search;
 mod session;
 mod tracks;
+mod waves;
 
 pub mod scan;
 
@@ -35,6 +36,7 @@ pub use lyrics::{SOURCE_ONLINE, SOURCE_USER, SavedLyrics};
 pub use model::*;
 pub use scan::{ScanPhase, ScanProgress, ScanSummary, cover_id, is_audio_file};
 pub use tracks::AlbumSort;
+pub use waves::{AnalysisJob, AnalysisProgress, FeatureSource, Mark, WaveCandidate};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

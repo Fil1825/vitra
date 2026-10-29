@@ -310,6 +310,7 @@
   "queue": {
     "title": "Queue",
     "upNext": "Up Next",
+    "upNextInWave": "Next in My Wave",
     "history": "History",
     "playing": "Playing",
     "clear": "Clear",
@@ -904,5 +905,73 @@
     "show": "Show Vitra",
     "miniPlayer": "Mini Player",
     "quit": "Quit Vitra"
+  },
+  "wave": {
+    "title": "My Wave",
+    "like": "Like",
+    "dislike": "Don’t Like",
+    "fromTrack": "My Wave Like This Track",
+    "badge": "My Wave · {{mood}}",
+    "moods": {
+      "taste": "Your Taste",
+      "energetic": "Energetic",
+      "calm": "Calm",
+      "sad": "Sad",
+      "likeTrack": "Like This Track"
+    },
+    "page": {
+      "lead": "An endless stream from your library, picked by how the music sounds. It learns from what you play, skip, like and dislike.",
+      "start": "Listen",
+      "resume": "Resume",
+      "stop": "Stop Wave",
+      "moods": "Mood",
+      "likeTrackHint": "A wave like “{{title}}”",
+      "analyzing": "Vitra has listened to {{done}} of {{total}} files; the wave gets better as it goes on.",
+      "trackUnmeasured": "This track couldn’t be listened to yet (no connection, or FFmpeg wasn’t found), so there is no wave like it.",
+      "nothingPaused": "The wave has nothing to pick from yet, and the analysis is paused.",
+      "nothingInLibrary": "The wave picks from your library: add a folder with music first.",
+      "nothingYet": "The wave has nothing to pick from yet: Vitra is still listening to your library ({{done}} of {{total}}). Try again in a minute.",
+      "settings": "My Wave Settings",
+      "upNext": "Next in the Wave",
+      "picking": "Picking the next tracks…"
+    },
+    "analysis": {
+      "title": "Analysis",
+      "label": "What Your Music Sounds Like",
+      "hint": "My Wave picks by mood from how each track sounds: Vitra listens to a minute and a half of every file once, in the background and at a low priority.",
+      "files": "{{done}} of {{total}}",
+      "analyzing": "Listening to “{{title}}”…",
+      "analyzingSome": "Listening…",
+      "paused": "Paused.",
+      "scanning": "Waiting for the library scan to finish.",
+      "powerSaving": "Waiting: power saving is on.",
+      "noFfmpeg": "FFmpeg wasn’t found, so nothing can be analyzed.",
+      "done": "Everything is analyzed.",
+      "waiting": "Waiting for its turn.",
+      "failed_one": "{{count}} couldn’t be analyzed",
+      "failed_other": "{{count}} couldn’t be analyzed",
+      "skipped_one": "{{count}} left out (missing or in iCloud only)",
+      "skipped_other": "{{count}} left out (missing or in iCloud only)",
+      "pause": "Pause",
+      "resume": "Resume"
+    },
+    "online": {
+      "title": "Links and YouTube Music"
+    },
+    "links": {
+      "label": "Analyze Links",
+      "hint": "A stretch from the middle of each link’s stream, one at a time with pauses of tens of seconds, so the site doesn’t take Vitra for a bot.",
+      "count": "Links: {{done}} of {{total}}",
+      "rateLimited": "the site asked to slow down, going on at {{time}}",
+      "offline": "no connection, trying again at {{time}}",
+      "noYtDlp": "yt-dlp wasn’t found",
+      "decodeRetry": "stream analysis failed repeatedly; trying again at {{time}}",
+      "certificates": "Streams cannot be analyzed because FFmpeg cannot load or verify HTTPS certificates. Check your certificate settings and update Vitra. Analysis will retry automatically.",
+      "decoder": "FFmpeg repeatedly failed to read audio streams. Check your connection and update the sidecars. Analysis will retry automatically."
+    },
+    "radio": {
+      "label": "YouTube Music Radio",
+      "hint": "When the library runs out of tracks for the mood, similar songs come from YouTube Music’s radio of the playing track. They join the library as links and are analyzed first. Needs “Analyze Links” and “Add opened files to the library”."
+    }
   }
 }

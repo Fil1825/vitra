@@ -228,6 +228,44 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     CREATE INDEX playlist_items_track ON playlist_items(track_id);
     CREATE INDEX playlist_items_entry ON playlist_items(entry_id);
     ",
+    // 10: My Wave (stage 10). What each track sounds like (`mood::Features`), measured once
+    // per analysis `version` from the file (`source` file; its size and mtime tell when it
+    // changed) or a stretch of a link's stream (`source` stream). A failure is a row with
+    // `error` set, so a file that can't be decoded isn't tried again on every launch.
+    // `wave_marks` keeps skips (`in_wave` or not) and dislikes, which the wave weighs.
+    r"
+    CREATE TABLE track_features (
+        track_id          INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+        version           INTEGER NOT NULL,
+        source            TEXT NOT NULL,
+        file_size         INTEGER,
+        file_mtime        INTEGER,
+        energy            REAL,
+        spread            REAL,
+        tempo             REAL,
+        tempo_confidence  REAL,
+        brightness        REAL,
+        valence           REAL,
+        error             TEXT,
+        analyzed_at       INTEGER NOT NULL
+    );
+    CREATE TABLE wave_marks (
+        id         INTEGER PRIMARY KEY,
+        track_id   INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+        kind       TEXT NOT NULL,
+        in_wave    INTEGER NOT NULL DEFAULT 0,
+        marked_at  INTEGER NOT NULL
+    );
+    CREATE INDEX wave_marks_track ON wave_marks(track_id);
+    ",
+    // 11: Retry stream decodes that failed before the sidecar received OS TLS roots.
+    // Successful measurements and failures of local files/unavailable videos stay intact.
+    r"
+    DELETE FROM track_features
+    WHERE source = 'stream' AND error LIKE 'FFmpeg failed:%'
+      AND track_id IN (SELECT id FROM tracks
+                       WHERE path LIKE 'http://%' OR path LIKE 'https://%');
+    ",
 ];
 
 /// Brings the database up to the latest schema.

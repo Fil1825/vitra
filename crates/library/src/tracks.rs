@@ -508,6 +508,9 @@ impl Library {
             "UPDATE tracks SET favorite = ?2 WHERE id = ?1",
             params![track_id, favorite],
         )?;
+        if favorite {
+            self.forgive(track_id)?;
+        }
         Ok(())
     }
 

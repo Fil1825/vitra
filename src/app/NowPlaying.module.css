@@ -100,6 +100,37 @@
   font-size: 15px;
 }
 
+.actions {
+  display: flex;
+  gap: var(--vitra-space-1);
+  margin-top: var(--vitra-space-1);
+  color: var(--vitra-color-text-secondary);
+}
+
+.on,
+.on:hover {
+  color: var(--vitra-color-accent);
+}
+
+.waveBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vitra-space-1);
+  margin-top: var(--vitra-space-1);
+  padding: 3px var(--vitra-space-3);
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vitra-color-accent) 16%, transparent);
+  color: var(--vitra-color-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.waveBadge:hover {
+  background: color-mix(in srgb, var(--vitra-color-accent) 24%, transparent);
+}
+
 .technical {
   display: inline-flex;
   align-items: center;

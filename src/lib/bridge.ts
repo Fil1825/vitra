@@ -36,6 +36,7 @@ import {
 import { MINI_INTERACTIVE_EVENT } from './mini.ts';
 import { QUEUE_CHANGED_EVENT, type QueueState } from './queue.ts';
 import { THEMES_CHANGED_EVENT } from './themes.ts';
+import { WAVE_PROGRESS_EVENT, type AnalysisStatus } from './wave.ts';
 import { EFFECTS_CHANGED_EVENT, type WindowEffects } from './window.ts';
 
 /** Re-publishes backend events on the frontend bus. Returns a function that stops it. */
@@ -68,6 +69,9 @@ export async function startBackendBridge(): Promise<UnlistenFn> {
       bus.emit('import:progress', event.payload),
     ),
     listen<MatcherStatus>(IMPORT_STATUS_EVENT, (event) => bus.emit('import:status', event.payload)),
+    listen<AnalysisStatus>(WAVE_PROGRESS_EVENT, (event) =>
+      bus.emit('wave:progress', event.payload),
+    ),
     listen<DownloadJob[]>(DOWNLOADS_CHANGED_EVENT, (event) =>
       bus.emit('downloads:changed', event.payload),
     ),

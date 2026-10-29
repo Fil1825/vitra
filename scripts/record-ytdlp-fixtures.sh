@@ -82,6 +82,13 @@ record youtube-video "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --no-playlist
 # A track of an auto-generated "Artist - Topic" channel (from yt-dlp's own tests): it has
 # music tags (track, artists, album). Official videos, like M83's, don't.
 record youtube-music "${VITRA_MUSIC_URL:-https://music.youtube.com/watch?v=MgNrAu2pzNs}" --no-playlist
+# YouTube Music's radio of that track: My Wave's songs when the library runs out.
+music_id=$(printf '%s' "${VITRA_MUSIC_URL:-https://music.youtube.com/watch?v=MgNrAu2pzNs}" |
+  sed -n 's/.*[?&]v=\([A-Za-z0-9_-]\{11\}\).*/\1/p')
+if [ -n "$music_id" ]; then
+  record youtube-radio "https://music.youtube.com/watch?v=$music_id&list=RDAMVM$music_id" \
+    --flat-playlist --playlist-end 26
+fi
 record soundcloud-track "https://soundcloud.com/forss/flickermood"
 record soundcloud-set "https://soundcloud.com/forss/sets/soulhack" --flat-playlist
 
