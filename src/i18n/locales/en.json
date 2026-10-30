@@ -953,7 +953,7 @@
       "scanning": "Waiting for the library scan to finish.",
       "powerSaving": "Waiting: power saving is on.",
       "noFfmpeg": "FFmpeg wasn’t found, so nothing can be analyzed.",
-      "done": "Everything is analyzed.",
+      "done": "Local file analysis is complete.",
       "waiting": "Waiting for its turn.",
       "failed_one": "{{count}} couldn’t be analyzed",
       "failed_other": "{{count}} couldn’t be analyzed",
