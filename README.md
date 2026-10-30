@@ -22,16 +22,18 @@ by platform. [Russian appearance settings](docs/screenshots/settings-ru.png).
 
 ## Install a build candidate
 
-The **Release candidates** GitHub Actions workflow prepares macOS DMGs (Apple Silicon and
-Intel), a Windows x64 installer, and a Linux x64 Debian package. Download artifacts only
-from a successful workflow run. See [release preparation](docs/RELEASING.md) for the build
-and verification steps.
+Download installers from [GitHub Releases](https://github.com/Fil1825/vitra/releases).
+The first release is marked **Pre-release** for testing. Choose `Vitra-macOS-Apple-Silicon.dmg`,
+`Vitra-macOS-Intel.dmg`, `Vitra-Windows-x64.exe`, or `Vitra-Linux-x64.deb` for your system.
+The workflow publishes only after all four platforms pass their checks. If no release is
+listed yet, see [build progress](https://github.com/Fil1825/vitra/actions/workflows/release.yml).
+See [release preparation](docs/RELEASING.md) for build and verification details.
 
 - macOS: open the DMG and move Vitra to Applications. Requires macOS 14+ on Apple Silicon,
   or macOS 15+ on Intel. Current candidates use ad-hoc signatures and are not notarized.
 - Windows 10/11 x64: run the NSIS installer. Current candidates are unsigned.
 - Ubuntu 24.04 / compatible Debian x64: install the `.deb` with
-  `sudo apt install ./Vitra_0.1.0_amd64.deb`; mpv is installed as a package dependency.
+  `sudo apt install ./Vitra-Linux-x64.deb`; mpv is installed as a package dependency.
 
 The packages include yt-dlp, FFmpeg, ffprobe, and Deno; macOS and Windows also include mpv.
 They do not require Node.js or Rust on the listener's machine. Official signing and

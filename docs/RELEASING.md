@@ -1,7 +1,7 @@
 # Preparing a Vitra release
 
-Release preparation excludes Discord and Last.fm. No stable release has been published by
-this change. The first target version is 0.1.0.
+Release preparation excludes Discord and Last.fm. The owner authorized promoting the completed stages to main and publishing downloadable
+test installers. The first target version is 0.1.0, published as a prerelease.
 
 ## Packages
 
@@ -50,9 +50,11 @@ its included helpers. The Linux job inspects dependencies, extracts the Debian p
 and runs its included helpers. These checks do not replace a clean-machine playback test.
 
 When ready, the owner can push a version tag matching the application version (for example
-`v0.1.0`). Only after every platform build succeeds does the workflow assemble archives,
-write SHA-256 sums, and create a **draft** GitHub release. Review its notes and assets before
-publishing it. No tag or public release is created by ordinary branch builds.
+`v0.1.0`). Only after every platform build succeeds does the workflow collect the DMG/EXE/DEB files,
+component manifests, and SHA-256 sums. It stages these in a draft, then publishes a
+**prerelease**, without marking it as the latest stable release. A failed platform prevents
+publication. Ordinary branch builds only upload Actions artifacts. Published assets are
+never replaced by a rerun; use a new version/tag for a changed public release.
 
 ## Signing status and future setup
 

@@ -1,4 +1,4 @@
-# Vitra 0.1.0 — draft release notes
+# Vitra 0.1.0 — test release
 
 An open-source desktop music player with a Liquid Glass interface, English and Russian,
 custom themes and layouts, and a separate mini player.
@@ -14,7 +14,7 @@ custom themes and layouts, and a separate mini player.
 Discord and Last.fm integrations are not included. macOS packages require macOS 14+
 (Apple Silicon) or 15+ (Intel); Linux Debian packages also install system mpv.
 
-These notes describe a release candidate. Current macOS candidates use ad-hoc signatures
+This is the first public test release (GitHub prerelease). Current macOS candidates use ad-hoc signatures
 and are not notarized; Windows candidates are unsigned. Native UI and clean-machine
 acceptance still need confirmation; official signing requires a future Developer ID account.
 Third-party sites may change or require

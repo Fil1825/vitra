@@ -2,7 +2,7 @@ name: Release candidates
 
 on:
   push:
-    branches: [codex/stage-11-release]
+    branches: [main, codex/stage-11-release]
     tags: ['v*']
   workflow_dispatch:
     inputs:
@@ -73,8 +73,6 @@ jobs:
         run: node scripts/release/check-version.mjs
       - name: Fetch verified audio components
         run: npm run fetch-sidecars -- --target ${{ matrix.target }} --require-checksums
-      - name: Run quality checks and native unit tests
-        run: npm run check:all
       - name: Require official macOS signing credentials
         if: runner.os == 'macOS' && inputs.sign_macos
         shell: bash
@@ -99,7 +97,9 @@ jobs:
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
       - name: Sign nested macOS components
         if: runner.os == 'macOS'
-        run: node scripts/release/sign-macos.mjs src-tauri/sidecars/${{ matrix.target }}
+        run: node scripts/release/run-checked.mjs "node scripts/release/sign-macos.mjs src-tauri/sidecars/${{ matrix.target }}"
+      - name: Run quality checks and native unit tests
+        run: node scripts/release/run-checked.mjs "npm run check:all"
       - name: Build installer with audio components
         run: npm run bundle -- --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} ${{ matrix.config }}
         env:
@@ -142,8 +142,8 @@ jobs:
           retention-days: 14
           compression-level: 0
 
-  draft:
-    name: Prepare draft release (never publishes)
+  release:
+    name: Publish tested prerelease installers
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-24.04
@@ -155,16 +155,22 @@ jobs:
         with:
           pattern: Vitra-*
           path: installers
-      - name: Archive each platform with its component manifest
+      - name: Collect installers and component manifests
         shell: bash
         run: |
           mkdir release-assets
           for directory in installers/Vitra-*; do
             name=$(basename "$directory")
-            (cd "$directory" && zip -r "../../release-assets/$name.zip" .)
+            mapfile -d '' packages < <(find "$directory" -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.deb' \) -print0)
+            test "${#packages[@]}" = 1
+            package=${packages[0]}
+            cp "$package" "release-assets/$name.${package##*.}"
+            mapfile -d '' manifests < <(find "$directory" -type f -name manifest.json -print0)
+            test "${#manifests[@]}" = 1
+            cp "${manifests[0]}" "release-assets/$name.manifest.json"
           done
-          (cd release-assets && sha256sum *.zip > SHA256SUMS)
-      - name: Create draft for owner review
+          (cd release-assets && sha256sum ./* > SHA256SUMS)
+      - name: Publish prerelease after all platform checks pass
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
@@ -176,3 +182,4 @@ jobs:
           else
             gh release create "$RELEASE_TAG" release-assets/* --draft --title "Vitra $RELEASE_TAG" --notes-file docs/RELEASE-NOTES.md
           fi
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false

@@ -10,18 +10,18 @@ Last updated: 2026-10-30. This file is a durable handoff, not a release announce
   the future Developer ID/notarization path; do not request credentials in chat.
 - Preserve enough committed context to resume after usage limits. Continue independent work.
 
-## Checkout
+## Checkout and publication authorization
 
-Work is on `codex/stage-11-release`, based on `claude/stage-10-my-wave` with the HTTPS fix
-`5cee9b6`. Main still contains only the original specification/license: do not reset or base
-this work on main. Use the existing checkout; do not create a worktree unless requested.
-Stage 11 should be reviewed against the stage-10 branch. Do not tag or publish a release
-until the owner chooses to do so.
+The owner has now requested promoting the application to `main` and publishing downloadable
+installers. This supersedes the earlier draft-only/no-tag plan. Use a GitHub prerelease for
+0.1.0 because official signing and clean-machine acceptance remain pending.
 
-Saved implementation commits: `5bad5c7` (release preparation and translations), `21af70d`
-(lyrics backup fix), and `a7b940f` (local-analysis wording). Later commits update this handoff
-and the workflow trigger. Use the latest remote branch head rather than checking out one
-of these intermediate commits.
+`main` is an ancestor of `codex/stage-11-release`; promotion can preserve all stage history
+with a normal fast-forward push. Do not force-push or reset unrelated changes. The release
+workflow publishes only when all native platform checks and packaged-helper checks pass.
+
+Saved implementation commits include `5bad5c7` (stage 11), `21af70d` (backup retention),
+`a7b940f` (local-analysis wording), and `27cab47` (native checks and previous handoff).
 
 ## Implemented
 
@@ -67,19 +67,19 @@ of these intermediate commits.
 - The pre-existing lyrics backup failure is fixed in `21af70d`; both backup tests and the
   full Rust suite now pass.
 
-## Remaining work
+## Publication progress and remaining work
 
-1. Inspect the working tree and preserve user edits before continuing. Fetch the latest
-   `codex/stage-11-release`; do not replace it with main or stage 10.
-2. Open a PR against stage 10 when API access is available. Creation with `gh pr create`
-   and listing Actions runs both returned Forbidden on 2026-10-30. Native Git read/push
-   works via the platform proxy. Do not ask for a token merely because the API is blocked.
-   [Review the branch comparison](https://github.com/Fil1825/vitra/compare/claude%2Fstage-10-my-wave...codex%2Fstage-11-release?expand=1).
-3. Read actual release CI results for macOS/Windows. Those native builds/signatures have
-   not yet been verified here; official notarization requires the future account/cert.
-4. Run clean-machine acceptance on macOS and Windows using `docs/RELEASING.md` and
-   `docs/TLS.md`; replace browser screenshots with native captures when available.
-5. Keep this file current with the final commit, test outcomes, and remaining limitations.
+- GitHub API calls return Forbidden in this cloud. Public GitHub HTML pages are readable
+  with curl, including Actions run summaries and failure annotations; full logs require
+  sign-in. Do not mistake the API restriction for missing Git push access.
+- Run `40945353729` produced Linux and Windows artifacts but failed at nested macOS signing.
+  Run `41125421524` failed Windows quality checks. These are not complete release results.
+- Added LF checkout rules to avoid Windows checkout changing source line endings, and
+  failure annotations so subsequent native failures can be diagnosed from the public page.
+- Finish checks, push the main promotion and version tag, then inspect the resulting native
+  jobs. Fix failures before describing any installer as published. Never move a public tag.
+- Verify clean installation and playback on all supported systems and official signing
+  when accounts/certificates are available. Keep this handoff current with actual results.
 
 ## Cloud commands
 
