@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { normalizePythonFramework } from './normalize-macos.mjs';
+
 export function isMachO(bytes) {
   if (bytes.length < 8) return false;
   const magic = bytes.readUInt32BE();
@@ -63,6 +65,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (!identity)
     throw new Error('APPLE_SIGNING_IDENTITY is required (use - for local ad-hoc builds)');
   const entitlements = fileURLToPath(new URL('./helper-entitlements.plist', import.meta.url));
+  normalizePythonFramework(directory);
   const targets = signingTargets(directory);
   if (!targets.length) throw new Error('No Mach-O helpers to sign');
   for (const file of targets) {
