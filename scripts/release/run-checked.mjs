@@ -8,7 +8,8 @@ let tail = '';
 for (const stream of [child.stdout, child.stderr]) {
   stream.on('data', (chunk) => {
     process.stdout.write(chunk);
-    tail = (tail + chunk.toString()).slice(-6000);
+    // GitHub truncates long annotations; retain the final error, not earlier progress.
+    tail = (tail + chunk.toString()).slice(-2000);
   });
 }
 child.on('error', (error) => {
