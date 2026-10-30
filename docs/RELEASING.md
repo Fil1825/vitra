@@ -40,6 +40,9 @@ save verified installers and each fetch manifest as downloadable artifacts for 1
 The manifest records helper versions, source URLs, and download checksums. Release fetches
 require published checksums and retain TLS verification.
 
+Every target runs `npm run check:all` on its native runner before packaging. A failing
+frontend or Rust check prevents that platform's candidate from being uploaded.
+
 The macOS job signs nested helper code before Tauri signs the enclosing app, then opens the
 finished DMG and verifies its actual app, nested signatures, and executable helpers. The
 Windows job silently installs the NSIS package into a temporary runner directory and runs

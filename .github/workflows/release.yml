@@ -4,10 +4,6 @@ on:
   push:
     branches: [codex/stage-11-release]
     tags: ['v*']
-    paths:
-      - '.github/workflows/release.yml'
-      - 'scripts/release/**'
-      - 'src-tauri/tauri*.json'
   workflow_dispatch:
     inputs:
       sign_macos:
@@ -65,6 +61,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+          components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
       - name: Install Linux build dependencies and playback engine
         if: runner.os == 'Linux'
@@ -76,6 +73,8 @@ jobs:
         run: node scripts/release/check-version.mjs
       - name: Fetch verified audio components
         run: npm run fetch-sidecars -- --target ${{ matrix.target }} --require-checksums
+      - name: Run quality checks and native unit tests
+        run: npm run check:all
       - name: Require official macOS signing credentials
         if: runner.os == 'macOS' && inputs.sign_macos
         shell: bash
