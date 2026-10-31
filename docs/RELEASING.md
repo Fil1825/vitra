@@ -56,6 +56,11 @@ component manifests, and SHA-256 sums. It stages these in a draft, then publishe
 publication. Ordinary branch builds only upload Actions artifacts. Published assets are
 never replaced by a rerun; use a new version/tag for a changed public release.
 
+To publish without pushing a tag from a local Git client, manually run **Release candidates**
+on `main` with **publish_release** enabled. It runs the same four native builds and package
+checks, then creates `v<application version>` at that exact commit and publishes the prerelease.
+This option is ignored on other branches. Existing public releases are never overwritten.
+
 ## Signing status and future setup
 
 The owner currently has no Apple Developer account. macOS build candidates therefore use

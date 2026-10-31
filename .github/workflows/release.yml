@@ -6,6 +6,10 @@ on:
     tags: ['v*']
   workflow_dispatch:
     inputs:
+      publish_release:
+        description: 'Publish the versioned prerelease after all platform checks pass (main only)'
+        type: boolean
+        default: false
       sign_macos:
         description: 'Use Developer ID and notarization (requires configured Apple secrets)'
         type: boolean
@@ -151,7 +155,7 @@ jobs:
 
   release:
     name: Publish tested prerelease installers
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release && github.ref == 'refs/heads/main')
     needs: build
     runs-on: ubuntu-24.04
     permissions:
@@ -180,13 +184,18 @@ jobs:
       - name: Publish prerelease after all platform checks pass
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          RELEASE_SHA: ${{ github.sha }}
         shell: bash
         run: |
+          node scripts/release/check-version.mjs
+          if [[ -z "$RELEASE_TAG" ]]; then
+            RELEASE_TAG="v$(node -p "require('./package.json').version")"
+          fi
           if draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null); then
             test "$draft" = true || { echo 'Refusing to replace a public release' >&2; exit 1; }
             gh release upload "$RELEASE_TAG" release-assets/* --clobber
           else
-            gh release create "$RELEASE_TAG" release-assets/* --draft --title "Vitra $RELEASE_TAG" --notes-file docs/RELEASE-NOTES.md
+            gh release create "$RELEASE_TAG" release-assets/* --target "$RELEASE_SHA" --draft --title "Vitra $RELEASE_TAG" --notes-file docs/RELEASE-NOTES.md
           fi
           gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false

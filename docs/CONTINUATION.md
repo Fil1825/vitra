@@ -1,6 +1,6 @@
 # Stage 11 continuation
 
-Last updated: 2026-10-30. This file is a durable handoff, not a release announcement.
+Last updated: 2026-10-31. This file is a durable handoff, not a release announcement.
 
 ## Owner decisions
 
@@ -69,6 +69,14 @@ Saved implementation commits include `5bad5c7` (stage 11), `21af70d` (backup ret
 
 ## Publication progress and remaining work
 
+- Main is now promoted through `f684e2c`; no tag or public release exists yet as of the
+  2026-10-31 continuation. Run `41127166578` passed Linux but failed Windows's two
+  Unix-specific import test fixtures and macOS notarization with empty Apple credentials.
+- Commit `e4a2237` makes those fixtures native to the test host and unsets notarization
+  credentials for ad-hoc builds. Local import tests pass (33 tests). The workflow now
+  also supports a manual `publish_release` run on `main`, preserving all native/package
+  checks and the refusal to replace an existing public release. Wait for the actual
+  publishing job and assets before claiming completion.
 - GitHub API calls return Forbidden in this cloud. Public GitHub HTML pages are readable
   with curl, including Actions run summaries and failure annotations; full logs require
   sign-in. Do not mistake the API restriction for missing Git push access.
