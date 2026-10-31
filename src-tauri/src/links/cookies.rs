@@ -59,8 +59,8 @@ mod tests {
     fn the_first_cookie_file_there_decides() {
         let files = [PathBuf::from("/a"), PathBuf::from("/b")];
         let missing = || io::Error::from(io::ErrorKind::NotFound);
-        // macOS's "Operation not permitted" (EPERM) reads as permission denied.
-        let denied = || io::Error::from_raw_os_error(1);
+        // Unix EPERM and Windows ERROR_ACCESS_DENIED use different OS codes.
+        let denied = || io::Error::from_raw_os_error(if cfg!(windows) { 5 } else { 1 });
         assert_eq!(denied().kind(), io::ErrorKind::PermissionDenied);
         assert_eq!(
             access_of(&files, |path| if path == Path::new("/a") {

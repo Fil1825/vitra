@@ -83,6 +83,12 @@ Saved implementation commits include `5bad5c7` (stage 11), `21af70d` (backup ret
   The next continuation fixes these fixtures, feeds that notice's response during the
   read-only DMG check, collects all Rust test failures in one run, and caches failed native
   builds to avoid repeating dependency compilation. All 96 library tests pass locally.
+- Run `41185171109` passed Linux and all Apple Silicon DMG/signature/helper checks.
+  Windows passed the repaired import/library suites and exposed the final two fixture
+  issues: a drive-less download directory and the Unix EPERM code used on Windows.
+  Both fixtures are now platform-specific without removing assertions. A complete local
+  Rust test run passes outside the macOS sandbox (which blocks taskpolicy in the TLS test).
+  Restart manual publication on the new main commit and verify all platform jobs/assets.
 - GitHub API calls return Forbidden in this cloud. Public GitHub HTML pages are readable
   with curl, including Actions run summaries and failure annotations; full logs require
   sign-in. Do not mistake the API restriction for missing Git push access.

@@ -189,13 +189,14 @@ mod tests {
     use std::path::Path;
 
     fn options(format: AudioFormat) -> DownloadOptions {
+        let drive = if cfg!(windows) { "C:" } else { "" };
         DownloadOptions {
             format,
             mp3_bitrate: 256,
-            dir: PathBuf::from("/music/Vitra"),
-            temp_dir: PathBuf::from("/cache/dl/1"),
+            dir: PathBuf::from(format!("{drive}/music/Vitra")),
+            temp_dir: PathBuf::from(format!("{drive}/cache/dl/1")),
             file_stem: "Artist - 100% Song".into(),
-            ffmpeg: Some(PathBuf::from("/bin/ffmpeg")),
+            ffmpeg: Some(PathBuf::from(format!("{drive}/bin/ffmpeg"))),
         }
     }
 
@@ -242,9 +243,14 @@ mod tests {
     #[test]
     fn paths_names_and_the_url_are_placed_safely() {
         let args = args(AudioFormat::Original);
-        assert!(has_pair(&args, "-P", "home:/music/Vitra"));
-        assert!(has_pair(&args, "-P", "temp:/cache/dl/1"));
-        assert!(has_pair(&args, "--ffmpeg-location", "/bin/ffmpeg"));
+        let drive = if cfg!(windows) { "C:" } else { "" };
+        assert!(has_pair(&args, "-P", &format!("home:{drive}/music/Vitra")));
+        assert!(has_pair(&args, "-P", &format!("temp:{drive}/cache/dl/1")));
+        assert!(has_pair(
+            &args,
+            "--ffmpeg-location",
+            &format!("{drive}/bin/ffmpeg")
+        ));
         // `%` would start a yt-dlp template field.
         assert!(has_pair(&args, "-o", "Artist - 100%% Song.%(ext)s"));
         // The URL comes after `--`, so a link can never be read as an option.
