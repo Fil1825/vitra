@@ -22,7 +22,7 @@ use crate::error::AppError;
 use crate::library::{Change, LibraryService, entry_from_track};
 use crate::player::{Entry, Player};
 use crate::settings::SettingsStore;
-use crate::sidecar::{self, Sidecar, SidecarSource};
+use crate::sidecar::{self, Sidecar};
 
 pub use commands::*;
 pub use downloads::{Downloads, GroupKind, GroupSpec};
@@ -141,7 +141,7 @@ fn entry_key(track: &LinkTrack) -> String {
 pub struct YtDlpInfo {
     pub version: Option<String>,
     pub path: Option<String>,
-    /// Whether "Update" can work: the copy in the app data folder updates itself.
+    /// Whether "Update" can install a signed yt-dlp release on this machine.
     pub updatable: bool,
     pub ffmpeg: bool,
 }
@@ -983,9 +983,7 @@ impl LinkService {
             path: found
                 .as_ref()
                 .map(|found| found.path.to_string_lossy().into_owned()),
-            // On macOS Vitra installs the release itself; elsewhere a copy updates itself.
-            updatable: cfg!(target_os = "macos")
-                || found.is_some_and(|found| found.source != SidecarSource::System),
+            updatable: links::release::host_release().is_ok(),
             ffmpeg: paths.locate(Sidecar::Ffmpeg).is_some(),
         }
     }
@@ -1009,80 +1007,43 @@ impl LinkService {
         });
     }
 
-    /// Updates yt-dlp and returns the new version. On macOS the latest release's folder build
-    /// is downloaded into the app data folder (it can't update itself); elsewhere the bundled
-    /// binary is copied there first (an app bundle may be read-only or signed), then
-    /// `yt-dlp -U` replaces that copy.
+    /// Downloads the latest yt-dlp release into the app data folder and returns its version.
+    ///
+    /// Checksums are accepted only when `SHA2-256SUMS.sig` verifies under the embedded
+    /// release key. A failed check leaves whatever is already installed. `yt-dlp -U` is not
+    /// used: it would download a binary without that check. App data is searched first, so
+    /// the copy installed here is the one later runs use, including when a system binary
+    /// was what Vitra found before.
     pub async fn update_ytdlp(&self) -> Result<String, AppError> {
         let _updating = self.0.updating.lock().await;
-        if cfg!(target_os = "macos") {
-            let sidecars = self.0.app.path().app_data_dir()?.join("sidecars");
-            let folder = sidecars.join(sidecar::YT_DLP_MACOS);
-            let Some(dir) = folder.parent() else {
-                return Err(AppError::NotFound(sidecar::YT_DLP_MACOS.into()));
-            };
-            let installed = links::release::install_zip_release(
-                links::release::LATEST_RELEASE,
-                "yt-dlp_macos.zip",
-                dir,
-            )
-            .await?;
-            log::info!(
-                "yt-dlp in {}: {}",
-                dir.display(),
-                if installed {
-                    "installed the latest release"
-                } else {
-                    "already the latest"
-                }
-            );
-            let ytdlp = YtDlp {
-                binary: folder,
-                ..self.ytdlp()?
-            };
-            // The first run also gets the system's one-time check over with.
-            return Ok(ytdlp.version().await?);
-        }
-        let paths = sidecar::search_paths(&self.0.app);
-        let found = paths
-            .locate(Sidecar::YtDlp)
-            .ok_or(links::LinkError::YtDlpMissing)?;
-        let binary = match found.source {
-            SidecarSource::AppData | SidecarSource::System => found.path,
-            SidecarSource::Bundled | SidecarSource::Dev => {
-                let dir = self.0.app.path().app_data_dir()?.join("sidecars");
-                let copy = dir.join(Sidecar::YtDlp.file_name());
-                let source = found.path.clone();
-                let target = copy.clone();
-                tauri::async_runtime::spawn_blocking(move || copy_executable(&source, &target))
-                    .await??;
-                log::info!("copied yt-dlp to {}", copy.display());
-                copy
+        let sidecars = self.0.app.path().app_data_dir()?.join("sidecars");
+        let installed = match links::release::host_release()? {
+            links::release::HostRelease::Zip { asset } => {
+                let folder = sidecars.join(sidecar::YT_DLP_MACOS);
+                let Some(dir) = folder.parent() else {
+                    return Err(AppError::NotFound(sidecar::YT_DLP_MACOS.into()));
+                };
+                links::release::install_zip_release(links::release::LATEST_RELEASE, asset, dir)
+                    .await?
+            }
+            links::release::HostRelease::File { asset } => {
+                let dest = sidecars.join(Sidecar::YtDlp.file_name());
+                links::release::install_file_release(links::release::LATEST_RELEASE, asset, &dest)
+                    .await?
             }
         };
-        let ytdlp = YtDlp {
-            binary,
-            ..self.ytdlp()?
-        };
-        let report = ytdlp.update().await?;
-        log::info!("yt-dlp update: {report}");
-        Ok(ytdlp.version().await?)
+        log::info!(
+            "yt-dlp in {}: {}",
+            sidecars.display(),
+            if installed {
+                "installed the latest signed release"
+            } else {
+                "already the latest signed release"
+            }
+        );
+        // The first run of a fresh macOS build also gets the system's one-time check over with.
+        Ok(self.ytdlp()?.version().await?)
     }
-}
-
-/// Copies a program, through a temporary file so a half-written copy is never run.
-fn copy_executable(source: &Path, target: &Path) -> std::io::Result<()> {
-    if let Some(dir) = target.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    let partial = target.with_extension("part");
-    std::fs::copy(source, &partial)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&partial, std::fs::Permissions::from_mode(0o755))?;
-    }
-    std::fs::rename(&partial, target)
 }
 
 #[cfg(test)]
@@ -1100,23 +1061,6 @@ mod tests {
         remember(&list, "7", 70);
         assert_eq!(recall(&list, "7"), Some(70));
         assert_eq!(lock(&list).len(), RECENT);
-    }
-
-    #[test]
-    fn copies_programs_atomically() {
-        let tmp = tempfile::tempdir().unwrap();
-        let source = tmp.path().join("yt-dlp");
-        std::fs::write(&source, b"#!/bin/sh\n").unwrap();
-        let target = tmp.path().join("app/sidecars/yt-dlp");
-        copy_executable(&source, &target).unwrap();
-        assert_eq!(std::fs::read(&target).unwrap(), b"#!/bin/sh\n");
-        assert!(!target.with_extension("part").exists());
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mode = std::fs::metadata(&target).unwrap().permissions().mode();
-            assert_eq!(mode & 0o111, 0o111);
-        }
     }
 
     #[test]
