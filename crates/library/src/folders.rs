@@ -202,60 +202,74 @@ mod tests {
     use crate::model::TrackFilter;
     use crate::tracks::tests::scanned;
 
+    fn path(value: &str) -> String {
+        if cfg!(windows) {
+            format!("C:{value}")
+        } else {
+            value.to_owned()
+        }
+    }
+
     #[test]
     fn adding_is_idempotent_and_ignores_trailing_slashes() {
         let mut library = Library::open_in_memory().unwrap();
-        let a = library.add_folder("/music/").unwrap();
-        let b = library.add_folder("/music").unwrap();
+        let a = library.add_folder(&path("/music/")).unwrap();
+        let b = library.add_folder(&path("/music")).unwrap();
         assert_eq!(a.id, b.id);
-        assert_eq!(a.path, "/music");
+        assert_eq!(a.path, path("/music"));
         assert_eq!(library.folders().unwrap().len(), 1);
     }
 
     #[test]
     fn refuses_relative_paths_and_nested_folders() {
         let mut library = Library::open_in_memory().unwrap();
-        library.add_folder("/music").unwrap();
+        library.add_folder(&path("/music")).unwrap();
         assert!(library.add_folder("relative/dir").is_err());
-        assert!(library.add_folder("/music/rock").is_err());
+        assert!(library.add_folder(&path("/music/rock")).is_err());
         // A sibling that only shares a prefix is fine.
-        assert!(library.add_folder("/musical").is_ok());
+        assert!(library.add_folder(&path("/musical")).is_ok());
     }
 
     #[test]
     fn a_parent_folder_absorbs_its_children() {
         let mut library = Library::open_in_memory().unwrap();
-        let child = library.add_folder("/music/rock").unwrap();
+        let child = library.add_folder(&path("/music/rock")).unwrap();
         library
             .upsert_tracks(
                 Some(child.id),
-                &[scanned("/music/rock/a.flac", "A", "X", "Y", 1)],
+                &[scanned(&path("/music/rock/a.flac"), "A", "X", "Y", 1)],
             )
             .unwrap();
         let track = library
-            .track_by_path("/music/rock/a.flac")
+            .track_by_path(&path("/music/rock/a.flac"))
             .unwrap()
             .unwrap();
 
-        let parent = library.add_folder("/music").unwrap();
+        let parent = library.add_folder(&path("/music")).unwrap();
         let folders = library.folders().unwrap();
         assert_eq!(folders.len(), 1);
         assert_eq!(folders[0].id, parent.id);
         assert_eq!(folders[0].track_count, 1);
         let known = library.known_files(parent.id).unwrap();
-        assert_eq!(known["/music/rock/a.flac"].id, track.id);
+        assert_eq!(known[&path("/music/rock/a.flac")].id, track.id);
     }
 
     #[test]
     fn removing_a_folder_removes_its_tracks() {
         let mut library = Library::open_in_memory().unwrap();
-        let a = library.add_folder("/a").unwrap();
-        let b = library.add_folder("/b").unwrap();
+        let a = library.add_folder(&path("/a")).unwrap();
+        let b = library.add_folder(&path("/b")).unwrap();
         library
-            .upsert_tracks(Some(a.id), &[scanned("/a/1.mp3", "One", "X", "Album A", 1)])
+            .upsert_tracks(
+                Some(a.id),
+                &[scanned(&path("/a/1.mp3"), "One", "X", "Album A", 1)],
+            )
             .unwrap();
         library
-            .upsert_tracks(Some(b.id), &[scanned("/b/1.mp3", "Two", "Y", "Album B", 1)])
+            .upsert_tracks(
+                Some(b.id),
+                &[scanned(&path("/b/1.mp3"), "Two", "Y", "Album B", 1)],
+            )
             .unwrap();
         library.remove_folder(a.id).unwrap();
 
@@ -277,19 +291,25 @@ mod tests {
             .upsert_tracks(
                 None,
                 &[
-                    scanned("/music/a/1.mp3", "Inside", "X", "Y", 1),
-                    scanned("/elsewhere/2.mp3", "Outside", "X", "Y", 2),
+                    scanned(&path("/music/a/1.mp3"), "Inside", "X", "Y", 1),
+                    scanned(&path("/elsewhere/2.mp3"), "Outside", "X", "Y", 2),
                 ],
             )
             .unwrap();
-        let inside = library.track_by_path("/music/a/1.mp3").unwrap().unwrap();
+        let inside = library
+            .track_by_path(&path("/music/a/1.mp3"))
+            .unwrap()
+            .unwrap();
         library.set_favorite(inside.id, true).unwrap();
 
-        let folder = library.add_folder("/music").unwrap();
+        let folder = library.add_folder(&path("/music")).unwrap();
         assert_eq!(folder.track_count, 1);
         let known = library.known_files(folder.id).unwrap();
-        assert_eq!(known["/music/a/1.mp3"].id, inside.id);
-        let outside = library.track_by_path("/elsewhere/2.mp3").unwrap().unwrap();
+        assert_eq!(known[&path("/music/a/1.mp3")].id, inside.id);
+        let outside = library
+            .track_by_path(&path("/elsewhere/2.mp3"))
+            .unwrap()
+            .unwrap();
         assert_eq!(outside.folder_id, None);
         assert!(library.track(inside.id).unwrap().unwrap().favorite);
     }
@@ -297,15 +317,15 @@ mod tests {
     #[test]
     fn only_single_tracks_can_be_removed() {
         let mut library = Library::open_in_memory().unwrap();
-        let folder = library.add_folder("/music").unwrap();
+        let folder = library.add_folder(&path("/music")).unwrap();
         library
             .upsert_tracks(
                 Some(folder.id),
-                &[scanned("/music/1.mp3", "Kept", "X", "A", 1)],
+                &[scanned(&path("/music/1.mp3"), "Kept", "X", "A", 1)],
             )
             .unwrap();
         library
-            .upsert_tracks(None, &[scanned("/tmp/2.mp3", "Single", "Y", "B", 1)])
+            .upsert_tracks(None, &[scanned(&path("/tmp/2.mp3"), "Single", "Y", "B", 1)])
             .unwrap();
         let ids: Vec<i64> = library
             .tracks(&TrackFilter::All)
@@ -330,14 +350,14 @@ mod tests {
     #[test]
     fn finds_the_containing_folder() {
         let mut library = Library::open_in_memory().unwrap();
-        let folder = library.add_folder("/music").unwrap();
+        let folder = library.add_folder(&path("/music")).unwrap();
         let found = library
-            .folder_containing(Path::new("/music/a/b.flac"))
+            .folder_containing(Path::new(&path("/music/a/b.flac")))
             .unwrap();
         assert_eq!(found.map(|f| f.id), Some(folder.id));
         assert!(
             library
-                .folder_containing(Path::new("/musical/b.flac"))
+                .folder_containing(Path::new(&path("/musical/b.flac")))
                 .unwrap()
                 .is_none()
         );

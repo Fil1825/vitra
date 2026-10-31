@@ -823,7 +823,11 @@ mod tests {
         }
 
         fn path(&self, relative: &str) -> String {
-            self.music.join(relative).to_str().unwrap().to_owned()
+            self.music
+                .join(relative.split('/').collect::<PathBuf>())
+                .to_str()
+                .unwrap()
+                .to_owned()
         }
     }
 
@@ -1167,7 +1171,7 @@ mod tests {
     fn refreshing_a_file_picks_up_new_tags() {
         let mut s = setup();
         s.scan();
-        let path = s.music.join("Other/Untitled Take.wav");
+        let path = s.music.join("Other").join("Untitled Take.wav");
         let before = s
             .library
             .track_by_path(path.to_str().unwrap())

@@ -67,6 +67,8 @@ jobs:
           targets: ${{ matrix.target }}
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
       - name: Install Linux build dependencies and playback engine
         if: runner.os == 'Linux'
         run: |

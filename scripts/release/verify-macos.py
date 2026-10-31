@@ -21,9 +21,16 @@ def main():
         raise RuntimeError("No disk image was produced")
     for image in images:
         run("hdiutil", "verify", str(image))
-        mounted = plistlib.loads(subprocess.check_output(
-            ["hdiutil", "attach", "-readonly", "-nobrowse", "-plist", str(image)]
-        ))
+        output = subprocess.check_output(
+            ["hdiutil", "attach", "-readonly", "-nobrowse", "-plist", str(image)],
+            # The image displays Vitra's own GPL notice before mounting.
+            input=b"Y\n",
+        )
+        # hdiutil can print the GPL notice before its machine-readable output.
+        start = output.find(b"<?xml")
+        if start < 0:
+            raise RuntimeError("hdiutil did not return the mounted image's plist")
+        mounted = plistlib.loads(output[start:])
         volumes = [Path(item["mount-point"]) for item in mounted["system-entities"] if "mount-point" in item]
         try:
             apps = [volume / "Vitra.app" for volume in volumes if (volume / "Vitra.app").is_dir()]

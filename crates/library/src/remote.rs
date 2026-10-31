@@ -796,7 +796,7 @@ mod tests {
     #[test]
     fn a_download_doesnt_replace_its_albums_cover() {
         let tmp = tempfile::tempdir().unwrap();
-        let album = tmp.path().join("Music/Fixtures");
+        let album = tmp.path().join("Music").join("Fixtures");
         let covers = tmp.path().join("covers");
         fs::create_dir_all(&album).unwrap();
         // The album's own file has no embedded art; the folder has a cover.png.

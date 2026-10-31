@@ -77,6 +77,12 @@ Saved implementation commits include `5bad5c7` (stage 11), `21af70d` (backup ret
   also supports a manual `publish_release` run on `main`, preserving all native/package
   checks and the refusal to replace an existing public release. Wait for the actual
   publishing job and assets before claiming completion.
+- Manual publishing run `41184176712` passed Linux and built a valid Apple Silicon DMG.
+  Windows then exposed more Unix-specific folder fixtures and mixed-separator lookup
+  expectations; macOS verification stopped at the image's own interactive GPL notice.
+  The next continuation fixes these fixtures, feeds that notice's response during the
+  read-only DMG check, collects all Rust test failures in one run, and caches failed native
+  builds to avoid repeating dependency compilation. All 96 library tests pass locally.
 - GitHub API calls return Forbidden in this cloud. Public GitHub HTML pages are readable
   with curl, including Actions run summaries and failure annotations; full logs require
   sign-in. Do not mistake the API restriction for missing Git push access.
