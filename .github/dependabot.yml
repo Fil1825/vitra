@@ -7,12 +7,12 @@ updates:
     schedule:
       interval: weekly
       day: monday
-      time: "09:00"
+      time: '09:00'
     open-pull-requests-limit: 1
     groups:
       npm:
         patterns:
-          - "*"
+          - '*'
 
   # Workspace root: Cargo.lock lives here, and Dependabot walks every member.
   - package-ecosystem: cargo
@@ -20,21 +20,21 @@ updates:
     schedule:
       interval: weekly
       day: tuesday
-      time: "09:00"
+      time: '09:00'
     open-pull-requests-limit: 1
     groups:
       cargo:
         patterns:
-          - "*"
+          - '*'
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
       day: wednesday
-      time: "09:00"
+      time: '09:00'
     open-pull-requests-limit: 1
     groups:
       github-actions:
         patterns:
-          - "*"
+          - '*'
