@@ -1,0 +1,40 @@
+# Scheduled version updates. Security updates are a separate repository setting.
+# One grouped pull request per ecosystem, so routine bumps are not one PR each.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+    open-pull-requests-limit: 1
+    groups:
+      npm:
+        patterns:
+          - "*"
+
+  # Workspace root: Cargo.lock lives here, and Dependabot walks every member.
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: tuesday
+      time: "09:00"
+    open-pull-requests-limit: 1
+    groups:
+      cargo:
+        patterns:
+          - "*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: wednesday
+      time: "09:00"
+    open-pull-requests-limit: 1
+    groups:
+      github-actions:
+        patterns:
+          - "*"
