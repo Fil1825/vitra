@@ -2,6 +2,28 @@
 
 Last updated: 2026-10-31. This file is a durable handoff, not a release announcement.
 
+## Published release — 2026-10-31
+
+Vitra 0.1.0 is publicly available as a GitHub prerelease:
+https://github.com/Fil1825/vitra/releases/tag/v0.1.0
+
+- Published at 12:10 Moscow time from commit `0a3d54404fec655b514d8bc1ae1c449aa147f3a7`.
+- Successful publishing run: https://github.com/Fil1825/vitra/actions/runs/41186173447.
+- All four native jobs passed: macOS Apple Silicon, macOS Intel, Windows x64, Linux x64.
+- macOS DMGs passed image, nested-signature, and packaged-helper verification. Windows
+  passed silent installation and packaged-helper execution. Linux passed package dependency,
+  extraction, and helper checks.
+- Nine uploaded release assets: four installers, four component manifests, and SHA256SUMS.
+  These are release assets, not the earlier one-day test artifacts.
+- The final source passed local frontend checks (266 tests/build), Rust formatting/clippy,
+  and 452 Rust tests; the two real-network tests remain explicitly opt-in. The complete
+  local Rust test run needs normal macOS process access because sandboxing blocks taskpolicy.
+- No public tag was moved. macOS uses ad-hoc signatures; Windows is unsigned. Clean-machine
+  GUI/playback acceptance and future official signing remain follow-up work.
+
+The publication-progress entries below are historical; this published status supersedes
+older unfinished-run instructions.
+
 ## Owner decisions
 
 - Remove Discord and Last.fm integrations from the release scope.
