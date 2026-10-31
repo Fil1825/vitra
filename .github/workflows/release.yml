@@ -101,7 +101,14 @@ jobs:
       - name: Run quality checks and native unit tests
         run: node scripts/release/run-checked.mjs "npm run check:all"
       - name: Build installer with audio components
-        run: npm run bundle -- --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} ${{ matrix.config }}
+        shell: bash
+        run: |
+          # Empty credentials still enable Tauri's notarization path. Ad-hoc builds
+          # must leave them absent, while signed runs keep the configured secrets.
+          if [[ "$APPLE_SIGNING_IDENTITY" == '-' ]]; then
+            unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+          fi
+          npm run bundle -- --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} ${{ matrix.config }}
         env:
           APPLE_ID: ${{ inputs.sign_macos && secrets.APPLE_ID || '' }}
           APPLE_PASSWORD: ${{ inputs.sign_macos && secrets.APPLE_PASSWORD || '' }}

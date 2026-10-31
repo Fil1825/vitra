@@ -330,7 +330,12 @@ mod tests {
                        /abs/Song%20Two.mp3\n\
                        #EXTINF:-1,Radio\n\
                        https://example.com/stream.mp3\n";
-        let playlist = m3u(content, Path::new("/home/me"));
+        let folder = Path::new(if cfg!(windows) {
+            r"C:\Users\me"
+        } else {
+            "/home/me"
+        });
+        let playlist = m3u(content, folder);
         assert_eq!(playlist.name.as_deref(), Some("Road Trip"));
         assert_eq!(playlist.tracks.len(), 3);
         let first = &playlist.tracks[0];
@@ -338,8 +343,8 @@ mod tests {
         assert_eq!(first.artists, ["Massive Attack"]);
         assert_eq!(first.duration, Some(329.0));
         assert_eq!(
-            first.path.as_deref(),
-            Some("/home/me/Music/Massive Attack/Teardrop.flac")
+            first.path.as_ref().map(PathBuf::from),
+            Some(folder.join("Music/Massive Attack/Teardrop.flac"))
         );
         assert_eq!(playlist.tracks[1].title, "Song Two");
         assert_eq!(playlist.tracks[2].duration, None);
@@ -399,16 +404,23 @@ mod tests {
       <key>Playlist Items</key><array><dict><key>Track ID</key><integer>101</integer></dict></array></dict>
   </array>
 </dict></plist>"#;
+        let expected_path = if cfg!(windows) {
+            r"C:\Users\me\Music\Kino\01 Gruppa.mp3"
+        } else {
+            "/Users/me/Music/Kino/01 Gruppa.mp3"
+        };
+        let location = url::Url::from_file_path(expected_path).unwrap();
+        let content = content.replace(
+            "file:///Users/me/Music/Kino/01%20Gruppa.mp3",
+            location.as_str(),
+        );
         let playlists = read(Path::new("Library.xml"), content.as_bytes()).unwrap();
         assert_eq!(playlists.len(), 1);
         assert_eq!(playlists[0].name.as_deref(), Some("Русский рок"));
         let track = &playlists[0].tracks[0];
         assert_eq!(track.title, "Группа крови");
         assert_eq!(track.duration, Some(285.0));
-        assert_eq!(
-            track.path.as_deref(),
-            Some("/Users/me/Music/Kino/01 Gruppa.mp3")
-        );
+        assert_eq!(track.path.as_deref(), Some(expected_path));
     }
 
     #[test]
