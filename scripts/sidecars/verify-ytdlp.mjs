@@ -117,7 +117,7 @@ export function verifyWithGpg(
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'vitra-gpg-'));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vitra-gpg-data-'));
   try {
-    const shown = runGpg(home, ['--with-colons', '--show-keys', keyFile]);
+    const shown = runGpg(home, ['--with-colons', '--show-keys', gpgPath(keyFile)]);
     if (shown.status !== 0) {
       throw new Error(`could not read the yt-dlp release key: ${shown.stderr.trim()}`);
     }
@@ -134,11 +134,11 @@ export function verifyWithGpg(
     const sig = path.join(dir, 'SHA2-256SUMS.sig');
     fs.writeFileSync(sums, asBytes(data));
     fs.writeFileSync(sig, asBytes(signatureBytes));
-    const imported = runGpg(home, ['--quiet', '--import', keyFile]);
+    const imported = runGpg(home, ['--quiet', '--import', gpgPath(keyFile)]);
     if (imported.status !== 0) {
       throw new Error(`could not import the yt-dlp release key: ${imported.stderr.trim()}`);
     }
-    const verified = runGpg(home, ['--status-fd', '1', '--verify', sig, sums]);
+    const verified = runGpg(home, ['--status-fd', '1', '--verify', gpgPath(sig), gpgPath(sums)]);
     const valid = statusFields(verified.stdout, 'VALIDSIG');
     // Field 0 is the signing key; the last field is the primary key. Both must
     // be the pinned key, so a signature from any other key is refused.
@@ -162,7 +162,8 @@ async function readSignature(openpgp, signatureBytes) {
 }
 
 function runGpg(home, args) {
-  const result = spawnSync('gpg', ['--homedir', home, '--batch', ...args], {
+  const homedir = gpgPath(home);
+  const result = spawnSync('gpg', ['--homedir', homedir, '--batch', ...args], {
     encoding: 'utf8',
     timeout: 30_000,
   });
@@ -178,6 +179,17 @@ function statusFields(stdout, name) {
   const prefix = `[GNUPG:] ${name} `;
   const line = stdout.split(/\r?\n/).find((entry) => entry.startsWith(prefix));
   return line ? line.slice(prefix.length).split(' ') : null;
+}
+
+/** Absolute paths GnuPG accepts on Windows (MSYS builds garble mixed separators). */
+function gpgPath(filePath) {
+  let resolved = path.resolve(filePath);
+  try {
+    resolved = fs.realpathSync.native(resolved);
+  } catch {
+    // Temp dirs and not-yet-written files still get a resolved path.
+  }
+  return process.platform === 'win32' ? resolved.replace(/\\/g, '/') : resolved;
 }
 
 function missingModule(err) {
