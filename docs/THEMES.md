@@ -202,7 +202,7 @@ Every value the theme sets is a variable too: `--vitra-color-*` (`background`, `
 
 Two things to avoid: animating or lowering `opacity`, `filter` or `mask` on anything that
 contains glass (the glass then stops seeing what is behind it, see the Gotchas in
-`CLAUDE.md`), and heavy effects on large areas (WebKit repaints them on every frame of the
+`docs/dev/CLAUDE.md`), and heavy effects on large areas (WebKit repaints them on every frame of the
 moving background).
 
 ## How Vitra treats a theme it imports

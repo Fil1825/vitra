@@ -2,6 +2,8 @@
 //! (`ditto` on macOS). The checksum file is signed by a key this test holds. The production
 //! entry points pin yt-dlp's release key, so a signature from this key must not install.
 
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 mod common;
 
 use std::path::Path;
