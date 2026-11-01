@@ -2251,7 +2251,7 @@ dependencies = [
 
 [[package]]
 name = "import"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "lyrics",
  "plist",
@@ -2619,7 +2619,7 @@ checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
 name = "library"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "image",
  "import",
@@ -2656,7 +2656,7 @@ dependencies = [
 
 [[package]]
 name = "links"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
  "pgp",
@@ -2726,7 +2726,7 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "lyrics"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -2764,7 +2764,7 @@ dependencies = [
 
 [[package]]
 name = "media"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "image",
  "lofty",
@@ -2830,7 +2830,7 @@ dependencies = [
 
 [[package]]
 name = "mood"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -2848,7 +2848,7 @@ dependencies = [
 
 [[package]]
 name = "mpv-ipc"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "log",
  "serde",
@@ -5140,7 +5140,7 @@ dependencies = [
 
 [[package]]
 name = "themes"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "flate2",
  "log",
@@ -5583,7 +5583,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vitra"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "block2",
  "import",
