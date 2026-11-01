@@ -2,7 +2,7 @@ name: Release candidates
 
 on:
   push:
-    branches: [main, codex/stage-11-release]
+    branches: [main]
     tags: ['v*']
   workflow_dispatch:
     inputs:
@@ -62,11 +62,14 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - uses: dtolnay/rust-toolchain@stable
+      # `@stable` is not a commit on master (those refs are garbage-collected).
+      # Pin a master commit and select the channel with `toolchain`.
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
+          toolchain: stable
           targets: ${{ matrix.target }}
           components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           cache-on-failure: true
       - name: Install Linux build dependencies and playback engine
@@ -97,7 +100,7 @@ jobs:
           done
       - name: Import Developer ID certificate
         if: runner.os == 'macOS' && inputs.sign_macos
-        uses: apple-actions/import-codesign-certs@v3
+        uses: apple-actions/import-codesign-certs@63fff01cd422d4b7b855d40ca1e9d34d2de9427d # v3
         with:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -164,6 +167,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@v8
         with:
           pattern: Vitra-*
