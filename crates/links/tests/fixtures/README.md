@@ -1,5 +1,10 @@
 # yt-dlp fixtures
 
+`ytdlp-SHA2-256SUMS` and `ytdlp-SHA2-256SUMS.sig` are the checksum file and detached
+signature from the yt-dlp 2026.10.26 release (signed 2026-10-26). The signature test checks
+them against the key embedded in `src/ytdlp_release_key.asc`. They are bytes from upstream,
+not regenerated.
+
 `generic-*.json` were recorded from yt-dlp's generic extractor against a local test page
 (`tests/real_ytdlp.rs` builds the same pages).
 

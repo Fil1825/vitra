@@ -86,7 +86,8 @@ and an explicit list of checks that can only be done on a Mac.
   `-x --embed-thumbnail --embed-metadata` + FFmpeg; lyrics from the DB written into tags;
   configurable folder and filename template (`Artist - Title`); queue with progress, cancel,
   retry; streamed track record replaced by the local file (playlists, lyrics, play counts kept).
-- "Update yt-dlp" button: copies yt-dlp into the app data dir and runs `yt-dlp -U` there.
+- "Update yt-dlp" button: downloads the latest release into the app data dir and installs
+  it only when `SHA2-256SUMS.sig` verifies under the embedded release key.
 - Tests: `yt-dlp -J` parsing on recorded fixtures, filename templating, download state machine.
 - Done as planned, plus: links are library tracks (path = page URL) so favorites, playlists and
   history work for them; a download takes over the stream's row; imported playlists fill in
