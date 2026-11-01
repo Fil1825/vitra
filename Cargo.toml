@@ -15,6 +15,9 @@ unsafe_code = "deny"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+# Production code propagates errors. Tests may still unwrap; see clippy.toml.
+unwrap_used = "warn"
+expect_used = "warn"
 
 [profile.release]
 codegen-units = 1

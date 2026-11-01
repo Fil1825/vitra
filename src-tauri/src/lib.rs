@@ -33,6 +33,8 @@ use player::Player;
 
 /// Builds and runs the Tauri application.
 pub fn run() {
+    // A failed build leaves nothing to run; abort with Tauri's own error.
+    #[allow(clippy::expect_used)]
     let app = tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()

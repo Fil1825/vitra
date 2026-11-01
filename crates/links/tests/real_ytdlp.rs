@@ -3,6 +3,8 @@
 //! FFmpeg is taken from `VITRA_FFMPEG` or `PATH`. Relative paths are taken from the
 //! workspace root (cargo runs the tests in `crates/links`).
 
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 mod common;
 
 use std::path::{Path, PathBuf};

@@ -48,6 +48,8 @@ fn parse(template: &str, fields: &FileNameFields<'_>) -> (Vec<String>, Vec<Strin
             "year" => Some(fields.year.map(|y| y.to_string()).unwrap_or_default()),
             _ => None,
         };
+        // `texts` starts as one element and only grows, so the slot is always there.
+        #[allow(clippy::expect_used)]
         let text = texts.last_mut().expect("starts with one text");
         match value {
             Some(value) => {
@@ -60,6 +62,8 @@ fn parse(template: &str, fields: &FileNameFields<'_>) -> (Vec<String>, Vec<Strin
         }
         rest = &rest[start + len + 1..];
     }
+    // Same invariant as above: `parse` never leaves `texts` empty.
+    #[allow(clippy::expect_used)]
     texts
         .last_mut()
         .expect("starts with one text")
