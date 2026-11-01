@@ -1,8 +1,8 @@
 # Vitra — working notes for Claude
 
 Vitra is a cross-platform open-source desktop music player with a Liquid Glass look
-(Tauri 2 + React). Requirements live in [`SPEC.md`](SPEC.md) (Russian, the source of truth);
-the stage-by-stage plan is in [`docs/PLAN.md`](docs/PLAN.md).
+(Tauri 2 + React). Requirements live in [`SPEC.md`](../../SPEC.md) (Russian, the source of truth);
+the stage-by-stage plan is in [`docs/PLAN.md`](../PLAN.md).
 
 - Talk to the owner in **Russian**. Code, comments, commit messages, docs and README in **English**.
 - Ask instead of guessing when the spec is ambiguous.
@@ -58,7 +58,9 @@ Debugging playback: `VITRA_MPV_ARGS="--ao=null --log-file=/tmp/mpv.log" npm run 
 extra flags to mpv; files given on the command line (`target/debug/vitra song.flac`) play at launch.
 
 `fetch-sidecars` options: `--target <triple>`, `--only mpv,yt-dlp`, `--skip deno`, `--force`,
-`--out <dir>`, `--require-checksums` (see `--help`).
+`--out <dir>`, `--require-checksums` (see `--help`). yt-dlp's `SHA2-256SUMS` is accepted only
+when `SHA2-256SUMS.sig` verifies under `scripts/sidecars/yt-dlp-public.key`. The other sidecars
+do not publish an OpenPGP signature.
 
 ### Linux system dependencies (cloud environment, Ubuntu 24.04)
 
@@ -215,13 +217,17 @@ crates/                 pure-Rust crates testable without WebKit
                         samples (features.rs, fft.rs), the wave that picks by mood (wave.rs);
                         an opt-in real-FFmpeg test (`VITRA_FFMPEG`)
 scripts/
-  fetch-sidecars.mjs    downloader (I/O)
+  fetch-sidecars.mjs    downloader (I/O); yt-dlp's checksum file must be signed
   record-ytdlp-fixtures.sh  real yt-dlp recordings for crates/links (needs YouTube)
   record-import-fixtures.sh real service pages for crates/import (needs the services)
   sidecars/plan.mjs     what to download per target (pure, unit-tested)
+  sidecars/verify-ytdlp.mjs  OpenPGP check of SHA2-256SUMS (openpgp, else gpg)
+  sidecars/yt-dlp-public.key official yt-dlp release key
   theme-schema.ts       writes docs/theme.schema.json from the zod schema (`npm run theme-schema`)
 assets/brand/           logo, app icon source, mono tray icon, palette (see its README)
-docs/                   PLAN.md, THEMES.md (theme format), theme.schema.json (generated)
+docs/                   PLAN.md, THEMES.md (theme format), theme.schema.json (generated),
+                        RELEASING.md, TLS.md, TRANSLATIONS.md
+docs/dev/               these notes (CLAUDE.md) and the stage handoff (CONTINUATION.md)
 themes/                 example themes (sources: theme.json, custom.css, assets/)
 .github/workflows/      CI
 ```
@@ -264,7 +270,12 @@ themes/                 example themes (sources: theme.json, custom.css, assets/
      `x86_64-pc-windows-msvc`). On macOS it is a whole `mpv.app` with dylibs in
      `Contents/MacOS/lib`, so it ships as a directory resource, not a Tauri `externalBin`.
      Linux uses the system mpv (no official binaries).
-   - yt-dlp: latest release, checked against `SHA2-256SUMS`. Windows and Linux get the
+   - yt-dlp: latest release. `SHA2-256SUMS` is accepted only when `SHA2-256SUMS.sig`
+     verifies under the official release key at `scripts/sidecars/yt-dlp-public.key`
+     (primary fingerprint `AC0C BBE6 848D 6A87 3464 AF4E 57CF 6593 3B5A 7581`).
+     `fetch-sidecars` uses the `openpgp` devDependency, or GnuPG when that package is
+     not installed (CI jobs that run the script before `npm ci`). A failed check stops
+     the download. There is no unsigned fallback. Windows and Linux get the
      single-file build (`yt-dlp[.exe]`); **macOS gets the folder build** `yt-dlp_macos.zip`
      (`yt-dlp/yt-dlp_macos` + `_internal/`): the single-file build unpacks Python into a new
      temporary folder on every run and macOS checks those libraries each time (~25 s per

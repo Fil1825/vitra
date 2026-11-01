@@ -11,6 +11,7 @@ import {
   pickBtbnAsset,
   planFor,
 } from './plan.mjs';
+import { YT_DLP_KEY_FINGERPRINT, YT_DLP_RELEASE_KEY } from './ytdlp-release.mjs';
 
 const HASH_A = 'a'.repeat(64);
 const HASH_B = 'b'.repeat(64);
@@ -63,6 +64,28 @@ describe('planFor', () => {
     expect(download.files).toEqual([{ root: true, to: 'yt-dlp' }]);
     expect(ytDlp.executables).toEqual([YT_DLP_MACOS]);
     expect(YT_DLP_MACOS).toBe('yt-dlp/yt-dlp_macos');
+  });
+
+  it('requires an OpenPGP signature over the yt-dlp checksum file', () => {
+    for (const target of SUPPORTED_TARGETS) {
+      const [download] = planFor(target)['yt-dlp'].downloads;
+      expect(download.checksum.url).toMatch(/\/SHA2-256SUMS$/);
+      expect(download.checksum.signature).toEqual({
+        url: download.checksum.url + '.sig',
+        key: YT_DLP_RELEASE_KEY,
+        fingerprint: YT_DLP_KEY_FINGERPRINT,
+      });
+    }
+  });
+
+  it('does not expect OpenPGP signatures from sidecars that do not publish them', () => {
+    const linux = planFor('x86_64-unknown-linux-gnu');
+    expect(linux.deno.downloads[0].checksum.signature).toBeUndefined();
+    expect(linux.ffmpeg.downloads[0].signature).toBeUndefined();
+    const mac = planFor('aarch64-apple-darwin');
+    expect(mac.mpv.downloads[0].checksum.signature).toBeUndefined();
+    expect(mac.ffmpeg.downloads[0].checksum.signature).toBeUndefined();
+    expect(mac.deno.downloads[0].checksum.signature).toBeUndefined();
   });
 
   it('fetches single-file yt-dlp builds elsewhere', () => {

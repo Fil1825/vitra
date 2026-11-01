@@ -162,8 +162,10 @@ under the pointer, each in its own way (not with reduced motion).
 
 ## Building from source
 
-Requirements: [Rust](https://rustup.rs) (stable), Node.js 22.12+, and the
-[Tauri prerequisites](https://tauri.app/start/prerequisites/) for your OS.
+Requirements: [Rust](https://rustup.rs) 1.90 or newer (`rust-version` in `Cargo.toml`; CI uses
+the latest stable), Node.js 22.12 or newer, and the
+[Tauri prerequisites](https://tauri.app/start/prerequisites/) for your OS. The Linux system
+packages, including mpv, are listed in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```sh
 npm ci
@@ -171,8 +173,9 @@ npm run fetch-sidecars   # downloads mpv, yt-dlp, FFmpeg and Deno for your platf
 npm run tauri dev
 ```
 
-On Linux, install mpv from your package manager (`sudo apt install mpv`); there are no official
-Linux mpv binaries to download.
+`fetch-sidecars` accepts yt-dlp's checksum file only when its OpenPGP signature verifies, and
+refuses the download otherwise. On Linux, install mpv from your package manager
+(`sudo apt install mpv`); there are no official Linux mpv binaries to download.
 
 For a distributable installer use `npm run bundle`, which includes the fetched helper
 programs and refuses incomplete downloads. A plain `npm run tauri build` is intended for

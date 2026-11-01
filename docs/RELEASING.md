@@ -29,7 +29,9 @@ npm run bundle -- --bundles app,dmg # macOS Apple Silicon
 # Linux: npm run bundle -- --config src-tauri/tauri.linux.conf.json --bundles deb
 ```
 
-Use the correct host architecture; see `scripts/sidecars/plan.mjs`. Cross type checks do
+`fetch-sidecars` refuses yt-dlp unless `SHA2-256SUMS.sig` is a valid signature from the
+vendored release key. mpv, FFmpeg, and Deno publish checksums only. Use the correct host
+architecture; see `scripts/sidecars/plan.mjs`. Cross type checks do
 not produce or execute native installers. Keep `package.json`, the Cargo workspace version,
 and the Tauri configuration version equal; the release version checker enforces this.
 

@@ -1,6 +1,6 @@
 # Vitra development plan
 
-Requirements: [`SPEC.md`](../SPEC.md). Architecture decisions and commands: [`CLAUDE.md`](../CLAUDE.md).
+Requirements: [`SPEC.md`](../SPEC.md). Architecture decisions and commands: [`docs/dev/CLAUDE.md`](dev/CLAUDE.md).
 
 Every stage ends with: `npm run check:all` green (cargo fmt/clippy/test, eslint, prettier, tsc,
 vitest, vite build), a pull request describing what changed and **how to verify it on macOS**,
@@ -9,7 +9,7 @@ and an explicit list of checks that can only be done on a Mac.
 ## Stage 0 — Preparation
 
 - Environment check: Rust 1.97, Node 22, Tauri CLI 2.12, Linux WebKitGTK deps (recorded in
-  `CLAUDE.md`).
+  `docs/dev/CLAUDE.md`).
 - Project skeleton: Cargo workspace + Tauri 2 app crate, React 19 + TS 6 + Vite 8 frontend,
   ESLint, Prettier, Vitest, original app icon, strict production CSP.
 - `scripts/fetch-sidecars.mjs`: downloads mpv, yt-dlp, FFmpeg/ffprobe and Deno for the current
@@ -17,7 +17,7 @@ and an explicit list of checks that can only be done on a Mac.
 - `src-tauri/src/sidecar.rs`: finds those binaries at runtime (app data → bundled → dev → PATH).
   The stage-0 window lists what it found.
 - CI workflow running the same checks on every pull request (Linux).
-- This plan and `CLAUDE.md`.
+- This plan and `docs/dev/CLAUDE.md`.
 
 ## Stage 1 — Shell
 
@@ -45,7 +45,7 @@ and an explicit list of checks that can only be done on a Mac.
 
 - `crates/mpv-ipc`: async (tokio) JSON IPC client — commands with request ids, property
   observation, events; Unix socket / Windows named pipe.
-- Player service in the app crate: spawns mpv (flags in `CLAUDE.md`), restarts it if it dies,
+- Player service in the app crate: spawns mpv (flags in `docs/dev/CLAUDE.md`), restarts it if it dies,
   exposes commands (open, play/pause, seek, volume, mute, speed) and emits
   `player://state` / `player://position` / `player://track-changed`.
 - Open files via dialog and drag & drop (`tauri-plugin-dialog`).

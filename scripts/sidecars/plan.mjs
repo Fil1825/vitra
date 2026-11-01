@@ -9,6 +9,8 @@
 //   deno[.exe]           JavaScript runtime yt-dlp needs for YouTube
 //   manifest.json        what was fetched, from where, with which checksum
 
+import { YT_DLP_KEY_FINGERPRINT, YT_DLP_RELEASE_KEY } from './ytdlp-release.mjs';
+
 export const SIDECARS = ['mpv', 'yt-dlp', 'ffmpeg', 'deno'];
 
 /** Official mpv builds, pinned with checksums computed when the version was bumped. */
@@ -73,6 +75,8 @@ const MARTIN_RIEDL = 'https://ffmpeg.martin-riedl.de/redirect/latest/macos';
  * `urls` (tried in order), how to verify its `checksum`, its `archive` format and the
  * `files` to move into the sidecar directory: `{ find, to }` moves one entry of the archive,
  * `{ root: true, to }` the whole unpacked archive, `{ to }` the downloaded file itself.
+ * A checksum may include `signature` (`url`, `key`, `fingerprint`). Only yt-dlp sets it:
+ * the checksum file is then accepted only with a valid detached OpenPGP signature.
  */
 export function planFor(target) {
   const info = TARGETS[target];
@@ -118,7 +122,17 @@ function ytDlpPlan(info, exe) {
   const download = {
     name: info.ytDlp,
     urls: [`${YT_DLP_RELEASE}/${info.ytDlp}`],
-    checksum: { type: 'sums-file', url: `${YT_DLP_RELEASE}/SHA2-256SUMS`, entry: info.ytDlp },
+    checksum: {
+      type: 'sums-file',
+      url: `${YT_DLP_RELEASE}/SHA2-256SUMS`,
+      entry: info.ytDlp,
+      // Same release as the binary. The signature is what ties the sums to yt-dlp's key.
+      signature: {
+        url: `${YT_DLP_RELEASE}/SHA2-256SUMS.sig`,
+        key: YT_DLP_RELEASE_KEY,
+        fingerprint: YT_DLP_KEY_FINGERPRINT,
+      },
+    },
   };
   if (info.os === 'macos') {
     // Not the single-file build: that one unpacks Python into a fresh temporary folder on
