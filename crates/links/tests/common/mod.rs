@@ -1,5 +1,7 @@
 //! A tiny HTTP server for tests: serves fixed files on 127.0.0.1.
 
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
 

@@ -1,4 +1,4 @@
-//! Running yt-dlp: resolving links, filling in playlist entries, downloading, updating.
+//! Running yt-dlp: resolving links, filling in playlist entries, downloading.
 
 use std::collections::VecDeque;
 use std::ffi::OsString;
@@ -18,8 +18,6 @@ use crate::{LinkError, Result};
 
 /// Resolving a link means one page load or a playlist listing.
 const RESOLVE_TIMEOUT: Duration = Duration::from_secs(90);
-/// `yt-dlp -U` downloads a new binary.
-const UPDATE_TIMEOUT: Duration = Duration::from_secs(300);
 /// The first run of a freshly installed yt-dlp on macOS waits for the system to check its
 /// libraries (~25 s on an M-series Mac).
 const VERSION_TIMEOUT: Duration = Duration::from_secs(120);
@@ -618,20 +616,6 @@ impl YtDlp {
             Some(path) if status.success() => Ok(path),
             _ => Err(failure(&errors.into_iter().collect::<Vec<_>>().join("\n"))),
         }
-    }
-
-    /// Updates this yt-dlp binary in place (`yt-dlp -U`); returns what it reported.
-    pub async fn update(&self) -> Result<String> {
-        let mut command = self.command();
-        command.arg("-U");
-        let output = Self::output(command, UPDATE_TIMEOUT).await?;
-        let report = String::from_utf8_lossy(&output.stdout);
-        Ok(report
-            .lines()
-            .map(str::trim)
-            .rfind(|line| !line.is_empty())
-            .unwrap_or("")
-            .to_owned())
     }
 }
 

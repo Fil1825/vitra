@@ -1,0 +1,6 @@
+# Tests assert through `unwrap` and `expect`. Production code does not: a failure there
+# is returned, or the call carries a narrow `#[allow]` and a comment when it cannot fail.
+# These cover `#[test]` functions and `#[cfg(test)]` modules. Helpers in `tests/` are not
+# either of those, so those files allow the lints themselves.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

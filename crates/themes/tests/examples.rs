@@ -2,6 +2,8 @@
 //! exported theme. (Their contents are checked against the theme schema on the frontend,
 //! `src/theme/examples.test.ts`.)
 
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use std::fs;
 use std::path::{Path, PathBuf};
 

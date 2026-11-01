@@ -1,7 +1,7 @@
 //! Locating the external helper binaries Vitra drives: mpv, yt-dlp, FFmpeg and Deno.
 //!
 //! Binaries are looked up in priority order:
-//! 1. `<app data>/sidecars/`: user-updatable copies (yt-dlp updates itself there).
+//! 1. `<app data>/sidecars/`: copies Vitra can replace (a signed yt-dlp release lands here).
 //! 2. Bundled with the app: next to the executable and in `<resources>/sidecars/`.
 //! 3. Debug builds only: `src-tauri/sidecars/<target triple>/`, filled by
 //!    `scripts/fetch-sidecars.mjs`.

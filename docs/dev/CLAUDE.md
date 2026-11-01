@@ -271,17 +271,20 @@ themes/                 example themes (sources: theme.json, custom.css, assets/
      `Contents/MacOS/lib`, so it ships as a directory resource, not a Tauri `externalBin`.
      Linux uses the system mpv (no official binaries).
    - yt-dlp: latest release. `SHA2-256SUMS` is accepted only when `SHA2-256SUMS.sig`
-     verifies under the official release key at `scripts/sidecars/yt-dlp-public.key`
-     (primary fingerprint `AC0C BBE6 848D 6A87 3464 AF4E 57CF 6593 3B5A 7581`).
-     `fetch-sidecars` uses the `openpgp` devDependency, or GnuPG when that package is
-     not installed (CI jobs that run the script before `npm ci`). A failed check stops
-     the download. There is no unsigned fallback. Windows and Linux get the
-     single-file build (`yt-dlp[.exe]`); **macOS gets the folder build** `yt-dlp_macos.zip`
+     verifies under yt-dlp's release key. The in-app updater embeds it in
+     `crates/links/src/ytdlp_release_key.asc`; `fetch-sidecars` vendors the same upstream
+     `public.key` at `scripts/sidecars/yt-dlp-public.key` (primary fingerprint
+     `AC0C BBE6 848D 6A87 3464 AF4E 57CF 6593 3B5A 7581`). `fetch-sidecars` uses the
+     `openpgp` devDependency, or GnuPG when that package is not installed (CI jobs that
+     run the script before `npm ci`). A failed check stops the install or download. There
+     is no unsigned fallback. Windows and Linux get the single-file build (`yt-dlp_linux` /
+     `yt-dlp_linux_aarch64` / `yt-dlp.exe`, saved as `yt-dlp[.exe]`); **macOS gets the
+     folder build** `yt-dlp_macos.zip`
      (`yt-dlp/yt-dlp_macos` + `_internal/`): the single-file build unpacks Python into a new
      temporary folder on every run and macOS checks those libraries each time (~25 s per
      call), while the folder build is checked once (~25 s on its very first run, then 0.2 s;
      the app runs `--version` at start to get that over with). The folder build can't
-     `-U` itself.
+     update itself, and Vitra does not run `yt-dlp -U` on any platform.
    - FFmpeg + ffprobe (yt-dlp needs both for `-x`/embedding): macOS from
      ffmpeg.martin-riedl.de (static, signed), Windows/Linux from BtbN's GitHub releases (newest
      stable GPL build picked from `checksums.sha256`). Homebrew FFmpeg works as a fallback.
@@ -485,12 +488,14 @@ artist_id, position)`; `tracks.artist_id` stays the first (main) one, and an alb
       tracks as such a group too (`downloads_add_album`, group url `vitra:album/<id>`;
       `Album.linkCount` says whether there is anything to download); its cover comes from
       the first track's thumbnail or the art yt-dlp embeds, never the user's own cover.
-    - "Update yt-dlp": on macOS `links::release::install_zip_release` downloads the latest
-      `yt-dlp_macos.zip` and `SHA2-256SUMS` with `curl`, checks the hash (`sha2`), unpacks
-      with `ditto` and swaps the folder into `<app data>/sidecars/yt-dlp/` (a
-      `.release-sha256` marker skips the same release). Elsewhere it copies a bundled
-      yt-dlp to `<app data>/sidecars/` (found first from then on) and runs `-U` there; a
-      system yt-dlp is updated in place (pip/Homebrew ones refuse).
+    - "Update yt-dlp": every platform downloads the latest release with `curl` into
+      `<app data>/sidecars/` (found first from then on) and installs it only after
+      `SHA2-256SUMS.sig` verifies under the embedded release key and the file matches that
+      signed checksum. macOS unpacks `yt-dlp_macos.zip` with `ditto` into `sidecars/yt-dlp/`
+      (a `.release-sha256` marker skips the same release). Linux and Windows install the
+      standalone binary (`yt-dlp_linux`, `yt-dlp_linux_aarch64`, `yt-dlp.exe`) as `yt-dlp`
+      or `yt-dlp.exe`. A failed check leaves the previous copy. `yt-dlp -U` is not used,
+      and a system binary is not modified.
     - While mpv opens a link (its hook waits for yt-dlp) the status is `loading`: the UI
       shows a spinner and disables seeking, and `Player::seek` defers to `file-loaded`.
 23. **Lyrics** (`crates/lyrics`, `src-tauri/src/lyrics`, `features/lyrics`):

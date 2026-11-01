@@ -1,6 +1,8 @@
 //! Talks to a real mpv. Opt-in: `VITRA_MPV_TESTS=1 cargo test -p mpv-ipc` (needs `mpv` on PATH
 //! or `VITRA_MPV=/path/to/mpv`). Without it the test passes without doing anything.
 
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 

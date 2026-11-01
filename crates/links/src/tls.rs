@@ -88,11 +88,10 @@ fn windows_roots() -> io::Result<PathBuf> {
         file.flush()?;
         *roots = Some(file);
     }
-    Ok(roots
-        .as_ref()
-        .expect("roots initialized")
-        .path()
-        .to_path_buf())
+    let Some(file) = roots.as_ref() else {
+        return Err(io::Error::other("CA cache was not initialized"));
+    };
+    Ok(file.path().to_path_buf())
 }
 
 #[cfg(test)]
