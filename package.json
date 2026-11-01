@@ -32,20 +32,20 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@tauri-apps/api": "^2.12.4",
-    "@tauri-apps/plugin-dialog": "^2.8.3",
-    "i18next": "^26.5.4",
-    "lucide-react": "^1.61.0",
-    "motion": "^14.5.0",
+    "@tauri-apps/plugin-dialog": "^2.8.4",
+    "i18next": "^26.5.11",
+    "lucide-react": "^1.64.0",
+    "motion": "^14.8.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "react-i18next": "^17.1.0",
+    "react-i18next": "^17.1.9",
     "zod": "^4.6.7",
-    "zustand": "^5.0.15"
+    "zustand": "^5.0.16"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@tauri-apps/cli": "^2.12.4",
-    "@types/node": "^24.19.2",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
@@ -55,8 +55,8 @@
     "globals": "^17.13.0",
     "openpgp": "^6.3.2",
     "prettier": "^3.9.10",
-    "typescript": "~6.0.3",
-    "typescript-eslint": "^8.72.0",
+    "typescript": "~7.0.2",
+    "typescript-eslint": "^8.72.1",
     "vite": "^8.3.5",
     "vitest": "^5.0.5"
   }
