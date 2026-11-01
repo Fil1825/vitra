@@ -90,8 +90,9 @@ Vitra читает тексты из тегов и соседних LRC-файл
 
 ## Сборка из исходников
 
-Нужны стабильный Rust, Node.js 22.12+ и [зависимости Tauri](https://v2.tauri.app/start/prerequisites/).
-В Linux установите системный mpv.
+Нужны Rust 1.90 или новее (`rust-version` в `Cargo.toml`; в CI ставится последний stable),
+Node.js 22.12 или новее и [зависимости Tauri](https://v2.tauri.app/start/prerequisites/).
+Список пакетов для Linux, включая mpv, — в [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```sh
 npm ci
@@ -99,6 +100,10 @@ npm run fetch-sidecars -- --require-checksums
 npm run check:all
 npm run tauri dev
 ```
+
+`fetch-sidecars` принимает файл контрольных сумм yt-dlp только если его подпись OpenPGP
+сходится с официальным ключом; иначе загрузка прерывается. В Linux mpv берётся из системы
+(`sudo apt install mpv`): готовых официальных сборок mpv для Linux нет.
 
 Для установщика со вспомогательными программами используйте `npm run bundle`.
 Обычная сборка `npm run tauri build` не включает скачанные компоненты.

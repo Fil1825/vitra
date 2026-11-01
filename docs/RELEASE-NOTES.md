@@ -4,7 +4,8 @@
 beside the download, and on Windows and Linux it ran `yt-dlp -U`, which fetches a binary
 without Vitra's check. 0.1.1 installs a yt-dlp release only after `SHA2-256SUMS.sig`
 verifies with yt-dlp's OpenPGP release key, and it no longer runs `yt-dlp -U`. A failed
-check leaves the copy already installed.
+check leaves the copy already installed. The same signature check applies when developers
+run `npm run fetch-sidecars` for yt-dlp.
 
 An open-source desktop music player with a Liquid Glass interface, English and Russian,
 custom themes and layouts, and a separate mini player.

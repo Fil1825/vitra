@@ -1,3 +1,5 @@
 * text=auto eol=lf
 # Recorded media and service responses must retain their original bytes.
 crates/**/tests/fixtures/** -text
+# The detached signature and the checksum file it covers.
+scripts/sidecars/fixtures/** -text

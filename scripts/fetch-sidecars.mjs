@@ -2,6 +2,9 @@
 // Downloads the helper binaries Vitra runs (mpv, yt-dlp, FFmpeg, Deno) into
 // src-tauri/sidecars/<target triple>/. They are never committed to the repository.
 //
+// yt-dlp's SHA2-256SUMS is accepted only when SHA2-256SUMS.sig verifies under the
+// vendored release key. mpv, FFmpeg and Deno do not publish an OpenPGP signature.
+//
 // Usage: npm run fetch-sidecars -- [options]   (run with --help for the list)
 
 import { spawnSync } from 'node:child_process';
@@ -22,6 +25,8 @@ import {
   pickBtbnAsset,
   planFor,
 } from './sidecars/plan.mjs';
+import { YT_DLP_KEY_FINGERPRINT } from './sidecars/ytdlp-release.mjs';
+import { verifyYtDlpSums } from './sidecars/verify-ytdlp.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -239,8 +244,18 @@ async function expectedSha256(download, finalUrl) {
   switch (checksum.type) {
     case 'pinned':
       return checksum.sha256;
-    case 'sums-file':
-      return requireHash(parseSha256(await fetchText(checksum.url), checksum.entry), checksum.url);
+    case 'sums-file': {
+      // Verify the signature over these exact bytes, then parse them. A second
+      // fetch could observe a different file than the one that was signed.
+      const bytes = await fetchBytes(checksum.url);
+      if (checksum.signature) {
+        await verifySumsSignature(checksum, bytes);
+      }
+      return requireHash(
+        parseSha256(new TextDecoder().decode(bytes), checksum.entry),
+        checksum.url,
+      );
+    }
     case 'sidecar-file':
       return requireHash(parseSha256(await fetchText(checksum.url)), checksum.url);
     case 'sibling': {
@@ -297,6 +312,25 @@ async function fetchText(url) {
     throw new Error(`HTTP ${res.status} for ${url}`);
   }
   return res.text();
+}
+
+async function fetchBytes(url) {
+  const res = await fetch(url, { redirect: 'follow' });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} for ${url}`);
+  }
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+/** Refuses the checksum file unless its detached signature matches the pinned key. */
+async function verifySumsSignature(checksum, bytes) {
+  const { signature } = checksum;
+  if (signature.fingerprint !== YT_DLP_KEY_FINGERPRINT || !signature.url || !signature.key) {
+    throw new Error(`refusing ${checksum.url}: the OpenPGP signature configuration is incomplete`);
+  }
+  const sig = await fetchBytes(signature.url);
+  const via = await verifyYtDlpSums(bytes, sig, path.resolve(ROOT, signature.key));
+  log(`  verified OpenPGP signature (${via})`);
 }
 
 function hasZipMagic(file) {

@@ -20,6 +20,9 @@ fetches a binary without Vitra's check.
 
 ### Changed
 
+- `npm run fetch-sidecars` accepts yt-dlp's `SHA2-256SUMS` only when `SHA2-256SUMS.sig`
+  verifies with the same OpenPGP release key (vendored for the script). A failed check
+  aborts the download.
 - In-place `yt-dlp -U` is no longer used on any platform. macOS, Windows, and Linux
   download the published release into the app data `sidecars/` folder (macOS:
   `yt-dlp_macos.zip`; Windows: `yt-dlp.exe`; Linux: `yt-dlp_linux` or
@@ -53,6 +56,9 @@ release's description.
 
 ### Изменения
 
+- `npm run fetch-sidecars` принимает `SHA2-256SUMS` для yt-dlp только если подпись
+  `SHA2-256SUMS.sig` сходится с тем же ключом релиза OpenPGP (отдельная копия для
+  скрипта). При ошибке проверки загрузка прерывается.
 - Команда `yt-dlp -U` больше не используется ни на одной системе. macOS, Windows и
   Linux скачивают опубликованный выпуск в папку `sidecars` данных приложения (macOS:
   `yt-dlp_macos.zip`; Windows: `yt-dlp.exe`; Linux: `yt-dlp_linux` или
