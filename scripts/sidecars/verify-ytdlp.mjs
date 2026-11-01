@@ -189,7 +189,15 @@ function gpgPath(filePath) {
   } catch {
     // Temp dirs and not-yet-written files still get a resolved path.
   }
-  return process.platform === 'win32' ? resolved.replace(/\\/g, '/') : resolved;
+  if (process.platform !== 'win32') {
+    return resolved;
+  }
+  // Git-Bash GnuPG treats `C:/…` as relative to the shell cwd and prefixes `/d/a/...`.
+  const drive = /^([A-Za-z]):[\\/](.*)$/.exec(resolved);
+  if (drive) {
+    return `/${drive[1].toLowerCase()}/${drive[2].replace(/\\/g, '/')}`;
+  }
+  return resolved.replace(/\\/g, '/');
 }
 
 function missingModule(err) {
