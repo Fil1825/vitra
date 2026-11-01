@@ -1,6 +1,8 @@
 //! Installs a yt-dlp release zip served from this test, with the system's curl and unzip
 //! (`ditto` on macOS).
 
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 mod common;
 
 use std::path::Path;

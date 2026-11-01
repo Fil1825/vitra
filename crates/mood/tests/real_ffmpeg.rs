@@ -1,6 +1,8 @@
 //! The analysis on audio a real FFmpeg decodes (opt-in: `VITRA_FFMPEG=/path/to/ffmpeg
 //! cargo test -p mood --test real_ffmpeg`). FFmpeg makes the test files itself.
 
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 

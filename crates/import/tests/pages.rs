@@ -2,6 +2,8 @@
 //! wrote them can't reach the services), and against real recordings when there are any
 //! (`scripts/record-import-fixtures.sh` writes them as `*-recorded.*`).
 
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use std::path::Path;
 
 use import::links;
