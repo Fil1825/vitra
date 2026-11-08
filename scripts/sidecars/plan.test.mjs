@@ -4,6 +4,7 @@ import {
   BTBN_PINS,
   BTBN_RELEASE_TAG,
   DENO_VERSION_PIN,
+  MARTIN_PINS,
   SIDECARS,
   SUPPORTED_TARGETS,
   YT_DLP_MACOS,
@@ -14,6 +15,7 @@ import {
   parseSha256,
   pickBtbnAsset,
   planFor,
+  siblingChecksumUrl,
   sourceOffer,
 } from './plan.mjs';
 import { YT_DLP_KEY_FINGERPRINT, YT_DLP_RELEASE_KEY } from './ytdlp-release.mjs';
@@ -128,14 +130,38 @@ describe('planFor', () => {
     }
   });
 
-  it('uses sibling checksums for macOS FFmpeg (no early pinned digest)', () => {
-    const [download] = planFor('aarch64-apple-darwin').ffmpeg.downloads;
-    expect(download.checksum.type).toBe('sibling');
-    expect(download.checksum.sha256).toBeUndefined();
-    expect(download.sourceUrls).toBeUndefined();
-    expect(download.sourceOfferId).toBe('martin-riedl-macos-ffmpeg');
-    expect(download.sourceClosure).toBe('incomplete');
+  it('pins versioned Martin Riedl FFmpeg builds and refuses redirect/latest', () => {
+    for (const [target, arch] of [
+      ['aarch64-apple-darwin', 'arm64'],
+      ['x86_64-apple-darwin', 'amd64'],
+    ]) {
+      const downloads = planFor(target).ffmpeg.downloads;
+      expect(downloads.map((download) => download.name)).toEqual(['ffmpeg.zip', 'ffprobe.zip']);
+      const pin = MARTIN_PINS[arch];
+      for (const download of downloads) {
+        const tool = download.name.replace(/\.zip$/, '');
+        expect(download.checksum).toEqual({ type: 'pinned', sha256: pin[tool] });
+        expect(download.urls).toEqual([
+          `https://ffmpeg.martin-riedl.de/download/macos/${arch}/${pin.id}/${tool}.zip`,
+        ]);
+        expect(download.urls.join(' ')).not.toMatch(/redirect\/latest|\/snapshot\//);
+        expect(download.sourceUrls).toBeUndefined();
+        expect(download.sourceOfferId).toBe('martin-riedl-macos-ffmpeg');
+        expect(download.sourceClosure).toBe('incomplete');
+      }
+    }
     expect(sourceOffer('martin-riedl-macos-ffmpeg').complete).toBe(false);
+  });
+
+  it('looks up a sibling checksum on the resolved file, not the redirect', () => {
+    const file = 'https://ffmpeg.martin-riedl.de/download/macos/arm64/1789931890_9.0.2/ffmpeg.zip';
+    expect(siblingChecksumUrl(file, '.sha256')).toBe(`${file}.sha256`);
+    expect(() =>
+      siblingChecksumUrl(
+        'https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/ffmpeg.zip',
+        '.sha256',
+      ),
+    ).toThrow(/redirect/);
   });
 
   it('lists GitHub REST release metadata for pinned GitHub-hosted binaries', () => {

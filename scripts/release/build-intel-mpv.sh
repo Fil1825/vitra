@@ -145,6 +145,11 @@ PY
 )
 (
   cd "$WORK/ffmpeg"
+  # 7.1.1 with --disable-autodetect enables libc_iconv and only probes iconv in
+  # libc (configure: "disabled iconv || enable libc_iconv"). That probe links on
+  # the macOS 15 Intel runner, but libavcodec's shared link does not: library.mak
+  # puts LDFLAGS before the objects and FFEXTRALIBS after them, and iconv_extralibs
+  # stays empty. --extra-libs=-liconv is what reaches that link. Do not disable iconv.
   ./configure --prefix="$PREFIX" --enable-shared --disable-static \
     --arch=x86_64 --target-os=darwin \
     --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS" \
@@ -153,6 +158,7 @@ PY
     --disable-doc --disable-debug --disable-programs \
     --enable-videotoolbox --enable-audiotoolbox \
     --enable-zlib --enable-iconv \
+    --extra-libs=-liconv \
     --disable-bzlib --disable-lzma --disable-sdl2
   make -j"$(sysctl -n hw.ncpu)"
   make install
@@ -169,6 +175,7 @@ PY
 )
 (
   cd "$WORK/mpv"
+  # dependency('iconv') uses the same libc probe as FFmpeg. -liconv stays on the link.
   meson setup build --prefix="$PREFIX" --buildtype=release \
     -Dlibmpv=false \
     -D{gl,iconv,plain-gl}=enabled \
@@ -178,7 +185,7 @@ PY
     -D{cdda,dvdnav,javascript,libarchive,libbluray,rubberband,uchardet,vapoursynth,zimg,shaderc,wayland,x11,manpage-build}=disabled \
     -Dswift-flags="-target x86_64-apple-macos12.0" \
     -Dc_args="$CFLAGS" -Dobjc_args="$CFLAGS -Wno-error=deprecated -Wno-error=deprecated-declarations" \
-    -Dc_link_args="$LDFLAGS"
+    -Dc_link_args="$LDFLAGS -liconv"
   meson compile -C build
   meson compile -C build macos-bundle
 )

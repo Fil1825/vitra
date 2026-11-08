@@ -75,7 +75,48 @@ const GITHUB = 'https://github.com';
 const YT_DLP_RELEASE = `${GITHUB}/yt-dlp/yt-dlp/releases/download/${YT_DLP_VERSION}`;
 const DENO_VERSION = 'v2.9.8';
 const DENO_RELEASE = `${GITHUB}/denoland/deno/releases/download/${DENO_VERSION}`;
-const MARTIN_RIEDL = 'https://ffmpeg.martin-riedl.de/redirect/latest/macos';
+const MARTIN_DOWNLOAD = 'https://ffmpeg.martin-riedl.de/download/macos';
+
+/**
+ * Martin Riedl macOS 9.0.2 builds, pinned to the versioned file rather than
+ * `redirect/latest`. The digest is the publisher's sibling `.sha256`, checked
+ * against the zip bytes. `redirect/latest` does not publish that sibling, and
+ * the arm64 release redirect can 404 while this file is still there.
+ */
+export const MARTIN_PINS = {
+  arm64: {
+    id: '1789931890_9.0.2',
+    ffmpeg: 'c8ed4c4e6978a03c485edbfe4e0a5dc2380f8a30bba5150531b31b094492d924',
+    ffprobe: 'fcbe839537485eaee7a7a8bc5cbc0f90d53617e80943e8a5b2e31cb851197ea6',
+  },
+  amd64: {
+    id: '1789931006_9.0.2',
+    ffmpeg: '7c6b4125b191cbf773832dc51f424cf2b6bb7da43007d1e066f95909e47cacd4',
+    ffprobe: '2322438ed2f6319a691291b247d09c69dcaa3a982460d1f269a7e1af335cfdfd',
+  },
+};
+
+/**
+ * Checksum published beside the file that was downloaded. `redirect/latest`
+ * has no sibling `.sha256`; the versioned URL does.
+ */
+export function siblingChecksumUrl(resolvedFileUrl, suffix) {
+  if (typeof resolvedFileUrl !== 'string' || typeof suffix !== 'string' || !suffix) {
+    throw new Error('sibling checksum requires the resolved file URL');
+  }
+  let url;
+  try {
+    url = new URL(resolvedFileUrl);
+  } catch {
+    throw new Error(`sibling checksum URL is not absolute: ${resolvedFileUrl}`);
+  }
+  if (url.pathname.includes('/redirect/')) {
+    throw new Error(
+      `sibling checksum must use the resolved file, not a redirect URL: ${resolvedFileUrl}`,
+    );
+  }
+  return `${resolvedFileUrl}${suffix}`;
+}
 
 /**
  * Dated BtbN autobuild release tag (not the rolling `latest` slot). Assets are fixed for this
@@ -315,14 +356,16 @@ function mpvPlan(target, info) {
   };
 }
 
-/** Static macOS builds by Martin Riedl; the snapshot channel is a fallback if no release zip exists. */
+/** Static macOS FFmpeg 9.0.2 by Martin Riedl, pinned per architecture. */
 function martinRiedlDownloads(arch, os) {
+  const pin = MARTIN_PINS[arch];
+  if (!pin) {
+    throw new Error(`no pinned Martin Riedl FFmpeg build for platform ${arch}`);
+  }
   return ['ffmpeg', 'ffprobe'].map((tool) => ({
     name: `${tool}.zip`,
-    urls: ['release', 'snapshot'].map(
-      (channel) => `${MARTIN_RIEDL}/${arch}/${channel}/${tool}.zip`,
-    ),
-    checksum: { type: 'sibling', suffix: '.sha256' },
+    urls: [`${MARTIN_DOWNLOAD}/${arch}/${pin.id}/${tool}.zip`],
+    checksum: { type: 'pinned', sha256: pin[tool] },
     archive: 'zip',
     files: [{ find: tool, to: tool }],
     ...sourceLink('martin-riedl-macos-ffmpeg', { os }),

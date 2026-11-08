@@ -1329,7 +1329,7 @@
       "component": "ffmpeg",
       "license": "GPL-3.0-or-later",
       "complete": false,
-      "reason": "The fetch URL redirect/latest/macos/{arm64,amd64}/release currently returns the 9.0.2 zips from 2026-09-20. Their versions.txt lists harfbuzz 14.4.0 and x264 0.165.x. git.martin-riedl.de/ffmpeg/build-script has no tags. Branch main (2026-08-17) pins ffmpeg 9.0.1 and harfbuzz 14.3.0, which is not this binary. script/build-x264.sh downloads the floating archive x264-master.tar.gz and there is no version/x264 file."
+      "reason": "Pinned binaries are the versioned 9.0.2 zips from 2026-09-20: arm64 1789931890_9.0.2 and amd64 1789931006_9.0.2. Their publisher .sha256 files match the zip bytes. redirect/latest is not used: its .sha256 sibling is not published, and the arm64 release redirect can 404. versions.txt beside those files lists harfbuzz 14.4.0 and x264 0.165.x. git.martin-riedl.de/ffmpeg/build-script has no tags. Branch main (2026-08-17) pins ffmpeg 9.0.1 and harfbuzz 14.3.0, which is not this binary. script/build-x264.sh downloads the floating archive x264-master.tar.gz and there is no version/x264 file."
     },
     {
       "id": "mpv-official-v0.41.0",

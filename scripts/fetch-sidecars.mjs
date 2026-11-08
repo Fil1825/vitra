@@ -23,6 +23,7 @@ import {
   hostTarget,
   parseSha256,
   planFor,
+  siblingChecksumUrl,
 } from './sidecars/plan.mjs';
 import {
   defaultArchiveCacheRoot,
@@ -279,8 +280,12 @@ async function expectedSha256(download, finalUrl = null) {
     case 'sidecar-file':
       return requireHash(parseSha256(await fetchText(checksum.url)), checksum.url);
     case 'sibling': {
-      // Published next to the resolved (timestamped) file, not next to the redirect URL.
-      const text = await fetchText(`${finalUrl}${checksum.suffix}`).catch(() => null);
+      // The publisher puts ffmpeg.zip.sha256 next to the versioned file. The
+      // redirect/latest URL has no sibling and must not be used as the lookup.
+      const text = await fetchText(siblingChecksumUrl(finalUrl, checksum.suffix)).catch((err) => {
+        if (/sibling checksum/.test(err.message)) throw err;
+        return null;
+      });
       return text ? parseSha256(text) : null;
     }
     default:
@@ -337,16 +342,17 @@ async function downloadVerified(download, file) {
     try {
       let sha256;
       let provenance;
+      let resolvedFileUrl = null;
       if (source.kind === 'github-release') {
         ({ sha256, provenance } = await downloadReleaseAsset(source.ref, file));
       } else {
         const result = await downloadFile(source.ref, file, download.name);
         sha256 = result.sha256;
+        resolvedFileUrl = result.finalUrl;
         provenance = source.ref;
       }
       assertArchiveLooksValid(download, file);
-      const resolvedExpected =
-        expected ?? (await expectedSha256(download, source.kind === 'url' ? provenance : null));
+      const resolvedExpected = expected ?? (await expectedSha256(download, resolvedFileUrl));
       if (resolvedExpected && resolvedExpected !== sha256) {
         throw new Error(`checksum mismatch: expected ${resolvedExpected}, got ${sha256}`);
       }

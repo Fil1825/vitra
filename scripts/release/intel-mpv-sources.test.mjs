@@ -49,6 +49,15 @@ describe('Intel mpv source pins', () => {
     expect(recipe).toContain('rubberband');
   });
 
+  it('links libiconv into the shared FFmpeg build without dropping iconv', () => {
+    expect(recipe).toContain('--enable-iconv');
+    expect(recipe).not.toContain('--disable-iconv');
+    expect(recipe).toContain('--extra-libs=-liconv');
+    expect(recipe).toContain('-Dc_link_args="$LDFLAGS -liconv"');
+    expect(recipe).toContain('MACOSX_DEPLOYMENT_TARGET=12.0');
+    expect(recipe).toContain('-D{gl,iconv,plain-gl}=enabled');
+  });
+
   it('copies the recipe, pins, and Mach-O checkers into the source offer', () => {
     expect(recipe).toContain('mach-minos.py');
     expect(recipe).toContain('mach-deps.py');
