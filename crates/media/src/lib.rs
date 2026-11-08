@@ -2,6 +2,7 @@
 //! artwork (embedded or next to the file) and the color palette the UI is tinted with.
 
 mod artwork;
+mod encoding;
 mod lyrics;
 mod metadata;
 mod palette;

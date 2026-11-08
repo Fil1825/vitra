@@ -7,6 +7,7 @@ use serde::Serialize;
 
 use crate::MediaError;
 use crate::artwork::Artwork;
+use crate::encoding::repair_legacy_cyrillic;
 
 /// Tags and audio properties shown in the UI. Every field is optional: files in the wild
 /// carry anything from complete tags to nothing at all.
@@ -67,7 +68,9 @@ pub fn read_track(path: &Path) -> Result<TrackInfo, MediaError> {
     let mut embedded_artwork = None;
     if let Some(tag) = tag {
         let text = |value: Option<std::borrow::Cow<'_, str>>| {
-            value.map(|v| v.trim().to_owned()).filter(|v| !v.is_empty())
+            value
+                .map(|v| repair_legacy_cyrillic(v.trim()))
+                .filter(|v| !v.is_empty())
         };
         metadata.title = text(tag.title());
         metadata.artist = text(tag.artist());
@@ -111,11 +114,17 @@ pub(crate) fn artist_values(tag: &lofty::tag::Tag) -> Vec<String> {
             .map(str::to_owned)
             .collect()
     };
-    let listed = values(ItemKey::TrackArtists);
+    let listed: Vec<String> = values(ItemKey::TrackArtists)
+        .into_iter()
+        .map(|name| repair_legacy_cyrillic(&name))
+        .collect();
     if !listed.is_empty() {
         return listed;
     }
-    let artists = values(ItemKey::TrackArtist);
+    let artists: Vec<String> = values(ItemKey::TrackArtist)
+        .into_iter()
+        .map(|name| repair_legacy_cyrillic(&name))
+        .collect();
     if artists.len() > 1 {
         artists
     } else {
@@ -202,4 +211,5 @@ mod tests {
         std::fs::write(&path, b"not really audio").unwrap();
         assert!(read_track(&path).is_err());
     }
+
 }

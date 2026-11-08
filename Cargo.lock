@@ -2769,6 +2769,7 @@ dependencies = [
  "image",
  "lofty",
  "log",
+ "lyrics",
  "serde",
  "serde_json",
  "tempfile",

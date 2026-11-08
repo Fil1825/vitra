@@ -10,6 +10,7 @@ authors.workspace = true
 publish = false
 
 [dependencies]
+lyrics = { path = "../lyrics" }
 lofty = "0.25.4"
 # Only the decoders covers actually use, plus the JPEG encoder for backdrop thumbnails.
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }

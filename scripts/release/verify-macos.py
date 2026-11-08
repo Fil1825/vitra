@@ -37,6 +37,15 @@ def main():
             if len(apps) != 1:
                 raise RuntimeError("Expected exactly one Vitra.app inside the DMG")
             app = apps[0]
+            plist = app / "Contents" / "Info.plist"
+            with plist.open("rb") as handle:
+                info = plistlib.load(handle)
+            minimum = info.get("LSMinimumSystemVersion")
+            expected = "12.0" if args.target.startswith("x86_64-") else "14.0"
+            if minimum != expected:
+                raise RuntimeError(
+                    f"LSMinimumSystemVersion is {minimum!r}, expected {expected!r} for {args.target}"
+                )
             run("codesign", "--verify", "--deep", "--strict", "--verbose=2", str(app))
             run("node", "scripts/release/verify-sidecars.mjs", str(app), args.target)
             if args.signed:
