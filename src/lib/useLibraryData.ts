@@ -6,6 +6,11 @@ import type { LibraryChange } from './library.ts';
 /** Last result per key, so going back to a view shows it at once while it refreshes. */
 const cache = new Map<string, unknown>();
 
+/** Drops cached payloads so a later screen with the same key can't see another test's data. */
+export function clearLibraryDataCache(): void {
+  cache.clear();
+}
+
 /** Bursts of change events (a scan reports every few seconds) cause one refetch. */
 const COALESCE_MS = 250;
 
