@@ -22,9 +22,9 @@ import {
   exeName,
   hostTarget,
   parseSha256,
-  pickBtbnAsset,
   planFor,
 } from './sidecars/plan.mjs';
+import { fetchBytesOrVendored } from './sidecars/remote-or-vendored.mjs';
 import { YT_DLP_KEY_FINGERPRINT } from './sidecars/ytdlp-release.mjs';
 import { verifyYtDlpSums } from './sidecars/verify-ytdlp.mjs';
 
@@ -156,7 +156,7 @@ async function install(sidecar) {
   const fetched = [];
   try {
     for (const [i, entry] of sidecar.downloads.entries()) {
-      const download = entry.type === 'btbn' ? await resolveBtbn(entry) : entry;
+      const download = entry;
       const file = path.join(workDir, `download-${i}`);
       const { url, sha256 } = await downloadVerified(download, file);
       fetched.push({
@@ -201,20 +201,6 @@ async function install(sidecar) {
   }
 }
 
-async function resolveBtbn(entry) {
-  const text = await fetchText(entry.checksumsUrl);
-  const picked = pickBtbnAsset(text, entry.platform, entry.ext);
-  if (!picked) {
-    throw new Error(`no FFmpeg build for ${entry.platform} in ${entry.checksumsUrl}`);
-  }
-  return {
-    ...entry,
-    name: picked.asset,
-    urls: [`${entry.releaseUrl}/${picked.asset}`],
-    checksum: { type: 'pinned', sha256: picked.sha256 },
-  };
-}
-
 /** Tries each candidate URL until one downloads and passes verification. */
 async function downloadVerified(download, file) {
   const errors = [];
@@ -254,7 +240,14 @@ async function expectedSha256(download, finalUrl) {
     case 'sums-file': {
       // Verify the signature over these exact bytes, then parse them. A second
       // fetch could observe a different file than the one that was signed.
-      const bytes = await fetchBytes(checksum.url);
+      const bytes = await fetchBytesOrVendored(
+        fetchBytes,
+        checksum.url,
+        checksum.vendored,
+        ROOT,
+        (url, err, vendored) =>
+          warn(`${url}: ${err.message}; verifying OpenPGP over vendored ${vendored}`),
+      );
       if (checksum.signature) {
         await verifySumsSignature(checksum, bytes);
       }
@@ -350,7 +343,14 @@ async function verifySumsSignature(checksum, bytes) {
   if (signature.fingerprint !== YT_DLP_KEY_FINGERPRINT || !signature.url || !signature.key) {
     throw new Error(`refusing ${checksum.url}: the OpenPGP signature configuration is incomplete`);
   }
-  const sig = await fetchBytes(signature.url);
+  const sig = await fetchBytesOrVendored(
+    fetchBytes,
+    signature.url,
+    signature.vendored,
+    ROOT,
+    (url, err, vendored) =>
+      warn(`${url}: ${err.message}; verifying OpenPGP with vendored ${vendored}`),
+  );
   const via = await verifyYtDlpSums(bytes, sig, path.resolve(ROOT, signature.key));
   log(`  verified OpenPGP signature (${via})`);
 }

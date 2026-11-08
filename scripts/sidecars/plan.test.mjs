@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  BTBN_PINS,
+  DENO_VERSION_PIN,
   SIDECARS,
   SUPPORTED_TARGETS,
   YT_DLP_MACOS,
+  YT_DLP_VERSION,
   bundledEntries,
   exeName,
   hostTarget,
@@ -79,12 +82,35 @@ describe('planFor', () => {
     for (const target of SUPPORTED_TARGETS) {
       const [download] = planFor(target)['yt-dlp'].downloads;
       expect(download.checksum.url).toMatch(/\/SHA2-256SUMS$/);
+      expect(download.checksum.vendored).toBe('scripts/sidecars/fixtures/ytdlp-SHA2-256SUMS');
       expect(download.checksum.signature).toEqual({
         url: download.checksum.url + '.sig',
+        vendored: 'scripts/sidecars/fixtures/ytdlp-SHA2-256SUMS.sig',
         key: YT_DLP_RELEASE_KEY,
         fingerprint: YT_DLP_KEY_FINGERPRINT,
       });
     }
+  });
+
+  it('pins sidecar release tags instead of GitHub /latest/download', () => {
+    for (const target of SUPPORTED_TARGETS) {
+      const yt = planFor(target)['yt-dlp'].downloads[0];
+      expect(yt.urls[0]).toContain(`/releases/download/${YT_DLP_VERSION}/`);
+      expect(yt.urls[0]).not.toContain('/latest/');
+      const deno = planFor(target).deno.downloads[0];
+      expect(deno.urls[0]).toContain(`/releases/download/${DENO_VERSION_PIN}/`);
+      expect(deno.checksum.type).toBe('pinned');
+    }
+  });
+
+  it('pins BtbN FFmpeg assets on Windows and Linux', () => {
+    const win = planFor('x86_64-pc-windows-msvc').ffmpeg.downloads[0];
+    expect(win).toMatchObject({
+      name: BTBN_PINS.win64.asset,
+      checksum: { type: 'pinned', sha256: BTBN_PINS.win64.sha256 },
+    });
+    const linux = planFor('x86_64-unknown-linux-gnu').ffmpeg.downloads[0];
+    expect(linux.checksum.sha256).toBe(BTBN_PINS.linux64.sha256);
   });
 
   it('does not expect OpenPGP signatures from sidecars that do not publish them', () => {

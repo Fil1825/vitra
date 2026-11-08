@@ -6,6 +6,9 @@
 //   AC0C BBE6 848D 6A87 3464 AF4E 57CF 6593 3B5A 7581
 //   Simon Sawicki (yt-dlp signing key) <contact@grub4k.xyz>
 
+/** Pinned upstream release; bump with fixtures when updating yt-dlp sidecars. */
+export const YT_DLP_VERSION = '2026.10.26';
+
 /** Repo-relative path of the armored public key. */
 export const YT_DLP_RELEASE_KEY = 'scripts/sidecars/yt-dlp-public.key';
 

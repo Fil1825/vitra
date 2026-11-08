@@ -9,7 +9,9 @@
 //   deno[.exe]           JavaScript runtime yt-dlp needs for YouTube
 //   manifest.json        what was fetched, from where, with which checksum
 
-import { YT_DLP_KEY_FINGERPRINT, YT_DLP_RELEASE_KEY } from './ytdlp-release.mjs';
+import { YT_DLP_KEY_FINGERPRINT, YT_DLP_RELEASE_KEY, YT_DLP_VERSION } from './ytdlp-release.mjs';
+
+export { YT_DLP_VERSION };
 
 export const SIDECARS = ['mpv', 'yt-dlp', 'ffmpeg', 'deno'];
 
@@ -74,10 +76,42 @@ export function exeName(target, name) {
 }
 
 const GITHUB = 'https://github.com';
-const YT_DLP_RELEASE = `${GITHUB}/yt-dlp/yt-dlp/releases/latest/download`;
-const DENO_RELEASE = `${GITHUB}/denoland/deno/releases/latest/download`;
+const YT_DLP_RELEASE = `${GITHUB}/yt-dlp/yt-dlp/releases/download/${YT_DLP_VERSION}`;
+const DENO_VERSION = 'v2.9.8';
+const DENO_RELEASE = `${GITHUB}/denoland/deno/releases/download/${DENO_VERSION}`;
 const BTBN_RELEASE = `${GITHUB}/BtbN/FFmpeg-Builds/releases/download/latest`;
 const MARTIN_RIEDL = 'https://ffmpeg.martin-riedl.de/redirect/latest/macos';
+
+export const DENO_VERSION_PIN = DENO_VERSION;
+
+/** Pinned at bump time from denoland/deno release checksum sidecars (v2.9.8). */
+const DENO_SHA256 = {
+  'aarch64-apple-darwin': '9f0bf660393da2eaff044cdc7444cb08c73f235849b61d224d825a194ce7c98e',
+  'x86_64-apple-darwin': '4b2f5edd2639b7470f034238b321d7002d8dfb4726d8558f52c17afac370eb2c',
+  'x86_64-pc-windows-msvc': 'cba84b26e0df5ae7f74fc66b86a95b866872a86292ebd84fa1e959927edd93bf',
+  'x86_64-unknown-linux-gnu': 'e890975bc2549807bbcc0b584ffafda72cc7c93349dd99c80483dd784f6c4609',
+  'aarch64-unknown-linux-gnu': 'd49596c20b9788cf8f5d8ddf644103d4bde56ed239753f0bdb92ba9361d51905',
+};
+
+const YT_DLP_SUMS_VENDORED = 'scripts/sidecars/fixtures/ytdlp-SHA2-256SUMS';
+const YT_DLP_SIG_VENDORED = 'scripts/sidecars/fixtures/ytdlp-SHA2-256SUMS.sig';
+
+/** Pinned BtbN GPL static builds (n9.0); hashes from upstream checksums.sha256 at bump time. */
+const BTBN_FFMPEG_VERSION = '9.0';
+export const BTBN_PINS = {
+  win64: {
+    asset: `ffmpeg-n${BTBN_FFMPEG_VERSION}-latest-win64-gpl-${BTBN_FFMPEG_VERSION}.zip`,
+    sha256: 'e7c71f39ec327bb5c4f0085c9fa4ba490caa057d5742e0ed1e1b36001d8a1e81',
+  },
+  linux64: {
+    asset: `ffmpeg-n${BTBN_FFMPEG_VERSION}-latest-linux64-gpl-${BTBN_FFMPEG_VERSION}.tar.xz`,
+    sha256: '6ad96ff7dd4815a31522f1507ea81b7b9b1adf59da93921151a625b44a307185',
+  },
+  linuxarm64: {
+    asset: `ffmpeg-n${BTBN_FFMPEG_VERSION}-latest-linuxarm64-gpl-${BTBN_FFMPEG_VERSION}.tar.xz`,
+    sha256: '88f8df5fcc621e3ee6c642b8b0b914a0929a61e909704d69f9af5aaecccda7ce',
+  },
+};
 
 /**
  * Returns what to fetch for every sidecar on `target`.
@@ -110,25 +144,34 @@ export function planFor(target) {
         hint: 'Alternatively run `brew install ffmpeg`: Vitra also finds FFmpeg in Homebrew.',
       }),
     },
-    deno: {
-      type: 'download',
-      downloads: [
-        {
-          name: `deno-${target}.zip`,
-          urls: [`${DENO_RELEASE}/deno-${target}.zip`],
-          checksum: { type: 'sidecar-file', url: `${DENO_RELEASE}/deno-${target}.zip.sha256sum` },
-          archive: 'zip',
-          files: [{ find: exe('deno'), to: exe('deno') }],
-        },
-      ],
-      executables: [exe('deno')],
-      versionArgs: ['--version'],
-    },
+    deno: denoPlan(target, exe),
   };
 }
 
 /** Where yt-dlp's program lives in the sidecar folder on macOS (see `ytDlpPlan`). */
 export const YT_DLP_MACOS = 'yt-dlp/yt-dlp_macos';
+
+function denoPlan(target, exe) {
+  const name = `deno-${target}.zip`;
+  const sha256 = DENO_SHA256[target];
+  if (!sha256) {
+    throw new Error(`no pinned deno checksum for ${target}`);
+  }
+  return {
+    type: 'download',
+    downloads: [
+      {
+        name,
+        urls: [`${DENO_RELEASE}/${name}`],
+        checksum: { type: 'pinned', sha256 },
+        archive: 'zip',
+        files: [{ find: exe('deno'), to: exe('deno') }],
+      },
+    ],
+    executables: [exe('deno')],
+    versionArgs: ['--version'],
+  };
+}
 
 function ytDlpPlan(info, exe) {
   const download = {
@@ -137,10 +180,12 @@ function ytDlpPlan(info, exe) {
     checksum: {
       type: 'sums-file',
       url: `${YT_DLP_RELEASE}/SHA2-256SUMS`,
+      vendored: YT_DLP_SUMS_VENDORED,
       entry: info.ytDlp,
       // Same release as the binary. The signature is what ties the sums to yt-dlp's key.
       signature: {
         url: `${YT_DLP_RELEASE}/SHA2-256SUMS.sig`,
+        vendored: YT_DLP_SIG_VENDORED,
         key: YT_DLP_RELEASE_KEY,
         fingerprint: YT_DLP_KEY_FINGERPRINT,
       },
@@ -239,14 +284,16 @@ function martinRiedlDownloads(arch) {
   }));
 }
 
-/** Static Windows/Linux builds by BtbN; the exact asset is picked from the release checksums. */
+/** Static Windows/Linux builds by BtbN; pinned so CI does not depend on live checksums.sha256. */
 function btbnDownload(info, exe) {
+  const pin = BTBN_PINS[info.ffmpeg];
+  if (!pin) {
+    throw new Error(`no pinned BtbN FFmpeg build for platform ${info.ffmpeg}`);
+  }
   return {
-    type: 'btbn',
-    platform: info.ffmpeg,
-    ext: info.os === 'windows' ? 'zip' : 'tar.xz',
-    checksumsUrl: `${BTBN_RELEASE}/checksums.sha256`,
-    releaseUrl: BTBN_RELEASE,
+    name: pin.asset,
+    urls: [`${BTBN_RELEASE}/${pin.asset}`],
+    checksum: { type: 'pinned', sha256: pin.sha256 },
     archive: info.os === 'windows' ? 'zip' : 'tar',
     files: [exe('ffmpeg'), exe('ffprobe')].map((f) => ({ find: f, to: f })),
   };
