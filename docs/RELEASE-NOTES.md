@@ -2,6 +2,8 @@
 
 **Status:** prepared in the `cursor/macos-metadata-intel-compat-668e` branch / PR [#22](https://github.com/Fil1825/vitra/pull/22). **Not** tagged, **not** uploaded to GitHub Releases, **not** marked Latest. Runtime acceptance on real Mac/Windows/Linux hardware is **still pending** (owner postponed acquaintance tests).
 
+**Not releasable yet:** the Intel macOS installer would redistribute stolendata mpv 0.39.0. Upstream mpv 0.39 source does not reproduce that third-party binary. [`THIRD-PARTY.md`](THIRD-PARTY.md) marks corresponding source / build recipe as **pending**. Do not tag or publish until that set exists, or until Intel binaries are excluded by an explicit decision. Default builds stay ad-hoc / unsigned (`sign_macos` / `sign_windows` false).
+
 ## Highlights since 0.1.1
 
 - **Metadata:** Latin1-only ID3 CP1251 repair with Lofty normalization preserved; library rescan via `tag_decoder` v2.

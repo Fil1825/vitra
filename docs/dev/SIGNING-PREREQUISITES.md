@@ -4,9 +4,9 @@ This file is for humans configuring GitHub Actions. **Never commit certificates,
 
 ## Owner status (2026-11-08)
 
-- **Apple Developer Program:** unknown — no credentials in user Vault.
-- **Windows Authenticode:** none.
-- **Paid enrollment / cert purchase:** not authorized for this agent run.
+- **Apple Developer Program:** not enrolled (owner’s Apple account shows Join/Enroll; verified 2026-11-08). No Developer ID, no notarization credentials.
+- **Windows Authenticode:** no certificate.
+- **Paid enrollment / cert purchase / SignPath application:** not authorized.
 
 Trusted builds remain **blocked** until secrets exist; default workflows continue **ad-hoc / unsigned**.
 
