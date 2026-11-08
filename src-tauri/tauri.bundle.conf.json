@@ -5,7 +5,8 @@
   },
   "bundle": {
     "resources": {
-      "sidecars/bundle/": "sidecars/"
+      "sidecars/bundle/": "sidecars/",
+      "../docs/THIRD-PARTY.md": "THIRD-PARTY.md"
     }
   }
 }

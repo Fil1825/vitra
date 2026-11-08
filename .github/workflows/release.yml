@@ -14,6 +14,10 @@ on:
         description: 'Use Developer ID and notarization (requires configured Apple secrets)'
         type: boolean
         default: false
+      sign_windows:
+        description: 'Authenticode-sign the NSIS installer (requires WINDOWS_* secrets)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -82,6 +86,12 @@ jobs:
         run: node scripts/release/check-version.mjs
       - name: Fetch verified audio components
         run: npm run fetch-sidecars -- --target ${{ matrix.target }} --require-checksums
+      - name: Verify Intel mpv bundle load closure
+        if: matrix.target == 'x86_64-apple-darwin'
+        run: python3 scripts/release/mach-deps.py src-tauri/sidecars/x86_64-apple-darwin/mpv/mpv.app --warn-stale-rpath
+      - name: Strip stale builder RPATHs from Intel mpv
+        if: runner.os == 'macOS' && matrix.target == 'x86_64-apple-darwin'
+        run: node scripts/release/strip-macos-rpaths.mjs src-tauri/sidecars/x86_64-apple-darwin/mpv/mpv.app
       - name: Require official macOS signing credentials
         if: runner.os == 'macOS' && inputs.sign_macos
         shell: bash
@@ -107,6 +117,18 @@ jobs:
       - name: Sign nested macOS components
         if: runner.os == 'macOS'
         run: node scripts/release/run-checked.mjs "node scripts/release/sign-macos.mjs src-tauri/sidecars/${{ matrix.target }}"
+      - name: Require Windows signing credentials
+        if: runner.os == 'Windows' && inputs.sign_windows
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          foreach ($name in 'WINDOWS_CERTIFICATE','WINDOWS_CERTIFICATE_PASSWORD') {
+            if (-not (Get-Item "Env:$name" -ErrorAction SilentlyContinue)?.Value) {
+              throw "Required signing setting is missing: $name"
+            }
+          }
       - name: Run quality checks and native unit tests
         run: node scripts/release/run-checked.mjs "npm run check:all"
       - name: Build installer with audio components
@@ -117,11 +139,24 @@ jobs:
           if [[ "$APPLE_SIGNING_IDENTITY" == '-' ]]; then
             unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
           fi
-          npm run bundle -- --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} ${{ matrix.config }}
+          EXTRA_CONFIG=""
+          if [[ "${{ runner.os }}" == "Windows" && "${{ inputs.sign_windows }}" == "true" ]]; then
+            EXTRA_CONFIG=$(pwsh -NoProfile -File scripts/release/windows-trusted-bundle.ps1)
+          fi
+          npm run bundle -- --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} ${{ matrix.config }} ${EXTRA_CONFIG:+--config "$EXTRA_CONFIG"}
         env:
           APPLE_ID: ${{ inputs.sign_macos && secrets.APPLE_ID || '' }}
           APPLE_PASSWORD: ${{ inputs.sign_macos && secrets.APPLE_PASSWORD || '' }}
           APPLE_TEAM_ID: ${{ inputs.sign_macos && secrets.APPLE_TEAM_ID || '' }}
+          WINDOWS_CERTIFICATE: ${{ inputs.sign_windows && secrets.WINDOWS_CERTIFICATE || '' }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ inputs.sign_windows && secrets.WINDOWS_CERTIFICATE_PASSWORD || '' }}
+      - name: Verify Windows Authenticode signature
+        if: runner.os == 'Windows' && inputs.sign_windows
+        shell: pwsh
+        run: |
+          $packages = @(Get-ChildItem 'target/${{ matrix.target }}/release/bundle/nsis/*.exe')
+          if ($packages.Count -ne 1) { throw 'Expected one Windows installer' }
+          node scripts/release/sign-windows.mjs $packages[0].FullName
       - name: Verify the app inside the finished macOS disk image
         if: runner.os == 'macOS'
         run: python3 scripts/release/verify-macos.py target/${{ matrix.target }}/release/bundle/dmg ${{ matrix.target }} ${{ inputs.sign_macos && '--signed' || '' }}

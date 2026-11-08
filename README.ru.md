@@ -24,9 +24,12 @@ Vitra — музыкальный плеер с открытым исходным
 или `Vitra-Linux-x64.deb`. Публикация происходит после успешных проверок всех четырёх сборок.
 Если выпуск ещё не появился, [проверьте ход сборки](https://github.com/Fil1825/vitra/actions/workflows/release.yml).
 
-- **macOS:** откройте DMG и перенесите Vitra в «Программы». Apple Silicon требует macOS 14
-  или новее, Intel — macOS 15 или новее. Сейчас используется локальная ad-hoc-подпись:
-  она не является подписью Developer ID и не подтверждает доверие Gatekeeper.
+- **macOS:** откройте DMG и перенесите Vitra в «Программы». Apple Silicon — macOS 14+;
+  Intel — **macOS 12+ (Monterey)** с отдельной сборкой mpv 0.39 (сторонний пакет stolendata).
+  **Рантайм Intel на реальном Mac в проекте не подтверждён.** Сборки по умолчанию с ad-hoc
+  подписью (не Developer ID / без нотаризации), пока владелец не включит `sign_macos` в
+  [релизном workflow](.github/workflows/release.yml) и не настроит секреты
+  ([инструкция](docs/dev/SIGNING-PREREQUISITES.md)).
 - **Windows 10/11 x64:** запустите установщик NSIS. Текущие сборки не имеют Authenticode-подписи.
 - **Ubuntu 24.04 / совместимый Debian x64:** установите пакет командой
   `sudo apt install ./Vitra-Linux-x64.deb`. Системный mpv устанавливается как зависимость.

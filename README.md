@@ -30,7 +30,10 @@ listed yet, see [build progress](https://github.com/Fil1825/vitra/actions/workfl
 See [release preparation](docs/RELEASING.md) for build and verification details.
 
 - macOS: open the DMG and move Vitra to Applications. Requires macOS 14+ on Apple Silicon,
-  or macOS 15+ on Intel. Current candidates use ad-hoc signatures and are not notarized.
+  or macOS 12+ on Intel (third-party mpv 0.39 sidecar — **not runtime-verified on hardware
+  yet**). Default CI builds use ad-hoc macOS signing and unsigned Windows installers until
+  `sign_macos` / `sign_windows` are enabled with repository secrets
+  ([signing prerequisites](docs/dev/SIGNING-PREREQUISITES.md)).
 - Windows 10/11 x64: run the NSIS installer. Current candidates are unsigned.
 - Ubuntu 24.04 / compatible Debian x64: install the `.deb` with
   `sudo apt install ./Vitra-Linux-x64.deb`; mpv is installed as a package dependency.

@@ -165,6 +165,7 @@ async function install(sidecar) {
         sha256,
         ...(download.provenance ? { provenance: download.provenance } : {}),
         ...(download.sourceUrl ? { sourceUrl: download.sourceUrl } : {}),
+        ...(download.license ? { license: download.license } : {}),
       });
 
       let source = file;
@@ -281,10 +282,28 @@ function requireHash(hash, url) {
   return hash;
 }
 
+const TRANSIENT_HTTP = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+async function sleep(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function downloadFile(url, file, label) {
-  const res = await fetch(url, { redirect: 'follow' });
-  if (!res.ok || !res.body) {
+  let res;
+  const attempts = 4;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    res = await fetch(url, { redirect: 'follow' });
+    if (res.ok && res.body) break;
+    const retryable = !res.ok && TRANSIENT_HTTP.has(res.status);
+    if (retryable && attempt < attempts) {
+      warn(`${label}: HTTP ${res.status}, retry ${attempt}/${attempts - 1}`);
+      await sleep(4000 * 2 ** (attempt - 1));
+      continue;
+    }
     throw new Error(`HTTP ${res.status}`);
+  }
+  if (!res?.ok || !res.body) {
+    throw new Error(`HTTP ${res?.status ?? 'failed'}`);
   }
   const total = Number(res.headers.get('content-length')) || 0;
   const hash = createHash('sha256');

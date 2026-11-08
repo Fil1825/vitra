@@ -8,7 +8,7 @@ test installers. The first target version is 0.1.0, published as a prerelease.
 | Platform            | Package        | Minimum / engine                                        |
 | ------------------- | -------------- | ------------------------------------------------------- |
 | macOS Apple Silicon | App inside DMG | macOS 14+, included mpv                                 |
-| macOS Intel         | App inside DMG | macOS 15+, included mpv                                 |
+| macOS Intel         | App inside DMG | macOS 12+, stolendata mpv 0.39 (runtime not hardware-verified in-repo) |
 | Windows x64         | NSIS installer | Windows 10/11, included mpv                             |
 | Linux x64           | Debian package | Ubuntu 24.04 / compatible Debian; system mpv dependency |
 
@@ -81,12 +81,15 @@ add these **repository Actions secrets** in GitHub settings, never in source or 
 | `APPLE_ID`                   | Apple account used for notarization                        |
 | `APPLE_PASSWORD`             | App-specific notarization password                         |
 | `APPLE_TEAM_ID`              | Developer team identifier                                  |
+| `WINDOWS_CERTIFICATE`        | Base64 `.pfx` Authenticode certificate (optional Windows path) |
+| `WINDOWS_CERTIFICATE_PASSWORD` | PFX password                                           |
 
-Choose **sign_macos** on a manual workflow run. Missing credentials fail the signing job
-explicitly. The certificate is imported into the ephemeral runner keychain, helper code
-receives hardened-runtime signatures, and Tauri performs signing/notarization. The finished
-app must pass stapler validation and Gatekeeper assessment. This path is prepared but cannot
-be validated without the account and certificate.
+Choose **sign_macos** / **sign_windows** on a manual **Release candidates** run (both default
+**false**). Missing credentials fail the job explicitly — no silent ad-hoc fallback when
+trusted signing was requested. macOS: import cert, strip stale Intel mpv RPATHs, sign nested
+helpers, Tauri notarization when enabled. Windows: import PFX, set `certificateThumbprint` via
+transient config, `signtool verify` after build. This path cannot be validated here until the
+owner configures secrets (see [SIGNING-PREREQUISITES.md](dev/SIGNING-PREREQUISITES.md)).
 
 Before publishing signed packages, make a signed run of the exact version/tag and review
 its verified assets. A default tag run remains an ad-hoc build until signed release runs
