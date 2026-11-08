@@ -3,6 +3,7 @@
 
 mod artwork;
 mod encoding;
+mod id3;
 mod lyrics;
 mod metadata;
 mod palette;

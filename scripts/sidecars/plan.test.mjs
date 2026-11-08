@@ -49,6 +49,15 @@ describe('planFor', () => {
     }
   });
 
+  it('uses stolendata Intel mpv recommended on mpv.io', () => {
+    const [download] = planFor('x86_64-apple-darwin').mpv.downloads;
+    expect(download.provenance).toBe('stolendata-djinn-mpv-osx');
+    expect(download.archive).toBe('tar.gz');
+    expect(download.checksum.sha256).toBe(
+      '35ec81ad86a97b24956a8d0f4fa1ba2690b44ae7741c920e923620bcd7bd402a',
+    );
+  });
+
   it('keeps the mpv app bundle intact on macOS', () => {
     const mpv = planFor('aarch64-apple-darwin').mpv;
     expect(mpv.downloads[0].files).toEqual([{ find: 'mpv.app', to: 'mpv/mpv.app' }]);

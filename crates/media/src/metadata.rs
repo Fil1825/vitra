@@ -7,8 +7,7 @@ use serde::Serialize;
 
 use crate::MediaError;
 use crate::artwork::Artwork;
-use crate::encoding::repair_id3_tag_text;
-use lofty::tag::TagType;
+use crate::id3::{enrich_mpeg_id3, is_id3v1, repair_id3v1_metadata};
 
 /// Tags and audio properties shown in the UI. Every field is optional: files in the wild
 /// carry anything from complete tags to nothing at all.
@@ -68,15 +67,12 @@ pub fn read_track(path: &Path) -> Result<TrackInfo, MediaError> {
     let tag = file.primary_tag().or_else(|| file.first_tag());
     let mut embedded_artwork = None;
     if let Some(tag) = tag {
-        let tag_type = tag.tag_type();
         let text = |value: Option<std::borrow::Cow<'_, str>>| {
-            value
-                .map(|v| repair_id3_tag_text(v.trim(), tag_type))
-                .filter(|v| !v.is_empty())
+            value.map(|v| v.trim().to_owned()).filter(|v| !v.is_empty())
         };
         metadata.title = text(tag.title());
         metadata.artist = text(tag.artist());
-        metadata.artists = artist_values(tag, tag_type);
+        metadata.artists = artist_values(tag);
         metadata.album = text(tag.album());
         metadata.genre = text(tag.genre());
         metadata.album_artist = text(tag.get_string(ItemKey::AlbumArtist).map(Into::into));
@@ -98,6 +94,13 @@ pub fn read_track(path: &Path) -> Result<TrackInfo, MediaError> {
             bytes: picture.data().to_vec(),
             mime: picture.mime_type().map(mime_name).map(str::to_owned),
         });
+        if is_id3v1(tag.tag_type()) {
+            repair_id3v1_metadata(&mut metadata);
+        }
+    }
+
+    if file.file_type() == FileType::Mpeg {
+        enrich_mpeg_id3(path, &mut metadata)?;
     }
 
     Ok(TrackInfo {
@@ -108,7 +111,7 @@ pub fn read_track(path: &Path) -> Result<TrackInfo, MediaError> {
 
 /// The artists a tag lists, when it lists more than one: an `ARTISTS` tag (written by
 /// MusicBrainz Picard and by Vitra for MP4) first, else several artist values.
-pub(crate) fn artist_values(tag: &lofty::tag::Tag, tag_type: TagType) -> Vec<String> {
+pub(crate) fn artist_values(tag: &lofty::tag::Tag) -> Vec<String> {
     let values = |key: ItemKey| -> Vec<String> {
         tag.get_strings(key)
             .map(str::trim)
@@ -116,17 +119,11 @@ pub(crate) fn artist_values(tag: &lofty::tag::Tag, tag_type: TagType) -> Vec<Str
             .map(str::to_owned)
             .collect()
     };
-    let listed: Vec<String> = values(ItemKey::TrackArtists)
-        .into_iter()
-        .map(|name| repair_id3_tag_text(&name, tag_type))
-        .collect();
+    let listed = values(ItemKey::TrackArtists);
     if !listed.is_empty() {
         return listed;
     }
-    let artists: Vec<String> = values(ItemKey::TrackArtist)
-        .into_iter()
-        .map(|name| repair_id3_tag_text(&name, tag_type))
-        .collect();
+    let artists = values(ItemKey::TrackArtist);
     if artists.len() > 1 {
         artists
     } else {

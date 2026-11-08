@@ -266,7 +266,7 @@ pub(crate) const MIGRATIONS: &[&str] = &[
       AND track_id IN (SELECT id FROM tracks
                        WHERE path LIKE 'http://%' OR path LIKE 'https://%');
     ",
-    // 12: Re-read folder tracks after legacy ID3 Cyrillic decoding (media::TAG_DECODER_VERSION).
+    // 12: Re-read folder tracks when media::TAG_DECODER_VERSION changes (Latin1-only ID3 repair).
     // `migrate` adds `tag_decoder` when missing (re-applying this version is idempotent).
     r"
     UPDATE tracks SET tag_decoder = 0 WHERE folder_id IS NOT NULL;

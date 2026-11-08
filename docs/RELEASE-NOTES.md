@@ -19,7 +19,7 @@ custom themes and layouts, and a separate mini player.
   visible diagnostics for recurring decoder failures.
 
 Discord and Last.fm integrations are not included. macOS packages require macOS 14+
-(Apple Silicon) or 15+ (Intel); Linux Debian packages also install system mpv.
+(Apple Silicon) or 12+ (Intel); Linux Debian packages also install system mpv.
 
 This remains a public test release (GitHub prerelease). 0.1.0 was the first. Current macOS
 candidates use ad-hoc signatures and are not notarized; Windows candidates are unsigned.

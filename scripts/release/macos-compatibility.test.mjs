@@ -13,7 +13,7 @@ describe('macOS packaging compatibility', () => {
     expect(intelMinimum).toBe(BUNDLE_MINIMUM_MACOS['x86_64-apple-darwin']);
   });
 
-  it('rejects official Intel mpv below Sequoia (Monterey 12 is not supported)', () => {
+  it('accepts stolendata Intel mpv on Monterey when sidecars are present', () => {
     const sidecar = path.join(
       import.meta.dirname,
       '../../src-tauri/sidecars/x86_64-apple-darwin/mpv',
@@ -22,8 +22,7 @@ describe('macOS packaging compatibility', () => {
       return; // optional in CI until fetch-sidecars runs
     }
     const monterey = verifyMachMinOs(sidecar, '12.7');
-    expect(monterey.ok).toBe(false);
-    expect(monterey.output).toMatch(/requires macOS 1[45]\./);
+    expect(monterey.ok).toBe(true);
   });
 
   it('mach-minos helper enforces a ceiling on synthetic fixtures', () => {

@@ -159,7 +159,13 @@ async function install(sidecar) {
       const download = entry.type === 'btbn' ? await resolveBtbn(entry) : entry;
       const file = path.join(workDir, `download-${i}`);
       const { url, sha256 } = await downloadVerified(download, file);
-      fetched.push({ name: download.name, url, sha256 });
+      fetched.push({
+        name: download.name,
+        url,
+        sha256,
+        ...(download.provenance ? { provenance: download.provenance } : {}),
+        ...(download.sourceUrl ? { sourceUrl: download.sourceUrl } : {}),
+      });
 
       let source = file;
       if (download.archive) {
