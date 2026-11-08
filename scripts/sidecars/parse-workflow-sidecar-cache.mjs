@@ -1,8 +1,4 @@
-import {
-  assertActionsCacheKey,
-  actionsArchiveCacheKey,
-  sidecarCacheScope,
-} from './archive-cache-key.mjs';
+import { assertActionsCacheKey, sidecarCacheScope } from './archive-cache-key.mjs';
 
 /** Must match `hashFiles(...)` used in restore/save steps exactly. */
 export const WORKFLOW_HASHFILES =
