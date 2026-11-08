@@ -157,6 +157,10 @@ jobs:
           $packages = @(Get-ChildItem 'target/${{ matrix.target }}/release/bundle/nsis/*.exe')
           if ($packages.Count -ne 1) { throw 'Expected one Windows installer' }
           node scripts/release/sign-windows.mjs $packages[0].FullName
+      - name: Remove imported Windows signing certificate
+        if: runner.os == 'Windows' && inputs.sign_windows
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/release/windows-remove-signing-cert.ps1
       - name: Verify the app inside the finished macOS disk image
         if: runner.os == 'macOS'
         run: python3 scripts/release/verify-macos.py target/${{ matrix.target }}/release/bundle/dmg ${{ matrix.target }} ${{ inputs.sign_macos && '--signed' || '' }}

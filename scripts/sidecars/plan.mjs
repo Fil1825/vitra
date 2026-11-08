@@ -185,7 +185,8 @@ function mpvPlan(target, info) {
           archive: 'tar.gz',
           provenance: build.provenance,
           sourceUrl: build.homepage,
-          license: 'GPL-2.0-or-later (third-party build; sources: https://github.com/mpv-player/mpv)',
+          license:
+            'GPL-2.0-or-later (third-party build; sources: https://github.com/mpv-player/mpv)',
           files: [{ find: 'mpv.app', to: 'mpv/mpv.app' }],
         },
       ],

@@ -7,9 +7,11 @@ if (-not $env:WINDOWS_CERTIFICATE -or -not $env:WINDOWS_CERTIFICATE_PASSWORD) {
 $pfx = Join-Path $env:RUNNER_TEMP 'vitra-codesign.pfx'
 [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
 $sec = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText
-Import-PfxCertificate -FilePath $pfx -Password $sec -CertStoreLocation Cert:\CurrentUser\My | Out-Null
-$thumb = (Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.HasPrivateKey } | Sort-Object NotAfter -Descending | Select-Object -First 1).Thumbprint
-if (-not $thumb) { throw 'No code-signing certificate in user store after import' }
+$imported = Import-PfxCertificate -FilePath $pfx -Password $sec -CertStoreLocation Cert:\CurrentUser\My
+Remove-Item -Force $pfx
+$thumb = $imported.Thumbprint
+if (-not $thumb) { throw 'PFX import did not return a thumbprint' }
+$env:VITRA_WINDOWS_SIGN_THUMBPRINT = $thumb
 $overlay = Join-Path $env:RUNNER_TEMP 'tauri-windows-trusted.json'
 @{
   bundle = @{

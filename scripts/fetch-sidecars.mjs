@@ -288,22 +288,25 @@ async function sleep(ms) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function downloadFile(url, file, label) {
-  let res;
+async function fetchWithRetry(url, label = url) {
   const attempts = 4;
   for (let attempt = 1; attempt <= attempts; attempt++) {
-    res = await fetch(url, { redirect: 'follow' });
-    if (res.ok && res.body) break;
-    const retryable = !res.ok && TRANSIENT_HTTP.has(res.status);
-    if (retryable && attempt < attempts) {
+    const res = await fetch(url, { redirect: 'follow' });
+    if (res.ok) return res;
+    if (TRANSIENT_HTTP.has(res.status) && attempt < attempts) {
       warn(`${label}: HTTP ${res.status}, retry ${attempt}/${attempts - 1}`);
       await sleep(4000 * 2 ** (attempt - 1));
       continue;
     }
-    throw new Error(`HTTP ${res.status}`);
+    throw new Error(`HTTP ${res.status} for ${url}`);
   }
-  if (!res?.ok || !res.body) {
-    throw new Error(`HTTP ${res?.status ?? 'failed'}`);
+  throw new Error(`HTTP failed for ${url}`);
+}
+
+async function downloadFile(url, file, label) {
+  const res = await fetchWithRetry(url, label);
+  if (!res.body) {
+    throw new Error(`empty body for ${url}`);
   }
   const total = Number(res.headers.get('content-length')) || 0;
   const hash = createHash('sha256');
@@ -332,18 +335,12 @@ async function downloadFile(url, file, label) {
 }
 
 async function fetchText(url) {
-  const res = await fetch(url, { redirect: 'follow' });
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status} for ${url}`);
-  }
+  const res = await fetchWithRetry(url);
   return res.text();
 }
 
 async function fetchBytes(url) {
-  const res = await fetch(url, { redirect: 'follow' });
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status} for ${url}`);
-  }
+  const res = await fetchWithRetry(url);
   return new Uint8Array(await res.arrayBuffer());
 }
 

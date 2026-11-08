@@ -9,15 +9,15 @@ on Monterey even if the plist were lowered.
 
 ## Bundled Intel mpv (from this branch)
 
-| Item | Value |
-|------|--------|
-| Source | [stolendata djinn mac builds](https://laboratory.stolendata.net/~djinn/mpv_osx/) (linked from [mpv.io/installation](https://mpv.io/installation)) |
-| Artifact | `mpv-0.39.0.tar.gz` |
-| SHA256 | `35ec81ad86a97b24956a8d0f4fa1ba2690b44ae7741c920e923620bcd7bd402a` |
-| mpv version | **0.39.0** (Info.plist / `--version`) |
-| Architecture | thin **x86_64** |
-| Mach-O minOS | **11.0** on `mpv` and bundled dylibs (Monterey **12.7** ceiling passes `mach-minos.py`) |
-| Vitra Intel plist | **12.0** (`tauri.intel.conf.json`) — product floor for Monterey |
+| Item              | Value                                                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source            | [stolendata djinn mac builds](https://laboratory.stolendata.net/~djinn/mpv_osx/) (linked from [mpv.io/installation](https://mpv.io/installation)) |
+| Artifact          | `mpv-0.39.0.tar.gz`                                                                                                                               |
+| SHA256            | `35ec81ad86a97b24956a8d0f4fa1ba2690b44ae7741c920e923620bcd7bd402a`                                                                                |
+| mpv version       | **0.39.0** (Info.plist / `--version`)                                                                                                             |
+| Architecture      | thin **x86_64**                                                                                                                                   |
+| Mach-O minOS      | **11.0** on `mpv` and bundled dylibs (Monterey **12.7** ceiling passes `mach-minos.py`)                                                           |
+| Vitra Intel plist | **12.0** (`tauri.intel.conf.json`) — product floor for Monterey                                                                                   |
 
 This is **not** an official `mpv-player` GitHub release. Support, security fixes, and reproducibility
 depend on the third-party builder. GPLv2+ applies to mpv; Vitra is GPLv3.

@@ -10,18 +10,18 @@
 
 ## Platform requirements (documented, partially unverified)
 
-| Target | Minimum | Bundled playback |
-|--------|---------|------------------|
-| macOS arm64 | 14 (Sonoma) | official mpv 0.41 |
-| macOS Intel | 12 (Monterey) | stolendata mpv 0.39 — **no hardware sign-off yet** |
-| Windows x64 | 10/11 | mpv 0.41 |
-| Linux deb | compatible Debian / Ubuntu 24.04 | system `mpv` |
+| Target      | Minimum                          | Bundled playback                                   |
+| ----------- | -------------------------------- | -------------------------------------------------- |
+| macOS arm64 | 14 (Sonoma)                      | official mpv 0.41                                  |
+| macOS Intel | 12 (Monterey)                    | stolendata mpv 0.39 — **no hardware sign-off yet** |
+| Windows x64 | 10/11                            | mpv 0.41                                           |
+| Linux deb   | compatible Debian / Ubuntu 24.04 | system `mpv`                                       |
 
 ## Signing (default vs trusted)
 
-| Build | macOS | Windows |
-|-------|-------|---------|
-| Default workflow (`sign_*` false) | Ad-hoc nested helpers, no notarization | Unsigned NSIS |
+| Build                                        | macOS                                                | Windows                                     |
+| -------------------------------------------- | ---------------------------------------------------- | ------------------------------------------- |
+| Default workflow (`sign_*` false)            | Ad-hoc nested helpers, no notarization               | Unsigned NSIS                               |
 | Trusted (`sign_macos` / `sign_windows` true) | Developer ID + notarization when Apple secrets exist | Authenticode when `WINDOWS_*` secrets exist |
 
 SmartScreen and Gatekeeper friction may remain even with valid signatures until reputation/notarization propagate.

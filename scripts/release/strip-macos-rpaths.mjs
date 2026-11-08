@@ -25,9 +25,7 @@ function listRpaths(binary) {
 }
 
 function stripFile(file, dryRun) {
-  const stale = listRpaths(file).filter((p) =>
-    FORBIDDEN.some((needle) => p.includes(needle)),
-  );
+  const stale = listRpaths(file).filter((p) => FORBIDDEN.some((needle) => p.includes(needle)));
   if (!stale.length) return 0;
   for (const rpath of stale) {
     console.log(`${dryRun ? 'would remove' : 'remove'} rpath ${rpath} from ${file}`);
@@ -46,11 +44,7 @@ function walkMachO(root) {
   for (const file of fs.readdirSync(root, { withFileTypes: true })) {
     const p = path.join(root, file.name);
     if (file.isDirectory()) out.push(...walkMachO(p));
-    else if (
-      file.name === 'mpv' ||
-      file.suffix === '.dylib' ||
-      file.name.endsWith('_macos')
-    ) {
+    else if (file.name === 'mpv' || file.suffix === '.dylib' || file.name.endsWith('_macos')) {
       out.push(p);
     }
   }
@@ -71,9 +65,7 @@ if (process.platform !== 'darwin') {
 
 const root = target.endsWith('.app') ? target : target;
 let removed = 0;
-for (const file of walkMachO(
-  fs.statSync(root).isDirectory() ? root : path.dirname(root),
-)) {
+for (const file of walkMachO(fs.statSync(root).isDirectory() ? root : path.dirname(root))) {
   removed += stripFile(file, dryRun);
 }
 console.log(removed ? `Done (${removed} rpath entries)` : 'No stale rpaths found');

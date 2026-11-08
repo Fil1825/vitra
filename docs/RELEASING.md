@@ -5,12 +5,12 @@ test installers. The first target version is 0.1.0, published as a prerelease.
 
 ## Packages
 
-| Platform            | Package        | Minimum / engine                                        |
-| ------------------- | -------------- | ------------------------------------------------------- |
-| macOS Apple Silicon | App inside DMG | macOS 14+, included mpv                                 |
+| Platform            | Package        | Minimum / engine                                                       |
+| ------------------- | -------------- | ---------------------------------------------------------------------- |
+| macOS Apple Silicon | App inside DMG | macOS 14+, included mpv                                                |
 | macOS Intel         | App inside DMG | macOS 12+, stolendata mpv 0.39 (runtime not hardware-verified in-repo) |
-| Windows x64         | NSIS installer | Windows 10/11, included mpv                             |
-| Linux x64           | Debian package | Ubuntu 24.04 / compatible Debian; system mpv dependency |
+| Windows x64         | NSIS installer | Windows 10/11, included mpv                                            |
+| Linux x64           | Debian package | Ubuntu 24.04 / compatible Debian; system mpv dependency                |
 
 FFmpeg, ffprobe, yt-dlp, and Deno are included. macOS and Windows include mpv and its
 libraries as well. `npm run bundle` now rejects incomplete sidecar directories instead
@@ -73,16 +73,16 @@ unsigned; a trusted Authenticode certificate is a separate future prerequisite.
 When an Apple Developer account and Developer ID Application certificate are available,
 add these **repository Actions secrets** in GitHub settings, never in source or chat:
 
-| Secret                       | Purpose                                                    |
-| ---------------------------- | ---------------------------------------------------------- |
-| `APPLE_CERTIFICATE`          | Base64-encoded Developer ID Application `.p12` certificate |
-| `APPLE_CERTIFICATE_PASSWORD` | Password protecting that certificate                       |
-| `APPLE_SIGNING_IDENTITY`     | Full Developer ID Application identity                     |
-| `APPLE_ID`                   | Apple account used for notarization                        |
-| `APPLE_PASSWORD`             | App-specific notarization password                         |
-| `APPLE_TEAM_ID`              | Developer team identifier                                  |
-| `WINDOWS_CERTIFICATE`        | Base64 `.pfx` Authenticode certificate (optional Windows path) |
-| `WINDOWS_CERTIFICATE_PASSWORD` | PFX password                                           |
+| Secret                         | Purpose                                                        |
+| ------------------------------ | -------------------------------------------------------------- |
+| `APPLE_CERTIFICATE`            | Base64-encoded Developer ID Application `.p12` certificate     |
+| `APPLE_CERTIFICATE_PASSWORD`   | Password protecting that certificate                           |
+| `APPLE_SIGNING_IDENTITY`       | Full Developer ID Application identity                         |
+| `APPLE_ID`                     | Apple account used for notarization                            |
+| `APPLE_PASSWORD`               | App-specific notarization password                             |
+| `APPLE_TEAM_ID`                | Developer team identifier                                      |
+| `WINDOWS_CERTIFICATE`          | Base64 `.pfx` Authenticode certificate (optional Windows path) |
+| `WINDOWS_CERTIFICATE_PASSWORD` | PFX password                                                   |
 
 Choose **sign_macos** / **sign_windows** on a manual **Release candidates** run (both default
 **false**). Missing credentials fail the job explicitly — no silent ad-hoc fallback when
