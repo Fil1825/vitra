@@ -166,7 +166,16 @@ describe('publication gate', () => {
       details('missing-dependency-source', 'x86_64-pc-windows-msvc').some(
         (b) => b.detail === '50-x264.sh',
       ),
-    ).toBe(true);
+    ).toBe(false);
+    for (const script of [
+      '20-libiconv.sh',
+      '50-aom.sh',
+      '50-libvpx.sh',
+      '50-libwebp.sh',
+      '50-xvid.sh',
+    ]) {
+      expect(details('missing-dependency-source').some((b) => b.detail === script)).toBe(true);
+    }
     expect(
       details('missing-dependency-source', 'x86_64-unknown-linux-gnu').some(
         (b) => b.detail === '10-mingw.sh',

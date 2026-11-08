@@ -40,9 +40,26 @@ depend on the third-party builder. GPLv2+ applies to mpv; Vitra is GPLv3.
 - **yt-dlp / ffmpeg / deno** Intel sidecars are unchanged; confirm their Mach-O minOS ≤ 12.0 in
   release verify (`scripts/release/verify-macos.py`).
 
+## This candidate's Intel installer
+
+Linux, Windows, and Apple Silicon installers from Actions run 42512576166
+(commit `76ea04250e88d880c3b6a7e3abf182f29c6bbde2`) stay as built. Their artifact
+zip digests are in `scripts/release/reused-artifacts.json`. Intel from that run
+failed before the mpv link and is not pinned.
+
+A pull request's build matrix includes only macOS-Intel (`macos-15-intel`). A job
+`if` cannot read `matrix`: run 42516916666 died with `Unrecognized named-value:
+'matrix'` and created no jobs. Merging to `main` does not run `release.yml`.
+A `v*` tag still builds all four platforms; that is not this candidate's path.
+`workflow_dispatch` is not required. The job checks that application sources
+still match `76ea042` before packaging. Playback on a Monterey machine is still
+not verified, and this VM cannot sign the result.
+
 ## Source build
 
 Intel mpv is produced by `scripts/release/build-intel-mpv.sh` from `intel-mpv-sources.json` on the macOS Intel release runner. The corresponding-source tarball includes that script, the pins, and `mach-minos.py` / `mach-deps.py`, so the offer can be rerun from its own directory. The script refuses a checksum mismatch, refuses a pkg-config view of host libraries, and refuses any Mach-O that needs newer than macOS 12.0. Homebrew is used only for compilers' companion tools (meson, nasm); shipped libraries are the pinned builds. HarfBuzz 10.1.0 is built with Meson.
+
+mpv 0.41 enables `videotoolbox-pl` only when Vulkan and CoreVideo are both present. This recipe does not build a Vulkan loader, so `videotoolbox-pl` stays off. Hardware decode stays on `videotoolbox-gl` (`hwdec_vt.c`, `hwdec_mac_gl.c`) plus FFmpeg `--enable-videotoolbox` and `--enable-audiotoolbox`. `hwdec_mac_gl.c` calls CoreVideo and IOSurface, and mpv only adds the CoreVideo framework on the libplacebo path, so the recipe passes `-framework CoreVideo -framework IOSurface` on the link. The script also deletes mpv's Darwin `-L/usr/local/lib` link argument so Homebrew libraries are not on the link line.
 
 ## Apple Silicon
 

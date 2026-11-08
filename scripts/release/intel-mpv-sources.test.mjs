@@ -49,11 +49,33 @@ describe('Intel mpv source pins', () => {
     expect(recipe).toContain('rubberband');
   });
 
+  it('keeps VideoToolbox on the OpenGL path and does not ask for Vulkan', () => {
+    const enabled = [...recipe.matchAll(/-D\{([^}]+)\}=enabled/g)].flatMap((match) =>
+      match[1].split(','),
+    );
+    const disabled = [...recipe.matchAll(/-D\{([^}]+)\}=disabled/g)].flatMap((match) =>
+      match[1].split(','),
+    );
+    expect(enabled).toEqual(expect.arrayContaining(['gl-cocoa', 'videotoolbox-gl', 'plain-gl']));
+    expect(enabled).not.toContain('videotoolbox-pl');
+    expect(enabled).not.toContain('vulkan');
+    expect(disabled).toEqual(expect.arrayContaining(['videotoolbox-pl', 'vulkan']));
+    expect(recipe).toContain('--enable-videotoolbox');
+    expect(recipe).toContain('--enable-audiotoolbox');
+    expect(recipe).toContain(
+      '-Dc_link_args="$LDFLAGS -liconv -framework CoreVideo -framework IOSurface"',
+    );
+    expect(recipe).toContain(", '-L/usr/local/lib'");
+    expect(recipe).toContain('Homebrew link path the recipe removes');
+  });
+
   it('links libiconv into the shared FFmpeg build without dropping iconv', () => {
     expect(recipe).toContain('--enable-iconv');
     expect(recipe).not.toContain('--disable-iconv');
     expect(recipe).toContain('--extra-libs=-liconv');
-    expect(recipe).toContain('-Dc_link_args="$LDFLAGS -liconv"');
+    expect(recipe).toContain('-liconv');
+    expect(recipe).toContain('-framework CoreVideo');
+    expect(recipe).toContain('-framework IOSurface');
     expect(recipe).toContain('MACOSX_DEPLOYMENT_TARGET=12.0');
     expect(recipe).toContain('-D{gl,iconv,plain-gl}=enabled');
   });

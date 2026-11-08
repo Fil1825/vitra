@@ -1,0 +1,47 @@
+{
+  "repo": "Fil1825/vitra",
+  "version": "1.0.0-rc.1",
+  "appPayloadCommit": "76ea04250e88d880c3b6a7e3abf182f29c6bbde2",
+  "note": "Each target records the Actions run that produced those bytes. Run 42512576166 built Linux, Windows, and Apple Silicon and failed on Intel before the mpv link. A later commit may pin the pull_request Intel artifact. That does not make the three earlier files products of the later commit.",
+  "targets": {
+    "x86_64-unknown-linux-gnu": {
+      "status": "pinned",
+      "runId": 42512576166,
+      "headSha": "76ea04250e88d880c3b6a7e3abf182f29c6bbde2",
+      "artifactId": 13629864717,
+      "artifactName": "Vitra-Linux-x64",
+      "size": 232932785,
+      "sha256": "6a1aa256b992c820b2f9ec35c8b3858db69bf02ec2eb2bc6f0211cb42f00d332",
+      "packageName": "Vitra_1.0.0-rc.1_amd64.deb",
+      "arch": "amd64"
+    },
+    "x86_64-pc-windows-msvc": {
+      "status": "pinned",
+      "runId": 42512576166,
+      "headSha": "76ea04250e88d880c3b6a7e3abf182f29c6bbde2",
+      "artifactId": 13630826011,
+      "artifactName": "Vitra-Windows-x64",
+      "size": 171959682,
+      "sha256": "5fa00d1ae113eef2617b2f7e6649df0761fabd3e19c157d41d3abb5f80c36893",
+      "packageName": "Vitra_1.0.0-rc.1_x64-setup.exe",
+      "arch": "x64"
+    },
+    "aarch64-apple-darwin": {
+      "status": "pinned",
+      "runId": 42512576166,
+      "headSha": "76ea04250e88d880c3b6a7e3abf182f29c6bbde2",
+      "artifactId": 13630098011,
+      "artifactName": "Vitra-macOS-Apple-Silicon",
+      "size": 196595124,
+      "sha256": "243c15227b4ed535b52da8e701471aa455637dda3ef495e032598efc9230337e",
+      "packageName": "Vitra_1.0.0-rc.1_aarch64.dmg",
+      "arch": "aarch64"
+    },
+    "x86_64-apple-darwin": {
+      "status": "missing",
+      "runner": "macos-15-intel",
+      "artifactName": "Vitra-macOS-Intel",
+      "reason": "Built only by the pull_request macOS-Intel job. Pin its run id, artifact id, size, and zip sha256 in a later commit. Run 42512576166 did not produce this installer."
+    }
+  }
+}
