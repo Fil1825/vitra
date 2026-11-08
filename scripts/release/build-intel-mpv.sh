@@ -5,8 +5,8 @@
 set -euo pipefail
 
 OUT=${1:?output directory required}
-ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-PINS="$ROOT/scripts/release/intel-mpv-sources.json"
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+PINS="$SCRIPT_DIR/intel-mpv-sources.json"
 WORK=$(mktemp -d)
 PREFIX="$WORK/prefix"
 SRC="$WORK/src"
@@ -23,7 +23,10 @@ export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
 export CFLAGS="-arch x86_64 -mmacosx-version-min=12.0"
 export CXXFLAGS="$CFLAGS"
 export LDFLAGS="-arch x86_64 -mmacosx-version-min=12.0"
-export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+# Shipped libraries come only from the prefix below. Drop inherited
+# Homebrew search paths before any configure or Meson setup.
+unset PKG_CONFIG_PATH CPATH C_INCLUDE_PATH CPLUS_INCLUDE_PATH OBJC_INCLUDE_PATH LIBRARY_PATH CMAKE_PREFIX_PATH
+export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
 export PATH="$PREFIX/bin:$PATH"
 
 if ! command -v brew >/dev/null; then
@@ -31,11 +34,23 @@ if ! command -v brew >/dev/null; then
   exit 1
 fi
 export HOMEBREW_NO_AUTO_UPDATE=1
+mkdir -p "$PREFIX/lib/pkgconfig"
 brew install -q nasm meson ninja pkgconf autoconf automake libtool python3
+# Fail before compiling if pkg-config can still see host libraries.
+if pkg-config --exists fontconfig \
+  || pkg-config --exists libpng \
+  || pkg-config --exists harfbuzz \
+  || pkg-config --exists freetype2 \
+  || pkg-config --exists libass; then
+  echo "pkg-config sees libraries outside the source prefix; refusing to build" >&2
+  exit 1
+fi
 
 mkdir -p "$SRC" "$PREFIX" "$OFFER/tarballs" "$OFFER/licenses"
 cp "$PINS" "$OFFER/intel-mpv-sources.json"
-cp "$ROOT/scripts/release/build-intel-mpv.sh" "$OFFER/build-intel-mpv.sh"
+cp "$SCRIPT_DIR/build-intel-mpv.sh" "$OFFER/build-intel-mpv.sh"
+cp "$SCRIPT_DIR/mach-minos.py" "$OFFER/mach-minos.py"
+cp "$SCRIPT_DIR/mach-deps.py" "$OFFER/mach-deps.py"
 
 unpack() {
   local archive="$1" dest="$2"
@@ -98,8 +113,9 @@ PY
 
 (
   cd "$WORK/freetype"
+  # Internal zlib only: do not link a host or Homebrew zlib.
   ./configure --prefix="$PREFIX" --enable-shared --disable-static \
-    --without-png --without-harfbuzz --without-brotli --without-bzip2
+    --with-zlib=no --with-png=no --with-harfbuzz=no --with-brotli=no --with-bzip2=no
   make -j"$(sysctl -n hw.ncpu)"
   make install
 )
@@ -111,14 +127,19 @@ PY
 )
 (
   cd "$WORK/harfbuzz"
-  ./configure --prefix="$PREFIX" --enable-shared --disable-static \
-    --with-freetype --disable-gtk-doc --disable-introspection
-  make -j"$(sysctl -n hw.ncpu)"
-  make install
+  # 10.1.0 ships Meson, not Autotools.
+  meson setup build --prefix="$PREFIX" --buildtype=release --default-library=shared \
+    -Dfreetype=enabled -Dglib=disabled -Dgobject=disabled -Dcairo=disabled \
+    -Dchafa=disabled -Dicu=disabled -Dgraphite2=disabled \
+    -Dtests=disabled -Ddocs=disabled -Dintrospection=disabled -Dutilities=disabled \
+    -Dc_args="$CFLAGS" -Dcpp_args="$CXXFLAGS" -Dc_link_args="$LDFLAGS"
+  meson compile -C build
+  meson install -C build
 )
 (
   cd "$WORK/libass"
-  ./configure --prefix="$PREFIX" --enable-shared --disable-static
+  ./configure --prefix="$PREFIX" --enable-shared --disable-static \
+    --disable-fontconfig --enable-coretext
   make -j"$(sysctl -n hw.ncpu)"
   make install
 )
@@ -127,9 +148,12 @@ PY
   ./configure --prefix="$PREFIX" --enable-shared --disable-static \
     --arch=x86_64 --target-os=darwin \
     --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS" \
+    --disable-autodetect \
     --enable-gpl --enable-version3 \
     --disable-doc --disable-debug --disable-programs \
-    --enable-videotoolbox --enable-audiotoolbox
+    --enable-videotoolbox --enable-audiotoolbox \
+    --enable-zlib --enable-iconv \
+    --disable-bzlib --disable-lzma --disable-sdl2
   make -j"$(sysctl -n hw.ncpu)"
   make install
 )
@@ -138,6 +162,7 @@ PY
   meson setup build --prefix="$PREFIX" --buildtype=release \
     -Ddemos=false -Dtests=false \
     -Dvulkan=disabled -Dshaderc=disabled -Dglslang=disabled -Dd3d11=disabled \
+    -Dopengl=enabled -Dlcms=disabled -Dlibdovi=disabled -Dxxhash=disabled \
     -Dc_args="$CFLAGS" -Dcpp_args="$CXXFLAGS" -Dc_link_args="$LDFLAGS"
   meson compile -C build
   meson install -C build
@@ -150,6 +175,7 @@ PY
     -D{cocoa,coreaudio,gl-cocoa,videotoolbox-gl,videotoolbox-pl}=enabled \
     -D{swift-build,macos-cocoa-cb,macos-media-player}=enabled \
     -D{vulkan,macos-touchbar,lua,jpeg,lcms2}=disabled \
+    -D{cdda,dvdnav,javascript,libarchive,libbluray,rubberband,uchardet,vapoursynth,zimg,shaderc,wayland,x11,manpage-build}=disabled \
     -Dswift-flags="-target x86_64-apple-macos12.0" \
     -Dc_args="$CFLAGS" -Dobjc_args="$CFLAGS -Wno-error=deprecated -Wno-error=deprecated-declarations" \
     -Dc_link_args="$LDFLAGS"
@@ -159,8 +185,8 @@ PY
 rm -rf "$OUT/mpv"
 mkdir -p "$OUT/mpv"
 cp -a "$WORK/mpv/build/mpv.app" "$OUT/mpv/mpv.app"
-python3 "$ROOT/scripts/release/mach-minos.py" "$OUT/mpv/mpv.app" --max 12.0
-python3 "$ROOT/scripts/release/mach-deps.py" "$OUT/mpv/mpv.app"
+python3 "$SCRIPT_DIR/mach-minos.py" "$OUT/mpv/mpv.app" --max 12.0
+python3 "$SCRIPT_DIR/mach-deps.py" "$OUT/mpv/mpv.app"
 
 python3 - "$PINS" "$OFFER/build-record.json" <<'PY'
 import json, pathlib, subprocess, sys

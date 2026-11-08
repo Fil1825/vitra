@@ -25,7 +25,7 @@ Vitra — музыкальный плеер с открытым исходным
 Если выпуск ещё не появился, [проверьте ход сборки](https://github.com/Fil1825/vitra/actions/workflows/release.yml).
 
 - **macOS:** откройте DMG и перенесите Vitra в «Программы». Apple Silicon — macOS 14+;
-  Intel — **macOS 12+ (Monterey)** с отдельной сборкой mpv 0.39 (сторонний пакет stolendata).
+  Intel — **macOS 12+ (Monterey)** со сборкой mpv 0.41 из зафиксированных исходников.
   **Рантайм Intel на реальном Mac в проекте не подтверждён.** Сборки по умолчанию с ad-hoc
   подписью (не Developer ID / без нотаризации), пока владелец не включит `sign_macos` в
   [релизном workflow](.github/workflows/release.yml) и не настроит секреты

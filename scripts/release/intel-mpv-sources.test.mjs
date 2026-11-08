@@ -35,4 +35,24 @@ describe('Intel mpv source pins', () => {
       'scripts/release/intel-mpv-sources.json',
     );
   });
+
+  it('builds HarfBuzz 10 with Meson and does not search Homebrew pkg-config', () => {
+    expect(recipe).not.toMatch(/cd "\$WORK\/harfbuzz"[\s\S]{0,80}\.\/configure/);
+    expect(recipe).toContain('-Dfreetype=enabled -Dglib=disabled');
+    expect(recipe).toContain('unset PKG_CONFIG_PATH');
+    expect(recipe).toContain('PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"');
+    expect(recipe).toContain('pkg-config sees libraries outside the source prefix');
+    expect(recipe).toContain('--disable-autodetect');
+    expect(recipe).toContain('--with-zlib=no');
+    expect(recipe).toContain('--disable-fontconfig');
+    expect(recipe).toContain('-Dlcms=disabled');
+    expect(recipe).toContain('rubberband');
+  });
+
+  it('copies the recipe, pins, and Mach-O checkers into the source offer', () => {
+    expect(recipe).toContain('mach-minos.py');
+    expect(recipe).toContain('mach-deps.py');
+    expect(recipe).toContain('"$SCRIPT_DIR/mach-minos.py"');
+    expect(recipe).toContain('cp "$SCRIPT_DIR/mach-deps.py"');
+  });
 });

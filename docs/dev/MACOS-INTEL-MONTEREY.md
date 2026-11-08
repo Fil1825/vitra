@@ -42,7 +42,7 @@ depend on the third-party builder. GPLv2+ applies to mpv; Vitra is GPLv3.
 
 ## Source build
 
-Intel mpv is produced by `scripts/release/build-intel-mpv.sh` from `intel-mpv-sources.json` on the macOS Intel release runner. The script refuses a checksum mismatch and refuses any Mach-O that needs newer than macOS 12.0. Homebrew is used only for compilers' companion tools (meson, nasm); shipped libraries are the pinned builds.
+Intel mpv is produced by `scripts/release/build-intel-mpv.sh` from `intel-mpv-sources.json` on the macOS Intel release runner. The corresponding-source tarball includes that script, the pins, and `mach-minos.py` / `mach-deps.py`, so the offer can be rerun from its own directory. The script refuses a checksum mismatch, refuses a pkg-config view of host libraries, and refuses any Mach-O that needs newer than macOS 12.0. Homebrew is used only for compilers' companion tools (meson, nasm); shipped libraries are the pinned builds. HarfBuzz 10.1.0 is built with Meson.
 
 ## Apple Silicon
 
