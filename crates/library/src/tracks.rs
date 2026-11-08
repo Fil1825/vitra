@@ -246,9 +246,9 @@ pub(crate) fn upsert_track(
     let id: i64 = tx.query_row(
         "INSERT INTO tracks (path, folder_id, title, artist_id, album_id, album_artist, genre,
              year, track_number, disc_number, duration, format, sample_rate, bit_depth,
-             bitrate, file_size, file_mtime, added_at, artist_credit)
+             bitrate, file_size, file_mtime, tag_decoder, added_at, artist_credit)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18,
-             ?19)
+             ?19, ?20)
          ON CONFLICT (path) DO UPDATE SET
              folder_id = excluded.folder_id, title = excluded.title,
              artist_id = excluded.artist_id, album_id = excluded.album_id,
@@ -258,7 +258,8 @@ pub(crate) fn upsert_track(
              disc_number = excluded.disc_number, duration = excluded.duration,
              format = excluded.format, sample_rate = excluded.sample_rate,
              bit_depth = excluded.bit_depth, bitrate = excluded.bitrate,
-             file_size = excluded.file_size, file_mtime = excluded.file_mtime
+             file_size = excluded.file_size, file_mtime = excluded.file_mtime,
+             tag_decoder = excluded.tag_decoder
          RETURNING id",
         params![
             track.path,
@@ -278,6 +279,7 @@ pub(crate) fn upsert_track(
             m.bitrate,
             track.size as i64,
             track.mtime,
+            media::TAG_DECODER_VERSION,
             added_at,
             credit,
         ],

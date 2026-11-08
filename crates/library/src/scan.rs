@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc;
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
-use media::TrackMetadata;
+use media::{TAG_DECODER_VERSION, TrackMetadata};
 use rusqlite::{OptionalExtension, params};
 use serde::Serialize;
 
@@ -379,7 +379,11 @@ impl Library {
         let mut to_read = Vec::new();
         for file in listing.files {
             match known.remove(&file.key) {
-                Some(k) if k.size == file.size as i64 && k.mtime == file.mtime => {
+                Some(k)
+                    if k.size == file.size as i64
+                        && k.mtime == file.mtime
+                        && k.tag_decoder == TAG_DECODER_VERSION =>
+                {
                     summary.unchanged += 1;
                 }
                 Some(_) => to_read.push((file, true)),
@@ -962,6 +966,69 @@ mod tests {
                 ..ScanSummary::default()
             }
         );
+    }
+
+    #[test]
+    fn rescanning_re_reads_when_tag_decoder_version_is_stale() {
+        let mut s = setup();
+        s.scan();
+        s.library
+            .conn
+            .execute("UPDATE tracks SET tag_decoder = 0", [])
+            .unwrap();
+        let summary = s.scan();
+        assert_eq!(summary.updated, 3);
+        assert_eq!(summary.unchanged, 0);
+        let decoder: i64 = s
+            .library
+            .conn
+            .query_row(
+                "SELECT tag_decoder FROM tracks WHERE path LIKE '%Aurora%'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(decoder, TAG_DECODER_VERSION);
+    }
+
+    #[test]
+    fn scan_keeps_repaired_latin1_tpe1_artists_consistent() {
+        use std::borrow::Cow;
+        use std::fs::File;
+        use std::io::BufReader;
+
+        use lofty::TextEncoding;
+        use lofty::config::{ParseOptions, WriteOptions};
+        use lofty::file::AudioFile;
+        use lofty::id3::v2::{Frame, FrameId, TextInformationFrame};
+        use lofty::mpeg::MpegFile;
+
+        let mut s = setup();
+        let rel = "Other/cp1251-artists.mp3";
+        let path = s.music.join(rel.split('/').collect::<PathBuf>());
+        let key = s.path(rel);
+        fs::copy(fixtures().join("tagged.mp3"), &path).unwrap();
+        let mut file = MpegFile::read_from(
+            &mut BufReader::new(File::open(&path).unwrap()),
+            ParseOptions::new(),
+        )
+        .unwrap();
+        let mut tag = file.id3v2_mut().cloned().unwrap_or_default();
+        let frame_id = FrameId::Valid(Cow::Borrowed("TPE1"));
+        for _ in tag.remove(&frame_id) {}
+        tag.insert(Frame::Text(TextInformationFrame::new(
+            frame_id,
+            TextEncoding::Latin1,
+            "09.Íîããàíî/Guest".to_string(),
+        )));
+        file.set_id3v2(tag);
+        file.save_to_path(&path, WriteOptions::default()).unwrap();
+
+        s.scan();
+        let track = s.library.track_by_path(&key).unwrap().unwrap();
+        assert_eq!(track.artist.as_deref(), Some("09.Ноггано, Guest"));
+        let names: Vec<_> = track.artists.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(names, vec!["09.Ноггано", "Guest"]);
     }
 
     #[test]

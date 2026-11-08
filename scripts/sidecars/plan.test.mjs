@@ -1,15 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  BTBN_PINS,
+  BTBN_RELEASE_TAG,
+  DENO_VERSION_PIN,
   SIDECARS,
   SUPPORTED_TARGETS,
   YT_DLP_MACOS,
+  YT_DLP_VERSION,
   bundledEntries,
   exeName,
   hostTarget,
   parseSha256,
   pickBtbnAsset,
   planFor,
+  sourceOffer,
 } from './plan.mjs';
 import { YT_DLP_KEY_FINGERPRINT, YT_DLP_RELEASE_KEY } from './ytdlp-release.mjs';
 
@@ -37,16 +42,20 @@ describe('planFor', () => {
   });
 
   it('pins mpv builds with a checksum', () => {
-    for (const target of [
-      'aarch64-apple-darwin',
-      'x86_64-apple-darwin',
-      'x86_64-pc-windows-msvc',
-    ]) {
+    for (const target of ['aarch64-apple-darwin', 'x86_64-pc-windows-msvc']) {
       const [download] = planFor(target).mpv.downloads;
       expect(download.checksum.type).toBe('pinned');
       expect(download.checksum.sha256).toMatch(/^[0-9a-f]{64}$/);
       expect(download.urls[0]).toContain(download.name);
     }
+  });
+
+  it('builds Intel mpv from pinned sources instead of a third-party binary', () => {
+    const mpv = planFor('x86_64-apple-darwin').mpv;
+    expect(mpv.type).toBe('source-build');
+    expect(mpv.script).toBe('scripts/release/build-intel-mpv.sh');
+    expect(mpv.minimumMacos).toBe('12.0');
+    expect(mpv.downloads).toBeUndefined();
   });
 
   it('keeps the mpv app bundle intact on macOS', () => {
@@ -70,12 +79,78 @@ describe('planFor', () => {
     for (const target of SUPPORTED_TARGETS) {
       const [download] = planFor(target)['yt-dlp'].downloads;
       expect(download.checksum.url).toMatch(/\/SHA2-256SUMS$/);
+      expect(download.checksum.vendored).toBe('scripts/sidecars/fixtures/ytdlp-SHA2-256SUMS');
       expect(download.checksum.signature).toEqual({
         url: download.checksum.url + '.sig',
+        vendored: 'scripts/sidecars/fixtures/ytdlp-SHA2-256SUMS.sig',
         key: YT_DLP_RELEASE_KEY,
         fingerprint: YT_DLP_KEY_FINGERPRINT,
       });
     }
+  });
+
+  it('pins sidecar release tags instead of GitHub /latest/download', () => {
+    for (const target of SUPPORTED_TARGETS) {
+      const yt = planFor(target)['yt-dlp'].downloads[0];
+      expect(yt.urls[0]).toContain(`/releases/download/${YT_DLP_VERSION}/`);
+      expect(yt.urls[0]).not.toContain('/latest/');
+      const deno = planFor(target).deno.downloads[0];
+      expect(deno.urls[0]).toContain(`/releases/download/${DENO_VERSION_PIN}/`);
+      expect(deno.checksum.type).toBe('pinned');
+    }
+  });
+
+  it('pins BtbN FFmpeg assets on Windows and Linux', () => {
+    const win = planFor('x86_64-pc-windows-msvc').ffmpeg.downloads[0];
+    expect(win).toMatchObject({
+      name: BTBN_PINS.win64.asset,
+      checksum: { type: 'pinned', sha256: BTBN_PINS.win64.sha256 },
+    });
+    expect(win.urls[0]).toContain(`/releases/download/${BTBN_RELEASE_TAG}/`);
+    expect(win.urls[0]).not.toContain('/download/latest/');
+    expect(win.githubRelease).toEqual({
+      owner: 'BtbN',
+      repo: 'FFmpeg-Builds',
+      tag: BTBN_RELEASE_TAG,
+      asset: BTBN_PINS.win64.asset,
+      assetId: BTBN_PINS.win64.assetId,
+    });
+    const linux = planFor('x86_64-unknown-linux-gnu').ffmpeg.downloads[0];
+    expect(linux.checksum.sha256).toBe(BTBN_PINS.linux64.sha256);
+    const offer = sourceOffer('btbn-ffmpeg-n9.0.2-48-gd4070a14ce');
+    expect(offer.complete).toBe(false);
+    expect(linux.sourceOfferId).toBe(offer.id);
+    expect(linux.sourceClosure).toBe('incomplete');
+    expect(linux.sourceUrls).toEqual(offer.archives.map((archive) => archive.url));
+    expect(linux.license).toBe('GPL-3.0-or-later');
+    for (const pin of Object.values(BTBN_PINS)) {
+      expect(pin.asset).toContain(offer.ffmpegCommit.slice(0, 10));
+    }
+  });
+
+  it('uses sibling checksums for macOS FFmpeg (no early pinned digest)', () => {
+    const [download] = planFor('aarch64-apple-darwin').ffmpeg.downloads;
+    expect(download.checksum.type).toBe('sibling');
+    expect(download.checksum.sha256).toBeUndefined();
+    expect(download.sourceUrls).toBeUndefined();
+    expect(download.sourceOfferId).toBe('martin-riedl-macos-ffmpeg');
+    expect(download.sourceClosure).toBe('incomplete');
+    expect(sourceOffer('martin-riedl-macos-ffmpeg').complete).toBe(false);
+  });
+
+  it('lists GitHub REST release metadata for pinned GitHub-hosted binaries', () => {
+    const yt = planFor('x86_64-unknown-linux-gnu')['yt-dlp'].downloads[0];
+    expect(yt.githubRelease?.owner).toBe('yt-dlp');
+    const ytSource = sourceOffer('yt-dlp-2026.10.26');
+    expect(ytSource.version).toBe(YT_DLP_VERSION);
+    expect(yt.sourceOfferId).toBe(ytSource.id);
+    expect(yt.sourceClosure).toBe('incomplete');
+    expect(yt.sourceUrls).toEqual(ytSource.archives.map((archive) => archive.url));
+    expect(yt.license).toBe('Unlicense');
+    const deno = planFor('x86_64-pc-windows-msvc').deno.downloads[0];
+    expect(deno.githubRelease?.repo).toBe('deno');
+    const mpv = planFor('x86_64-pc-windows-msvc').mpv.downloads[0];
+    expect(mpv.githubRelease?.tag).toBe('v0.41.0');
   });
 
   it('does not expect OpenPGP signatures from sidecars that do not publish them', () => {

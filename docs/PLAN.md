@@ -769,7 +769,7 @@ What the cloud can't check (no Mac, no YouTube, no real music):
 1. **Sidecar distribution.** Include the fetched sidecars in macOS/Windows installers.
    Linux Debian packages declare system mpv as a dependency and include the other helpers.
    Keep the downloadable-component manifest with each build for provenance.
-2. **macOS support range.** macOS 14+ (Apple Silicon) / 15+ (Intel), matching official mpv.
+2. **macOS support range.** macOS 14+ (Apple Silicon) / 12+ (Intel, source-built mpv 0.41).
 3. **Bundle identifier** `io.github.fil1825.vitra` — fine? It must not change after the first
    release (it determines the app data location).
 4. **Workflow**: start each stage from `main` after the previous PR is merged, or stack stage

@@ -7,6 +7,7 @@ use serde::Serialize;
 
 use crate::MediaError;
 use crate::artwork::Artwork;
+use crate::id3::{enrich_mpeg_id3, is_id3v1, repair_id3v1_metadata};
 
 /// Tags and audio properties shown in the UI. Every field is optional: files in the wild
 /// carry anything from complete tags to nothing at all.
@@ -93,6 +94,13 @@ pub fn read_track(path: &Path) -> Result<TrackInfo, MediaError> {
             bytes: picture.data().to_vec(),
             mime: picture.mime_type().map(mime_name).map(str::to_owned),
         });
+        if is_id3v1(tag.tag_type()) {
+            repair_id3v1_metadata(&mut metadata);
+        }
+    }
+
+    if file.file_type() == FileType::Mpeg {
+        enrich_mpeg_id3(path, &mut metadata)?;
     }
 
     Ok(TrackInfo {
@@ -201,5 +209,55 @@ mod tests {
         let path = tmp.path().join("noise.dsf");
         std::fs::write(&path, b"not really audio").unwrap();
         assert!(read_track(&path).is_err());
+    }
+
+    #[test]
+    fn read_track_repairs_latin1_id3_cp1251_bytes() {
+        use std::borrow::Cow;
+        use std::fs::File;
+        use std::io::BufReader;
+
+        use lofty::TextEncoding;
+        use lofty::config::{ParseOptions, WriteOptions};
+        use lofty::file::AudioFile;
+        use lofty::id3::v2::{Frame, FrameId, TextInformationFrame};
+        use lofty::mpeg::MpegFile;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cp1251.mp3");
+        std::fs::copy(fixture("tagged.mp3"), &path).unwrap();
+
+        let album = "Ýêñêëþçèâ";
+        let artist = "09.Íîããàíî";
+        let title = "íó êàê òà êàê";
+        let mut file = MpegFile::read_from(
+            &mut BufReader::new(File::open(&path).unwrap()),
+            ParseOptions::new(),
+        )
+        .unwrap();
+        let mut tag = file.id3v2_mut().cloned().unwrap_or_default();
+        for (id, value) in [("TIT2", title), ("TPE1", artist), ("TALB", album)] {
+            tag.insert(Frame::Text(TextInformationFrame::new(
+                FrameId::Valid(Cow::Borrowed(id)),
+                TextEncoding::Latin1,
+                value,
+            )));
+        }
+        file.set_id3v2(tag);
+        file.save_to_path(&path, WriteOptions::default()).unwrap();
+
+        let info = read_track(&path).unwrap();
+        assert_eq!(info.metadata.album.as_deref(), Some("Эксклюзив"));
+        assert_eq!(info.metadata.artist.as_deref(), Some("09.Ноггано"));
+        assert!(
+            info.metadata
+                .title
+                .as_deref()
+                .is_some_and(|t| t.chars().any(is_cyrillic_char))
+        );
+    }
+
+    fn is_cyrillic_char(c: char) -> bool {
+        matches!(c, '\u{0400}'..='\u{04FF}')
     }
 }

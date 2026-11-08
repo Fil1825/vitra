@@ -25,14 +25,14 @@ tauri-plugin-log = "2.10.1"
 tauri-plugin-dialog = "2.8.3"
 # Shortcuts that work while another app is active (the spec names it).
 tauri-plugin-global-shortcut = "2.4.1"
-mpv-ipc = { version = "0.1.1", path = "../crates/mpv-ipc" }
-media = { version = "0.1.1", path = "../crates/media" }
-library = { version = "0.1.1", path = "../crates/library" }
-links = { version = "0.1.1", path = "../crates/links" }
-lyrics = { version = "0.1.1", path = "../crates/lyrics" }
-themes = { version = "0.1.1", path = "../crates/themes" }
-import = { version = "0.1.1", path = "../crates/import" }
-mood = { version = "0.1.1", path = "../crates/mood" }
+mpv-ipc = { path = "../crates/mpv-ipc" }
+media = { path = "../crates/media" }
+library = { path = "../crates/library" }
+links = { path = "../crates/links" }
+lyrics = { path = "../crates/lyrics" }
+themes = { path = "../crates/themes" }
+import = { path = "../crates/import" }
+mood = { path = "../crates/mood" }
 # Watches library folders (FSEvents / inotify / ReadDirectoryChangesW).
 notify = "8.2.0"
 tokio = { version = "1.54", features = ["sync", "time", "macros", "process", "io-util"] }

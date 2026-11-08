@@ -22,13 +22,21 @@ import {
   exeName,
   hostTarget,
   parseSha256,
-  pickBtbnAsset,
   planFor,
 } from './sidecars/plan.mjs';
+import {
+  defaultArchiveCacheRoot,
+  readVerifiedArchive,
+  writeVerifiedArchive,
+} from './sidecars/archive-cache.mjs';
+import { downloadReleaseAsset } from './sidecars/github-release.mjs';
+import { fetchBytesOrVendored } from './sidecars/remote-or-vendored.mjs';
 import { YT_DLP_KEY_FINGERPRINT } from './sidecars/ytdlp-release.mjs';
 import { verifyYtDlpSums } from './sidecars/verify-ytdlp.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const archiveCacheRoot =
+  process.env.VITRA_SIDECAR_ARCHIVE_CACHE?.trim() || defaultArchiveCacheRoot();
 
 const HELP = `Fetch Vitra's sidecar binaries.
 
@@ -118,6 +126,22 @@ async function main() {
         results.push({ name, ...checkSystem(sidecar) });
         continue;
       }
+      if (sidecar.type === 'source-build') {
+        const present = sidecar.executables.every((e) => fs.existsSync(path.join(outDir, e)));
+        if (present && !args.force) {
+          results.push({ name, status: 'already present (use --force to update)' });
+          continue;
+        }
+        log(`▸ ${name}`);
+        const built = buildFromSource(sidecar);
+        manifest.sidecars[name] = {
+          version: isHost ? probeVersion(sidecar) : null,
+          fetchedAt: new Date().toISOString(),
+          downloads: built,
+        };
+        results.push({ name, status: 'ok — source build' });
+        continue;
+      }
       const present = sidecar.executables.every((e) => fs.existsSync(path.join(outDir, e)));
       if (present && !args.force) {
         results.push({ name, status: 'already present (use --force to update)' });
@@ -150,16 +174,49 @@ async function main() {
   }
 }
 
+function buildFromSource(sidecar) {
+  const script = path.resolve(ROOT, sidecar.script);
+  const result = spawnSync('bash', [script, outDir], { cwd: ROOT, stdio: 'inherit' });
+  if (result.status !== 0) {
+    throw new Error(`source build failed (${result.status ?? 'signal'})`);
+  }
+  for (const executable of sidecar.executables) {
+    if (!fs.existsSync(path.join(outDir, executable))) {
+      throw new Error(`source build did not produce ${executable}`);
+    }
+  }
+  const record = path.join(outDir, 'mpv-corresponding-source', 'build-record.json');
+  return [
+    {
+      name: 'intel-mpv-source-build',
+      url: sidecar.script,
+      sources: sidecar.sources,
+      provenance: 'vitra-intel-mpv-source-build',
+      sourceRecord: fs.existsSync(record) ? path.relative(ROOT, record) : null,
+    },
+  ];
+}
+
 /** Downloads, verifies and unpacks every file of one sidecar. */
 async function install(sidecar) {
   const workDir = fs.mkdtempSync(path.join(outDir, '.work-'));
   const fetched = [];
   try {
     for (const [i, entry] of sidecar.downloads.entries()) {
-      const download = entry.type === 'btbn' ? await resolveBtbn(entry) : entry;
+      const download = entry;
       const file = path.join(workDir, `download-${i}`);
       const { url, sha256 } = await downloadVerified(download, file);
-      fetched.push({ name: download.name, url, sha256 });
+      fetched.push({
+        name: download.name,
+        url,
+        sha256,
+        ...(download.provenance ? { provenance: download.provenance } : {}),
+        ...(download.sourceUrl ? { sourceUrl: download.sourceUrl } : {}),
+        ...(download.sourceUrls ? { sourceUrls: download.sourceUrls } : {}),
+        ...(download.sourceOfferId ? { sourceOfferId: download.sourceOfferId } : {}),
+        ...(download.sourceClosure ? { sourceClosure: download.sourceClosure } : {}),
+        ...(download.license ? { license: download.license } : {}),
+      });
 
       let source = file;
       if (download.archive) {
@@ -194,52 +251,8 @@ async function install(sidecar) {
   }
 }
 
-async function resolveBtbn(entry) {
-  const text = await fetchText(entry.checksumsUrl);
-  const picked = pickBtbnAsset(text, entry.platform, entry.ext);
-  if (!picked) {
-    throw new Error(`no FFmpeg build for ${entry.platform} in ${entry.checksumsUrl}`);
-  }
-  return {
-    ...entry,
-    name: picked.asset,
-    urls: [`${entry.releaseUrl}/${picked.asset}`],
-    checksum: { type: 'pinned', sha256: picked.sha256 },
-  };
-}
-
-/** Tries each candidate URL until one downloads and passes verification. */
-async function downloadVerified(download, file) {
-  const errors = [];
-  for (const url of download.urls) {
-    try {
-      const { finalUrl, sha256 } = await downloadFile(url, file, download.name);
-      if (download.archive === 'zip' && !hasZipMagic(file)) {
-        throw new Error('response is not a zip archive');
-      }
-      const expected = await expectedSha256(download, finalUrl);
-      if (expected && expected !== sha256) {
-        throw new Error(`checksum mismatch: expected ${expected}, got ${sha256}`);
-      }
-      if (!expected) {
-        const message = `no checksum published for ${download.name}; sha256 is ${sha256}`;
-        if (args['require-checksums']) {
-          throw new Error(message);
-        }
-        warn(message);
-      }
-      // Record the requested URL: redirect targets are signed and expire.
-      return { url, sha256 };
-    } catch (err) {
-      // fetch() hides the network error (DNS, TLS, ...) in `cause`.
-      const cause = err.cause?.message ? ` (${err.cause.message})` : '';
-      errors.push(`${url}: ${err.message}${cause}`);
-    }
-  }
-  throw new Error(`could not download ${download.name}\n    ${errors.join('\n    ')}`);
-}
-
-async function expectedSha256(download, finalUrl) {
+/** Trusted digest from the plan (and verified yt-dlp sums), never from cache metadata. */
+async function expectedSha256(download, finalUrl = null) {
   const { checksum } = download;
   switch (checksum.type) {
     case 'pinned':
@@ -247,7 +260,14 @@ async function expectedSha256(download, finalUrl) {
     case 'sums-file': {
       // Verify the signature over these exact bytes, then parse them. A second
       // fetch could observe a different file than the one that was signed.
-      const bytes = await fetchBytes(checksum.url);
+      const bytes = await fetchBytesOrVendored(
+        fetchBytes,
+        checksum.url,
+        checksum.vendored,
+        ROOT,
+        (url, err, vendored) =>
+          warn(`${url}: ${err.message}; verifying OpenPGP over vendored ${vendored}`),
+      );
       if (checksum.signature) {
         await verifySumsSignature(checksum, bytes);
       }
@@ -268,6 +288,90 @@ async function expectedSha256(download, finalUrl) {
   }
 }
 
+function assertArchiveLooksValid(download, file) {
+  if (download.archive === 'zip' && !hasZipMagic(file)) {
+    throw new Error('response is not a zip archive');
+  }
+}
+
+function storeVerifiedArchive(expected, file) {
+  if (!expected) return;
+  try {
+    writeVerifiedArchive(archiveCacheRoot, expected, file);
+  } catch (err) {
+    warn(`archive cache: ${err.message}`);
+  }
+}
+
+/**
+ * Tries GitHub REST assets, then release URLs, optionally a verified archive cache.
+ * Always re-hashes before unpack; cache hits are not trusted without a digest match.
+ */
+async function downloadVerified(download, file) {
+  const expected = download.checksum?.type === 'sibling' ? null : await expectedSha256(download);
+  if (expected) {
+    try {
+      if (readVerifiedArchive(archiveCacheRoot, expected, file)) {
+        assertArchiveLooksValid(download, file);
+        log(`  ${download.name} from verified archive cache`);
+        return { url: `archive-cache:${expected}`, sha256: expected };
+      }
+    } catch (err) {
+      if (/poisoned archive cache/.test(err.message)) {
+        throw err;
+      }
+      warn(`archive cache: ${err.message}`);
+    }
+  }
+
+  const errors = [];
+  const sources = [];
+  if (download.githubRelease) {
+    sources.push({ kind: 'github-release', ref: download.githubRelease });
+  }
+  for (const url of download.urls) {
+    sources.push({ kind: 'url', ref: url });
+  }
+
+  for (const source of sources) {
+    try {
+      let sha256;
+      let provenance;
+      if (source.kind === 'github-release') {
+        ({ sha256, provenance } = await downloadReleaseAsset(source.ref, file));
+      } else {
+        const result = await downloadFile(source.ref, file, download.name);
+        sha256 = result.sha256;
+        provenance = source.ref;
+      }
+      assertArchiveLooksValid(download, file);
+      const resolvedExpected =
+        expected ?? (await expectedSha256(download, source.kind === 'url' ? provenance : null));
+      if (resolvedExpected && resolvedExpected !== sha256) {
+        throw new Error(`checksum mismatch: expected ${resolvedExpected}, got ${sha256}`);
+      }
+      if (!resolvedExpected) {
+        const message = `no checksum published for ${download.name}; sha256 is ${sha256}`;
+        if (args['require-checksums']) {
+          throw new Error(message);
+        }
+        warn(message);
+      } else {
+        storeVerifiedArchive(resolvedExpected, file);
+      }
+      return { url: provenance, sha256 };
+    } catch (err) {
+      const cause = err.cause?.message ? ` (${err.cause.message})` : '';
+      const label =
+        source.kind === 'github-release'
+          ? `github-api:${source.ref.owner}/${source.ref.repo}@${source.ref.tag}/${source.ref.asset}`
+          : source.ref;
+      errors.push(`${label}: ${err.message}${cause}`);
+    }
+  }
+  throw new Error(`could not download ${download.name}\n    ${errors.join('\n    ')}`);
+}
+
 function requireHash(hash, url) {
   if (!hash) {
     throw new Error(`no checksum found in ${url}`);
@@ -275,10 +379,31 @@ function requireHash(hash, url) {
   return hash;
 }
 
+const TRANSIENT_HTTP = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+async function sleep(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(url, label = url) {
+  const attempts = 4;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const res = await fetch(url, { redirect: 'follow' });
+    if (res.ok) return res;
+    if (TRANSIENT_HTTP.has(res.status) && attempt < attempts) {
+      warn(`${label}: HTTP ${res.status}, retry ${attempt}/${attempts - 1}`);
+      await sleep(4000 * 2 ** (attempt - 1));
+      continue;
+    }
+    throw new Error(`HTTP ${res.status} for ${url}`);
+  }
+  throw new Error(`HTTP failed for ${url}`);
+}
+
 async function downloadFile(url, file, label) {
-  const res = await fetch(url, { redirect: 'follow' });
-  if (!res.ok || !res.body) {
-    throw new Error(`HTTP ${res.status}`);
+  const res = await fetchWithRetry(url, label);
+  if (!res.body) {
+    throw new Error(`empty body for ${url}`);
   }
   const total = Number(res.headers.get('content-length')) || 0;
   const hash = createHash('sha256');
@@ -307,18 +432,12 @@ async function downloadFile(url, file, label) {
 }
 
 async function fetchText(url) {
-  const res = await fetch(url, { redirect: 'follow' });
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status} for ${url}`);
-  }
+  const res = await fetchWithRetry(url);
   return res.text();
 }
 
 async function fetchBytes(url) {
-  const res = await fetch(url, { redirect: 'follow' });
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status} for ${url}`);
-  }
+  const res = await fetchWithRetry(url);
   return new Uint8Array(await res.arrayBuffer());
 }
 
@@ -328,7 +447,14 @@ async function verifySumsSignature(checksum, bytes) {
   if (signature.fingerprint !== YT_DLP_KEY_FINGERPRINT || !signature.url || !signature.key) {
     throw new Error(`refusing ${checksum.url}: the OpenPGP signature configuration is incomplete`);
   }
-  const sig = await fetchBytes(signature.url);
+  const sig = await fetchBytesOrVendored(
+    fetchBytes,
+    signature.url,
+    signature.vendored,
+    ROOT,
+    (url, err, vendored) =>
+      warn(`${url}: ${err.message}; verifying OpenPGP with vendored ${vendored}`),
+  );
   const via = await verifyYtDlpSums(bytes, sig, path.resolve(ROOT, signature.key));
   log(`  verified OpenPGP signature (${via})`);
 }

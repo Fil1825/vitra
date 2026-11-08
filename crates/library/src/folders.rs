@@ -13,6 +13,7 @@ pub(crate) struct KnownFile {
     pub id: i64,
     pub size: i64,
     pub mtime: i64,
+    pub tag_decoder: i64,
     /// Lets a moved file be recognized by size and title.
     pub title: String,
 }
@@ -177,7 +178,7 @@ impl Library {
     /// Files of a folder by path.
     pub(crate) fn known_files(&self, folder_id: i64) -> Result<HashMap<String, KnownFile>> {
         let mut statement = self.conn.prepare(
-            "SELECT path, id, file_size, file_mtime, title FROM tracks WHERE folder_id = ?",
+            "SELECT path, id, file_size, file_mtime, tag_decoder, title FROM tracks WHERE folder_id = ?",
         )?;
         let files = statement
             .query_map([folder_id], |row| {
@@ -187,7 +188,8 @@ impl Library {
                         id: row.get(1)?,
                         size: row.get(2)?,
                         mtime: row.get(3)?,
-                        title: row.get(4)?,
+                        tag_decoder: row.get(4)?,
+                        title: row.get(5)?,
                     },
                 ))
             })?

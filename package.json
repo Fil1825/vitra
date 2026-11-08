@@ -1,7 +1,7 @@
 {
   "name": "vitra",
   "private": true,
-  "version": "0.1.1",
+  "version": "1.0.0-rc.1",
   "description": "Open-source desktop music player with a Liquid Glass look",
   "license": "GPL-3.0-or-later",
   "type": "module",
