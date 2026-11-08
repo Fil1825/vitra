@@ -126,6 +126,22 @@ async function main() {
         results.push({ name, ...checkSystem(sidecar) });
         continue;
       }
+      if (sidecar.type === 'source-build') {
+        const present = sidecar.executables.every((e) => fs.existsSync(path.join(outDir, e)));
+        if (present && !args.force) {
+          results.push({ name, status: 'already present (use --force to update)' });
+          continue;
+        }
+        log(`▸ ${name}`);
+        const built = buildFromSource(sidecar);
+        manifest.sidecars[name] = {
+          version: isHost ? probeVersion(sidecar) : null,
+          fetchedAt: new Date().toISOString(),
+          downloads: built,
+        };
+        results.push({ name, status: 'ok — source build' });
+        continue;
+      }
       const present = sidecar.executables.every((e) => fs.existsSync(path.join(outDir, e)));
       if (present && !args.force) {
         results.push({ name, status: 'already present (use --force to update)' });
@@ -156,6 +172,29 @@ async function main() {
   if (results.some((r) => r.failed)) {
     process.exitCode = 1;
   }
+}
+
+function buildFromSource(sidecar) {
+  const script = path.resolve(ROOT, sidecar.script);
+  const result = spawnSync('bash', [script, outDir], { cwd: ROOT, stdio: 'inherit' });
+  if (result.status !== 0) {
+    throw new Error(`source build failed (${result.status ?? 'signal'})`);
+  }
+  for (const executable of sidecar.executables) {
+    if (!fs.existsSync(path.join(outDir, executable))) {
+      throw new Error(`source build did not produce ${executable}`);
+    }
+  }
+  const record = path.join(outDir, 'mpv-corresponding-source', 'build-record.json');
+  return [
+    {
+      name: 'intel-mpv-source-build',
+      url: sidecar.script,
+      sources: sidecar.sources,
+      provenance: 'vitra-intel-mpv-source-build',
+      sourceRecord: fs.existsSync(record) ? path.relative(ROOT, record) : null,
+    },
+  ];
 }
 
 /** Downloads, verifies and unpacks every file of one sidecar. */

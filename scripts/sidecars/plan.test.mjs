@@ -41,11 +41,7 @@ describe('planFor', () => {
   });
 
   it('pins mpv builds with a checksum', () => {
-    for (const target of [
-      'aarch64-apple-darwin',
-      'x86_64-apple-darwin',
-      'x86_64-pc-windows-msvc',
-    ]) {
+    for (const target of ['aarch64-apple-darwin', 'x86_64-pc-windows-msvc']) {
       const [download] = planFor(target).mpv.downloads;
       expect(download.checksum.type).toBe('pinned');
       expect(download.checksum.sha256).toMatch(/^[0-9a-f]{64}$/);
@@ -53,13 +49,12 @@ describe('planFor', () => {
     }
   });
 
-  it('uses stolendata Intel mpv recommended on mpv.io', () => {
-    const [download] = planFor('x86_64-apple-darwin').mpv.downloads;
-    expect(download.provenance).toBe('stolendata-djinn-mpv-osx');
-    expect(download.archive).toBe('tar.gz');
-    expect(download.checksum.sha256).toBe(
-      '35ec81ad86a97b24956a8d0f4fa1ba2690b44ae7741c920e923620bcd7bd402a',
-    );
+  it('builds Intel mpv from pinned sources instead of a third-party binary', () => {
+    const mpv = planFor('x86_64-apple-darwin').mpv;
+    expect(mpv.type).toBe('source-build');
+    expect(mpv.script).toBe('scripts/release/build-intel-mpv.sh');
+    expect(mpv.minimumMacos).toBe('12.0');
+    expect(mpv.downloads).toBeUndefined();
   });
 
   it('keeps the mpv app bundle intact on macOS', () => {

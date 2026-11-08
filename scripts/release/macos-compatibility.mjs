@@ -2,28 +2,27 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { MPV_INTEL_STOLENDATA, MPV_VERSION } from '../sidecars/plan.mjs';
+import { MPV_VERSION } from '../sidecars/plan.mjs';
 
 /** Vitra Info.plist minimum macOS (major.minor), per Rust target. */
 export const BUNDLE_MINIMUM_MACOS = {
   'aarch64-apple-darwin': '14.0', // Sonoma — official macos-14-arm mpv
-  'x86_64-apple-darwin': '12.0', // Monterey — stolendata Intel mpv 0.39 (Mach-O ≥ 11.0)
+  'x86_64-apple-darwin': '12.0', // Monterey — source-built Intel mpv
 };
 
 /** Mach-O floor of the bundled mpv package (may be below bundle minimum). */
 export const MPV_MACHO_MIN_MACOS = {
   'aarch64-apple-darwin': 14,
-  'x86_64-apple-darwin': 11,
+  'x86_64-apple-darwin': 12,
 };
 
 /** Human-readable mpv source label for release notes / SBOM. */
 export const BUNDLED_MPV = {
   'aarch64-apple-darwin': { version: MPV_VERSION, label: 'macos-14-arm', source: 'mpv-player' },
   'x86_64-apple-darwin': {
-    version: `v${MPV_INTEL_STOLENDATA.version}`,
-    label: 'stolendata-intel-0.39.0',
-    source: MPV_INTEL_STOLENDATA.provenance,
-    url: MPV_INTEL_STOLENDATA.homepage,
+    version: 'v0.41.0',
+    label: 'vitra-intel-source-build',
+    source: 'scripts/release/intel-mpv-sources.json',
   },
 };
 
@@ -46,7 +45,7 @@ export function mpvAssetFor(target) {
     return null;
   }
   if (target === 'x86_64-apple-darwin') {
-    return `mpv-${MPV_INTEL_STOLENDATA.version}.tar.gz`;
+    return null;
   }
   return `mpv-${spec.version}-${spec.label}.zip`;
 }

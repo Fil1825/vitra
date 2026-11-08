@@ -207,6 +207,7 @@ jobs:
             target/${{ matrix.target }}/release/bundle/nsis/*.exe
             target/${{ matrix.target }}/release/bundle/deb/*.deb
             src-tauri/sidecars/${{ matrix.target }}/manifest.json
+            src-tauri/sidecars/${{ matrix.target }}/mpv-corresponding-source.tar.gz
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
@@ -239,6 +240,10 @@ jobs:
             mapfile -d '' manifests < <(find "$directory" -type f -name manifest.json -print0)
             test "${#manifests[@]}" = 1
             cp "${manifests[0]}" "release-assets/$name.manifest.json"
+            mapfile -d '' sources < <(find "$directory" -type f -name 'mpv-corresponding-source.tar.gz' -print0)
+            if [[ ${#sources[@]} -gt 0 ]]; then
+              cp "${sources[0]}" "release-assets/$name.mpv-corresponding-source.tar.gz"
+            fi
           done
           (cd release-assets && sha256sum ./* > SHA256SUMS)
       - name: Publish prerelease after all platform checks pass

@@ -18,16 +18,11 @@ export const SIDECARS = ['mpv', 'yt-dlp', 'ffmpeg', 'deno'];
 /** Official mpv builds (arm / Windows), pinned with checksums at bump time. */
 export const MPV_VERSION = 'v0.41.0';
 
-/**
- * Intel macOS mpv: third-party bundle from stolendata (djinn), recommended on mpv.io/installation.
- * Not an official mpv-player GitHub release; GPLv2+ — see docs/dev/MACOS-INTEL-MONTEREY.md.
- */
-export const MPV_INTEL_STOLENDATA = {
-  version: '0.39.0',
-  url: 'https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-0.39.0.tar.gz',
-  sha256: '35ec81ad86a97b24956a8d0f4fa1ba2690b44ae7741c920e923620bcd7bd402a',
-  provenance: 'stolendata-djinn-mpv-osx',
-  homepage: 'https://laboratory.stolendata.net/~djinn/mpv_osx/',
+/** Intel macOS mpv is built from scripts/release/intel-mpv-sources.json (not a third-party binary). */
+export const MPV_INTEL_SOURCE_BUILD = {
+  script: 'scripts/release/build-intel-mpv.sh',
+  sources: 'scripts/release/intel-mpv-sources.json',
+  minimumMacos: '12.0',
 };
 
 const MPV_BUILDS = {
@@ -36,7 +31,6 @@ const MPV_BUILDS = {
     sha256: '5c96f9b21355fc0a11d2e2161ad65f33031070e9fb3f6bd9865fb459b94587e6',
     source: 'mpv-player-github',
   },
-  'x86_64-apple-darwin': MPV_INTEL_STOLENDATA,
   'x86_64-pc-windows-msvc': {
     asset: `mpv-${MPV_VERSION}-x86_64-pc-windows-msvc.zip`,
     sha256: '4e197f729f5071c6772f35fffd96e0f36e3e8a044bd9479b136bb09b7c6a80ff',
@@ -250,22 +244,11 @@ function mpvPlan(target, info) {
     };
   }
   if (target === 'x86_64-apple-darwin') {
-    const build = MPV_BUILDS[target];
     return {
-      type: 'download',
-      downloads: [
-        {
-          name: `mpv-${build.version}.tar.gz`,
-          urls: [build.url],
-          checksum: { type: 'pinned', sha256: build.sha256 },
-          archive: 'tar.gz',
-          provenance: build.provenance,
-          sourceUrl: build.homepage,
-          license:
-            'GPL-2.0-or-later (third-party build; sources: https://github.com/mpv-player/mpv)',
-          files: [{ find: 'mpv.app', to: 'mpv/mpv.app' }],
-        },
-      ],
+      type: 'source-build',
+      script: MPV_INTEL_SOURCE_BUILD.script,
+      sources: MPV_INTEL_SOURCE_BUILD.sources,
+      minimumMacos: MPV_INTEL_SOURCE_BUILD.minimumMacos,
       executables: ['mpv/mpv.app/Contents/MacOS/mpv'],
       versionArgs: ['--version'],
     };
