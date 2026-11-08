@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Verify the actual app inside each finished DMG, including nested signatures/helpers."""
 import argparse
+import json
 from pathlib import Path
 import plistlib
 import subprocess
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def run(*args):
@@ -41,11 +44,33 @@ def main():
             with plist.open("rb") as handle:
                 info = plistlib.load(handle)
             minimum = info.get("LSMinimumSystemVersion")
-            expected = "12.0" if args.target.startswith("x86_64-") else "14.0"
-            if minimum != expected:
+            config = subprocess.check_output(
+                [
+                    "node",
+                    "--input-type=module",
+                    "-e",
+                    "import {BUNDLE_MINIMUM_MACOS} from './scripts/release/macos-compatibility.mjs';"
+                    f"console.log(BUNDLE_MINIMUM_MACOS[{json.dumps(args.target)}]);",
+                ],
+                cwd=REPO_ROOT,
+                text=True,
+            ).strip()
+            if minimum != config:
                 raise RuntimeError(
-                    f"LSMinimumSystemVersion is {minimum!r}, expected {expected!r} for {args.target}"
+                    f"LSMinimumSystemVersion is {minimum!r}, expected {config!r} for {args.target}"
                 )
+            sidecars = app / "Contents" / "Resources" / "sidecars"
+            if not sidecars.is_dir():
+                raise RuntimeError(f"Missing bundled sidecars at {sidecars}")
+            script = Path(__file__).with_name("mach-minos.py")
+            run(
+                "python3",
+                str(script),
+                str(app / "Contents" / "MacOS" / "vitra"),
+                str(sidecars),
+                "--max",
+                config,
+            )
             run("codesign", "--verify", "--deep", "--strict", "--verbose=2", str(app))
             run("node", "scripts/release/verify-sidecars.mjs", str(app), args.target)
             if args.signed:

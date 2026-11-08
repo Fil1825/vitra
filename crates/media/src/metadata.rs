@@ -7,7 +7,8 @@ use serde::Serialize;
 
 use crate::MediaError;
 use crate::artwork::Artwork;
-use crate::encoding::repair_legacy_cyrillic;
+use crate::encoding::repair_id3_tag_text;
+use lofty::tag::TagType;
 
 /// Tags and audio properties shown in the UI. Every field is optional: files in the wild
 /// carry anything from complete tags to nothing at all.
@@ -67,14 +68,15 @@ pub fn read_track(path: &Path) -> Result<TrackInfo, MediaError> {
     let tag = file.primary_tag().or_else(|| file.first_tag());
     let mut embedded_artwork = None;
     if let Some(tag) = tag {
+        let tag_type = tag.tag_type();
         let text = |value: Option<std::borrow::Cow<'_, str>>| {
             value
-                .map(|v| repair_legacy_cyrillic(v.trim()))
+                .map(|v| repair_id3_tag_text(v.trim(), tag_type))
                 .filter(|v| !v.is_empty())
         };
         metadata.title = text(tag.title());
         metadata.artist = text(tag.artist());
-        metadata.artists = artist_values(tag);
+        metadata.artists = artist_values(tag, tag_type);
         metadata.album = text(tag.album());
         metadata.genre = text(tag.genre());
         metadata.album_artist = text(tag.get_string(ItemKey::AlbumArtist).map(Into::into));
@@ -106,7 +108,7 @@ pub fn read_track(path: &Path) -> Result<TrackInfo, MediaError> {
 
 /// The artists a tag lists, when it lists more than one: an `ARTISTS` tag (written by
 /// MusicBrainz Picard and by Vitra for MP4) first, else several artist values.
-pub(crate) fn artist_values(tag: &lofty::tag::Tag) -> Vec<String> {
+pub(crate) fn artist_values(tag: &lofty::tag::Tag, tag_type: TagType) -> Vec<String> {
     let values = |key: ItemKey| -> Vec<String> {
         tag.get_strings(key)
             .map(str::trim)
@@ -116,14 +118,14 @@ pub(crate) fn artist_values(tag: &lofty::tag::Tag) -> Vec<String> {
     };
     let listed: Vec<String> = values(ItemKey::TrackArtists)
         .into_iter()
-        .map(|name| repair_legacy_cyrillic(&name))
+        .map(|name| repair_id3_tag_text(&name, tag_type))
         .collect();
     if !listed.is_empty() {
         return listed;
     }
     let artists: Vec<String> = values(ItemKey::TrackArtist)
         .into_iter()
-        .map(|name| repair_legacy_cyrillic(&name))
+        .map(|name| repair_id3_tag_text(&name, tag_type))
         .collect();
     if artists.len() > 1 {
         artists
@@ -212,4 +214,53 @@ mod tests {
         assert!(read_track(&path).is_err());
     }
 
+    #[test]
+    fn read_track_repairs_latin1_id3_cp1251_bytes() {
+        use std::borrow::Cow;
+        use std::fs::File;
+        use std::io::BufReader;
+
+        use lofty::TextEncoding;
+        use lofty::config::{ParseOptions, WriteOptions};
+        use lofty::file::AudioFile;
+        use lofty::id3::v2::{Frame, FrameId, TextInformationFrame};
+        use lofty::mpeg::MpegFile;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cp1251.mp3");
+        std::fs::copy(fixture("tagged.mp3"), &path).unwrap();
+
+        let album = "Ýêñêëþçèâ";
+        let artist = "09.Íîããàíî";
+        let title = "íó êàê òà êàê";
+        let mut file = MpegFile::read_from(
+            &mut BufReader::new(File::open(&path).unwrap()),
+            ParseOptions::new(),
+        )
+        .unwrap();
+        let mut tag = file.id3v2_mut().cloned().unwrap_or_default();
+        for (id, value) in [("TIT2", title), ("TPE1", artist), ("TALB", album)] {
+            tag.insert(Frame::Text(TextInformationFrame::new(
+                FrameId::Valid(Cow::Borrowed(id)),
+                TextEncoding::Latin1,
+                value,
+            )));
+        }
+        file.set_id3v2(tag);
+        file.save_to_path(&path, WriteOptions::default()).unwrap();
+
+        let info = read_track(&path).unwrap();
+        assert_eq!(info.metadata.album.as_deref(), Some("Эксклюзив"));
+        assert_eq!(info.metadata.artist.as_deref(), Some("09.Ноггано"));
+        assert!(
+            info.metadata
+                .title
+                .as_deref()
+                .is_some_and(|t| t.chars().any(is_cyrillic_char))
+        );
+    }
+
+    fn is_cyrillic_char(c: char) -> bool {
+        matches!(c, '\u{0400}'..='\u{04FF}')
+    }
 }

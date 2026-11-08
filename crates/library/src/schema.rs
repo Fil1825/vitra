@@ -1,6 +1,6 @@
 //! Database schema, upgraded in place with numbered migrations (`PRAGMA user_version`).
 
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 
 use crate::Result;
 
@@ -266,17 +266,40 @@ pub(crate) const MIGRATIONS: &[&str] = &[
       AND track_id IN (SELECT id FROM tracks
                        WHERE path LIKE 'http://%' OR path LIKE 'https://%');
     ",
+    // 12: Re-read folder tracks after legacy ID3 Cyrillic decoding (media::TAG_DECODER_VERSION).
+    // `migrate` adds `tag_decoder` when missing (re-applying this version is idempotent).
+    r"
+    UPDATE tracks SET tag_decoder = 0 WHERE folder_id IS NOT NULL;
+    ",
 ];
+
+fn tag_decoder_column_exists(conn: &Connection) -> Result<bool> {
+    conn.query_row(
+        "SELECT 1 FROM pragma_table_info('tracks') WHERE name = 'tag_decoder' LIMIT 1",
+        [],
+        |_| Ok(()),
+    )
+    .optional()
+    .map(|row| row.is_some())
+    .map_err(Into::into)
+}
 
 /// Brings the database up to the latest schema.
 pub fn migrate(conn: &mut Connection) -> Result<()> {
     let current: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     for (index, sql) in MIGRATIONS.iter().enumerate().skip(current.max(0) as usize) {
+        let version = index as i64 + 1;
         let tx = conn.transaction()?;
+        if version == 12 && !tag_decoder_column_exists(&tx)? {
+            tx.execute(
+                "ALTER TABLE tracks ADD COLUMN tag_decoder INTEGER NOT NULL DEFAULT 0",
+                [],
+            )?;
+        }
         tx.execute_batch(sql)?;
-        tx.pragma_update(None, "user_version", index as i64 + 1)?;
+        tx.pragma_update(None, "user_version", version)?;
         tx.commit()?;
-        log::info!("library database migrated to version {}", index + 1);
+        log::info!("library database migrated to version {}", version);
     }
     Ok(())
 }

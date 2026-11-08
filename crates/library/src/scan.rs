@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc;
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
-use media::TrackMetadata;
+use media::{TAG_DECODER_VERSION, TrackMetadata};
 use rusqlite::{OptionalExtension, params};
 use serde::Serialize;
 
@@ -379,7 +379,11 @@ impl Library {
         let mut to_read = Vec::new();
         for file in listing.files {
             match known.remove(&file.key) {
-                Some(k) if k.size == file.size as i64 && k.mtime == file.mtime => {
+                Some(k)
+                    if k.size == file.size as i64
+                        && k.mtime == file.mtime
+                        && k.tag_decoder == TAG_DECODER_VERSION =>
+                {
                     summary.unchanged += 1;
                 }
                 Some(_) => to_read.push((file, true)),
@@ -962,6 +966,29 @@ mod tests {
                 ..ScanSummary::default()
             }
         );
+    }
+
+    #[test]
+    fn rescanning_re_reads_when_tag_decoder_version_is_stale() {
+        let mut s = setup();
+        s.scan();
+        s.library
+            .conn
+            .execute("UPDATE tracks SET tag_decoder = 0", [])
+            .unwrap();
+        let summary = s.scan();
+        assert_eq!(summary.updated, 3);
+        assert_eq!(summary.unchanged, 0);
+        let decoder: i64 = s
+            .library
+            .conn
+            .query_row(
+                "SELECT tag_decoder FROM tracks WHERE path LIKE '%Aurora%'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(decoder, TAG_DECODER_VERSION);
     }
 
     #[test]
