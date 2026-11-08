@@ -6,6 +6,8 @@
 
 **Intel mpv:** built from pinned sources in [`scripts/release/intel-mpv-sources.json`](scripts/release/intel-mpv-sources.json) for macOS 12, not from the stolendata binary. The corresponding-source tarball is produced next to the sidecar. Mach-O checks are not a Monterey playback test; that hardware run is still postponed.
 
+**Other bundled GPL programs:** the publish job attaches `corresponding-source.tar.gz` for yt-dlp 2026.10.26 (git tag archive) and for the pinned BtbN FFmpeg builds (FFmpeg commit `d4070a14ce` plus the `autobuild-2026-11-07-12-47` scripts). macOS FFmpeg from Martin Riedl and the official Apple Silicon / Windows mpv binaries do not have a pinned dependency set, so they are not described as corresponding source.
+
 ## Highlights since 0.1.1
 
 - **Metadata:** Latin1-only ID3 CP1251 repair with Lofty normalization preserved; library rescan via `tag_decoder` v2.

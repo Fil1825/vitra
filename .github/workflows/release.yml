@@ -245,6 +245,8 @@ jobs:
               cp "${sources[0]}" "release-assets/$name.mpv-corresponding-source.tar.gz"
             fi
           done
+          node scripts/release/stage-source-offers.mjs "$RUNNER_TEMP/corresponding-source"
+          tar -C "$RUNNER_TEMP" -czf release-assets/corresponding-source.tar.gz corresponding-source
           (cd release-assets && sha256sum ./* > SHA256SUMS)
       - name: Publish prerelease after all platform checks pass
         env:

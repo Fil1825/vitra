@@ -14,6 +14,7 @@ import {
   parseSha256,
   pickBtbnAsset,
   planFor,
+  sourceOffer,
 } from './plan.mjs';
 import { YT_DLP_KEY_FINGERPRINT, YT_DLP_RELEASE_KEY } from './ytdlp-release.mjs';
 
@@ -116,17 +117,30 @@ describe('planFor', () => {
     });
     const linux = planFor('x86_64-unknown-linux-gnu').ffmpeg.downloads[0];
     expect(linux.checksum.sha256).toBe(BTBN_PINS.linux64.sha256);
+    const offer = sourceOffer('btbn-ffmpeg-n9.0.2-48-gd4070a14ce');
+    expect(offer.complete).toBe(true);
+    expect(linux.sourceUrls).toEqual(offer.archives.map((archive) => archive.url));
+    expect(linux.license).toBe('GPL-3.0-or-later');
+    for (const pin of Object.values(BTBN_PINS)) {
+      expect(pin.asset).toContain(offer.ffmpegCommit.slice(0, 10));
+    }
   });
 
   it('uses sibling checksums for macOS FFmpeg (no early pinned digest)', () => {
     const [download] = planFor('aarch64-apple-darwin').ffmpeg.downloads;
     expect(download.checksum.type).toBe('sibling');
     expect(download.checksum.sha256).toBeUndefined();
+    expect(download.sourceUrls).toBeUndefined();
+    expect(sourceOffer('martin-riedl-macos-ffmpeg').complete).toBe(false);
   });
 
   it('lists GitHub REST release metadata for pinned GitHub-hosted binaries', () => {
     const yt = planFor('x86_64-unknown-linux-gnu')['yt-dlp'].downloads[0];
     expect(yt.githubRelease?.owner).toBe('yt-dlp');
+    const ytSource = sourceOffer('yt-dlp-2026.10.26');
+    expect(ytSource.version).toBe(YT_DLP_VERSION);
+    expect(yt.sourceUrls).toEqual(ytSource.archives.map((archive) => archive.url));
+    expect(yt.license).toBe('Unlicense');
     const deno = planFor('x86_64-pc-windows-msvc').deno.downloads[0];
     expect(deno.githubRelease?.repo).toBe('deno');
     const mpv = planFor('x86_64-pc-windows-msvc').mpv.downloads[0];

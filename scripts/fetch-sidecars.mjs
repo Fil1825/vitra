@@ -212,6 +212,7 @@ async function install(sidecar) {
         sha256,
         ...(download.provenance ? { provenance: download.provenance } : {}),
         ...(download.sourceUrl ? { sourceUrl: download.sourceUrl } : {}),
+        ...(download.sourceUrls ? { sourceUrls: download.sourceUrls } : {}),
         ...(download.license ? { license: download.license } : {}),
       });
 

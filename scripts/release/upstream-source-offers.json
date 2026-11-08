@@ -1,0 +1,695 @@
+{
+  "offers": [
+    {
+      "id": "yt-dlp-2026.10.26",
+      "component": "yt-dlp",
+      "version": "2026.10.26",
+      "license": "Unlicense",
+      "complete": true,
+      "note": "Git tag archive of yt-dlp 2026.10.26 (RELEASE_GIT_HEAD c91f8de0bfb3577894abad716eaaa01659e6bd14). This is the tree the release binaries are built from. It contains bundle/pyinstaller.py, hashed bundle/requirements, uv.lock, and THIRD_PARTY_LICENSES.txt. The smaller yt-dlp.tar.gz sdist on the same release omits those build files, so it is not the offer.",
+      "archives": [
+        {
+          "name": "yt-dlp-2026.10.26.tar.gz",
+          "url": "https://github.com/yt-dlp/yt-dlp/archive/refs/tags/2026.10.26.tar.gz",
+          "sha256": "7d5da51731c3f5f5db13d16249fae085e170cc58807c43d68dcb41b7ede99a0d"
+        }
+      ]
+    },
+    {
+      "id": "btbn-ffmpeg-n9.0.2-48-gd4070a14ce",
+      "component": "ffmpeg",
+      "version": "n9.0.2-48-gd4070a14ce",
+      "license": "GPL-3.0-or-later",
+      "complete": true,
+      "targets": ["win64", "linux64", "linuxarm64"],
+      "ffmpegCommit": "d4070a14cecc7e29eb278f9b6036c2284255f70d",
+      "ffmpegBranch": "release/9.0",
+      "rebuild": "./build.sh <win64|linux64|linuxarm64> \"gpl 9.0\"",
+      "note": "BtbN autobuild-2026-11-07-12-47. addins/9.0.sh sets GIT_BRANCH=release/9.0. The shipped asset names encode d4070a14ce, which resolves to d4070a14cecc7e29eb278f9b6036c2284255f70d (2026-11-06). Every scripts.d stage in that tag has SCRIPT_COMMIT or SCRIPT_REV. Those pins are listed here and are checked again against the build-script archive before a release is packed.",
+      "archives": [
+        {
+          "name": "FFmpeg-d4070a14cecc7e29eb278f9b6036c2284255f70d.tar.gz",
+          "url": "https://github.com/FFmpeg/FFmpeg/archive/d4070a14cecc7e29eb278f9b6036c2284255f70d.tar.gz",
+          "sha256": "d5cd1dbfc7959c09b8af96640b4596ba333b6895f533ddb688aa0f13e00341f8"
+        },
+        {
+          "name": "FFmpeg-Builds-autobuild-2026-11-07-12-47.tar.gz",
+          "url": "https://github.com/BtbN/FFmpeg-Builds/archive/refs/tags/autobuild-2026-11-07-12-47.tar.gz",
+          "sha256": "9f6c50d8d80476ee52cf5cb56fc59ce32c81c0c0ded9d52d9cff507f5cf1306f"
+        }
+      ],
+      "dependencies": [
+        {
+          "script": "10-mingw-std-threads.sh",
+          "repo": "https://github.com/meganz/mingw-std-threads.git",
+          "commit": "c931bac289dd431f1dd30fc4a5d1a7be36668073"
+        },
+        {
+          "script": "10-mingw.sh",
+          "repo": "https://git.code.sf.net/p/mingw-w64/mingw-w64.git",
+          "commit": "7213d719fe344553aa24fef7cc7dedee4940d594"
+        },
+        {
+          "script": "10-xorg-macros.sh",
+          "repo": "https://gitlab.freedesktop.org/xorg/util/macros.git",
+          "commit": "ea1e15a4909ac8b03b2c5a08ac3810b385985157"
+        },
+        {
+          "script": "20-libiconv.sh",
+          "repo": "https://git.savannah.gnu.org/git/libiconv.git",
+          "commit": "b5a1735e02bf43ee6e490fcf9395e8abc8d32432"
+        },
+        {
+          "script": "20-zlib.sh",
+          "repo": "https://github.com/madler/zlib.git",
+          "commit": "9d314c341b2ce16e01ae44e27ec3dd2f32aa58fd"
+        },
+        {
+          "script": "25-fftw3.sh",
+          "repo": "https://github.com/FFTW/fftw3.git",
+          "commit": "a7b679c528330cf6258253d6dcf5ec90552e6c93"
+        },
+        {
+          "script": "25-fribidi.sh",
+          "repo": "https://github.com/fribidi/fribidi.git",
+          "commit": "d2f3e1f4946e7cef9789e1c3ebdb4a60d4314c7f"
+        },
+        {
+          "script": "25-gmp.sh",
+          "repo": "https://github.com/BtbN/gmplib.git",
+          "commit": "5c3e9a9d52b697cab7b7d26a53972a3bf922d59a"
+        },
+        {
+          "script": "25-libogg.sh",
+          "repo": "https://github.com/xiph/ogg.git",
+          "commit": "06a5e0262cdc28aa4ae6797627a783b5010440f0"
+        },
+        {
+          "script": "25-libpng.sh",
+          "repo": "https://github.com/glennrp/libpng.git",
+          "commit": "0b0876829d77db0827a8cc2c4326f63be22b2aa1"
+        },
+        {
+          "script": "25-libxml2.sh",
+          "repo": "https://github.com/GNOME/libxml2.git",
+          "commit": "c79c9612fcc77b06b0d16f35fd363d938bdbbf5e"
+        },
+        {
+          "script": "25-openssl.sh",
+          "repo": "https://github.com/openssl/openssl.git",
+          "commit": "openssl-3.6.5"
+        },
+        {
+          "script": "25-xz.sh",
+          "repo": "https://github.com/tukaani-project/xz.git",
+          "commit": "299eb5c3f597f107fd6019bf156885ac8bfaa5ea"
+        },
+        {
+          "script": "45-brotli.sh",
+          "repo": "https://github.com/google/brotli.git",
+          "commit": "2e2bcf17ae7115d84ef6588d9a3651cc987d73e7"
+        },
+        {
+          "script": "45-fonts/25-freetype.sh",
+          "repo": "https://gitlab.freedesktop.org/freetype/freetype.git",
+          "commit": "4ba7c3d82ab8b3cc80b869337d2c2b1913c5e415"
+        },
+        {
+          "script": "45-fonts/35-fontconfig.sh",
+          "repo": "https://gitlab.freedesktop.org/fontconfig/fontconfig.git",
+          "commit": "b25ffeabd15b76f86c0c6736f6df2f1b89858010"
+        },
+        {
+          "script": "45-fonts/45-harfbuzz.sh",
+          "repo": "https://github.com/harfbuzz/harfbuzz.git",
+          "commit": "75d8ac5d2313842550174eaab0cbaf653c8f2f77"
+        },
+        {
+          "script": "45-fonts/50-freetype.sh",
+          "repo": "https://gitlab.freedesktop.org/freetype/freetype.git",
+          "commit": "4ba7c3d82ab8b3cc80b869337d2c2b1913c5e415"
+        },
+        {
+          "script": "45-lcms2.sh",
+          "repo": "https://github.com/mm2/Little-CMS.git",
+          "commit": "1112313b3784ced9297d8c0ee076aba17499827a"
+        },
+        {
+          "script": "45-libffi.sh",
+          "repo": "https://github.com/libffi/libffi.git",
+          "commit": "bc553867367246d140cd156f060bd0409f57f157"
+        },
+        {
+          "script": "45-libsamplerate.sh",
+          "repo": "https://github.com/libsndfile/libsamplerate.git",
+          "commit": "0844c208f683527c08ea8a80acc13b398aa9c8bf"
+        },
+        {
+          "script": "45-libudfread.sh",
+          "repo": "https://code.videolan.org/videolan/libudfread.git",
+          "commit": "b0bc6957e7e07d5f35391f210596d9eb71cffdd9"
+        },
+        {
+          "script": "45-libunibreak.sh",
+          "repo": "https://github.com/adah1972/libunibreak.git",
+          "commit": "f8172fe771ef620112247cadfb876aecaa4f769e"
+        },
+        {
+          "script": "45-libvorbis.sh",
+          "repo": "https://github.com/xiph/vorbis.git",
+          "commit": "1b75110b5a2754ba1931d82dd83cb822b266a21d"
+        },
+        {
+          "script": "45-opencl.sh",
+          "repo": "https://github.com/KhronosGroup/OpenCL-Headers.git",
+          "commit": "82f60316cc142e7b21dc1d8983b26de18858fbd9"
+        },
+        {
+          "script": "45-pcre2.sh",
+          "repo": "https://github.com/PCRE2Project/pcre2.git",
+          "commit": "be940c4eaec0bc4117e06e8f14e56bf82089be6b"
+        },
+        {
+          "script": "45-pixman.sh",
+          "repo": "https://gitlab.freedesktop.org/pixman/pixman.git",
+          "commit": "e7fd44140fe6edef507d54bdbc25c09543ffc936"
+        },
+        {
+          "script": "45-pulseaudio.sh",
+          "repo": "https://gitlab.freedesktop.org/pulseaudio/pulseaudio.git",
+          "commit": "77d25a1e613095bdf87a1d13b65e7c330565077a"
+        },
+        {
+          "script": "45-vmaf.sh",
+          "repo": "https://github.com/Netflix/vmaf.git",
+          "commit": "f712fa7564fe49b12991d83920b83573af2ae063"
+        },
+        {
+          "script": "45-x11/10-xcbproto.sh",
+          "repo": "https://gitlab.freedesktop.org/xorg/proto/xcbproto.git",
+          "commit": "cf7e2581b613802f2f8ec2a4b50a6a20aad4bf52"
+        },
+        {
+          "script": "45-x11/10-xproto.sh",
+          "repo": "https://gitlab.freedesktop.org/xorg/proto/xorgproto.git",
+          "commit": "6d3907b6d5dc4aa7d7ee6ee5d7d8714e7466630b"
+        },
+        {
+          "script": "45-x11/10-xtrans.sh",
+          "repo": "https://gitlab.freedesktop.org/xorg/lib/libxtrans.git",
+          "commit": "79f6b0bfe2170496e8c37626043d009f4cd3f1e1"
+        },
+        {
+          "script": "45-x11/20-libxau.sh",
+          "repo": "https://gitlab.freedesktop.org/xorg/lib/libxau.git",
+          "commit": "be1daeb909f1d678e7859ac1555e90b4e768d5c4"
+        },
+        {
+          "script": "45-x11/30-libxcb.sh",
+          "repo": "https://gitlab.freedesktop.org/xorg/lib/libxcb.git",
+          "commit": "d4e07bab5729c7d7cc3d2b95568cd9a661a53c4f"
+        },
+        {
+          "script": "45-x11/40-libx11.sh",
+          "repo": "https://gitlab.freedesktop.org/xorg/lib/libx11.git",
+          "commit": "b8d5a7046a98a244ee8ca3c9c07fd617c800dde2"
+        },
+        {
+          "script": "45-x11/50-libxext.sh",
+          "repo": "https://gitlab.freedesktop.org/xorg/lib/libxext.git",
+          "commit": "508f8adca2540ff8926ac8456cb1c553a8caae76"
+        },
+        {
+          "script": "45-x11/50-libxfixes.sh",
+          "repo": "https://gitlab.freedesktop.org/xorg/lib/libxfixes.git",
+          "commit": "55bb2d1d57d43e0595ce45393f26eb433d75a7cc"
+        },
+        {
+          "script": "45-x11/50-libxi.sh",
+          "repo": "https://gitlab.freedesktop.org/xorg/lib/libxi.git",
+          "commit": "9ea632ab9dce9ad6630ef7db9d1850ea3d0a2419"
+        },
+        {
+          "script": "45-x11/50-libxinerama.sh",
+          "repo": "https://gitlab.freedesktop.org/xorg/lib/libxinerama.git",
+          "commit": "d7162b962710bc724b41cabab4e7cea303c4b541"
+        },
+        {
+          "script": "45-x11/50-libxrender.sh",
+          "repo": "https://gitlab.freedesktop.org/xorg/lib/libxrender.git",
+          "commit": "f30d654658ebf17d41141ed3ec2abf607d8a512e"
+        },
+        {
+          "script": "45-x11/50-libxscrnsaver.sh",
+          "repo": "https://gitlab.freedesktop.org/xorg/lib/libxscrnsaver.git",
+          "commit": "3f753e7a4050db083474444ae91cc17a849eaa4d"
+        },
+        {
+          "script": "45-x11/50-libxxf86vm.sh",
+          "repo": "https://gitlab.freedesktop.org/xorg/lib/libxxf86vm.git",
+          "commit": "c76fde6bffcc87e5dd98d8196bb01a299bdc3236"
+        },
+        {
+          "script": "45-x11/60-libglvnd.sh",
+          "repo": "https://gitlab.freedesktop.org/glvnd/libglvnd.git",
+          "commit": "c046a760d845416e98ac4128757b2b356c47fdaa"
+        },
+        {
+          "script": "45-x11/60-libxcursor.sh",
+          "repo": "https://gitlab.freedesktop.org/xorg/lib/libxcursor.git",
+          "commit": "15efad7ccd035f5d1ddc8d437e047569d1775fa7"
+        },
+        {
+          "script": "45-x11/60-libxrandr.sh",
+          "repo": "https://gitlab.freedesktop.org/xorg/lib/libxrandr.git",
+          "commit": "8a4ba1974bcf07057cf891128d86ae1ab5303574"
+        },
+        {
+          "script": "45-x11/60-libxv.sh",
+          "repo": "https://gitlab.freedesktop.org/xorg/lib/libxv.git",
+          "commit": "f315ec50fcad9bdbaed46c3e78dc5e7fe209f933"
+        },
+        {
+          "script": "45-xxhash.sh",
+          "repo": "https://github.com/Cyan4973/xxHash.git",
+          "commit": "61fd0fece2ebafc5bd9b573050e0c046c4e48d28"
+        },
+        {
+          "script": "45-zstd.sh",
+          "repo": "https://github.com/facebook/zstd.git",
+          "commit": "49cf51799ea051457f57243527aa2058f999f005"
+        },
+        {
+          "script": "47-vulkan/40-vulkan-headers.sh",
+          "repo": "https://github.com/KhronosGroup/Vulkan-Headers.git",
+          "commit": "v1.4.366"
+        },
+        {
+          "script": "47-vulkan/45-vulkan-loader.sh",
+          "repo": "https://github.com/BtbN/Vulkan-Shim-Loader.git",
+          "commit": "65b3936528cd92eb4ea3de485d03f858a3850484"
+        },
+        {
+          "script": "47-vulkan/50-shaderc.sh",
+          "repo": "https://github.com/google/shaderc.git",
+          "commit": "2737994b552137a85545f956e303d620e6ff232c"
+        },
+        {
+          "script": "47-vulkan/55-spirv-cross.sh",
+          "repo": "https://github.com/KhronosGroup/SPIRV-Cross.git",
+          "commit": "300681bbcb8365a8d1eacdacdbdd0249bbf1d6b1"
+        },
+        {
+          "script": "47-vulkan/60-spirv-headers.sh",
+          "repo": "https://github.com/KhronosGroup/SPIRV-Headers.git",
+          "commit": "fbf86836a9b1966586faf7be7bb8a6440e156d62"
+        },
+        {
+          "script": "50-amf.sh",
+          "repo": "https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git",
+          "commit": "57ee0cfb0e1a08d9041f77435653794c1b012be0"
+        },
+        {
+          "script": "50-aom.sh",
+          "repo": "https://aomedia.googlesource.com/aom",
+          "commit": "9ace39e02a34992b83fc7f7f2bfbbd2e79348c74"
+        },
+        {
+          "script": "50-avisynth.sh",
+          "repo": "https://github.com/AviSynth/AviSynthPlus.git",
+          "commit": "523370a39933e2f9c208a5d74c1d35d43d177a76"
+        },
+        {
+          "script": "50-chromaprint.sh",
+          "repo": "https://github.com/acoustid/chromaprint.git",
+          "commit": "3b38c100022bdfb49be7797c4828a476f1621d55"
+        },
+        {
+          "script": "50-dav1d.sh",
+          "repo": "https://code.videolan.org/videolan/dav1d.git",
+          "commit": "b8b2d726b4b78a2fb174cb45baff441b5969672c"
+        },
+        {
+          "script": "50-davs2.sh",
+          "repo": "https://github.com/pkuvcl/davs2.git",
+          "commit": "b41cf117452e2d73d827f02d3e30aa20f1c721ac"
+        },
+        {
+          "script": "50-dvd/30-libdvdcss.sh",
+          "repo": "https://code.videolan.org/videolan/libdvdcss.git",
+          "commit": "811ce97a1d4d1c9d936f4b2707f533a9ef768251"
+        },
+        {
+          "script": "50-dvd/40-libdvdread.sh",
+          "repo": "https://code.videolan.org/videolan/libdvdread.git",
+          "commit": "0f30df53125b564ef45903714403ce0a1e6c5e9e"
+        },
+        {
+          "script": "50-dvd/50-libdvdnav.sh",
+          "repo": "https://code.videolan.org/videolan/libdvdnav.git",
+          "commit": "8147ccd35e5aae4afdd21171cf7b6b4d8f179d28"
+        },
+        {
+          "script": "50-fdk-aac.sh",
+          "repo": "https://github.com/mstorsjo/fdk-aac.git",
+          "commit": "c41c3c7516ea8d0d78a53b96b30bed3a29745cc6"
+        },
+        {
+          "script": "50-ffnvcodec.sh",
+          "repo": "https://github.com/FFmpeg/nv-codec-headers.git",
+          "commit": "f2053071ea93137255b6dcf42e9b4c9e0965a44e"
+        },
+        {
+          "script": "50-frei0r.sh",
+          "repo": "https://github.com/dyne/frei0r.git",
+          "commit": "618dde79716fab4e428a05e6476325b9e6f5b063"
+        },
+        {
+          "script": "50-gme.sh",
+          "repo": "https://github.com/libgme/game-music-emu.git",
+          "commit": "f68963b1de0633149b05732113d3c3113c6f63a1"
+        },
+        {
+          "script": "50-kvazaar.sh",
+          "repo": "https://github.com/ultravideo/kvazaar.git",
+          "commit": "1f11f9ae33ef0cbe48a7d335b7144af1ecfe8092"
+        },
+        {
+          "script": "50-lcevcdec.sh",
+          "repo": "https://github.com/v-novaltd/LCEVCdec.git",
+          "commit": "741fb7c869cf61012f7dcebfcd9e56981198c78b"
+        },
+        {
+          "script": "50-libaribb24.sh",
+          "repo": "https://github.com/nkoriyama/aribb24.git",
+          "commit": "5e9be272f96e00f15a2f3c5f8ba7e124862aec38"
+        },
+        {
+          "script": "50-libaribcaption.sh",
+          "repo": "https://github.com/xqq/libaribcaption.git",
+          "commit": "37dde0f32652c32aa98bf92278944d1cfb2e7354"
+        },
+        {
+          "script": "50-libass.sh",
+          "repo": "https://github.com/libass/libass.git",
+          "commit": "f61db567e6593df3470e91594bcd4ad2d0473aff"
+        },
+        {
+          "script": "50-libbluray.sh",
+          "repo": "https://code.videolan.org/videolan/libbluray.git",
+          "commit": "f33a738fd7bb8b5e1148b0a5424778db7342450b"
+        },
+        {
+          "script": "50-libcurl/40-libpsl.sh",
+          "repo": "https://github.com/rockdaboot/libpsl.git",
+          "commit": "620d51d13351e8f3cb724471032246592c9bbd69"
+        },
+        {
+          "script": "50-libcurl/40-nghttp2.sh",
+          "repo": "https://github.com/nghttp2/nghttp2.git",
+          "commit": "3baf9561e09f7ac8b0dce6e84132ce3909309ef0"
+        },
+        {
+          "script": "50-libcurl/40-nghttp3.sh",
+          "repo": "https://github.com/ngtcp2/nghttp3.git",
+          "commit": "ac11a456eb9d76e55fd6c1626727111cd29d5459"
+        },
+        {
+          "script": "50-libcurl/40-ngtcp2.sh",
+          "repo": "https://github.com/ngtcp2/ngtcp2.git",
+          "commit": "20da63db12a3e7fd2a3ae1a9f15be3cadd3f2695"
+        },
+        {
+          "script": "50-libcurl/50-libcurl.sh",
+          "repo": "https://github.com/curl/curl.git",
+          "commit": "bc677a8f16a51e728136eff130509cfac57aad19"
+        },
+        {
+          "script": "50-libjxl/50-libjxl.sh",
+          "repo": "https://github.com/libjxl/libjxl.git",
+          "commit": "e47d2a2b5bb418f2947ce07f36cb048861db3820"
+        },
+        {
+          "script": "50-libmp3lame.sh",
+          "repo": "https://svn.code.sf.net/p/lame/svn/trunk/lame",
+          "svn": "7113"
+        },
+        {
+          "script": "50-libopus.sh",
+          "repo": "https://github.com/xiph/opus.git",
+          "commit": "a8b2545eec71e0f53ecead2d583e7b6baa42684d"
+        },
+        {
+          "script": "50-libplacebo.sh",
+          "repo": "https://code.videolan.org/videolan/libplacebo.git",
+          "commit": "275f7dea27924cdd34ab2e6c20e448b6bc4fab65"
+        },
+        {
+          "script": "50-librist/40-mbedtls.sh",
+          "repo": "https://github.com/ARMmbed/mbedtls.git",
+          "commit": "v4.2.0"
+        },
+        {
+          "script": "50-librist/50-librist.sh",
+          "repo": "https://code.videolan.org/rist/librist.git",
+          "commit": "47ad5513d1aa0adb692d78f635512e7fa123f06e"
+        },
+        {
+          "script": "50-librsvg/10-glib.sh",
+          "repo": "https://github.com/GNOME/glib.git",
+          "commit": "50b938a3e8f5154a25b5af3dd8b9dd8b2ccba7c3"
+        },
+        {
+          "script": "50-librsvg/20-cairo.sh",
+          "repo": "https://gitlab.freedesktop.org/cairo/cairo.git",
+          "commit": "74755964edef651691d5cd36ff140108298e4e6e"
+        },
+        {
+          "script": "50-librsvg/30-pango.sh",
+          "repo": "https://github.com/GNOME/pango.git",
+          "commit": "68e981d243d50e03f3df12fb400f31647ef570d2"
+        },
+        {
+          "script": "50-librsvg/99-librsvg.sh",
+          "repo": "https://github.com/GNOME/librsvg.git",
+          "commit": "0c074d0a25adefd65843067306f9bc1fb609f68f"
+        },
+        {
+          "script": "50-libssh.sh",
+          "repo": "https://gitlab.com/libssh/libssh-mirror.git",
+          "commit": "9de02f3d01ba16d06f46c0c4d27aa08d8deeecee"
+        },
+        {
+          "script": "50-libtheora.sh",
+          "repo": "https://github.com/xiph/theora.git",
+          "commit": "28fd5ec77f0ad0e07a371cef1047828116f6bd8a"
+        },
+        {
+          "script": "50-libvpx.sh",
+          "repo": "https://chromium.googlesource.com/webm/libvpx",
+          "commit": "900b2a52b69e9d4ab72eb855c365da1100c50eb1"
+        },
+        {
+          "script": "50-libwebp.sh",
+          "repo": "https://chromium.googlesource.com/webm/libwebp",
+          "commit": "1844042d1ca751e62e61df7617dba19c98588339"
+        },
+        {
+          "script": "50-libzmq.sh",
+          "repo": "https://github.com/zeromq/libzmq.git",
+          "commit": "46493370217ac135246617fa2f6ac819d8b61bfc"
+        },
+        {
+          "script": "50-lilv/96-lv2.sh",
+          "repo": "https://github.com/lv2/lv2.git",
+          "commit": "3c57dae600a5ad8d05acd53ee3490f7d91cb7be6"
+        },
+        {
+          "script": "50-lilv/96-serd.sh",
+          "repo": "https://github.com/drobilla/serd.git",
+          "commit": "b621b0bc790d1e8102d3138ead16b974ddda8432"
+        },
+        {
+          "script": "50-lilv/96-zix.sh",
+          "repo": "https://github.com/drobilla/zix.git",
+          "commit": "17d632393f5addb6fa24dda2927b96515407cca7"
+        },
+        {
+          "script": "50-lilv/97-sord.sh",
+          "repo": "https://github.com/drobilla/sord.git",
+          "commit": "4b5232bb91e7f2f1b84df384494d073fabbcd312"
+        },
+        {
+          "script": "50-lilv/98-sratom.sh",
+          "repo": "https://github.com/lv2/sratom.git",
+          "commit": "9e8ee84eed502e6030ce8bb49694fd28542b08fc"
+        },
+        {
+          "script": "50-lilv/99-lilv.sh",
+          "repo": "https://github.com/lv2/lilv.git",
+          "commit": "4b8f30055fa5cb4134a2eb45fc1555bc04289314"
+        },
+        {
+          "script": "50-onevpl.sh",
+          "repo": "https://github.com/intel/libvpl.git",
+          "commit": "674d015bcb294bc39fa276e99a652ea045423e82"
+        },
+        {
+          "script": "50-openal.sh",
+          "repo": "https://github.com/kcat/openal-soft.git",
+          "commit": "4a52288b772d1722713675f71bb30f321e78fd80"
+        },
+        {
+          "script": "50-openapv.sh",
+          "repo": "https://github.com/AcademySoftwareFoundation/openapv.git",
+          "commit": "b4ff69856b4c3e8849df431ee3db54fd535f9bf3"
+        },
+        {
+          "script": "50-opencore-amr.sh",
+          "repo": "https://git.code.sf.net/p/opencore-amr/code",
+          "commit": "7dba8c32238418ce0b316a852b2224df586ca896"
+        },
+        {
+          "script": "50-openh264.sh",
+          "repo": "https://github.com/cisco/openh264.git",
+          "commit": "1bca62311e447fd9c39fc93de2c4b96cd5ce971c"
+        },
+        {
+          "script": "50-openjpeg.sh",
+          "repo": "https://github.com/uclouvain/openjpeg.git",
+          "commit": "8314119b067c0fc77834731168daaebd379fdb12"
+        },
+        {
+          "script": "50-openmpt.sh",
+          "repo": "https://github.com/OpenMPT/openmpt.git",
+          "commit": "3ee3c8000b45886703816fd027369ab6ad6fc6cb"
+        },
+        {
+          "script": "50-rav1e.sh",
+          "repo": "https://github.com/xiph/rav1e.git",
+          "commit": "31435de9d76fddd38f6dcc31d4014574cebb2092"
+        },
+        {
+          "script": "50-rubberband.sh",
+          "repo": "https://github.com/breakfastquay/rubberband.git",
+          "commit": "e4296ac80b1170018a110bc326fd0d45a0eb27d6"
+        },
+        {
+          "script": "50-sdl.sh",
+          "repo": "https://github.com/libsdl-org/SDL.git",
+          "commit": "8acf7cfc0f88717e5c036f60f0314bfcafe39189"
+        },
+        {
+          "script": "50-snappy.sh",
+          "repo": "https://github.com/google/snappy.git",
+          "commit": "946606459314e55d029c85f9a8c46f8809467f0f"
+        },
+        {
+          "script": "50-soxr.sh",
+          "repo": "https://git.code.sf.net/p/soxr/code",
+          "commit": "945b592b70470e29f917f4de89b4281fbbd540c0"
+        },
+        {
+          "script": "50-srt.sh",
+          "repo": "https://github.com/Haivision/srt.git",
+          "commit": "9f2390232a8256ed4c72a5418c2b2777c49ad737"
+        },
+        {
+          "script": "50-svtav1.sh",
+          "repo": "https://github.com/AOMediaCodec/SVT-AV1.git",
+          "commit": "ad11d76a6c9cb05ec49d166cf20ec5d286715dc1"
+        },
+        {
+          "script": "50-twolame.sh",
+          "repo": "https://github.com/njh/twolame.git",
+          "commit": "6fced852d4d5cfad58cf9dbe3ea619b08e87d398"
+        },
+        {
+          "script": "50-uavs3d.sh",
+          "repo": "https://github.com/uavs3/uavs3d.git",
+          "commit": "0e20d2c291853f196c68922a264bcd8471d75b68"
+        },
+        {
+          "script": "50-vaapi/30-libpciaccess.sh",
+          "repo": "https://gitlab.freedesktop.org/xorg/lib/libpciaccess.git",
+          "commit": "38e6f15f839fba2c49982e7ad61cde681fd5d4d6"
+        },
+        {
+          "script": "50-vaapi/40-libdrm.sh",
+          "repo": "https://gitlab.freedesktop.org/mesa/drm.git",
+          "commit": "b97cbde15c5c3abfe44d78e8f57139e50f612fec"
+        },
+        {
+          "script": "50-vaapi/50-libva.sh",
+          "repo": "https://github.com/intel/libva.git",
+          "commit": "f052e984e0c8bf10784198cc311b23c567b1367f"
+        },
+        {
+          "script": "50-vapoursynth.sh",
+          "repo": "https://github.com/vapoursynth/vapoursynth.git",
+          "commit": "R81"
+        },
+        {
+          "script": "50-vidstab.sh",
+          "repo": "https://github.com/georgmartius/vid.stab.git",
+          "commit": "e2445c4081658318223762a696eb1c645c2d7168"
+        },
+        {
+          "script": "50-vvenc.sh",
+          "repo": "https://github.com/fraunhoferhhi/vvenc.git",
+          "commit": "0e7508b811bbea3cd510956ddb3193f3a4c93684"
+        },
+        {
+          "script": "50-whisper.sh",
+          "repo": "https://github.com/ggml-org/whisper.cpp.git",
+          "commit": "231638a0717b7822784297e5980965ffcec05810"
+        },
+        {
+          "script": "50-x264.sh",
+          "repo": "https://code.videolan.org/videolan/x264.git",
+          "commit": "0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee"
+        },
+        {
+          "script": "50-x265.sh",
+          "repo": "https://github.com/Multicorewareinc/x265.git",
+          "commit": "5143a2a00ad0cc600831654a248b96ec7307eb4a"
+        },
+        {
+          "script": "50-xavs2.sh",
+          "repo": "https://github.com/pkuvcl/xavs2.git",
+          "commit": "eae1e8b9d12468059bdd7dee893508e470fa83d8"
+        },
+        {
+          "script": "50-xvid.sh",
+          "repo": "https://svn.xvid.org/trunk/xvidcore",
+          "svn": "2204"
+        },
+        {
+          "script": "50-zimg.sh",
+          "repo": "https://github.com/sekrit-twc/zimg.git",
+          "commit": "67e0603271c080e22c8429856dd4a8a56587e61e"
+        },
+        {
+          "script": "50-zvbi.sh",
+          "repo": "https://github.com/zapping-vbi/zvbi",
+          "commit": "34bb6f660c5c1bacd4a66cc7b22311e4ca3c1ab5"
+        }
+      ]
+    },
+    {
+      "id": "martin-riedl-macos-ffmpeg",
+      "component": "ffmpeg",
+      "license": "GPL-3.0-or-later",
+      "complete": false,
+      "reason": "The fetch URL redirect/latest/macos/{arm64,amd64}/release currently returns the 9.0.2 zips from 2026-09-20. Their versions.txt lists harfbuzz 14.4.0 and x264 0.165.x. git.martin-riedl.de/ffmpeg/build-script has no tags. Branch main (2026-08-17) pins ffmpeg 9.0.1 and harfbuzz 14.3.0, which is not this binary. script/build-x264.sh downloads the floating archive x264-master.tar.gz and there is no version/x264 file."
+    },
+    {
+      "id": "mpv-official-v0.41.0",
+      "component": "mpv",
+      "version": "v0.41.0",
+      "license": "GPL-2.0-or-later",
+      "complete": false,
+      "reason": "The v0.41.0 release assets are the binaries only. Job macos for macos-14-arm runs brew update and brew install ffmpeg libplacebo libass without matrix.homebrew, so the bundled libraries are not pinned. ci/build-win32.ps1 clones shaderc with --depth 1 and builds vulkan-loader with UPDATE_DEPS=ON after meson wrap update-db. The mpv tag is the player source, not the corresponding source of those binaries."
+    }
+  ]
+}

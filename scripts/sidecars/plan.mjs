@@ -9,6 +9,7 @@
 //   deno[.exe]           JavaScript runtime yt-dlp needs for YouTube
 //   manifest.json        what was fetched, from where, with which checksum
 
+import sourceOffers from '../release/upstream-source-offers.json' with { type: 'json' };
 import { YT_DLP_KEY_FINGERPRINT, YT_DLP_RELEASE_KEY, YT_DLP_VERSION } from './ytdlp-release.mjs';
 
 export { YT_DLP_VERSION };
@@ -128,6 +129,22 @@ function ytDlpGithubRelease(asset) {
   return { owner: 'yt-dlp', repo: 'yt-dlp', tag: YT_DLP_VERSION, asset };
 }
 
+/** Complete corresponding-source offer, or null when the id is not in the manifest. */
+export function sourceOffer(id) {
+  return sourceOffers.offers.find((offer) => offer.id === id) ?? null;
+}
+
+function completeSource(id) {
+  const offer = sourceOffer(id);
+  if (!offer?.complete) {
+    throw new Error(`source offer ${id} is not a complete archive set`);
+  }
+  return {
+    sourceUrls: offer.archives.map((archive) => archive.url),
+    license: offer.license,
+  };
+}
+
 function denoGithubRelease(asset) {
   return { owner: 'denoland', repo: 'deno', tag: DENO_VERSION, asset };
 }
@@ -215,6 +232,7 @@ function ytDlpPlan(info, exe) {
         fingerprint: YT_DLP_KEY_FINGERPRINT,
       },
     },
+    ...completeSource('yt-dlp-2026.10.26'),
   };
   if (info.os === 'macos') {
     // Not the single-file build: that one unpacks Python into a fresh temporary folder on
@@ -312,6 +330,7 @@ function btbnDownload(info, exe) {
     checksum: { type: 'pinned', sha256: pin.sha256 },
     archive: info.os === 'windows' ? 'zip' : 'tar',
     files: [exe('ffmpeg'), exe('ffprobe')].map((f) => ({ find: f, to: f })),
+    ...completeSource('btbn-ffmpeg-n9.0.2-48-gd4070a14ce'),
   };
 }
 
