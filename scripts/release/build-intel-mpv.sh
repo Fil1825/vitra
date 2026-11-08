@@ -176,16 +176,31 @@ PY
 (
   cd "$WORK/mpv"
   # dependency('iconv') uses the same libc probe as FFmpeg. -liconv stays on the link.
+  # mpv 0.41 meson.build:1509 requires features['vulkan'] and CoreVideo together
+  # before videotoolbox-pl can be enabled. This recipe has no pinned Vulkan loader
+  # (the libplacebo Vulkan-Headers tree is not a loader, and MoltenVK is not built).
+  # videotoolbox-gl still builds hwdec_vt.c and hwdec_mac_gl.c, so VideoToolbox
+  # hardware decode stays on the OpenGL path. FFmpeg still uses --enable-videotoolbox.
+  # The same meson file adds -L/usr/local/lib. Remove it so ld cannot take Homebrew.
+  python3 - "$WORK/mpv/meson.build" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+old = ", '-L/usr/local/lib'"
+if old not in text:
+    raise SystemExit("mpv meson.build no longer has the Homebrew link path the recipe removes")
+path.write_text(text.replace(old, "", 1))
+PY
   meson setup build --prefix="$PREFIX" --buildtype=release \
     -Dlibmpv=false \
     -D{gl,iconv,plain-gl}=enabled \
-    -D{cocoa,coreaudio,gl-cocoa,videotoolbox-gl,videotoolbox-pl}=enabled \
+    -D{cocoa,coreaudio,gl-cocoa,videotoolbox-gl}=enabled \
     -D{swift-build,macos-cocoa-cb,macos-media-player}=enabled \
-    -D{vulkan,macos-touchbar,lua,jpeg,lcms2}=disabled \
+    -D{videotoolbox-pl,vulkan,macos-touchbar,lua,jpeg,lcms2}=disabled \
     -D{cdda,dvdnav,javascript,libarchive,libbluray,rubberband,uchardet,vapoursynth,zimg,shaderc,wayland,x11,manpage-build}=disabled \
     -Dswift-flags="-target x86_64-apple-macos12.0" \
     -Dc_args="$CFLAGS" -Dobjc_args="$CFLAGS -Wno-error=deprecated -Wno-error=deprecated-declarations" \
-    -Dc_link_args="$LDFLAGS -liconv"
+    -Dc_link_args="$LDFLAGS -liconv -framework CoreVideo -framework IOSurface"
   meson compile -C build
   meson compile -C build macos-bundle
 )

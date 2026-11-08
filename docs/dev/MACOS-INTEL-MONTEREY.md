@@ -44,6 +44,8 @@ depend on the third-party builder. GPLv2+ applies to mpv; Vitra is GPLv3.
 
 Intel mpv is produced by `scripts/release/build-intel-mpv.sh` from `intel-mpv-sources.json` on the macOS Intel release runner. The corresponding-source tarball includes that script, the pins, and `mach-minos.py` / `mach-deps.py`, so the offer can be rerun from its own directory. The script refuses a checksum mismatch, refuses a pkg-config view of host libraries, and refuses any Mach-O that needs newer than macOS 12.0. Homebrew is used only for compilers' companion tools (meson, nasm); shipped libraries are the pinned builds. HarfBuzz 10.1.0 is built with Meson.
 
+mpv 0.41 enables `videotoolbox-pl` only when Vulkan and CoreVideo are both present. This recipe does not build a Vulkan loader, so `videotoolbox-pl` stays off. Hardware decode stays on `videotoolbox-gl` (`hwdec_vt.c`, `hwdec_mac_gl.c`) plus FFmpeg `--enable-videotoolbox` and `--enable-audiotoolbox`. `hwdec_mac_gl.c` calls CoreVideo and IOSurface, and mpv only adds the CoreVideo framework on the libplacebo path, so the recipe passes `-framework CoreVideo -framework IOSurface` on the link. The script also deletes mpv's Darwin `-L/usr/local/lib` link argument so Homebrew libraries are not on the link line.
+
 ## Apple Silicon
 
 Unchanged: official **mpv v0.41.0 macos-14-arm**, bundle minimum **14.0** (Sonoma).
