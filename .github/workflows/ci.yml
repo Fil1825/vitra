@@ -62,7 +62,25 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: node scripts/fetch-sidecars.mjs --only ffmpeg --require-checksums
+      - id: sidecar-archive-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/vitra-sidecar-archives
+          key: sidecar-archives-${{ hashFiles('scripts/sidecars/plan.mjs', 'scripts/sidecars/ytdlp-release.mjs') }}-${{ runner.os }}
+      - id: fetch-sidecars-ffmpeg
+        env:
+          VITRA_SIDECAR_ARCHIVE_CACHE: ${{ github.workspace }}/.cache/vitra-sidecar-archives
+        run: node scripts/fetch-sidecars.mjs --only ffmpeg --require-checksums
+      - name: Save verified sidecar archives
+        if: >-
+          steps.fetch-sidecars-ffmpeg.outcome == 'success' &&
+          (github.event_name == 'push' ||
+           (github.event_name == 'pull_request' &&
+            github.event.pull_request.head.repo.full_name == github.repository))
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/vitra-sidecar-archives
+          key: ${{ steps.sidecar-archive-cache.outputs.cache-primary-key }}
       - name: Authenticate HTTPS with the release FFmpeg sidecar
         run: python3 scripts/test-ffmpeg-tls.py --ffmpeg src-tauri/sidecars/x86_64-unknown-linux-gnu/ffmpeg
 
@@ -99,8 +117,26 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - name: Install FFmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      # The latest yt-dlp, as users get it: a failure here means yt-dlp's output changed.
-      - run: node scripts/fetch-sidecars.mjs --only yt-dlp
+      # The pinned yt-dlp release; a failure here means yt-dlp's output changed.
+      - id: sidecar-archive-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/vitra-sidecar-archives
+          key: sidecar-archives-${{ hashFiles('scripts/sidecars/plan.mjs', 'scripts/sidecars/ytdlp-release.mjs') }}-${{ runner.os }}
+      - id: fetch-sidecars-ytdlp
+        env:
+          VITRA_SIDECAR_ARCHIVE_CACHE: ${{ github.workspace }}/.cache/vitra-sidecar-archives
+        run: node scripts/fetch-sidecars.mjs --only yt-dlp
+      - name: Save verified sidecar archives
+        if: >-
+          steps.fetch-sidecars-ytdlp.outcome == 'success' &&
+          (github.event_name == 'push' ||
+           (github.event_name == 'pull_request' &&
+            github.event.pull_request.head.repo.full_name == github.repository))
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/vitra-sidecar-archives
+          key: ${{ steps.sidecar-archive-cache.outputs.cache-primary-key }}
       - run: cargo test -p links --test real_ytdlp
         env:
           VITRA_YTDLP: ${{ github.workspace }}/src-tauri/sidecars/x86_64-unknown-linux-gnu/yt-dlp
@@ -122,7 +158,25 @@ jobs:
       # Linux CI can't catch macOS-only behavior (sidecar layouts, the ditto-based installer).
       - run: cargo test --workspace
       # yt-dlp's folder build and the macOS FFmpeg, set up the way developers get them.
-      - run: node scripts/fetch-sidecars.mjs --only yt-dlp,ffmpeg
+      - id: sidecar-archive-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/vitra-sidecar-archives
+          key: sidecar-archives-${{ hashFiles('scripts/sidecars/plan.mjs', 'scripts/sidecars/ytdlp-release.mjs') }}-${{ runner.os }}
+      - id: fetch-sidecars-macos
+        env:
+          VITRA_SIDECAR_ARCHIVE_CACHE: ${{ github.workspace }}/.cache/vitra-sidecar-archives
+        run: node scripts/fetch-sidecars.mjs --only yt-dlp,ffmpeg
+      - name: Save verified sidecar archives
+        if: >-
+          steps.fetch-sidecars-macos.outcome == 'success' &&
+          (github.event_name == 'push' ||
+           (github.event_name == 'pull_request' &&
+            github.event.pull_request.head.repo.full_name == github.repository))
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/vitra-sidecar-archives
+          key: ${{ steps.sidecar-archive-cache.outputs.cache-primary-key }}
       - name: Authenticate HTTPS with the macOS FFmpeg sidecar
         run: python3 scripts/test-ffmpeg-tls.py --ffmpeg src-tauri/sidecars/aarch64-apple-darwin/ffmpeg
       - run: cargo test -p links --test real_ytdlp
@@ -155,7 +209,25 @@ jobs:
       # Same verified Windows sidecars the release job fetches before its tests.
       # Workspace tests do not launch them; real mpv / yt-dlp / FFmpeg runs stay
       # opt-in (no VITRA_MPV_TESTS or VITRA_YTDLP here), matching `npm run check:all`.
+      - id: sidecar-archive-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/vitra-sidecar-archives
+          key: sidecar-archives-${{ hashFiles('scripts/sidecars/plan.mjs', 'scripts/sidecars/ytdlp-release.mjs') }}-${{ runner.os }}
       - name: Fetch verified audio components
+        id: fetch-sidecars-windows
+        env:
+          VITRA_SIDECAR_ARCHIVE_CACHE: ${{ github.workspace }}/.cache/vitra-sidecar-archives
         run: npm run fetch-sidecars -- --target x86_64-pc-windows-msvc --require-checksums
+      - name: Save verified sidecar archives
+        if: >-
+          steps.fetch-sidecars-windows.outcome == 'success' &&
+          (github.event_name == 'push' ||
+           (github.event_name == 'pull_request' &&
+            github.event.pull_request.head.repo.full_name == github.repository))
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/vitra-sidecar-archives
+          key: ${{ steps.sidecar-archive-cache.outputs.cache-primary-key }}
       - run: npm test
       - run: cargo test --workspace --no-fail-fast

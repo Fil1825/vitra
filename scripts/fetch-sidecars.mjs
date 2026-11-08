@@ -24,11 +24,19 @@ import {
   parseSha256,
   planFor,
 } from './sidecars/plan.mjs';
+import {
+  defaultArchiveCacheRoot,
+  readVerifiedArchive,
+  writeVerifiedArchive,
+} from './sidecars/archive-cache.mjs';
+import { downloadReleaseAsset } from './sidecars/github-release.mjs';
 import { fetchBytesOrVendored } from './sidecars/remote-or-vendored.mjs';
 import { YT_DLP_KEY_FINGERPRINT } from './sidecars/ytdlp-release.mjs';
 import { verifyYtDlpSums } from './sidecars/verify-ytdlp.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const archiveCacheRoot =
+  process.env.VITRA_SIDECAR_ARCHIVE_CACHE?.trim() || defaultArchiveCacheRoot();
 
 const HELP = `Fetch Vitra's sidecar binaries.
 
@@ -201,38 +209,8 @@ async function install(sidecar) {
   }
 }
 
-/** Tries each candidate URL until one downloads and passes verification. */
-async function downloadVerified(download, file) {
-  const errors = [];
-  for (const url of download.urls) {
-    try {
-      const { finalUrl, sha256 } = await downloadFile(url, file, download.name);
-      if (download.archive === 'zip' && !hasZipMagic(file)) {
-        throw new Error('response is not a zip archive');
-      }
-      const expected = await expectedSha256(download, finalUrl);
-      if (expected && expected !== sha256) {
-        throw new Error(`checksum mismatch: expected ${expected}, got ${sha256}`);
-      }
-      if (!expected) {
-        const message = `no checksum published for ${download.name}; sha256 is ${sha256}`;
-        if (args['require-checksums']) {
-          throw new Error(message);
-        }
-        warn(message);
-      }
-      // Record the requested URL: redirect targets are signed and expire.
-      return { url, sha256 };
-    } catch (err) {
-      // fetch() hides the network error (DNS, TLS, ...) in `cause`.
-      const cause = err.cause?.message ? ` (${err.cause.message})` : '';
-      errors.push(`${url}: ${err.message}${cause}`);
-    }
-  }
-  throw new Error(`could not download ${download.name}\n    ${errors.join('\n    ')}`);
-}
-
-async function expectedSha256(download, finalUrl) {
+/** Trusted digest from the plan (and verified yt-dlp sums), never from cache metadata. */
+async function expectedSha256(download, finalUrl = null) {
   const { checksum } = download;
   switch (checksum.type) {
     case 'pinned':
@@ -266,6 +244,90 @@ async function expectedSha256(download, finalUrl) {
     default:
       throw new Error(`unknown checksum type ${checksum.type}`);
   }
+}
+
+function assertArchiveLooksValid(download, file) {
+  if (download.archive === 'zip' && !hasZipMagic(file)) {
+    throw new Error('response is not a zip archive');
+  }
+}
+
+function storeVerifiedArchive(expected, file) {
+  if (!expected) return;
+  try {
+    writeVerifiedArchive(archiveCacheRoot, expected, file);
+  } catch (err) {
+    warn(`archive cache: ${err.message}`);
+  }
+}
+
+/**
+ * Tries GitHub REST assets, then release URLs, optionally a verified archive cache.
+ * Always re-hashes before unpack; cache hits are not trusted without a digest match.
+ */
+async function downloadVerified(download, file) {
+  const expected = await expectedSha256(download);
+  if (expected) {
+    try {
+      if (readVerifiedArchive(archiveCacheRoot, expected, file)) {
+        assertArchiveLooksValid(download, file);
+        log(`  ${download.name} from verified archive cache`);
+        return { url: `archive-cache:${expected}`, sha256: expected };
+      }
+    } catch (err) {
+      if (/poisoned archive cache/.test(err.message)) {
+        throw err;
+      }
+      warn(`archive cache: ${err.message}`);
+    }
+  }
+
+  const errors = [];
+  const sources = [];
+  if (download.githubRelease) {
+    sources.push({ kind: 'github-release', ref: download.githubRelease });
+  }
+  for (const url of download.urls) {
+    sources.push({ kind: 'url', ref: url });
+  }
+
+  for (const source of sources) {
+    try {
+      let sha256;
+      let provenance;
+      if (source.kind === 'github-release') {
+        ({ sha256, provenance } = await downloadReleaseAsset(source.ref, file));
+      } else {
+        const result = await downloadFile(source.ref, file, download.name);
+        sha256 = result.sha256;
+        provenance = source.ref;
+      }
+      assertArchiveLooksValid(download, file);
+      const resolvedExpected =
+        expected ?? (await expectedSha256(download, source.kind === 'url' ? provenance : null));
+      if (resolvedExpected && resolvedExpected !== sha256) {
+        throw new Error(`checksum mismatch: expected ${resolvedExpected}, got ${sha256}`);
+      }
+      if (!resolvedExpected) {
+        const message = `no checksum published for ${download.name}; sha256 is ${sha256}`;
+        if (args['require-checksums']) {
+          throw new Error(message);
+        }
+        warn(message);
+      } else {
+        storeVerifiedArchive(resolvedExpected, file);
+      }
+      return { url: provenance, sha256 };
+    } catch (err) {
+      const cause = err.cause?.message ? ` (${err.cause.message})` : '';
+      const label =
+        source.kind === 'github-release'
+          ? `github-api:${source.ref.owner}/${source.ref.repo}@${source.ref.tag}/${source.ref.asset}`
+          : source.ref;
+      errors.push(`${label}: ${err.message}${cause}`);
+    }
+  }
+  throw new Error(`could not download ${download.name}\n    ${errors.join('\n    ')}`);
 }
 
 function requireHash(hash, url) {

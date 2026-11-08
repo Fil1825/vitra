@@ -84,8 +84,22 @@ jobs:
       - run: npm ci
       - name: Check release version
         run: node scripts/release/check-version.mjs
+      - id: sidecar-archive-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/vitra-sidecar-archives
+          key: sidecar-archives-${{ hashFiles('scripts/sidecars/plan.mjs', 'scripts/sidecars/ytdlp-release.mjs') }}-${{ runner.os }}
       - name: Fetch verified audio components
+        id: fetch-sidecars
+        env:
+          VITRA_SIDECAR_ARCHIVE_CACHE: ${{ github.workspace }}/.cache/vitra-sidecar-archives
         run: npm run fetch-sidecars -- --target ${{ matrix.target }} --require-checksums
+      - name: Save verified sidecar archives
+        if: steps.fetch-sidecars.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/vitra-sidecar-archives
+          key: ${{ steps.sidecar-archive-cache.outputs.cache-primary-key }}
       - name: Verify Intel mpv bundle load closure
         if: matrix.target == 'x86_64-apple-darwin'
         run: python3 scripts/release/mach-deps.py src-tauri/sidecars/x86_64-apple-darwin/mpv/mpv.app --warn-stale-rpath

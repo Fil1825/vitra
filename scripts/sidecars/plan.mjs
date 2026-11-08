@@ -79,8 +79,13 @@ const GITHUB = 'https://github.com';
 const YT_DLP_RELEASE = `${GITHUB}/yt-dlp/yt-dlp/releases/download/${YT_DLP_VERSION}`;
 const DENO_VERSION = 'v2.9.8';
 const DENO_RELEASE = `${GITHUB}/denoland/deno/releases/download/${DENO_VERSION}`;
-const BTBN_RELEASE = `${GITHUB}/BtbN/FFmpeg-Builds/releases/download/latest`;
 const MARTIN_RIEDL = 'https://ffmpeg.martin-riedl.de/redirect/latest/macos';
+
+/**
+ * Immutable BtbN autobuild tag (not the rolling `latest` slot). Hashes from that release's
+ * checksums.sha256 at bump time; binary provenance uses the same tag in githubRelease.
+ */
+export const BTBN_RELEASE_TAG = 'autobuild-2026-11-07-12-47';
 
 export const DENO_VERSION_PIN = DENO_VERSION;
 
@@ -96,22 +101,46 @@ const DENO_SHA256 = {
 const YT_DLP_SUMS_VENDORED = 'scripts/sidecars/fixtures/ytdlp-SHA2-256SUMS';
 const YT_DLP_SIG_VENDORED = 'scripts/sidecars/fixtures/ytdlp-SHA2-256SUMS.sig';
 
-/** Pinned BtbN GPL static builds (n9.0); hashes from upstream checksums.sha256 at bump time. */
-const BTBN_FFMPEG_VERSION = '9.0';
+/** Pinned BtbN GPL static builds on {@link BTBN_RELEASE_TAG}. */
 export const BTBN_PINS = {
   win64: {
-    asset: `ffmpeg-n${BTBN_FFMPEG_VERSION}-latest-win64-gpl-${BTBN_FFMPEG_VERSION}.zip`,
-    sha256: 'e7c71f39ec327bb5c4f0085c9fa4ba490caa057d5742e0ed1e1b36001d8a1e81',
+    asset: 'ffmpeg-n9.0.2-48-gd4070a14ce-win64-gpl-9.0.zip',
+    sha256: 'b33f1e3383f97c7acc8502e475df2faabcaee7d9605facda9b213cfbb39e0300',
+    assetId: 720692322,
   },
   linux64: {
-    asset: `ffmpeg-n${BTBN_FFMPEG_VERSION}-latest-linux64-gpl-${BTBN_FFMPEG_VERSION}.tar.xz`,
-    sha256: '6ad96ff7dd4815a31522f1507ea81b7b9b1adf59da93921151a625b44a307185',
+    asset: 'ffmpeg-n9.0.2-48-gd4070a14ce-linux64-gpl-9.0.tar.xz',
+    sha256: '5ce093566d5fe635a7bfc01b453d780ddee48b7e8c08021b45b877093d3efeec',
+    assetId: 720693414,
   },
   linuxarm64: {
-    asset: `ffmpeg-n${BTBN_FFMPEG_VERSION}-latest-linuxarm64-gpl-${BTBN_FFMPEG_VERSION}.tar.xz`,
-    sha256: '88f8df5fcc621e3ee6c642b8b0b914a0929a61e909704d69f9af5aaecccda7ce',
+    asset: 'ffmpeg-n9.0.2-48-gd4070a14ce-linuxarm64-gpl-9.0.tar.xz',
+    sha256: '21f10b6a85bc3ad6a53c2f54287aec9cbc9b186d9074ac14e4efd07853ca6d83',
+    assetId: 720693549,
   },
 };
+
+function btbnGithubRelease(pin) {
+  return {
+    owner: 'BtbN',
+    repo: 'FFmpeg-Builds',
+    tag: BTBN_RELEASE_TAG,
+    asset: pin.asset,
+    assetId: pin.assetId,
+  };
+}
+
+function ytDlpGithubRelease(asset) {
+  return { owner: 'yt-dlp', repo: 'yt-dlp', tag: YT_DLP_VERSION, asset };
+}
+
+function denoGithubRelease(asset) {
+  return { owner: 'denoland', repo: 'deno', tag: DENO_VERSION, asset };
+}
+
+function mpvGithubRelease(asset) {
+  return { owner: 'mpv-player', repo: 'mpv', tag: MPV_VERSION, asset };
+}
 
 /**
  * Returns what to fetch for every sidecar on `target`.
@@ -163,6 +192,7 @@ function denoPlan(target, exe) {
       {
         name,
         urls: [`${DENO_RELEASE}/${name}`],
+        githubRelease: denoGithubRelease(name),
         checksum: { type: 'pinned', sha256 },
         archive: 'zip',
         files: [{ find: exe('deno'), to: exe('deno') }],
@@ -177,6 +207,7 @@ function ytDlpPlan(info, exe) {
   const download = {
     name: info.ytDlp,
     urls: [`${YT_DLP_RELEASE}/${info.ytDlp}`],
+    githubRelease: ytDlpGithubRelease(info.ytDlp),
     checksum: {
       type: 'sums-file',
       url: `${YT_DLP_RELEASE}/SHA2-256SUMS`,
@@ -243,6 +274,7 @@ function mpvPlan(target, info) {
   const download = {
     name: build.asset,
     urls: [`${GITHUB}/mpv-player/mpv/releases/download/${MPV_VERSION}/${build.asset}`],
+    githubRelease: mpvGithubRelease(build.asset),
     checksum: { type: 'pinned', sha256: build.sha256 },
     archive: 'zip',
     provenance: build.source,
@@ -292,7 +324,8 @@ function btbnDownload(info, exe) {
   }
   return {
     name: pin.asset,
-    urls: [`${BTBN_RELEASE}/${pin.asset}`],
+    urls: [`${GITHUB}/BtbN/FFmpeg-Builds/releases/download/${BTBN_RELEASE_TAG}/${pin.asset}`],
+    githubRelease: btbnGithubRelease(pin),
     checksum: { type: 'pinned', sha256: pin.sha256 },
     archive: info.os === 'windows' ? 'zip' : 'tar',
     files: [exe('ffmpeg'), exe('ffprobe')].map((f) => ({ find: f, to: f })),

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   BTBN_PINS,
+  BTBN_RELEASE_TAG,
   DENO_VERSION_PIN,
   SIDECARS,
   SUPPORTED_TARGETS,
@@ -109,8 +110,26 @@ describe('planFor', () => {
       name: BTBN_PINS.win64.asset,
       checksum: { type: 'pinned', sha256: BTBN_PINS.win64.sha256 },
     });
+    expect(win.urls[0]).toContain(`/releases/download/${BTBN_RELEASE_TAG}/`);
+    expect(win.urls[0]).not.toContain('/download/latest/');
+    expect(win.githubRelease).toEqual({
+      owner: 'BtbN',
+      repo: 'FFmpeg-Builds',
+      tag: BTBN_RELEASE_TAG,
+      asset: BTBN_PINS.win64.asset,
+      assetId: BTBN_PINS.win64.assetId,
+    });
     const linux = planFor('x86_64-unknown-linux-gnu').ffmpeg.downloads[0];
     expect(linux.checksum.sha256).toBe(BTBN_PINS.linux64.sha256);
+  });
+
+  it('lists GitHub REST release metadata for pinned GitHub-hosted binaries', () => {
+    const yt = planFor('x86_64-unknown-linux-gnu')['yt-dlp'].downloads[0];
+    expect(yt.githubRelease?.owner).toBe('yt-dlp');
+    const deno = planFor('x86_64-pc-windows-msvc').deno.downloads[0];
+    expect(deno.githubRelease?.repo).toBe('deno');
+    const mpv = planFor('x86_64-pc-windows-msvc').mpv.downloads[0];
+    expect(mpv.githubRelease?.tag).toBe('v0.41.0');
   });
 
   it('does not expect OpenPGP signatures from sidecars that do not publish them', () => {
