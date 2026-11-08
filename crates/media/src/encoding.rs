@@ -30,6 +30,12 @@ pub fn repair_latin1_id3_text(text: &str, id3_latin1: bool) -> String {
     }
 }
 
+/// `Some` only when a verified CP1251 repair changed the text (leave Lofty normalization alone).
+pub fn try_repair_latin1_id3_text(text: &str, id3_latin1: bool) -> Option<String> {
+    let repaired = repair_latin1_id3_text(text, id3_latin1);
+    (repaired != text).then_some(repaired)
+}
+
 fn is_cyrillic(c: char) -> bool {
     matches!(c, '\u{0400}'..='\u{04FF}' | '\u{0500}'..='\u{052F}')
 }
@@ -161,5 +167,39 @@ mod tests {
         write_text_frame(&path, "TIT2", TextEncoding::UTF16, "ÆØÅ");
         let info = read_track(&path).unwrap();
         assert_eq!(info.metadata.title.as_deref(), Some("ÆØÅ"));
+    }
+
+    #[test]
+    fn keeps_lofty_genre_resolution_for_numeric_latin1_tcon() {
+        use crate::read_track;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("genre.mp3");
+        let base = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tagged.mp3");
+        std::fs::copy(&base, &path).unwrap();
+        write_text_frame(&path, "TCON", TextEncoding::Latin1, "(17)");
+        let info = read_track(&path).unwrap();
+        assert_eq!(
+            info.metadata.genre.as_deref(),
+            Some("Rock"),
+            "Lofty should map ID3 genre id 17"
+        );
+    }
+
+    #[test]
+    fn repairs_multi_artist_latin1_tpe1_without_touching_second_credit() {
+        use crate::read_track;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("multi.mp3");
+        let base = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tagged.mp3");
+        std::fs::copy(&base, &path).unwrap();
+        write_text_frame(&path, "TPE1", TextEncoding::Latin1, "09.Íîããàíî/Guest");
+        let info = read_track(&path).unwrap();
+        assert_eq!(info.metadata.artist.as_deref(), Some("09.Ноггано"));
+        assert_eq!(
+            info.metadata.artists,
+            vec!["09.Ноггано".to_string(), "Guest".to_string()]
+        );
     }
 }

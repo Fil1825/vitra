@@ -992,6 +992,48 @@ mod tests {
     }
 
     #[test]
+    fn scan_keeps_repaired_latin1_tpe1_artists_consistent() {
+        use std::borrow::Cow;
+        use std::fs::File;
+        use std::io::BufReader;
+
+        use lofty::TextEncoding;
+        use lofty::config::{ParseOptions, WriteOptions};
+        use lofty::file::AudioFile;
+        use lofty::id3::v2::{Frame, FrameId, TextInformationFrame};
+        use lofty::mpeg::MpegFile;
+
+        let mut s = setup();
+        let path = s.music.join("Other/cp1251-artists.mp3");
+        fs::copy(fixtures().join("tagged.mp3"), &path).unwrap();
+        let mut file = MpegFile::read_from(
+            &mut BufReader::new(File::open(&path).unwrap()),
+            ParseOptions::new(),
+        )
+        .unwrap();
+        let mut tag = file.id3v2_mut().cloned().unwrap_or_default();
+        let frame_id = FrameId::Valid(Cow::Borrowed("TPE1"));
+        for _ in tag.remove(&frame_id) {}
+        tag.insert(Frame::Text(TextInformationFrame::new(
+            frame_id,
+            TextEncoding::Latin1,
+            "09.Íîããàíî/Guest".to_string(),
+        )));
+        file.set_id3v2(tag);
+        file.save_to_path(&path, WriteOptions::default()).unwrap();
+
+        s.scan();
+        let track = s
+            .library
+            .track_by_path(path.to_str().unwrap())
+            .unwrap()
+            .unwrap();
+        assert_eq!(track.artist.as_deref(), Some("09.Ноггано, Guest"));
+        let names: Vec<_> = track.artists.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(names, vec!["09.Ноггано", "Guest"]);
+    }
+
+    #[test]
     fn picks_up_changes_deletions_and_new_files() {
         let mut s = setup();
         s.scan();

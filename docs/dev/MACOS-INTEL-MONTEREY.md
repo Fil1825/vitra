@@ -33,8 +33,10 @@ depend on the third-party builder. GPLv2+ applies to mpv; Vitra is GPLv3.
 
 - Checksum verified before extract.
 - No `libmpv` — CLI bundle (`mpv.app` + adjacent dylibs), same integration model as upstream zip.
-- Default config path strings mention `/usr/local/etc/mpv` (mpv defaults), not load-time Homebrew
-  rpaths; verify release DMG with `otool -L` on macOS before claiming zero external deps.
+- Offline load closure: `scripts/release/mach-deps.py` parses `LC_LOAD_DYLIB` — all dynamic
+  deps resolve under `@executable_path/lib/` (46 Mach-O files). **Stale builder RPATHs** (paths
+  under `/Users/.../homebrew/...` on the main `mpv` binary) remain; dyld should ignore missing
+  entries and use bundled libs — strip on macOS before notarization (`--warn-stale-rpath`).
 - **yt-dlp / ffmpeg / deno** Intel sidecars are unchanged; confirm their Mach-O minOS ≤ 12.0 in
   release verify (`scripts/release/verify-macos.py`).
 

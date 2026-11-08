@@ -63,3 +63,18 @@ export function verifyMachMinOs(root, max) {
     output: `${result.stdout ?? ''}${result.stderr ?? ''}`.trim(),
   };
 }
+
+const DEPS_SCRIPT = path.join(import.meta.dirname, 'mach-deps.py');
+
+/** Parses LC_LOAD_DYLIB/LC_RPATH; fails on Homebrew paths or missing bundle deps. */
+export function verifyMpvMachDeps(mpvAppDir) {
+  const result = spawnSync(
+    'python3',
+    [DEPS_SCRIPT, mpvAppDir, '--warn-stale-rpath'],
+    { encoding: 'utf8' },
+  );
+  return {
+    ok: result.status === 0,
+    output: `${result.stdout ?? ''}${result.stderr ?? ''}`.trim(),
+  };
+}
