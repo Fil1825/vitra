@@ -285,8 +285,8 @@ themes/                 example themes (sources: theme.json, custom.css, assets/
      call), while the folder build is checked once (~25 s on its very first run, then 0.2 s;
      the app runs `--version` at start to get that over with). The folder build can't
      update itself, and Vitra does not run `yt-dlp -U` on any platform.
-   - FFmpeg + ffprobe (yt-dlp needs both for `-x`/embedding): macOS from
-     ffmpeg.martin-riedl.de (static, signed), Windows/Linux from BtbN's GitHub releases (newest
+   - FFmpeg + ffprobe (yt-dlp needs both for `-x`/embedding): macOS from pinned
+     Martin Riedl 9.0.2 versioned zips (not `redirect/latest`), Windows/Linux from BtbN's GitHub releases (newest
      stable GPL build picked from `checksums.sha256`). Homebrew FFmpeg works as a fallback.
    - Deno: yt-dlp needs a JS runtime for YouTube since 2025.11 (EJS); Deno is its default.
      Passed explicitly with `--js-runtimes deno:<path>`.
