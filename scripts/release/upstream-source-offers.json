@@ -113,7 +113,13 @@
           "script": "10-xorg-macros.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/util/macros.git",
           "commit": "ea1e15a4909ac8b03b2c5a08ac3810b385985157",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "macros-ea1e15a4909ac8b03b2c5a08ac3810b385985157.tar.gz",
+            "url": "https://gitlab.freedesktop.org/xorg/util/macros/-/archive/ea1e15a4909ac8b03b2c5a08ac3810b385985157/macros-ea1e15a4909ac8b03b2c5a08ac3810b385985157.tar.gz",
+            "sha256": "3d7b9d27ac79e9fcdbdae6fcbacb171ba11a5fc12cb54c756bc81633064f91ad",
+            "licensePath": "macros-ea1e15a4909ac8b03b2c5a08ac3810b385985157/COPYING"
+          }
         },
         {
           "script": "20-libiconv.sh",
@@ -245,13 +251,25 @@
           "script": "45-fonts/25-freetype.sh",
           "repo": "https://gitlab.freedesktop.org/freetype/freetype.git",
           "commit": "4ba7c3d82ab8b3cc80b869337d2c2b1913c5e415",
-          "shipsOn": ["win64", "linux64", "linuxarm64"]
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "freetype-4ba7c3d82ab8b3cc80b869337d2c2b1913c5e415.tar.gz",
+            "url": "https://gitlab.freedesktop.org/freetype/freetype/-/archive/4ba7c3d82ab8b3cc80b869337d2c2b1913c5e415/freetype-4ba7c3d82ab8b3cc80b869337d2c2b1913c5e415.tar.gz",
+            "sha256": "fda0f8f46b11c059e036ec776c2e18d1cd18a9db48136b563cad12e16a2e62c9",
+            "licensePath": "freetype-4ba7c3d82ab8b3cc80b869337d2c2b1913c5e415/LICENSE.TXT"
+          }
         },
         {
           "script": "45-fonts/35-fontconfig.sh",
           "repo": "https://gitlab.freedesktop.org/fontconfig/fontconfig.git",
           "commit": "b25ffeabd15b76f86c0c6736f6df2f1b89858010",
-          "shipsOn": ["win64", "linux64", "linuxarm64"]
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "fontconfig-b25ffeabd15b76f86c0c6736f6df2f1b89858010.tar.gz",
+            "url": "https://gitlab.freedesktop.org/fontconfig/fontconfig/-/archive/b25ffeabd15b76f86c0c6736f6df2f1b89858010/fontconfig-b25ffeabd15b76f86c0c6736f6df2f1b89858010.tar.gz",
+            "sha256": "6ae28798f69f70393e17aa39a01a968776af2ebae28f90276c021fb4bb0ecaa3",
+            "licensePath": "fontconfig-b25ffeabd15b76f86c0c6736f6df2f1b89858010/COPYING"
+          }
         },
         {
           "script": "45-fonts/45-harfbuzz.sh",
@@ -269,7 +287,13 @@
           "script": "45-fonts/50-freetype.sh",
           "repo": "https://gitlab.freedesktop.org/freetype/freetype.git",
           "commit": "4ba7c3d82ab8b3cc80b869337d2c2b1913c5e415",
-          "shipsOn": ["win64", "linux64", "linuxarm64"]
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "45-fonts-50-freetype-4ba7c3d82ab8b3cc80b869337d2c2b1913c5e415.tar.gz",
+            "url": "https://gitlab.freedesktop.org/freetype/freetype/-/archive/4ba7c3d82ab8b3cc80b869337d2c2b1913c5e415/freetype-4ba7c3d82ab8b3cc80b869337d2c2b1913c5e415.tar.gz",
+            "sha256": "fda0f8f46b11c059e036ec776c2e18d1cd18a9db48136b563cad12e16a2e62c9",
+            "licensePath": "freetype-4ba7c3d82ab8b3cc80b869337d2c2b1913c5e415/LICENSE.TXT"
+          }
         },
         {
           "script": "45-lcms2.sh",
@@ -311,7 +335,13 @@
           "script": "45-libudfread.sh",
           "repo": "https://code.videolan.org/videolan/libudfread.git",
           "commit": "b0bc6957e7e07d5f35391f210596d9eb71cffdd9",
-          "shipsOn": ["win64", "linux64", "linuxarm64"]
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "libudfread-b0bc6957e7e07d5f35391f210596d9eb71cffdd9.tar.gz",
+            "url": "https://code.videolan.org/videolan/libudfread/-/archive/b0bc6957e7e07d5f35391f210596d9eb71cffdd9/libudfread-b0bc6957e7e07d5f35391f210596d9eb71cffdd9.tar.gz",
+            "sha256": "c04bb96b72dd0760030d880ad6c9ea2ae80abbdd648de127adb1b2e8555186aa",
+            "licensePath": "libudfread-b0bc6957e7e07d5f35391f210596d9eb71cffdd9/COPYING"
+          }
         },
         {
           "script": "45-libunibreak.sh",
@@ -365,13 +395,25 @@
           "script": "45-pixman.sh",
           "repo": "https://gitlab.freedesktop.org/pixman/pixman.git",
           "commit": "e7fd44140fe6edef507d54bdbc25c09543ffc936",
-          "shipsOn": ["win64", "linux64", "linuxarm64"]
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "pixman-e7fd44140fe6edef507d54bdbc25c09543ffc936.tar.gz",
+            "url": "https://gitlab.freedesktop.org/pixman/pixman/-/archive/e7fd44140fe6edef507d54bdbc25c09543ffc936/pixman-e7fd44140fe6edef507d54bdbc25c09543ffc936.tar.gz",
+            "sha256": "334c066fddd7b948ee11ee7cf9a5b7558e91e0a01882f0c87d6b763bc404b64d",
+            "licensePath": "pixman-e7fd44140fe6edef507d54bdbc25c09543ffc936/COPYING"
+          }
         },
         {
           "script": "45-pulseaudio.sh",
           "repo": "https://gitlab.freedesktop.org/pulseaudio/pulseaudio.git",
           "commit": "77d25a1e613095bdf87a1d13b65e7c330565077a",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "pulseaudio-77d25a1e613095bdf87a1d13b65e7c330565077a.tar.gz",
+            "url": "https://gitlab.freedesktop.org/pulseaudio/pulseaudio/-/archive/77d25a1e613095bdf87a1d13b65e7c330565077a/pulseaudio-77d25a1e613095bdf87a1d13b65e7c330565077a.tar.gz",
+            "sha256": "271397ca5521994de7c8675df086d2308ae2e2dac484dc081cdeac2502b965c8",
+            "licensePath": "pulseaudio-77d25a1e613095bdf87a1d13b65e7c330565077a/LICENSE"
+          }
         },
         {
           "script": "45-vmaf.sh",
@@ -389,7 +431,13 @@
           "script": "45-x11/10-xcbproto.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/proto/xcbproto.git",
           "commit": "cf7e2581b613802f2f8ec2a4b50a6a20aad4bf52",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "xcbproto-cf7e2581b613802f2f8ec2a4b50a6a20aad4bf52.tar.gz",
+            "url": "https://gitlab.freedesktop.org/xorg/proto/xcbproto/-/archive/cf7e2581b613802f2f8ec2a4b50a6a20aad4bf52/xcbproto-cf7e2581b613802f2f8ec2a4b50a6a20aad4bf52.tar.gz",
+            "sha256": "6ae2b098c24633a22ae5366f9e9f44d78bb6ffda180ab45183e8a1fd64a2392d",
+            "licensePath": "xcbproto-cf7e2581b613802f2f8ec2a4b50a6a20aad4bf52/COPYING"
+          }
         },
         {
           "script": "45-x11/10-xproto.sh",
@@ -401,91 +449,181 @@
           "script": "45-x11/10-xtrans.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxtrans.git",
           "commit": "79f6b0bfe2170496e8c37626043d009f4cd3f1e1",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "libxtrans-79f6b0bfe2170496e8c37626043d009f4cd3f1e1.tar.gz",
+            "url": "https://gitlab.freedesktop.org/xorg/lib/libxtrans/-/archive/79f6b0bfe2170496e8c37626043d009f4cd3f1e1/libxtrans-79f6b0bfe2170496e8c37626043d009f4cd3f1e1.tar.gz",
+            "sha256": "6b1027b212c31d8b6867eea3f20a192b6323c417c20a83a37c940197f832e541",
+            "licensePath": "libxtrans-79f6b0bfe2170496e8c37626043d009f4cd3f1e1/COPYING"
+          }
         },
         {
           "script": "45-x11/20-libxau.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxau.git",
           "commit": "be1daeb909f1d678e7859ac1555e90b4e768d5c4",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "libxau-be1daeb909f1d678e7859ac1555e90b4e768d5c4.tar.gz",
+            "url": "https://gitlab.freedesktop.org/xorg/lib/libxau/-/archive/be1daeb909f1d678e7859ac1555e90b4e768d5c4/libxau-be1daeb909f1d678e7859ac1555e90b4e768d5c4.tar.gz",
+            "sha256": "91c7a43930dee28fce9f3aa17181e61eeee385318ba94952990070fe05b27d35",
+            "licensePath": "libxau-be1daeb909f1d678e7859ac1555e90b4e768d5c4/COPYING"
+          }
         },
         {
           "script": "45-x11/30-libxcb.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxcb.git",
           "commit": "d4e07bab5729c7d7cc3d2b95568cd9a661a53c4f",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "libxcb-d4e07bab5729c7d7cc3d2b95568cd9a661a53c4f.tar.gz",
+            "url": "https://gitlab.freedesktop.org/xorg/lib/libxcb/-/archive/d4e07bab5729c7d7cc3d2b95568cd9a661a53c4f/libxcb-d4e07bab5729c7d7cc3d2b95568cd9a661a53c4f.tar.gz",
+            "sha256": "f6e9cb1b8fc61938c95bda17074983dc795a199d4b454f5709707679d5bd7878",
+            "licensePath": "libxcb-d4e07bab5729c7d7cc3d2b95568cd9a661a53c4f/COPYING"
+          }
         },
         {
           "script": "45-x11/40-libx11.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libx11.git",
           "commit": "b8d5a7046a98a244ee8ca3c9c07fd617c800dde2",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "libx11-b8d5a7046a98a244ee8ca3c9c07fd617c800dde2.tar.gz",
+            "url": "https://gitlab.freedesktop.org/xorg/lib/libx11/-/archive/b8d5a7046a98a244ee8ca3c9c07fd617c800dde2/libx11-b8d5a7046a98a244ee8ca3c9c07fd617c800dde2.tar.gz",
+            "sha256": "f1c54acabc64c150fe6d5c3dd83462229948523ff1fd688673368ee85af25dd7",
+            "licensePath": "libx11-b8d5a7046a98a244ee8ca3c9c07fd617c800dde2/COPYING"
+          }
         },
         {
           "script": "45-x11/50-libxext.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxext.git",
           "commit": "508f8adca2540ff8926ac8456cb1c553a8caae76",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "libxext-508f8adca2540ff8926ac8456cb1c553a8caae76.tar.gz",
+            "url": "https://gitlab.freedesktop.org/xorg/lib/libxext/-/archive/508f8adca2540ff8926ac8456cb1c553a8caae76/libxext-508f8adca2540ff8926ac8456cb1c553a8caae76.tar.gz",
+            "sha256": "35d113e17428264cb7a2148b761bdd04c2d6e232208a084b66303a4225897b76",
+            "licensePath": "libxext-508f8adca2540ff8926ac8456cb1c553a8caae76/COPYING"
+          }
         },
         {
           "script": "45-x11/50-libxfixes.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxfixes.git",
           "commit": "55bb2d1d57d43e0595ce45393f26eb433d75a7cc",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "libxfixes-55bb2d1d57d43e0595ce45393f26eb433d75a7cc.tar.gz",
+            "url": "https://gitlab.freedesktop.org/xorg/lib/libxfixes/-/archive/55bb2d1d57d43e0595ce45393f26eb433d75a7cc/libxfixes-55bb2d1d57d43e0595ce45393f26eb433d75a7cc.tar.gz",
+            "sha256": "3900e1d10c30f84da9de0a55617783458f6ea2d312d6c656e1272ae4aad49cae",
+            "licensePath": "libxfixes-55bb2d1d57d43e0595ce45393f26eb433d75a7cc/COPYING"
+          }
         },
         {
           "script": "45-x11/50-libxi.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxi.git",
           "commit": "9ea632ab9dce9ad6630ef7db9d1850ea3d0a2419",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "libxi-9ea632ab9dce9ad6630ef7db9d1850ea3d0a2419.tar.gz",
+            "url": "https://gitlab.freedesktop.org/xorg/lib/libxi/-/archive/9ea632ab9dce9ad6630ef7db9d1850ea3d0a2419/libxi-9ea632ab9dce9ad6630ef7db9d1850ea3d0a2419.tar.gz",
+            "sha256": "935e6c59ae737cc1a2db072d52d1503e896424a3590ee0e7463d9cc985342afe",
+            "licensePath": "libxi-9ea632ab9dce9ad6630ef7db9d1850ea3d0a2419/COPYING"
+          }
         },
         {
           "script": "45-x11/50-libxinerama.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxinerama.git",
           "commit": "d7162b962710bc724b41cabab4e7cea303c4b541",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "libxinerama-d7162b962710bc724b41cabab4e7cea303c4b541.tar.gz",
+            "url": "https://gitlab.freedesktop.org/xorg/lib/libxinerama/-/archive/d7162b962710bc724b41cabab4e7cea303c4b541/libxinerama-d7162b962710bc724b41cabab4e7cea303c4b541.tar.gz",
+            "sha256": "234ef1303049a37ad2fca842e50d20f3fb7c4b4afd36b1e5b5af687a9a8eb08d",
+            "licensePath": "libxinerama-d7162b962710bc724b41cabab4e7cea303c4b541/COPYING"
+          }
         },
         {
           "script": "45-x11/50-libxrender.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxrender.git",
           "commit": "f30d654658ebf17d41141ed3ec2abf607d8a512e",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "libxrender-f30d654658ebf17d41141ed3ec2abf607d8a512e.tar.gz",
+            "url": "https://gitlab.freedesktop.org/xorg/lib/libxrender/-/archive/f30d654658ebf17d41141ed3ec2abf607d8a512e/libxrender-f30d654658ebf17d41141ed3ec2abf607d8a512e.tar.gz",
+            "sha256": "1a253937b23bc00cb33dea43b9f0ed52bb34b52acdd6b285c56e41f0d1f5fb0d",
+            "licensePath": "libxrender-f30d654658ebf17d41141ed3ec2abf607d8a512e/COPYING"
+          }
         },
         {
           "script": "45-x11/50-libxscrnsaver.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxscrnsaver.git",
           "commit": "3f753e7a4050db083474444ae91cc17a849eaa4d",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "libxscrnsaver-3f753e7a4050db083474444ae91cc17a849eaa4d.tar.gz",
+            "url": "https://gitlab.freedesktop.org/xorg/lib/libxscrnsaver/-/archive/3f753e7a4050db083474444ae91cc17a849eaa4d/libxscrnsaver-3f753e7a4050db083474444ae91cc17a849eaa4d.tar.gz",
+            "sha256": "ecffb17335be7c42e65f24dfe4b1988bb77e457f7b691ec03d59c3bb2b5d1a6d",
+            "licensePath": "libxscrnsaver-3f753e7a4050db083474444ae91cc17a849eaa4d/COPYING"
+          }
         },
         {
           "script": "45-x11/50-libxxf86vm.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxxf86vm.git",
           "commit": "c76fde6bffcc87e5dd98d8196bb01a299bdc3236",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "libxxf86vm-c76fde6bffcc87e5dd98d8196bb01a299bdc3236.tar.gz",
+            "url": "https://gitlab.freedesktop.org/xorg/lib/libxxf86vm/-/archive/c76fde6bffcc87e5dd98d8196bb01a299bdc3236/libxxf86vm-c76fde6bffcc87e5dd98d8196bb01a299bdc3236.tar.gz",
+            "sha256": "82e2f5219d57d01edd82d1952446c68cc2ec9d2cb001773b5886925c97ef0186",
+            "licensePath": "libxxf86vm-c76fde6bffcc87e5dd98d8196bb01a299bdc3236/COPYING"
+          }
         },
         {
           "script": "45-x11/60-libglvnd.sh",
           "repo": "https://gitlab.freedesktop.org/glvnd/libglvnd.git",
           "commit": "c046a760d845416e98ac4128757b2b356c47fdaa",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "libglvnd-c046a760d845416e98ac4128757b2b356c47fdaa.tar.gz",
+            "url": "https://gitlab.freedesktop.org/glvnd/libglvnd/-/archive/c046a760d845416e98ac4128757b2b356c47fdaa/libglvnd-c046a760d845416e98ac4128757b2b356c47fdaa.tar.gz",
+            "sha256": "67bb1eb2f2b403e534adbaa73e0618417fad63f2c02399f94165f5f1ac27c241",
+            "licensePath": "libglvnd-c046a760d845416e98ac4128757b2b356c47fdaa/src/util/cJSON/LICENSE"
+          }
         },
         {
           "script": "45-x11/60-libxcursor.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxcursor.git",
           "commit": "15efad7ccd035f5d1ddc8d437e047569d1775fa7",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "libxcursor-15efad7ccd035f5d1ddc8d437e047569d1775fa7.tar.gz",
+            "url": "https://gitlab.freedesktop.org/xorg/lib/libxcursor/-/archive/15efad7ccd035f5d1ddc8d437e047569d1775fa7/libxcursor-15efad7ccd035f5d1ddc8d437e047569d1775fa7.tar.gz",
+            "sha256": "b8d34bcb1959204f1b85df2c654eb3863012f488dbd0f22c98609982cfcfd3b8",
+            "licensePath": "libxcursor-15efad7ccd035f5d1ddc8d437e047569d1775fa7/COPYING"
+          }
         },
         {
           "script": "45-x11/60-libxrandr.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxrandr.git",
           "commit": "8a4ba1974bcf07057cf891128d86ae1ab5303574",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "libxrandr-8a4ba1974bcf07057cf891128d86ae1ab5303574.tar.gz",
+            "url": "https://gitlab.freedesktop.org/xorg/lib/libxrandr/-/archive/8a4ba1974bcf07057cf891128d86ae1ab5303574/libxrandr-8a4ba1974bcf07057cf891128d86ae1ab5303574.tar.gz",
+            "sha256": "8911d294f729dcf9a8d06b83c3f8cf6cfe883469fce7cb5193b79ad3b08246c3",
+            "licensePath": "libxrandr-8a4ba1974bcf07057cf891128d86ae1ab5303574/COPYING"
+          }
         },
         {
           "script": "45-x11/60-libxv.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxv.git",
           "commit": "f315ec50fcad9bdbaed46c3e78dc5e7fe209f933",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "libxv-f315ec50fcad9bdbaed46c3e78dc5e7fe209f933.tar.gz",
+            "url": "https://gitlab.freedesktop.org/xorg/lib/libxv/-/archive/f315ec50fcad9bdbaed46c3e78dc5e7fe209f933/libxv-f315ec50fcad9bdbaed46c3e78dc5e7fe209f933.tar.gz",
+            "sha256": "5f952681dfa38d36ea6af9e560d886d36d1cc8ef6b9161cbfafc9f18fba4ac6c",
+            "licensePath": "libxv-f315ec50fcad9bdbaed46c3e78dc5e7fe209f933/COPYING"
+          }
         },
         {
           "script": "45-xxhash.sh",
@@ -617,7 +755,13 @@
           "script": "50-dav1d.sh",
           "repo": "https://code.videolan.org/videolan/dav1d.git",
           "commit": "b8b2d726b4b78a2fb174cb45baff441b5969672c",
-          "shipsOn": ["win64", "linux64", "linuxarm64"]
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "dav1d-b8b2d726b4b78a2fb174cb45baff441b5969672c.tar.gz",
+            "url": "https://code.videolan.org/videolan/dav1d/-/archive/b8b2d726b4b78a2fb174cb45baff441b5969672c/dav1d-b8b2d726b4b78a2fb174cb45baff441b5969672c.tar.gz",
+            "sha256": "9c97302591bc60d51cc8583ac179fdebc661e45542b9c12fd41de585f2e67882",
+            "licensePath": "dav1d-b8b2d726b4b78a2fb174cb45baff441b5969672c/COPYING"
+          }
         },
         {
           "script": "50-davs2.sh",
@@ -635,19 +779,37 @@
           "script": "50-dvd/30-libdvdcss.sh",
           "repo": "https://code.videolan.org/videolan/libdvdcss.git",
           "commit": "811ce97a1d4d1c9d936f4b2707f533a9ef768251",
-          "shipsOn": ["win64", "linux64", "linuxarm64"]
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "libdvdcss-811ce97a1d4d1c9d936f4b2707f533a9ef768251.tar.gz",
+            "url": "https://code.videolan.org/videolan/libdvdcss/-/archive/811ce97a1d4d1c9d936f4b2707f533a9ef768251/libdvdcss-811ce97a1d4d1c9d936f4b2707f533a9ef768251.tar.gz",
+            "sha256": "14f97b4df1ec2aacaa84cca3806155fc85f3f2efa6abc51ea0007d423f374ed0",
+            "licensePath": "libdvdcss-811ce97a1d4d1c9d936f4b2707f533a9ef768251/COPYING"
+          }
         },
         {
           "script": "50-dvd/40-libdvdread.sh",
           "repo": "https://code.videolan.org/videolan/libdvdread.git",
           "commit": "0f30df53125b564ef45903714403ce0a1e6c5e9e",
-          "shipsOn": ["win64", "linux64", "linuxarm64"]
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "libdvdread-0f30df53125b564ef45903714403ce0a1e6c5e9e.tar.gz",
+            "url": "https://code.videolan.org/videolan/libdvdread/-/archive/0f30df53125b564ef45903714403ce0a1e6c5e9e/libdvdread-0f30df53125b564ef45903714403ce0a1e6c5e9e.tar.gz",
+            "sha256": "51a8e9192363753e8aadee37de97a196200237ea7c35d232727cb82eadf5dc6e",
+            "licensePath": "libdvdread-0f30df53125b564ef45903714403ce0a1e6c5e9e/COPYING"
+          }
         },
         {
           "script": "50-dvd/50-libdvdnav.sh",
           "repo": "https://code.videolan.org/videolan/libdvdnav.git",
           "commit": "8147ccd35e5aae4afdd21171cf7b6b4d8f179d28",
-          "shipsOn": ["win64", "linux64", "linuxarm64"]
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "libdvdnav-8147ccd35e5aae4afdd21171cf7b6b4d8f179d28.tar.gz",
+            "url": "https://code.videolan.org/videolan/libdvdnav/-/archive/8147ccd35e5aae4afdd21171cf7b6b4d8f179d28/libdvdnav-8147ccd35e5aae4afdd21171cf7b6b4d8f179d28.tar.gz",
+            "sha256": "c79e47e5fb0523a3a8d6a62d9ec2e5b734eecea20733cacb0d69a2731b29f63f",
+            "licensePath": "libdvdnav-8147ccd35e5aae4afdd21171cf7b6b4d8f179d28/COPYING"
+          }
         },
         {
           "script": "50-fdk-aac.sh",
@@ -749,7 +911,13 @@
           "script": "50-libbluray.sh",
           "repo": "https://code.videolan.org/videolan/libbluray.git",
           "commit": "f33a738fd7bb8b5e1148b0a5424778db7342450b",
-          "shipsOn": ["win64", "linux64", "linuxarm64"]
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "libbluray-f33a738fd7bb8b5e1148b0a5424778db7342450b.tar.gz",
+            "url": "https://code.videolan.org/videolan/libbluray/-/archive/f33a738fd7bb8b5e1148b0a5424778db7342450b/libbluray-f33a738fd7bb8b5e1148b0a5424778db7342450b.tar.gz",
+            "sha256": "2e47fcd0cc043e5c9b819503118e5dce5d24f1dc362b909d53bae61f5ac23d8c",
+            "licensePath": "libbluray-f33a738fd7bb8b5e1148b0a5424778db7342450b/COPYING"
+          }
         },
         {
           "script": "50-libcurl/40-libpsl.sh",
@@ -839,7 +1007,13 @@
           "script": "50-libplacebo.sh",
           "repo": "https://code.videolan.org/videolan/libplacebo.git",
           "commit": "275f7dea27924cdd34ab2e6c20e448b6bc4fab65",
-          "shipsOn": ["win64", "linux64", "linuxarm64"]
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "libplacebo-275f7dea27924cdd34ab2e6c20e448b6bc4fab65.tar.gz",
+            "url": "https://code.videolan.org/videolan/libplacebo/-/archive/275f7dea27924cdd34ab2e6c20e448b6bc4fab65/libplacebo-275f7dea27924cdd34ab2e6c20e448b6bc4fab65.tar.gz",
+            "sha256": "adbca47395410ada01414bc527e0103c716b9b758be857464c40e5ff0ec695be",
+            "licensePath": "libplacebo-275f7dea27924cdd34ab2e6c20e448b6bc4fab65/LICENSE"
+          }
         },
         {
           "script": "50-librist/40-mbedtls.sh",
@@ -857,7 +1031,13 @@
           "script": "50-librist/50-librist.sh",
           "repo": "https://code.videolan.org/rist/librist.git",
           "commit": "47ad5513d1aa0adb692d78f635512e7fa123f06e",
-          "shipsOn": ["win64", "linux64", "linuxarm64"]
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "librist-47ad5513d1aa0adb692d78f635512e7fa123f06e.tar.gz",
+            "url": "https://code.videolan.org/rist/librist/-/archive/47ad5513d1aa0adb692d78f635512e7fa123f06e/librist-47ad5513d1aa0adb692d78f635512e7fa123f06e.tar.gz",
+            "sha256": "224f9de3825c1be8680438c6254c0e3bffca4c66979f8707cd329b0ffa17620f",
+            "licensePath": "librist-47ad5513d1aa0adb692d78f635512e7fa123f06e/COPYING"
+          }
         },
         {
           "script": "50-librsvg/10-glib.sh",
@@ -875,7 +1055,13 @@
           "script": "50-librsvg/20-cairo.sh",
           "repo": "https://gitlab.freedesktop.org/cairo/cairo.git",
           "commit": "74755964edef651691d5cd36ff140108298e4e6e",
-          "shipsOn": ["win64", "linux64", "linuxarm64"]
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "cairo-74755964edef651691d5cd36ff140108298e4e6e.tar.gz",
+            "url": "https://gitlab.freedesktop.org/cairo/cairo/-/archive/74755964edef651691d5cd36ff140108298e4e6e/cairo-74755964edef651691d5cd36ff140108298e4e6e.tar.gz",
+            "sha256": "b9fdbe04623d904d821e521d5aabb0f0445e1307ac1b0d478de3e23f0ae95043",
+            "licensePath": "cairo-74755964edef651691d5cd36ff140108298e4e6e/COPYING"
+          }
         },
         {
           "script": "50-librsvg/30-pango.sh",
@@ -905,7 +1091,13 @@
           "script": "50-libssh.sh",
           "repo": "https://gitlab.com/libssh/libssh-mirror.git",
           "commit": "9de02f3d01ba16d06f46c0c4d27aa08d8deeecee",
-          "shipsOn": ["win64", "linux64", "linuxarm64"]
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "libssh-mirror-9de02f3d01ba16d06f46c0c4d27aa08d8deeecee.tar.gz",
+            "url": "https://gitlab.com/libssh/libssh-mirror/-/archive/9de02f3d01ba16d06f46c0c4d27aa08d8deeecee/libssh-mirror-9de02f3d01ba16d06f46c0c4d27aa08d8deeecee.tar.gz",
+            "sha256": "3746f5276d6d69667d8e4ccfa44c26468bc18c5f4e61bbaec20030fc0adf853a",
+            "licensePath": "libssh-mirror-9de02f3d01ba16d06f46c0c4d27aa08d8deeecee/COPYING"
+          }
         },
         {
           "script": "50-libtheora.sh",
@@ -1199,7 +1391,13 @@
           "script": "50-vaapi/30-libpciaccess.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libpciaccess.git",
           "commit": "38e6f15f839fba2c49982e7ad61cde681fd5d4d6",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "libpciaccess-38e6f15f839fba2c49982e7ad61cde681fd5d4d6.tar.gz",
+            "url": "https://gitlab.freedesktop.org/xorg/lib/libpciaccess/-/archive/38e6f15f839fba2c49982e7ad61cde681fd5d4d6/libpciaccess-38e6f15f839fba2c49982e7ad61cde681fd5d4d6.tar.gz",
+            "sha256": "918af6c21cee0f9d22c498faf9e45ecb50838bd6ce7b7a27fa6eb205b793be06",
+            "licensePath": "libpciaccess-38e6f15f839fba2c49982e7ad61cde681fd5d4d6/COPYING"
+          }
         },
         {
           "script": "50-vaapi/40-libdrm.sh",
@@ -1265,7 +1463,13 @@
           "script": "50-x264.sh",
           "repo": "https://code.videolan.org/videolan/x264.git",
           "commit": "0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee",
-          "shipsOn": ["win64", "linux64", "linuxarm64"]
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "x264-0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee.tar.gz",
+            "url": "https://code.videolan.org/videolan/x264/-/archive/0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee/x264-0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee.tar.gz",
+            "sha256": "d0967a1348c85dfde363bb52610403be898171493100561efa0dd05d5fd1ae50",
+            "licensePath": "x264-0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee/COPYING"
+          }
         },
         {
           "script": "50-x265.sh",
@@ -1322,7 +1526,7 @@
           }
         }
       ],
-      "reason": "GitHub commit archives are pinned when the tree contains a license file (78 dependencies). nv-codec-headers has no license file in that commit. Non-GitHub pins (Videolan, GitLab, Savannah, SourceForge, SVN) are not fetched. ffbuild_enabled skips fdk-aac for gpl, whisper unconditionally, and libcurl when ffver <= 900. The complete flag is not a publish input."
+      "reason": "Commit archives are pinned where a refetch of the URL matched the local gzip tarball, the script commit, and a license file inside the archive. Still without a source archive: 10-mingw.sh, 20-libiconv.sh, 45-x11/10-xproto.sh, 50-aom.sh, 50-fdk-aac.sh, 50-ffnvcodec.sh, 50-libcurl/50-libcurl.sh, 50-libmp3lame.sh, 50-libvpx.sh, 50-libwebp.sh, 50-opencore-amr.sh, 50-soxr.sh, 50-vaapi/40-libdrm.sh, 50-whisper.sh, 50-xvid.sh. ffbuild_enabled skips fdk-aac for gpl, whisper unconditionally, and libcurl when ffver <= 900. The complete flag is not a publish input."
     },
     {
       "id": "martin-riedl-macos-ffmpeg",

@@ -40,6 +40,21 @@ depend on the third-party builder. GPLv2+ applies to mpv; Vitra is GPLv3.
 - **yt-dlp / ffmpeg / deno** Intel sidecars are unchanged; confirm their Mach-O minOS ≤ 12.0 in
   release verify (`scripts/release/verify-macos.py`).
 
+## This candidate's Intel installer
+
+Linux, Windows, and Apple Silicon installers from Actions run 42512576166
+(commit `76ea04250e88d880c3b6a7e3abf182f29c6bbde2`) stay as built. Their artifact
+zip digests are in `scripts/release/reused-artifacts.json`. Intel from that run
+failed before the mpv link and is not pinned.
+
+Pushing this pull request starts only the Intel package. `release.yml` listens
+to `pull_request`, and the build job runs only when the matrix name is
+`macOS-Intel` (`macos-15-intel`). Merging to `main` does not run `release.yml`.
+A `v*` tag still builds all four platforms; that is not this candidate's path.
+`workflow_dispatch` is not required. The job checks that application sources
+still match `76ea042` before packaging. Playback on a Monterey machine is still
+not verified, and this VM cannot sign the result.
+
 ## Source build
 
 Intel mpv is produced by `scripts/release/build-intel-mpv.sh` from `intel-mpv-sources.json` on the macOS Intel release runner. The corresponding-source tarball includes that script, the pins, and `mach-minos.py` / `mach-deps.py`, so the offer can be rerun from its own directory. The script refuses a checksum mismatch, refuses a pkg-config view of host libraries, and refuses any Mach-O that needs newer than macOS 12.0. Homebrew is used only for compilers' companion tools (meson, nasm); shipped libraries are the pinned builds. HarfBuzz 10.1.0 is built with Meson.
