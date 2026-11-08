@@ -1004,7 +1004,9 @@ mod tests {
         use lofty::mpeg::MpegFile;
 
         let mut s = setup();
-        let path = s.music.join("Other/cp1251-artists.mp3");
+        let rel = "Other/cp1251-artists.mp3";
+        let path = s.music.join(rel.split('/').collect::<PathBuf>());
+        let key = s.path(rel);
         fs::copy(fixtures().join("tagged.mp3"), &path).unwrap();
         let mut file = MpegFile::read_from(
             &mut BufReader::new(File::open(&path).unwrap()),
@@ -1023,11 +1025,7 @@ mod tests {
         file.save_to_path(&path, WriteOptions::default()).unwrap();
 
         s.scan();
-        let track = s
-            .library
-            .track_by_path(path.to_str().unwrap())
-            .unwrap()
-            .unwrap();
+        let track = s.library.track_by_path(&key).unwrap().unwrap();
         assert_eq!(track.artist.as_deref(), Some("09.Ноггано, Guest"));
         let names: Vec<_> = track.artists.iter().map(|a| a.name.as_str()).collect();
         assert_eq!(names, vec!["09.Ноггано", "Guest"]);
