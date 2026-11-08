@@ -118,7 +118,9 @@ describe('planFor', () => {
     const linux = planFor('x86_64-unknown-linux-gnu').ffmpeg.downloads[0];
     expect(linux.checksum.sha256).toBe(BTBN_PINS.linux64.sha256);
     const offer = sourceOffer('btbn-ffmpeg-n9.0.2-48-gd4070a14ce');
-    expect(offer.complete).toBe(true);
+    expect(offer.complete).toBe(false);
+    expect(linux.sourceOfferId).toBe(offer.id);
+    expect(linux.sourceClosure).toBe('incomplete');
     expect(linux.sourceUrls).toEqual(offer.archives.map((archive) => archive.url));
     expect(linux.license).toBe('GPL-3.0-or-later');
     for (const pin of Object.values(BTBN_PINS)) {
@@ -131,6 +133,8 @@ describe('planFor', () => {
     expect(download.checksum.type).toBe('sibling');
     expect(download.checksum.sha256).toBeUndefined();
     expect(download.sourceUrls).toBeUndefined();
+    expect(download.sourceOfferId).toBe('martin-riedl-macos-ffmpeg');
+    expect(download.sourceClosure).toBe('incomplete');
     expect(sourceOffer('martin-riedl-macos-ffmpeg').complete).toBe(false);
   });
 
@@ -139,6 +143,8 @@ describe('planFor', () => {
     expect(yt.githubRelease?.owner).toBe('yt-dlp');
     const ytSource = sourceOffer('yt-dlp-2026.10.26');
     expect(ytSource.version).toBe(YT_DLP_VERSION);
+    expect(yt.sourceOfferId).toBe(ytSource.id);
+    expect(yt.sourceClosure).toBe('incomplete');
     expect(yt.sourceUrls).toEqual(ytSource.archives.map((archive) => archive.url));
     expect(yt.license).toBe('Unlicense');
     const deno = planFor('x86_64-pc-windows-msvc').deno.downloads[0];

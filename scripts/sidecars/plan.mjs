@@ -9,6 +9,7 @@
 //   deno[.exe]           JavaScript runtime yt-dlp needs for YouTube
 //   manifest.json        what was fetched, from where, with which checksum
 
+import { sourceClosureFor } from '../release/source-kit-gate.mjs';
 import sourceOffers from '../release/upstream-source-offers.json' with { type: 'json' };
 import { YT_DLP_KEY_FINGERPRINT, YT_DLP_RELEASE_KEY, YT_DLP_VERSION } from './ytdlp-release.mjs';
 
@@ -129,20 +130,27 @@ function ytDlpGithubRelease(asset) {
   return { owner: 'yt-dlp', repo: 'yt-dlp', tag: YT_DLP_VERSION, asset };
 }
 
-/** Complete corresponding-source offer, or null when the id is not in the manifest. */
+/** Corresponding-source offer, or null when the id is not in the manifest. */
 export function sourceOffer(id) {
   return sourceOffers.offers.find((offer) => offer.id === id) ?? null;
 }
 
-function completeSource(id) {
+// Attaches the offer id and the archives that actually have URLs.
+// `sourceClosure` is derived from pins and license paths, never from `offer.complete`.
+function sourceLink(id, platform) {
   const offer = sourceOffer(id);
-  if (!offer?.complete) {
-    throw new Error(`source offer ${id} is not a complete archive set`);
+  if (!offer) {
+    throw new Error(`unknown source offer ${id}`);
   }
-  return {
-    sourceUrls: offer.archives.map((archive) => archive.url),
+  const link = {
+    sourceOfferId: id,
     license: offer.license,
+    sourceClosure: sourceClosureFor(offer, platform),
   };
+  if (offer.archives?.length) {
+    link.sourceUrls = offer.archives.map((archive) => archive.url);
+  }
+  return link;
 }
 
 function denoGithubRelease(asset) {
@@ -177,7 +185,9 @@ export function planFor(target) {
     ffmpeg: {
       type: 'download',
       downloads:
-        info.os === 'macos' ? martinRiedlDownloads(info.ffmpeg) : [btbnDownload(info, exe)],
+        info.os === 'macos'
+          ? martinRiedlDownloads(info.ffmpeg, info.os)
+          : [btbnDownload(info, exe)],
       executables: [exe('ffmpeg'), exe('ffprobe')],
       versionArgs: ['-version'],
       ...(info.os === 'macos' && {
@@ -232,7 +242,7 @@ function ytDlpPlan(info, exe) {
         fingerprint: YT_DLP_KEY_FINGERPRINT,
       },
     },
-    ...completeSource('yt-dlp-2026.10.26'),
+    ...sourceLink('yt-dlp-2026.10.26', { os: info.os }),
   };
   if (info.os === 'macos') {
     // Not the single-file build: that one unpacks Python into a fresh temporary folder on
@@ -279,6 +289,7 @@ function mpvPlan(target, info) {
     checksum: { type: 'pinned', sha256: build.sha256 },
     archive: 'zip',
     provenance: build.source,
+    ...sourceLink('mpv-official-v0.41.0', { os: info.os }),
   };
   if (info.os === 'macos') {
     return {
@@ -305,7 +316,7 @@ function mpvPlan(target, info) {
 }
 
 /** Static macOS builds by Martin Riedl; the snapshot channel is a fallback if no release zip exists. */
-function martinRiedlDownloads(arch) {
+function martinRiedlDownloads(arch, os) {
   return ['ffmpeg', 'ffprobe'].map((tool) => ({
     name: `${tool}.zip`,
     urls: ['release', 'snapshot'].map(
@@ -314,6 +325,7 @@ function martinRiedlDownloads(arch) {
     checksum: { type: 'sibling', suffix: '.sha256' },
     archive: 'zip',
     files: [{ find: tool, to: tool }],
+    ...sourceLink('martin-riedl-macos-ffmpeg', { os }),
   }));
 }
 
@@ -330,7 +342,7 @@ function btbnDownload(info, exe) {
     checksum: { type: 'pinned', sha256: pin.sha256 },
     archive: info.os === 'windows' ? 'zip' : 'tar',
     files: [exe('ffmpeg'), exe('ffprobe')].map((f) => ({ find: f, to: f })),
-    ...completeSource('btbn-ffmpeg-n9.0.2-48-gd4070a14ce'),
+    ...sourceLink('btbn-ffmpeg-n9.0.2-48-gd4070a14ce', { os: info.os, ffmpegKey: info.ffmpeg }),
   };
 }
 

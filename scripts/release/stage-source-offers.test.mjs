@@ -8,10 +8,14 @@ import { describe, expect, it } from 'vitest';
 import sourceOffers from './upstream-source-offers.json' with { type: 'json' };
 import {
   assertBtbnPins,
+  assertPinSet,
   assertSha256,
   pinsFromBtbnArchive,
+  pinsFromScriptEntries,
+  scriptEntriesFromTarList,
   sha256,
   stageSourceOffers,
+  tarListLines,
 } from './stage-source-offers.mjs';
 
 function fixtureArchive(rootName, files) {
@@ -55,6 +59,30 @@ describe('BtbN pin archive', () => {
       }),
     ).toThrow(/GIT_BRANCH/);
   });
+
+  it('keeps script paths when tar -t stdout is CRLF', () => {
+    // Windows bsdtar list mode leaves stdout in text mode, so the newline is CRLF.
+    // Members stay slash-separated; this does not claim the Windows run already passed.
+    const stdout = [
+      'FFmpeg-Builds-fixture/scripts.d/50-x264.sh\r',
+      'FFmpeg-Builds-fixture/scripts.d/15-base.sh\r',
+      'FFmpeg-Builds-fixture/addins/9.0.sh\r',
+      '',
+    ].join('\n');
+    const script = `SCRIPT_REPO="${X264.repo}"\nSCRIPT_COMMIT="${X264.commit}"\n`;
+    const text = {
+      'FFmpeg-Builds-fixture/scripts.d/50-x264.sh': script,
+      'FFmpeg-Builds-fixture/scripts.d/15-base.sh': 'SCRIPT_SKIP="1"\n',
+    };
+    expect(scriptEntriesFromTarList(stdout)).toEqual([
+      'FFmpeg-Builds-fixture/scripts.d/50-x264.sh',
+      'FFmpeg-Builds-fixture/scripts.d/15-base.sh',
+    ]);
+    expect(tarListLines(stdout)[0].endsWith('.sh')).toBe(true);
+    const pins = pinsFromScriptEntries(tarListLines(stdout), (entry) => text[entry]);
+    expect(pins).toEqual([X264]);
+    expect(() => assertPinSet(pins, [{ ...X264, commit: 'b'.repeat(40) }])).toThrow(/pin mismatch/);
+  });
 });
 
 describe('upstream source offers', () => {
@@ -62,8 +90,9 @@ describe('upstream source offers', () => {
   const btbn = offers.find((offer) => offer.id === 'btbn-ffmpeg-n9.0.2-48-gd4070a14ce');
   const ytdlp = offers.find((offer) => offer.id === 'yt-dlp-2026.10.26');
 
-  it('keeps the verified BtbN and yt-dlp archives complete', () => {
-    expect(ytdlp.complete).toBe(true);
+  it('pins the verified BtbN and yt-dlp archives without calling that closure', () => {
+    expect(ytdlp.complete).toBe(false);
+    expect(btbn.complete).toBe(false);
     expect(ytdlp.archives[0].sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(ytdlp.archives[0].url).toBe(
       'https://github.com/yt-dlp/yt-dlp/archive/refs/tags/2026.10.26.tar.gz',
@@ -112,7 +141,7 @@ describe('upstream source offers', () => {
     expect(fs.existsSync(path.join(out, 'fixture.bin'))).toBe(true);
     expect(fs.existsSync(path.join(out, 'SOURCE-OFFER.txt'))).toBe(true);
     expect(fs.readFileSync(path.join(out, 'SOURCE-OFFER.txt'), 'utf8')).toContain(
-      '[not complete] ffmpeg',
+      '[not closed] ffmpeg',
     );
   });
 });

@@ -212,10 +212,30 @@ jobs:
           retention-days: 14
           compression-level: 0
 
+  source-kit:
+    name: Corresponding source (prepare)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Stage pinned source archives without publishing
+        run: node scripts/release/stage-source-offers.mjs --mode prepare corresponding-source
+      - uses: actions/upload-artifact@v7
+        with:
+          name: corresponding-source
+          path: corresponding-source
+          if-no-files-found: error
+          retention-days: 14
+
   release:
     name: Publish tested prerelease installers
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release && github.ref == 'refs/heads/main')
-    needs: build
+    needs: [build, source-kit]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -223,10 +243,17 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
       - uses: actions/download-artifact@v8
         with:
           pattern: Vitra-*
           path: installers
+      - uses: actions/download-artifact@v8
+        with:
+          name: corresponding-source
+          path: corresponding-source
       - name: Collect installers and component manifests
         shell: bash
         run: |
@@ -245,8 +272,11 @@ jobs:
               cp "${sources[0]}" "release-assets/$name.mpv-corresponding-source.tar.gz"
             fi
           done
-          node scripts/release/stage-source-offers.mjs "$RUNNER_TEMP/corresponding-source"
-          tar -C "$RUNNER_TEMP" -czf release-assets/corresponding-source.tar.gz corresponding-source
+      - name: Refuse publication unless corresponding source is closed
+        shell: bash
+        run: |
+          node scripts/release/stage-source-offers.mjs --mode publish --assets release-assets corresponding-source
+          tar -czf release-assets/corresponding-source.tar.gz corresponding-source
           (cd release-assets && sha256sum ./* > SHA256SUMS)
       - name: Publish prerelease after all platform checks pass
         env:

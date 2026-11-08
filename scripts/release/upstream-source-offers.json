@@ -5,13 +5,65 @@
       "component": "yt-dlp",
       "version": "2026.10.26",
       "license": "Unlicense",
-      "complete": true,
+      "complete": false,
       "note": "Git tag archive of yt-dlp 2026.10.26 (RELEASE_GIT_HEAD c91f8de0bfb3577894abad716eaaa01659e6bd14). This is the tree the release binaries are built from. It contains bundle/pyinstaller.py, hashed bundle/requirements, uv.lock, and THIRD_PARTY_LICENSES.txt. The smaller yt-dlp.tar.gz sdist on the same release omits those build files, so it is not the offer.",
       "archives": [
         {
           "name": "yt-dlp-2026.10.26.tar.gz",
           "url": "https://github.com/yt-dlp/yt-dlp/archive/refs/tags/2026.10.26.tar.gz",
           "sha256": "7d5da51731c3f5f5db13d16249fae085e170cc58807c43d68dcb41b7ede99a0d"
+        }
+      ],
+      "reason": "Linux bundles still include unpinned GPL/LGPL libraries (GNU Readline, libintl, libidn2, libunistring). libstdc++ and libgcc are GPL-3.0-with-GCC-exception and are not a GCC source duty. The complete flag is not a publish input.",
+      "bundledSources": [
+        {
+          "name": "mutagen",
+          "version": "1.48.1",
+          "license": "GPL-2.0-or-later",
+          "platforms": ["linux", "macos", "windows"],
+          "source": {
+            "name": "mutagen-1.48.1.tar.gz",
+            "url": "https://files.pythonhosted.org/packages/df/70/1675da133ea92227da41bf5b24e1c66be597ff736a1533ade41da986852f/mutagen-1.48.1.tar.gz",
+            "sha256": "8f95637ab9f6f305cec6bd1294e197debe207998e3e068596563c74f86b0a173",
+            "licensePath": "mutagen-1.48.1/COPYING"
+          }
+        },
+        {
+          "name": "PyInstaller",
+          "version": "6.22.0",
+          "license": "GPL-2.0-or-later",
+          "platforms": ["linux", "macos", "windows"],
+          "note": "COPYING.txt Bootloader Exception allows embedding the bootloader in a combined executable. bundle/requirements/pyinstaller.txt already hashes this sdist, and the archive contains bootloader/src, so the kit includes it.",
+          "source": {
+            "name": "pyinstaller-6.22.0.tar.gz",
+            "url": "https://files.pythonhosted.org/packages/05/03/669d06735cf57d7e2e5dfc3c2e1643554b34c559eff21449c58172ca0335/pyinstaller-6.22.0.tar.gz",
+            "sha256": "8b0166fff4583b374bbe7fa044bf03ddc33cab0f792a665807d96048e63f060e",
+            "licensePath": "pyinstaller-6.22.0/COPYING.txt"
+          }
+        },
+        {
+          "name": "GNU Readline",
+          "license": "GPL-3.0-or-later",
+          "platforms": ["linux"],
+          "reason": "THIRD_PARTY_LICENSES.txt marks it Linux-only. The license URL is an unpinned upstream tree."
+        },
+        {
+          "name": "libintl",
+          "license": "LGPL-2.1-or-later",
+          "platforms": ["linux"],
+          "reason": "Linux-only. The license URL tracks gettext master, not a commit."
+        },
+        {
+          "name": "libidn2",
+          "license": "LGPL-3.0-or-later",
+          "platforms": ["linux"],
+          "reason": "Linux-only. The license URL tracks libidn2 master."
+        },
+        {
+          "name": "libunistring",
+          "license": "LGPL-3.0-or-later",
+          "platforms": ["linux"],
+          "reason": "Linux-only. The license URL tracks HEAD."
         }
       ]
     },
@@ -20,7 +72,7 @@
       "component": "ffmpeg",
       "version": "n9.0.2-48-gd4070a14ce",
       "license": "GPL-3.0-or-later",
-      "complete": true,
+      "complete": false,
       "targets": ["win64", "linux64", "linuxarm64"],
       "ffmpegCommit": "d4070a14cecc7e29eb278f9b6036c2284255f70d",
       "ffmpegBranch": "release/9.0",
@@ -42,639 +94,1235 @@
         {
           "script": "10-mingw-std-threads.sh",
           "repo": "https://github.com/meganz/mingw-std-threads.git",
-          "commit": "c931bac289dd431f1dd30fc4a5d1a7be36668073"
+          "commit": "c931bac289dd431f1dd30fc4a5d1a7be36668073",
+          "shipsOn": ["win64"],
+          "source": {
+            "name": "mingw-std-threads-c931bac289dd431f1dd30fc4a5d1a7be36668073.tar.gz",
+            "url": "https://github.com/meganz/mingw-std-threads/archive/c931bac289dd431f1dd30fc4a5d1a7be36668073.tar.gz",
+            "sha256": "bba362a5fd537ecd223239efa1f7e7c570018e6d5ea7b26cc0515d3ede9da5ad",
+            "licensePath": "mingw-std-threads-c931bac289dd431f1dd30fc4a5d1a7be36668073/LICENSE"
+          }
         },
         {
           "script": "10-mingw.sh",
           "repo": "https://git.code.sf.net/p/mingw-w64/mingw-w64.git",
-          "commit": "7213d719fe344553aa24fef7cc7dedee4940d594"
+          "commit": "7213d719fe344553aa24fef7cc7dedee4940d594",
+          "shipsOn": ["win64"]
         },
         {
           "script": "10-xorg-macros.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/util/macros.git",
-          "commit": "ea1e15a4909ac8b03b2c5a08ac3810b385985157"
+          "commit": "ea1e15a4909ac8b03b2c5a08ac3810b385985157",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "20-libiconv.sh",
           "repo": "https://git.savannah.gnu.org/git/libiconv.git",
-          "commit": "b5a1735e02bf43ee6e490fcf9395e8abc8d32432"
+          "commit": "b5a1735e02bf43ee6e490fcf9395e8abc8d32432",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "20-zlib.sh",
           "repo": "https://github.com/madler/zlib.git",
-          "commit": "9d314c341b2ce16e01ae44e27ec3dd2f32aa58fd"
+          "commit": "9d314c341b2ce16e01ae44e27ec3dd2f32aa58fd",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "zlib-9d314c341b2ce16e01ae44e27ec3dd2f32aa58fd.tar.gz",
+            "url": "https://github.com/madler/zlib/archive/9d314c341b2ce16e01ae44e27ec3dd2f32aa58fd.tar.gz",
+            "sha256": "bb27c6019ed72ea6d3ceb574cd8074083a7391afa08404ddf945bcd24f01742b",
+            "licensePath": "zlib-9d314c341b2ce16e01ae44e27ec3dd2f32aa58fd/LICENSE"
+          }
         },
         {
           "script": "25-fftw3.sh",
           "repo": "https://github.com/FFTW/fftw3.git",
-          "commit": "a7b679c528330cf6258253d6dcf5ec90552e6c93"
+          "commit": "a7b679c528330cf6258253d6dcf5ec90552e6c93",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "fftw3-a7b679c528330cf6258253d6dcf5ec90552e6c93.tar.gz",
+            "url": "https://github.com/FFTW/fftw3/archive/a7b679c528330cf6258253d6dcf5ec90552e6c93.tar.gz",
+            "sha256": "cb4c579c7d67b933b91eb37c0c18e929734ac8cbe7154f742a4a3dde139e18d7",
+            "licensePath": "fftw3-a7b679c528330cf6258253d6dcf5ec90552e6c93/COPYING"
+          }
         },
         {
           "script": "25-fribidi.sh",
           "repo": "https://github.com/fribidi/fribidi.git",
-          "commit": "d2f3e1f4946e7cef9789e1c3ebdb4a60d4314c7f"
+          "commit": "d2f3e1f4946e7cef9789e1c3ebdb4a60d4314c7f",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "fribidi-d2f3e1f4946e7cef9789e1c3ebdb4a60d4314c7f.tar.gz",
+            "url": "https://github.com/fribidi/fribidi/archive/d2f3e1f4946e7cef9789e1c3ebdb4a60d4314c7f.tar.gz",
+            "sha256": "0a666e0f5a42e9e938e38f6c2859fe39eda37ca9852e8afd1c2d226be163a529",
+            "licensePath": "fribidi-d2f3e1f4946e7cef9789e1c3ebdb4a60d4314c7f/COPYING"
+          }
         },
         {
           "script": "25-gmp.sh",
           "repo": "https://github.com/BtbN/gmplib.git",
-          "commit": "5c3e9a9d52b697cab7b7d26a53972a3bf922d59a"
+          "commit": "5c3e9a9d52b697cab7b7d26a53972a3bf922d59a",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "gmplib-5c3e9a9d52b697cab7b7d26a53972a3bf922d59a.tar.gz",
+            "url": "https://github.com/BtbN/gmplib/archive/5c3e9a9d52b697cab7b7d26a53972a3bf922d59a.tar.gz",
+            "sha256": "2c495cfe0d82f176fb3f787e33763968dbffe2d727603c3a428862cade84a63e",
+            "licensePath": "gmplib-5c3e9a9d52b697cab7b7d26a53972a3bf922d59a/COPYING.LESSERv3"
+          }
         },
         {
           "script": "25-libogg.sh",
           "repo": "https://github.com/xiph/ogg.git",
-          "commit": "06a5e0262cdc28aa4ae6797627a783b5010440f0"
+          "commit": "06a5e0262cdc28aa4ae6797627a783b5010440f0",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "ogg-06a5e0262cdc28aa4ae6797627a783b5010440f0.tar.gz",
+            "url": "https://github.com/xiph/ogg/archive/06a5e0262cdc28aa4ae6797627a783b5010440f0.tar.gz",
+            "sha256": "fd7ab06f9fe9ace6b75d4223cf9034c9648cbe9f16120a344ec82f27c605ca11",
+            "licensePath": "ogg-06a5e0262cdc28aa4ae6797627a783b5010440f0/COPYING"
+          }
         },
         {
           "script": "25-libpng.sh",
           "repo": "https://github.com/glennrp/libpng.git",
-          "commit": "0b0876829d77db0827a8cc2c4326f63be22b2aa1"
+          "commit": "0b0876829d77db0827a8cc2c4326f63be22b2aa1",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "libpng-0b0876829d77db0827a8cc2c4326f63be22b2aa1.tar.gz",
+            "url": "https://github.com/glennrp/libpng/archive/0b0876829d77db0827a8cc2c4326f63be22b2aa1.tar.gz",
+            "sha256": "e8a842d274db0a7399288294522232bb323b4fc4911e86b9702b2db9f826318a",
+            "licensePath": "libpng-0b0876829d77db0827a8cc2c4326f63be22b2aa1/LICENSE.md"
+          }
         },
         {
           "script": "25-libxml2.sh",
           "repo": "https://github.com/GNOME/libxml2.git",
-          "commit": "c79c9612fcc77b06b0d16f35fd363d938bdbbf5e"
+          "commit": "c79c9612fcc77b06b0d16f35fd363d938bdbbf5e",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "libxml2-c79c9612fcc77b06b0d16f35fd363d938bdbbf5e.tar.gz",
+            "url": "https://github.com/GNOME/libxml2/archive/c79c9612fcc77b06b0d16f35fd363d938bdbbf5e.tar.gz",
+            "sha256": "13bda7af58a59bddc052ddb34b3472eb1ee18fdc72465f626daa3e2dd530b269",
+            "licensePath": "libxml2-c79c9612fcc77b06b0d16f35fd363d938bdbbf5e/Copyright"
+          }
         },
         {
           "script": "25-openssl.sh",
           "repo": "https://github.com/openssl/openssl.git",
-          "commit": "openssl-3.6.5"
+          "commit": "openssl-3.6.5",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "openssl-openssl-3.6.5.tar.gz",
+            "url": "https://github.com/openssl/openssl/archive/openssl-3.6.5.tar.gz",
+            "sha256": "f3091b7ccb41a11d877b7406b7afc9dd9c5003d299c6bb33cff882127bc06c91",
+            "licensePath": "openssl-openssl-3.6.5/LICENSE.txt"
+          }
         },
         {
           "script": "25-xz.sh",
           "repo": "https://github.com/tukaani-project/xz.git",
-          "commit": "299eb5c3f597f107fd6019bf156885ac8bfaa5ea"
+          "commit": "299eb5c3f597f107fd6019bf156885ac8bfaa5ea",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "xz-299eb5c3f597f107fd6019bf156885ac8bfaa5ea.tar.gz",
+            "url": "https://github.com/tukaani-project/xz/archive/299eb5c3f597f107fd6019bf156885ac8bfaa5ea.tar.gz",
+            "sha256": "c1f497513e85cbc2f3760990a6ed9cbebe6386f273481b87251d0d6eb481c51a",
+            "licensePath": "xz-299eb5c3f597f107fd6019bf156885ac8bfaa5ea/COPYING"
+          }
         },
         {
           "script": "45-brotli.sh",
           "repo": "https://github.com/google/brotli.git",
-          "commit": "2e2bcf17ae7115d84ef6588d9a3651cc987d73e7"
+          "commit": "2e2bcf17ae7115d84ef6588d9a3651cc987d73e7",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "brotli-2e2bcf17ae7115d84ef6588d9a3651cc987d73e7.tar.gz",
+            "url": "https://github.com/google/brotli/archive/2e2bcf17ae7115d84ef6588d9a3651cc987d73e7.tar.gz",
+            "sha256": "347a89614fdd147fd47ab1035dac67d50faf0a071fd26ca49dcf1ee513851125",
+            "licensePath": "brotli-2e2bcf17ae7115d84ef6588d9a3651cc987d73e7/LICENSE"
+          }
         },
         {
           "script": "45-fonts/25-freetype.sh",
           "repo": "https://gitlab.freedesktop.org/freetype/freetype.git",
-          "commit": "4ba7c3d82ab8b3cc80b869337d2c2b1913c5e415"
+          "commit": "4ba7c3d82ab8b3cc80b869337d2c2b1913c5e415",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "45-fonts/35-fontconfig.sh",
           "repo": "https://gitlab.freedesktop.org/fontconfig/fontconfig.git",
-          "commit": "b25ffeabd15b76f86c0c6736f6df2f1b89858010"
+          "commit": "b25ffeabd15b76f86c0c6736f6df2f1b89858010",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "45-fonts/45-harfbuzz.sh",
           "repo": "https://github.com/harfbuzz/harfbuzz.git",
-          "commit": "75d8ac5d2313842550174eaab0cbaf653c8f2f77"
+          "commit": "75d8ac5d2313842550174eaab0cbaf653c8f2f77",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "harfbuzz-75d8ac5d2313842550174eaab0cbaf653c8f2f77.tar.gz",
+            "url": "https://github.com/harfbuzz/harfbuzz/archive/75d8ac5d2313842550174eaab0cbaf653c8f2f77.tar.gz",
+            "sha256": "c4b5dfbde9a212ec480eb289f06be6ebffa1b2af5d38061c9a2f78bade609f82",
+            "licensePath": "harfbuzz-75d8ac5d2313842550174eaab0cbaf653c8f2f77/COPYING"
+          }
         },
         {
           "script": "45-fonts/50-freetype.sh",
           "repo": "https://gitlab.freedesktop.org/freetype/freetype.git",
-          "commit": "4ba7c3d82ab8b3cc80b869337d2c2b1913c5e415"
+          "commit": "4ba7c3d82ab8b3cc80b869337d2c2b1913c5e415",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "45-lcms2.sh",
           "repo": "https://github.com/mm2/Little-CMS.git",
-          "commit": "1112313b3784ced9297d8c0ee076aba17499827a"
+          "commit": "1112313b3784ced9297d8c0ee076aba17499827a",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "Little-CMS-1112313b3784ced9297d8c0ee076aba17499827a.tar.gz",
+            "url": "https://github.com/mm2/Little-CMS/archive/1112313b3784ced9297d8c0ee076aba17499827a.tar.gz",
+            "sha256": "bf8f3ac2d0a291f74225e2447f3703a75530c8be7019c6ea5fab3084be18b474",
+            "licensePath": "Little-CMS-1112313b3784ced9297d8c0ee076aba17499827a/LICENSE"
+          }
         },
         {
           "script": "45-libffi.sh",
           "repo": "https://github.com/libffi/libffi.git",
-          "commit": "bc553867367246d140cd156f060bd0409f57f157"
+          "commit": "bc553867367246d140cd156f060bd0409f57f157",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "libffi-bc553867367246d140cd156f060bd0409f57f157.tar.gz",
+            "url": "https://github.com/libffi/libffi/archive/bc553867367246d140cd156f060bd0409f57f157.tar.gz",
+            "sha256": "93e39e60c6a2486f50661a57a95b8d70587c3e9d05e15aae27ccce04c4fe33ac",
+            "licensePath": "libffi-bc553867367246d140cd156f060bd0409f57f157/LICENSE"
+          }
         },
         {
           "script": "45-libsamplerate.sh",
           "repo": "https://github.com/libsndfile/libsamplerate.git",
-          "commit": "0844c208f683527c08ea8a80acc13b398aa9c8bf"
+          "commit": "0844c208f683527c08ea8a80acc13b398aa9c8bf",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "libsamplerate-0844c208f683527c08ea8a80acc13b398aa9c8bf.tar.gz",
+            "url": "https://github.com/libsndfile/libsamplerate/archive/0844c208f683527c08ea8a80acc13b398aa9c8bf.tar.gz",
+            "sha256": "c5b976c99196df8247dd429fcaa05f44e281ec15b48f185c9b60c979c468d4c6",
+            "licensePath": "libsamplerate-0844c208f683527c08ea8a80acc13b398aa9c8bf/COPYING"
+          }
         },
         {
           "script": "45-libudfread.sh",
           "repo": "https://code.videolan.org/videolan/libudfread.git",
-          "commit": "b0bc6957e7e07d5f35391f210596d9eb71cffdd9"
+          "commit": "b0bc6957e7e07d5f35391f210596d9eb71cffdd9",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "45-libunibreak.sh",
           "repo": "https://github.com/adah1972/libunibreak.git",
-          "commit": "f8172fe771ef620112247cadfb876aecaa4f769e"
+          "commit": "f8172fe771ef620112247cadfb876aecaa4f769e",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "libunibreak-f8172fe771ef620112247cadfb876aecaa4f769e.tar.gz",
+            "url": "https://github.com/adah1972/libunibreak/archive/f8172fe771ef620112247cadfb876aecaa4f769e.tar.gz",
+            "sha256": "6b4fbe4836f6b1be34a5ba86961b13347169cbefaedaf08fc0b2ddfb718c0193",
+            "licensePath": "libunibreak-f8172fe771ef620112247cadfb876aecaa4f769e/LICENCE"
+          }
         },
         {
           "script": "45-libvorbis.sh",
           "repo": "https://github.com/xiph/vorbis.git",
-          "commit": "1b75110b5a2754ba1931d82dd83cb822b266a21d"
+          "commit": "1b75110b5a2754ba1931d82dd83cb822b266a21d",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "vorbis-1b75110b5a2754ba1931d82dd83cb822b266a21d.tar.gz",
+            "url": "https://github.com/xiph/vorbis/archive/1b75110b5a2754ba1931d82dd83cb822b266a21d.tar.gz",
+            "sha256": "bd0f08c8a63debdce27dd71de7d953f9c92e410d1cfe263220bcb49fff2ab749",
+            "licensePath": "vorbis-1b75110b5a2754ba1931d82dd83cb822b266a21d/COPYING"
+          }
         },
         {
           "script": "45-opencl.sh",
           "repo": "https://github.com/KhronosGroup/OpenCL-Headers.git",
-          "commit": "82f60316cc142e7b21dc1d8983b26de18858fbd9"
+          "commit": "82f60316cc142e7b21dc1d8983b26de18858fbd9",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "OpenCL-Headers-82f60316cc142e7b21dc1d8983b26de18858fbd9.tar.gz",
+            "url": "https://github.com/KhronosGroup/OpenCL-Headers/archive/82f60316cc142e7b21dc1d8983b26de18858fbd9.tar.gz",
+            "sha256": "7576bc8ba67af73ef30ae28096b4d19b953e7767960f24fba0e14d97e732f62d",
+            "licensePath": "OpenCL-Headers-82f60316cc142e7b21dc1d8983b26de18858fbd9/LICENSE"
+          }
         },
         {
           "script": "45-pcre2.sh",
           "repo": "https://github.com/PCRE2Project/pcre2.git",
-          "commit": "be940c4eaec0bc4117e06e8f14e56bf82089be6b"
+          "commit": "be940c4eaec0bc4117e06e8f14e56bf82089be6b",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "pcre2-be940c4eaec0bc4117e06e8f14e56bf82089be6b.tar.gz",
+            "url": "https://github.com/PCRE2Project/pcre2/archive/be940c4eaec0bc4117e06e8f14e56bf82089be6b.tar.gz",
+            "sha256": "e239983e09c9387d69935e3f50771af68d023ea314582f9ae3efe8c67e3d9e87",
+            "licensePath": "pcre2-be940c4eaec0bc4117e06e8f14e56bf82089be6b/LICENCE.md"
+          }
         },
         {
           "script": "45-pixman.sh",
           "repo": "https://gitlab.freedesktop.org/pixman/pixman.git",
-          "commit": "e7fd44140fe6edef507d54bdbc25c09543ffc936"
+          "commit": "e7fd44140fe6edef507d54bdbc25c09543ffc936",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "45-pulseaudio.sh",
           "repo": "https://gitlab.freedesktop.org/pulseaudio/pulseaudio.git",
-          "commit": "77d25a1e613095bdf87a1d13b65e7c330565077a"
+          "commit": "77d25a1e613095bdf87a1d13b65e7c330565077a",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "45-vmaf.sh",
           "repo": "https://github.com/Netflix/vmaf.git",
-          "commit": "f712fa7564fe49b12991d83920b83573af2ae063"
+          "commit": "f712fa7564fe49b12991d83920b83573af2ae063",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "vmaf-f712fa7564fe49b12991d83920b83573af2ae063.tar.gz",
+            "url": "https://github.com/Netflix/vmaf/archive/f712fa7564fe49b12991d83920b83573af2ae063.tar.gz",
+            "sha256": "18e7e34c4165d4fd9781beb4aac11866c3b7d5ad4e1149b201417e7b7e379b54",
+            "licensePath": "vmaf-f712fa7564fe49b12991d83920b83573af2ae063/LICENSE"
+          }
         },
         {
           "script": "45-x11/10-xcbproto.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/proto/xcbproto.git",
-          "commit": "cf7e2581b613802f2f8ec2a4b50a6a20aad4bf52"
+          "commit": "cf7e2581b613802f2f8ec2a4b50a6a20aad4bf52",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "45-x11/10-xproto.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/proto/xorgproto.git",
-          "commit": "6d3907b6d5dc4aa7d7ee6ee5d7d8714e7466630b"
+          "commit": "6d3907b6d5dc4aa7d7ee6ee5d7d8714e7466630b",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "45-x11/10-xtrans.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxtrans.git",
-          "commit": "79f6b0bfe2170496e8c37626043d009f4cd3f1e1"
+          "commit": "79f6b0bfe2170496e8c37626043d009f4cd3f1e1",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "45-x11/20-libxau.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxau.git",
-          "commit": "be1daeb909f1d678e7859ac1555e90b4e768d5c4"
+          "commit": "be1daeb909f1d678e7859ac1555e90b4e768d5c4",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "45-x11/30-libxcb.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxcb.git",
-          "commit": "d4e07bab5729c7d7cc3d2b95568cd9a661a53c4f"
+          "commit": "d4e07bab5729c7d7cc3d2b95568cd9a661a53c4f",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "45-x11/40-libx11.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libx11.git",
-          "commit": "b8d5a7046a98a244ee8ca3c9c07fd617c800dde2"
+          "commit": "b8d5a7046a98a244ee8ca3c9c07fd617c800dde2",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "45-x11/50-libxext.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxext.git",
-          "commit": "508f8adca2540ff8926ac8456cb1c553a8caae76"
+          "commit": "508f8adca2540ff8926ac8456cb1c553a8caae76",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "45-x11/50-libxfixes.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxfixes.git",
-          "commit": "55bb2d1d57d43e0595ce45393f26eb433d75a7cc"
+          "commit": "55bb2d1d57d43e0595ce45393f26eb433d75a7cc",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "45-x11/50-libxi.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxi.git",
-          "commit": "9ea632ab9dce9ad6630ef7db9d1850ea3d0a2419"
+          "commit": "9ea632ab9dce9ad6630ef7db9d1850ea3d0a2419",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "45-x11/50-libxinerama.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxinerama.git",
-          "commit": "d7162b962710bc724b41cabab4e7cea303c4b541"
+          "commit": "d7162b962710bc724b41cabab4e7cea303c4b541",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "45-x11/50-libxrender.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxrender.git",
-          "commit": "f30d654658ebf17d41141ed3ec2abf607d8a512e"
+          "commit": "f30d654658ebf17d41141ed3ec2abf607d8a512e",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "45-x11/50-libxscrnsaver.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxscrnsaver.git",
-          "commit": "3f753e7a4050db083474444ae91cc17a849eaa4d"
+          "commit": "3f753e7a4050db083474444ae91cc17a849eaa4d",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "45-x11/50-libxxf86vm.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxxf86vm.git",
-          "commit": "c76fde6bffcc87e5dd98d8196bb01a299bdc3236"
+          "commit": "c76fde6bffcc87e5dd98d8196bb01a299bdc3236",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "45-x11/60-libglvnd.sh",
           "repo": "https://gitlab.freedesktop.org/glvnd/libglvnd.git",
-          "commit": "c046a760d845416e98ac4128757b2b356c47fdaa"
+          "commit": "c046a760d845416e98ac4128757b2b356c47fdaa",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "45-x11/60-libxcursor.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxcursor.git",
-          "commit": "15efad7ccd035f5d1ddc8d437e047569d1775fa7"
+          "commit": "15efad7ccd035f5d1ddc8d437e047569d1775fa7",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "45-x11/60-libxrandr.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxrandr.git",
-          "commit": "8a4ba1974bcf07057cf891128d86ae1ab5303574"
+          "commit": "8a4ba1974bcf07057cf891128d86ae1ab5303574",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "45-x11/60-libxv.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libxv.git",
-          "commit": "f315ec50fcad9bdbaed46c3e78dc5e7fe209f933"
+          "commit": "f315ec50fcad9bdbaed46c3e78dc5e7fe209f933",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "45-xxhash.sh",
           "repo": "https://github.com/Cyan4973/xxHash.git",
-          "commit": "61fd0fece2ebafc5bd9b573050e0c046c4e48d28"
+          "commit": "61fd0fece2ebafc5bd9b573050e0c046c4e48d28",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "xxHash-61fd0fece2ebafc5bd9b573050e0c046c4e48d28.tar.gz",
+            "url": "https://github.com/Cyan4973/xxHash/archive/61fd0fece2ebafc5bd9b573050e0c046c4e48d28.tar.gz",
+            "sha256": "3151a710abc691e32670a57d5a7458db4581e4b205fc64f588bf882cf77075ce",
+            "licensePath": "xxHash-61fd0fece2ebafc5bd9b573050e0c046c4e48d28/LICENSE"
+          }
         },
         {
           "script": "45-zstd.sh",
           "repo": "https://github.com/facebook/zstd.git",
-          "commit": "49cf51799ea051457f57243527aa2058f999f005"
+          "commit": "49cf51799ea051457f57243527aa2058f999f005",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "zstd-49cf51799ea051457f57243527aa2058f999f005.tar.gz",
+            "url": "https://github.com/facebook/zstd/archive/49cf51799ea051457f57243527aa2058f999f005.tar.gz",
+            "sha256": "20b3aa4295de44d8ea74c0bedbd036364c9d82609325b660a4900becbd56383a",
+            "licensePath": "zstd-49cf51799ea051457f57243527aa2058f999f005/LICENSE"
+          }
         },
         {
           "script": "47-vulkan/40-vulkan-headers.sh",
           "repo": "https://github.com/KhronosGroup/Vulkan-Headers.git",
-          "commit": "v1.4.366"
+          "commit": "v1.4.366",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "Vulkan-Headers-v1.4.366.tar.gz",
+            "url": "https://github.com/KhronosGroup/Vulkan-Headers/archive/v1.4.366.tar.gz",
+            "sha256": "577b90c208e6fd39ec9a1460e48772f63c76f6f5afb441df2a977a0fdb3f618c",
+            "licensePath": "Vulkan-Headers-1.4.366/LICENSE.md"
+          }
         },
         {
           "script": "47-vulkan/45-vulkan-loader.sh",
           "repo": "https://github.com/BtbN/Vulkan-Shim-Loader.git",
-          "commit": "65b3936528cd92eb4ea3de485d03f858a3850484"
+          "commit": "65b3936528cd92eb4ea3de485d03f858a3850484",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "Vulkan-Shim-Loader-65b3936528cd92eb4ea3de485d03f858a3850484.tar.gz",
+            "url": "https://github.com/BtbN/Vulkan-Shim-Loader/archive/65b3936528cd92eb4ea3de485d03f858a3850484.tar.gz",
+            "sha256": "1cea0208588bd9d30379e7b83800dd7a32ca68d43c118642693be57782f8633d",
+            "licensePath": "Vulkan-Shim-Loader-65b3936528cd92eb4ea3de485d03f858a3850484/LICENSE"
+          }
         },
         {
           "script": "47-vulkan/50-shaderc.sh",
           "repo": "https://github.com/google/shaderc.git",
-          "commit": "2737994b552137a85545f956e303d620e6ff232c"
+          "commit": "2737994b552137a85545f956e303d620e6ff232c",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "shaderc-2737994b552137a85545f956e303d620e6ff232c.tar.gz",
+            "url": "https://github.com/google/shaderc/archive/2737994b552137a85545f956e303d620e6ff232c.tar.gz",
+            "sha256": "b8d8e28562357194cbcc036e6e2481a0d1563182d0387579c853d92e0febf04e",
+            "licensePath": "shaderc-2737994b552137a85545f956e303d620e6ff232c/LICENSE"
+          }
         },
         {
           "script": "47-vulkan/55-spirv-cross.sh",
           "repo": "https://github.com/KhronosGroup/SPIRV-Cross.git",
-          "commit": "300681bbcb8365a8d1eacdacdbdd0249bbf1d6b1"
+          "commit": "300681bbcb8365a8d1eacdacdbdd0249bbf1d6b1",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "SPIRV-Cross-300681bbcb8365a8d1eacdacdbdd0249bbf1d6b1.tar.gz",
+            "url": "https://github.com/KhronosGroup/SPIRV-Cross/archive/300681bbcb8365a8d1eacdacdbdd0249bbf1d6b1.tar.gz",
+            "sha256": "ca390d0cfb115504b97af1120c3a9479fb7b8f9e1a590fc80dca52ec1dd1c489",
+            "licensePath": "SPIRV-Cross-300681bbcb8365a8d1eacdacdbdd0249bbf1d6b1/LICENSE"
+          }
         },
         {
           "script": "47-vulkan/60-spirv-headers.sh",
           "repo": "https://github.com/KhronosGroup/SPIRV-Headers.git",
-          "commit": "fbf86836a9b1966586faf7be7bb8a6440e156d62"
+          "commit": "fbf86836a9b1966586faf7be7bb8a6440e156d62",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "SPIRV-Headers-fbf86836a9b1966586faf7be7bb8a6440e156d62.tar.gz",
+            "url": "https://github.com/KhronosGroup/SPIRV-Headers/archive/fbf86836a9b1966586faf7be7bb8a6440e156d62.tar.gz",
+            "sha256": "25198fd01717ec1d9b2b260f144fecba1265c51dcc8531ef98008e7b4dbb7e44",
+            "licensePath": "SPIRV-Headers-fbf86836a9b1966586faf7be7bb8a6440e156d62/LICENSE"
+          }
         },
         {
           "script": "50-amf.sh",
           "repo": "https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git",
-          "commit": "57ee0cfb0e1a08d9041f77435653794c1b012be0"
+          "commit": "57ee0cfb0e1a08d9041f77435653794c1b012be0",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "AMF-57ee0cfb0e1a08d9041f77435653794c1b012be0.tar.gz",
+            "url": "https://github.com/GPUOpen-LibrariesAndSDKs/AMF/archive/57ee0cfb0e1a08d9041f77435653794c1b012be0.tar.gz",
+            "sha256": "4255b6cbf2637c778da77ce77ccbb89e92870b3047af5fd56bb680b043ea60b5",
+            "licensePath": "AMF-57ee0cfb0e1a08d9041f77435653794c1b012be0/LICENSE.txt"
+          }
         },
         {
           "script": "50-aom.sh",
           "repo": "https://aomedia.googlesource.com/aom",
-          "commit": "9ace39e02a34992b83fc7f7f2bfbbd2e79348c74"
+          "commit": "9ace39e02a34992b83fc7f7f2bfbbd2e79348c74",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "50-avisynth.sh",
           "repo": "https://github.com/AviSynth/AviSynthPlus.git",
-          "commit": "523370a39933e2f9c208a5d74c1d35d43d177a76"
+          "commit": "523370a39933e2f9c208a5d74c1d35d43d177a76",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "AviSynthPlus-523370a39933e2f9c208a5d74c1d35d43d177a76.tar.gz",
+            "url": "https://github.com/AviSynth/AviSynthPlus/archive/523370a39933e2f9c208a5d74c1d35d43d177a76.tar.gz",
+            "sha256": "de25f5cba57ead531d718a86379e4500d5061dfe42380070b9f3bd2eac0ba300",
+            "licensePath": "AviSynthPlus-523370a39933e2f9c208a5d74c1d35d43d177a76/distrib/docs/english/source/avisynthdoc/license.rst"
+          }
         },
         {
           "script": "50-chromaprint.sh",
           "repo": "https://github.com/acoustid/chromaprint.git",
-          "commit": "3b38c100022bdfb49be7797c4828a476f1621d55"
+          "commit": "3b38c100022bdfb49be7797c4828a476f1621d55",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "chromaprint-3b38c100022bdfb49be7797c4828a476f1621d55.tar.gz",
+            "url": "https://github.com/acoustid/chromaprint/archive/3b38c100022bdfb49be7797c4828a476f1621d55.tar.gz",
+            "sha256": "c68c77e11c9afe905117e3af24eb1bd802342d19b6d4629bae3bebc912df1dc6",
+            "licensePath": "chromaprint-3b38c100022bdfb49be7797c4828a476f1621d55/LICENSE.md"
+          }
         },
         {
           "script": "50-dav1d.sh",
           "repo": "https://code.videolan.org/videolan/dav1d.git",
-          "commit": "b8b2d726b4b78a2fb174cb45baff441b5969672c"
+          "commit": "b8b2d726b4b78a2fb174cb45baff441b5969672c",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "50-davs2.sh",
           "repo": "https://github.com/pkuvcl/davs2.git",
-          "commit": "b41cf117452e2d73d827f02d3e30aa20f1c721ac"
+          "commit": "b41cf117452e2d73d827f02d3e30aa20f1c721ac",
+          "shipsOn": ["win64", "linux64"],
+          "source": {
+            "name": "davs2-b41cf117452e2d73d827f02d3e30aa20f1c721ac.tar.gz",
+            "url": "https://github.com/pkuvcl/davs2/archive/b41cf117452e2d73d827f02d3e30aa20f1c721ac.tar.gz",
+            "sha256": "efa1d5080a42c6fe4a74177111bc20c82dd1cef7adfc5ed2ca997f4b03c8dd9c",
+            "licensePath": "davs2-b41cf117452e2d73d827f02d3e30aa20f1c721ac/COPYING"
+          }
         },
         {
           "script": "50-dvd/30-libdvdcss.sh",
           "repo": "https://code.videolan.org/videolan/libdvdcss.git",
-          "commit": "811ce97a1d4d1c9d936f4b2707f533a9ef768251"
+          "commit": "811ce97a1d4d1c9d936f4b2707f533a9ef768251",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "50-dvd/40-libdvdread.sh",
           "repo": "https://code.videolan.org/videolan/libdvdread.git",
-          "commit": "0f30df53125b564ef45903714403ce0a1e6c5e9e"
+          "commit": "0f30df53125b564ef45903714403ce0a1e6c5e9e",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "50-dvd/50-libdvdnav.sh",
           "repo": "https://code.videolan.org/videolan/libdvdnav.git",
-          "commit": "8147ccd35e5aae4afdd21171cf7b6b4d8f179d28"
+          "commit": "8147ccd35e5aae4afdd21171cf7b6b4d8f179d28",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "50-fdk-aac.sh",
           "repo": "https://github.com/mstorsjo/fdk-aac.git",
-          "commit": "c41c3c7516ea8d0d78a53b96b30bed3a29745cc6"
+          "commit": "c41c3c7516ea8d0d78a53b96b30bed3a29745cc6",
+          "shipsOn": []
         },
         {
           "script": "50-ffnvcodec.sh",
           "repo": "https://github.com/FFmpeg/nv-codec-headers.git",
-          "commit": "f2053071ea93137255b6dcf42e9b4c9e0965a44e"
+          "commit": "f2053071ea93137255b6dcf42e9b4c9e0965a44e",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "50-frei0r.sh",
           "repo": "https://github.com/dyne/frei0r.git",
-          "commit": "618dde79716fab4e428a05e6476325b9e6f5b063"
+          "commit": "618dde79716fab4e428a05e6476325b9e6f5b063",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "frei0r-618dde79716fab4e428a05e6476325b9e6f5b063.tar.gz",
+            "url": "https://github.com/dyne/frei0r/archive/618dde79716fab4e428a05e6476325b9e6f5b063.tar.gz",
+            "sha256": "4f9c724d9f7f6881361adec0711cd971a0253968f156454871722d2c21e0128e",
+            "licensePath": "frei0r-618dde79716fab4e428a05e6476325b9e6f5b063/COPYING"
+          }
         },
         {
           "script": "50-gme.sh",
           "repo": "https://github.com/libgme/game-music-emu.git",
-          "commit": "f68963b1de0633149b05732113d3c3113c6f63a1"
+          "commit": "f68963b1de0633149b05732113d3c3113c6f63a1",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "game-music-emu-f68963b1de0633149b05732113d3c3113c6f63a1.tar.gz",
+            "url": "https://github.com/libgme/game-music-emu/archive/f68963b1de0633149b05732113d3c3113c6f63a1.tar.gz",
+            "sha256": "c4c47251e12b2b147eabb54499c94cf3b607b68f830e231a396f541f4897e74e",
+            "licensePath": "game-music-emu-f68963b1de0633149b05732113d3c3113c6f63a1/license.txt"
+          }
         },
         {
           "script": "50-kvazaar.sh",
           "repo": "https://github.com/ultravideo/kvazaar.git",
-          "commit": "1f11f9ae33ef0cbe48a7d335b7144af1ecfe8092"
+          "commit": "1f11f9ae33ef0cbe48a7d335b7144af1ecfe8092",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "kvazaar-1f11f9ae33ef0cbe48a7d335b7144af1ecfe8092.tar.gz",
+            "url": "https://github.com/ultravideo/kvazaar/archive/1f11f9ae33ef0cbe48a7d335b7144af1ecfe8092.tar.gz",
+            "sha256": "3d21b434af303e2dab208db123b1734936e5bda419768c6ac0237b0973512faa",
+            "licensePath": "kvazaar-1f11f9ae33ef0cbe48a7d335b7144af1ecfe8092/LICENSE"
+          }
         },
         {
           "script": "50-lcevcdec.sh",
           "repo": "https://github.com/v-novaltd/LCEVCdec.git",
-          "commit": "741fb7c869cf61012f7dcebfcd9e56981198c78b"
+          "commit": "741fb7c869cf61012f7dcebfcd9e56981198c78b",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "LCEVCdec-741fb7c869cf61012f7dcebfcd9e56981198c78b.tar.gz",
+            "url": "https://github.com/v-novaltd/LCEVCdec/archive/741fb7c869cf61012f7dcebfcd9e56981198c78b.tar.gz",
+            "sha256": "3e6c324d7f0612169ef9968fecb6b48b48cb10701edf1853d684210e85f97e8f",
+            "licensePath": "LCEVCdec-741fb7c869cf61012f7dcebfcd9e56981198c78b/LICENSE.md"
+          }
         },
         {
           "script": "50-libaribb24.sh",
           "repo": "https://github.com/nkoriyama/aribb24.git",
-          "commit": "5e9be272f96e00f15a2f3c5f8ba7e124862aec38"
+          "commit": "5e9be272f96e00f15a2f3c5f8ba7e124862aec38",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "aribb24-5e9be272f96e00f15a2f3c5f8ba7e124862aec38.tar.gz",
+            "url": "https://github.com/nkoriyama/aribb24/archive/5e9be272f96e00f15a2f3c5f8ba7e124862aec38.tar.gz",
+            "sha256": "651e88af3c8189d4faed538bee3affde360eb4698a70505765fc7e5653f5eb23",
+            "licensePath": "aribb24-5e9be272f96e00f15a2f3c5f8ba7e124862aec38/COPYING"
+          }
         },
         {
           "script": "50-libaribcaption.sh",
           "repo": "https://github.com/xqq/libaribcaption.git",
-          "commit": "37dde0f32652c32aa98bf92278944d1cfb2e7354"
+          "commit": "37dde0f32652c32aa98bf92278944d1cfb2e7354",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "libaribcaption-37dde0f32652c32aa98bf92278944d1cfb2e7354.tar.gz",
+            "url": "https://github.com/xqq/libaribcaption/archive/37dde0f32652c32aa98bf92278944d1cfb2e7354.tar.gz",
+            "sha256": "ace54ae69e1b38481917d36161a8960ed93f51f7fd343575fab36dfe3ea072f6",
+            "licensePath": "libaribcaption-37dde0f32652c32aa98bf92278944d1cfb2e7354/LICENSE"
+          }
         },
         {
           "script": "50-libass.sh",
           "repo": "https://github.com/libass/libass.git",
-          "commit": "f61db567e6593df3470e91594bcd4ad2d0473aff"
+          "commit": "f61db567e6593df3470e91594bcd4ad2d0473aff",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "libass-f61db567e6593df3470e91594bcd4ad2d0473aff.tar.gz",
+            "url": "https://github.com/libass/libass/archive/f61db567e6593df3470e91594bcd4ad2d0473aff.tar.gz",
+            "sha256": "edb3e866ca9394152484bc9a83b68a395f5c9052ae0dc502e4100035c250330b",
+            "licensePath": "libass-f61db567e6593df3470e91594bcd4ad2d0473aff/COPYING"
+          }
         },
         {
           "script": "50-libbluray.sh",
           "repo": "https://code.videolan.org/videolan/libbluray.git",
-          "commit": "f33a738fd7bb8b5e1148b0a5424778db7342450b"
+          "commit": "f33a738fd7bb8b5e1148b0a5424778db7342450b",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "50-libcurl/40-libpsl.sh",
           "repo": "https://github.com/rockdaboot/libpsl.git",
-          "commit": "620d51d13351e8f3cb724471032246592c9bbd69"
+          "commit": "620d51d13351e8f3cb724471032246592c9bbd69",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "libpsl-620d51d13351e8f3cb724471032246592c9bbd69.tar.gz",
+            "url": "https://github.com/rockdaboot/libpsl/archive/620d51d13351e8f3cb724471032246592c9bbd69.tar.gz",
+            "sha256": "0a9173d464615e1bc5614b7c5789f2f013cb587d239e80cb2145916bdf19f976",
+            "licensePath": "libpsl-620d51d13351e8f3cb724471032246592c9bbd69/LICENSE"
+          }
         },
         {
           "script": "50-libcurl/40-nghttp2.sh",
           "repo": "https://github.com/nghttp2/nghttp2.git",
-          "commit": "3baf9561e09f7ac8b0dce6e84132ce3909309ef0"
+          "commit": "3baf9561e09f7ac8b0dce6e84132ce3909309ef0",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "nghttp2-3baf9561e09f7ac8b0dce6e84132ce3909309ef0.tar.gz",
+            "url": "https://github.com/nghttp2/nghttp2/archive/3baf9561e09f7ac8b0dce6e84132ce3909309ef0.tar.gz",
+            "sha256": "5c455314bcc0b910d4418d70c294b04bddda9cd1006661c1c658aaa481020c2f",
+            "licensePath": "nghttp2-3baf9561e09f7ac8b0dce6e84132ce3909309ef0/LICENSE"
+          }
         },
         {
           "script": "50-libcurl/40-nghttp3.sh",
           "repo": "https://github.com/ngtcp2/nghttp3.git",
-          "commit": "ac11a456eb9d76e55fd6c1626727111cd29d5459"
+          "commit": "ac11a456eb9d76e55fd6c1626727111cd29d5459",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "nghttp3-ac11a456eb9d76e55fd6c1626727111cd29d5459.tar.gz",
+            "url": "https://github.com/ngtcp2/nghttp3/archive/ac11a456eb9d76e55fd6c1626727111cd29d5459.tar.gz",
+            "sha256": "b4a14281d819db98c2725591ef2e5754bbe73823be1768a1fcc93f9944be1e37",
+            "licensePath": "nghttp3-ac11a456eb9d76e55fd6c1626727111cd29d5459/COPYING"
+          }
         },
         {
           "script": "50-libcurl/40-ngtcp2.sh",
           "repo": "https://github.com/ngtcp2/ngtcp2.git",
-          "commit": "20da63db12a3e7fd2a3ae1a9f15be3cadd3f2695"
+          "commit": "20da63db12a3e7fd2a3ae1a9f15be3cadd3f2695",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "ngtcp2-20da63db12a3e7fd2a3ae1a9f15be3cadd3f2695.tar.gz",
+            "url": "https://github.com/ngtcp2/ngtcp2/archive/20da63db12a3e7fd2a3ae1a9f15be3cadd3f2695.tar.gz",
+            "sha256": "532a1113f7eda54a3e8087195f4e9731eed4be964c3bb23e02c22cd093a042c1",
+            "licensePath": "ngtcp2-20da63db12a3e7fd2a3ae1a9f15be3cadd3f2695/COPYING"
+          }
         },
         {
           "script": "50-libcurl/50-libcurl.sh",
           "repo": "https://github.com/curl/curl.git",
-          "commit": "bc677a8f16a51e728136eff130509cfac57aad19"
+          "commit": "bc677a8f16a51e728136eff130509cfac57aad19",
+          "shipsOn": []
         },
         {
           "script": "50-libjxl/50-libjxl.sh",
           "repo": "https://github.com/libjxl/libjxl.git",
-          "commit": "e47d2a2b5bb418f2947ce07f36cb048861db3820"
+          "commit": "e47d2a2b5bb418f2947ce07f36cb048861db3820",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "libjxl-e47d2a2b5bb418f2947ce07f36cb048861db3820.tar.gz",
+            "url": "https://github.com/libjxl/libjxl/archive/e47d2a2b5bb418f2947ce07f36cb048861db3820.tar.gz",
+            "sha256": "487268a592413cb8ae7b94773a6c6b4b955db09b79ab69d6b9dd1c82e073af69",
+            "licensePath": "libjxl-e47d2a2b5bb418f2947ce07f36cb048861db3820/LICENSE"
+          }
         },
         {
           "script": "50-libmp3lame.sh",
           "repo": "https://svn.code.sf.net/p/lame/svn/trunk/lame",
-          "svn": "7113"
+          "svn": "7113",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "50-libopus.sh",
           "repo": "https://github.com/xiph/opus.git",
-          "commit": "a8b2545eec71e0f53ecead2d583e7b6baa42684d"
+          "commit": "a8b2545eec71e0f53ecead2d583e7b6baa42684d",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "opus-a8b2545eec71e0f53ecead2d583e7b6baa42684d.tar.gz",
+            "url": "https://github.com/xiph/opus/archive/a8b2545eec71e0f53ecead2d583e7b6baa42684d.tar.gz",
+            "sha256": "ebbb3534c688d680c4e79f6bcdb72b4115c1ff565ed4f52a56a55ba87269baa6",
+            "licensePath": "opus-a8b2545eec71e0f53ecead2d583e7b6baa42684d/COPYING"
+          }
         },
         {
           "script": "50-libplacebo.sh",
           "repo": "https://code.videolan.org/videolan/libplacebo.git",
-          "commit": "275f7dea27924cdd34ab2e6c20e448b6bc4fab65"
+          "commit": "275f7dea27924cdd34ab2e6c20e448b6bc4fab65",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "50-librist/40-mbedtls.sh",
           "repo": "https://github.com/ARMmbed/mbedtls.git",
-          "commit": "v4.2.0"
+          "commit": "v4.2.0",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "mbedtls-v4.2.0.tar.gz",
+            "url": "https://github.com/ARMmbed/mbedtls/archive/v4.2.0.tar.gz",
+            "sha256": "b9ab45865d759879d1936c6a637bcb60fc682e687768a90ac0a01a8759e7ebea",
+            "licensePath": "mbedtls-4.2.0/LICENSE"
+          }
         },
         {
           "script": "50-librist/50-librist.sh",
           "repo": "https://code.videolan.org/rist/librist.git",
-          "commit": "47ad5513d1aa0adb692d78f635512e7fa123f06e"
+          "commit": "47ad5513d1aa0adb692d78f635512e7fa123f06e",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "50-librsvg/10-glib.sh",
           "repo": "https://github.com/GNOME/glib.git",
-          "commit": "50b938a3e8f5154a25b5af3dd8b9dd8b2ccba7c3"
+          "commit": "50b938a3e8f5154a25b5af3dd8b9dd8b2ccba7c3",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "glib-50b938a3e8f5154a25b5af3dd8b9dd8b2ccba7c3.tar.gz",
+            "url": "https://github.com/GNOME/glib/archive/50b938a3e8f5154a25b5af3dd8b9dd8b2ccba7c3.tar.gz",
+            "sha256": "74fac520b197c74e865df01cd8ff1c9d900e8af30e6cf31165a81b2eefa2842d",
+            "licensePath": "glib-50b938a3e8f5154a25b5af3dd8b9dd8b2ccba7c3/COPYING"
+          }
         },
         {
           "script": "50-librsvg/20-cairo.sh",
           "repo": "https://gitlab.freedesktop.org/cairo/cairo.git",
-          "commit": "74755964edef651691d5cd36ff140108298e4e6e"
+          "commit": "74755964edef651691d5cd36ff140108298e4e6e",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "50-librsvg/30-pango.sh",
           "repo": "https://github.com/GNOME/pango.git",
-          "commit": "68e981d243d50e03f3df12fb400f31647ef570d2"
+          "commit": "68e981d243d50e03f3df12fb400f31647ef570d2",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "pango-68e981d243d50e03f3df12fb400f31647ef570d2.tar.gz",
+            "url": "https://github.com/GNOME/pango/archive/68e981d243d50e03f3df12fb400f31647ef570d2.tar.gz",
+            "sha256": "26039d1800a91f6b185f9533f5754e17a994170d154b406fdbd16fa2de9c97c4",
+            "licensePath": "pango-68e981d243d50e03f3df12fb400f31647ef570d2/COPYING"
+          }
         },
         {
           "script": "50-librsvg/99-librsvg.sh",
           "repo": "https://github.com/GNOME/librsvg.git",
-          "commit": "0c074d0a25adefd65843067306f9bc1fb609f68f"
+          "commit": "0c074d0a25adefd65843067306f9bc1fb609f68f",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "librsvg-0c074d0a25adefd65843067306f9bc1fb609f68f.tar.gz",
+            "url": "https://github.com/GNOME/librsvg/archive/0c074d0a25adefd65843067306f9bc1fb609f68f.tar.gz",
+            "sha256": "35038fa3521bca4bfb7004f01ebfb496890e782c6d9c7839b6b82aa061ddc1bf",
+            "licensePath": "librsvg-0c074d0a25adefd65843067306f9bc1fb609f68f/COPYING.LIB"
+          }
         },
         {
           "script": "50-libssh.sh",
           "repo": "https://gitlab.com/libssh/libssh-mirror.git",
-          "commit": "9de02f3d01ba16d06f46c0c4d27aa08d8deeecee"
+          "commit": "9de02f3d01ba16d06f46c0c4d27aa08d8deeecee",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "50-libtheora.sh",
           "repo": "https://github.com/xiph/theora.git",
-          "commit": "28fd5ec77f0ad0e07a371cef1047828116f6bd8a"
+          "commit": "28fd5ec77f0ad0e07a371cef1047828116f6bd8a",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "theora-28fd5ec77f0ad0e07a371cef1047828116f6bd8a.tar.gz",
+            "url": "https://github.com/xiph/theora/archive/28fd5ec77f0ad0e07a371cef1047828116f6bd8a.tar.gz",
+            "sha256": "b92c94380b3c86db5797e8f248373eecfc6230c8a0b374e64b4041645b0d2152",
+            "licensePath": "theora-28fd5ec77f0ad0e07a371cef1047828116f6bd8a/LICENSE"
+          }
         },
         {
           "script": "50-libvpx.sh",
           "repo": "https://chromium.googlesource.com/webm/libvpx",
-          "commit": "900b2a52b69e9d4ab72eb855c365da1100c50eb1"
+          "commit": "900b2a52b69e9d4ab72eb855c365da1100c50eb1",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "50-libwebp.sh",
           "repo": "https://chromium.googlesource.com/webm/libwebp",
-          "commit": "1844042d1ca751e62e61df7617dba19c98588339"
+          "commit": "1844042d1ca751e62e61df7617dba19c98588339",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "50-libzmq.sh",
           "repo": "https://github.com/zeromq/libzmq.git",
-          "commit": "46493370217ac135246617fa2f6ac819d8b61bfc"
+          "commit": "46493370217ac135246617fa2f6ac819d8b61bfc",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "libzmq-46493370217ac135246617fa2f6ac819d8b61bfc.tar.gz",
+            "url": "https://github.com/zeromq/libzmq/archive/46493370217ac135246617fa2f6ac819d8b61bfc.tar.gz",
+            "sha256": "a5219efcc1bd863f1e37c170ce05a04f0c11cce497ea52222dd8a1952a78c1b9",
+            "licensePath": "libzmq-46493370217ac135246617fa2f6ac819d8b61bfc/LICENSE"
+          }
         },
         {
           "script": "50-lilv/96-lv2.sh",
           "repo": "https://github.com/lv2/lv2.git",
-          "commit": "3c57dae600a5ad8d05acd53ee3490f7d91cb7be6"
+          "commit": "3c57dae600a5ad8d05acd53ee3490f7d91cb7be6",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "lv2-3c57dae600a5ad8d05acd53ee3490f7d91cb7be6.tar.gz",
+            "url": "https://github.com/lv2/lv2/archive/3c57dae600a5ad8d05acd53ee3490f7d91cb7be6.tar.gz",
+            "sha256": "4769e649aabf1774aaf2cb4dede19ae2463ded0e94cd3cc3af81403992398457",
+            "licensePath": "lv2-3c57dae600a5ad8d05acd53ee3490f7d91cb7be6/COPYING"
+          }
         },
         {
           "script": "50-lilv/96-serd.sh",
           "repo": "https://github.com/drobilla/serd.git",
-          "commit": "b621b0bc790d1e8102d3138ead16b974ddda8432"
+          "commit": "b621b0bc790d1e8102d3138ead16b974ddda8432",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "serd-b621b0bc790d1e8102d3138ead16b974ddda8432.tar.gz",
+            "url": "https://github.com/drobilla/serd/archive/b621b0bc790d1e8102d3138ead16b974ddda8432.tar.gz",
+            "sha256": "67575636d233332ae137ac086e6dd193f1f8a10fd7ede8ef4dff539c8e784cbc",
+            "licensePath": "serd-b621b0bc790d1e8102d3138ead16b974ddda8432/COPYING"
+          }
         },
         {
           "script": "50-lilv/96-zix.sh",
           "repo": "https://github.com/drobilla/zix.git",
-          "commit": "17d632393f5addb6fa24dda2927b96515407cca7"
+          "commit": "17d632393f5addb6fa24dda2927b96515407cca7",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "zix-17d632393f5addb6fa24dda2927b96515407cca7.tar.gz",
+            "url": "https://github.com/drobilla/zix/archive/17d632393f5addb6fa24dda2927b96515407cca7.tar.gz",
+            "sha256": "a1b95d6eb32a00f881f620edcab9d27335250e37c6ad879feb0c29a7fc2c02e5",
+            "licensePath": "zix-17d632393f5addb6fa24dda2927b96515407cca7/COPYING"
+          }
         },
         {
           "script": "50-lilv/97-sord.sh",
           "repo": "https://github.com/drobilla/sord.git",
-          "commit": "4b5232bb91e7f2f1b84df384494d073fabbcd312"
+          "commit": "4b5232bb91e7f2f1b84df384494d073fabbcd312",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "sord-4b5232bb91e7f2f1b84df384494d073fabbcd312.tar.gz",
+            "url": "https://github.com/drobilla/sord/archive/4b5232bb91e7f2f1b84df384494d073fabbcd312.tar.gz",
+            "sha256": "b5a1d3a34d7b177fd33f4ac7f96c3904861b2c6cf9b3039cb6856f6cb9abb995",
+            "licensePath": "sord-4b5232bb91e7f2f1b84df384494d073fabbcd312/COPYING"
+          }
         },
         {
           "script": "50-lilv/98-sratom.sh",
           "repo": "https://github.com/lv2/sratom.git",
-          "commit": "9e8ee84eed502e6030ce8bb49694fd28542b08fc"
+          "commit": "9e8ee84eed502e6030ce8bb49694fd28542b08fc",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "sratom-9e8ee84eed502e6030ce8bb49694fd28542b08fc.tar.gz",
+            "url": "https://github.com/lv2/sratom/archive/9e8ee84eed502e6030ce8bb49694fd28542b08fc.tar.gz",
+            "sha256": "7a1785d825e6d1d60f11c7371a0a5fc8a6d66f407eddf9d37eb50dd87afe274f",
+            "licensePath": "sratom-9e8ee84eed502e6030ce8bb49694fd28542b08fc/COPYING"
+          }
         },
         {
           "script": "50-lilv/99-lilv.sh",
           "repo": "https://github.com/lv2/lilv.git",
-          "commit": "4b8f30055fa5cb4134a2eb45fc1555bc04289314"
+          "commit": "4b8f30055fa5cb4134a2eb45fc1555bc04289314",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "lilv-4b8f30055fa5cb4134a2eb45fc1555bc04289314.tar.gz",
+            "url": "https://github.com/lv2/lilv/archive/4b8f30055fa5cb4134a2eb45fc1555bc04289314.tar.gz",
+            "sha256": "37c5df93860082273ab02104556b45625303a04a299d2914f5dd215f39a29409",
+            "licensePath": "lilv-4b8f30055fa5cb4134a2eb45fc1555bc04289314/COPYING"
+          }
         },
         {
           "script": "50-onevpl.sh",
           "repo": "https://github.com/intel/libvpl.git",
-          "commit": "674d015bcb294bc39fa276e99a652ea045423e82"
+          "commit": "674d015bcb294bc39fa276e99a652ea045423e82",
+          "shipsOn": ["win64", "linux64"],
+          "source": {
+            "name": "libvpl-674d015bcb294bc39fa276e99a652ea045423e82.tar.gz",
+            "url": "https://github.com/intel/libvpl/archive/674d015bcb294bc39fa276e99a652ea045423e82.tar.gz",
+            "sha256": "9d5d3c221b9d41468e04add6855cf5eec6df06dae7be649f84e1f846c98e38fb",
+            "licensePath": "libvpl-674d015bcb294bc39fa276e99a652ea045423e82/LICENSE"
+          }
         },
         {
           "script": "50-openal.sh",
           "repo": "https://github.com/kcat/openal-soft.git",
-          "commit": "4a52288b772d1722713675f71bb30f321e78fd80"
+          "commit": "4a52288b772d1722713675f71bb30f321e78fd80",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "openal-soft-4a52288b772d1722713675f71bb30f321e78fd80.tar.gz",
+            "url": "https://github.com/kcat/openal-soft/archive/4a52288b772d1722713675f71bb30f321e78fd80.tar.gz",
+            "sha256": "e06d35a855df060cf757a9162a4880b531f304cacbc29a6ea9a0be5809f25b56",
+            "licensePath": "openal-soft-4a52288b772d1722713675f71bb30f321e78fd80/COPYING"
+          }
         },
         {
           "script": "50-openapv.sh",
           "repo": "https://github.com/AcademySoftwareFoundation/openapv.git",
-          "commit": "b4ff69856b4c3e8849df431ee3db54fd535f9bf3"
+          "commit": "b4ff69856b4c3e8849df431ee3db54fd535f9bf3",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "openapv-b4ff69856b4c3e8849df431ee3db54fd535f9bf3.tar.gz",
+            "url": "https://github.com/AcademySoftwareFoundation/openapv/archive/b4ff69856b4c3e8849df431ee3db54fd535f9bf3.tar.gz",
+            "sha256": "56b2a82babc60623cddf24880e03b64b70aa4cfc6548746da6230829d2d965be",
+            "licensePath": "openapv-b4ff69856b4c3e8849df431ee3db54fd535f9bf3/LICENSE"
+          }
         },
         {
           "script": "50-opencore-amr.sh",
           "repo": "https://git.code.sf.net/p/opencore-amr/code",
-          "commit": "7dba8c32238418ce0b316a852b2224df586ca896"
+          "commit": "7dba8c32238418ce0b316a852b2224df586ca896",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "50-openh264.sh",
           "repo": "https://github.com/cisco/openh264.git",
-          "commit": "1bca62311e447fd9c39fc93de2c4b96cd5ce971c"
+          "commit": "1bca62311e447fd9c39fc93de2c4b96cd5ce971c",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "openh264-1bca62311e447fd9c39fc93de2c4b96cd5ce971c.tar.gz",
+            "url": "https://github.com/cisco/openh264/archive/1bca62311e447fd9c39fc93de2c4b96cd5ce971c.tar.gz",
+            "sha256": "2238d3e5956ef0d288dd43842a0220015cf72c4327d98684e8bc47ffa7cf5308",
+            "licensePath": "openh264-1bca62311e447fd9c39fc93de2c4b96cd5ce971c/LICENSE"
+          }
         },
         {
           "script": "50-openjpeg.sh",
           "repo": "https://github.com/uclouvain/openjpeg.git",
-          "commit": "8314119b067c0fc77834731168daaebd379fdb12"
+          "commit": "8314119b067c0fc77834731168daaebd379fdb12",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "openjpeg-8314119b067c0fc77834731168daaebd379fdb12.tar.gz",
+            "url": "https://github.com/uclouvain/openjpeg/archive/8314119b067c0fc77834731168daaebd379fdb12.tar.gz",
+            "sha256": "e723e8babb2188e8743308842bb1bfc9809f0375cd964cfeac2fb17285094321",
+            "licensePath": "openjpeg-8314119b067c0fc77834731168daaebd379fdb12/LICENSE"
+          }
         },
         {
           "script": "50-openmpt.sh",
           "repo": "https://github.com/OpenMPT/openmpt.git",
-          "commit": "3ee3c8000b45886703816fd027369ab6ad6fc6cb"
+          "commit": "3ee3c8000b45886703816fd027369ab6ad6fc6cb",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "openmpt-3ee3c8000b45886703816fd027369ab6ad6fc6cb.tar.gz",
+            "url": "https://github.com/OpenMPT/openmpt/archive/3ee3c8000b45886703816fd027369ab6ad6fc6cb.tar.gz",
+            "sha256": "bf76cce9e4ae883966ebcdc0cd401533869f3337cf27814561737ea33dd76f7e",
+            "licensePath": "openmpt-3ee3c8000b45886703816fd027369ab6ad6fc6cb/LICENSE"
+          }
         },
         {
           "script": "50-rav1e.sh",
           "repo": "https://github.com/xiph/rav1e.git",
-          "commit": "31435de9d76fddd38f6dcc31d4014574cebb2092"
+          "commit": "31435de9d76fddd38f6dcc31d4014574cebb2092",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "rav1e-31435de9d76fddd38f6dcc31d4014574cebb2092.tar.gz",
+            "url": "https://github.com/xiph/rav1e/archive/31435de9d76fddd38f6dcc31d4014574cebb2092.tar.gz",
+            "sha256": "ac56fef82e5f41b53d2c6088f4b0693380c389a55665a698ba768908ee17f073",
+            "licensePath": "rav1e-31435de9d76fddd38f6dcc31d4014574cebb2092/LICENSE"
+          }
         },
         {
           "script": "50-rubberband.sh",
           "repo": "https://github.com/breakfastquay/rubberband.git",
-          "commit": "e4296ac80b1170018a110bc326fd0d45a0eb27d6"
+          "commit": "e4296ac80b1170018a110bc326fd0d45a0eb27d6",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "rubberband-e4296ac80b1170018a110bc326fd0d45a0eb27d6.tar.gz",
+            "url": "https://github.com/breakfastquay/rubberband/archive/e4296ac80b1170018a110bc326fd0d45a0eb27d6.tar.gz",
+            "sha256": "32770ab6a395badb6a5ee3443bf5a0cfd5cac07f332af8e03fd6dcd61f5b3759",
+            "licensePath": "rubberband-e4296ac80b1170018a110bc326fd0d45a0eb27d6/COPYING"
+          }
         },
         {
           "script": "50-sdl.sh",
           "repo": "https://github.com/libsdl-org/SDL.git",
-          "commit": "8acf7cfc0f88717e5c036f60f0314bfcafe39189"
+          "commit": "8acf7cfc0f88717e5c036f60f0314bfcafe39189",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "SDL-8acf7cfc0f88717e5c036f60f0314bfcafe39189.tar.gz",
+            "url": "https://github.com/libsdl-org/SDL/archive/8acf7cfc0f88717e5c036f60f0314bfcafe39189.tar.gz",
+            "sha256": "48c1e74847e0508938a7e8a92f78e85c2908de1f3d3c87c5fc355a5f9506a30d",
+            "licensePath": "SDL-8acf7cfc0f88717e5c036f60f0314bfcafe39189/LICENSE.txt"
+          }
         },
         {
           "script": "50-snappy.sh",
           "repo": "https://github.com/google/snappy.git",
-          "commit": "946606459314e55d029c85f9a8c46f8809467f0f"
+          "commit": "946606459314e55d029c85f9a8c46f8809467f0f",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "snappy-946606459314e55d029c85f9a8c46f8809467f0f.tar.gz",
+            "url": "https://github.com/google/snappy/archive/946606459314e55d029c85f9a8c46f8809467f0f.tar.gz",
+            "sha256": "78767c8f8d9ac0eb26a7ab04ed33ed9b33b9de7f80434bc66d4792fb55c83cb8",
+            "licensePath": "snappy-946606459314e55d029c85f9a8c46f8809467f0f/COPYING"
+          }
         },
         {
           "script": "50-soxr.sh",
           "repo": "https://git.code.sf.net/p/soxr/code",
-          "commit": "945b592b70470e29f917f4de89b4281fbbd540c0"
+          "commit": "945b592b70470e29f917f4de89b4281fbbd540c0",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "50-srt.sh",
           "repo": "https://github.com/Haivision/srt.git",
-          "commit": "9f2390232a8256ed4c72a5418c2b2777c49ad737"
+          "commit": "9f2390232a8256ed4c72a5418c2b2777c49ad737",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "srt-9f2390232a8256ed4c72a5418c2b2777c49ad737.tar.gz",
+            "url": "https://github.com/Haivision/srt/archive/9f2390232a8256ed4c72a5418c2b2777c49ad737.tar.gz",
+            "sha256": "4946189b19692b40d2872b16410f5b58b8023888e93275fc9e76415614ce941c",
+            "licensePath": "srt-9f2390232a8256ed4c72a5418c2b2777c49ad737/LICENSE"
+          }
         },
         {
           "script": "50-svtav1.sh",
           "repo": "https://github.com/AOMediaCodec/SVT-AV1.git",
-          "commit": "ad11d76a6c9cb05ec49d166cf20ec5d286715dc1"
+          "commit": "ad11d76a6c9cb05ec49d166cf20ec5d286715dc1",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "SVT-AV1-ad11d76a6c9cb05ec49d166cf20ec5d286715dc1.tar.gz",
+            "url": "https://github.com/AOMediaCodec/SVT-AV1/archive/ad11d76a6c9cb05ec49d166cf20ec5d286715dc1.tar.gz",
+            "sha256": "a27ef1d03167efd516682bf740d76c0bce70770c59ecc6d1cbb639daa5b3f2f2",
+            "licensePath": "SVT-AV1-ad11d76a6c9cb05ec49d166cf20ec5d286715dc1/LICENSE.md"
+          }
         },
         {
           "script": "50-twolame.sh",
           "repo": "https://github.com/njh/twolame.git",
-          "commit": "6fced852d4d5cfad58cf9dbe3ea619b08e87d398"
+          "commit": "6fced852d4d5cfad58cf9dbe3ea619b08e87d398",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "twolame-6fced852d4d5cfad58cf9dbe3ea619b08e87d398.tar.gz",
+            "url": "https://github.com/njh/twolame/archive/6fced852d4d5cfad58cf9dbe3ea619b08e87d398.tar.gz",
+            "sha256": "6fd32a3d16a57ceacd5a64c4b6c54d6118b213fe8c63bc2900045200e2012000",
+            "licensePath": "twolame-6fced852d4d5cfad58cf9dbe3ea619b08e87d398/COPYING"
+          }
         },
         {
           "script": "50-uavs3d.sh",
           "repo": "https://github.com/uavs3/uavs3d.git",
-          "commit": "0e20d2c291853f196c68922a264bcd8471d75b68"
+          "commit": "0e20d2c291853f196c68922a264bcd8471d75b68",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "uavs3d-0e20d2c291853f196c68922a264bcd8471d75b68.tar.gz",
+            "url": "https://github.com/uavs3/uavs3d/archive/0e20d2c291853f196c68922a264bcd8471d75b68.tar.gz",
+            "sha256": "1c1eb778b6080bc01493180ea7ae671c6444ce3aa760b5d021ba882eb0f9e3a0",
+            "licensePath": "uavs3d-0e20d2c291853f196c68922a264bcd8471d75b68/COPYING"
+          }
         },
         {
           "script": "50-vaapi/30-libpciaccess.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/lib/libpciaccess.git",
-          "commit": "38e6f15f839fba2c49982e7ad61cde681fd5d4d6"
+          "commit": "38e6f15f839fba2c49982e7ad61cde681fd5d4d6",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "50-vaapi/40-libdrm.sh",
           "repo": "https://gitlab.freedesktop.org/mesa/drm.git",
-          "commit": "b97cbde15c5c3abfe44d78e8f57139e50f612fec"
+          "commit": "b97cbde15c5c3abfe44d78e8f57139e50f612fec",
+          "shipsOn": ["linux64", "linuxarm64"]
         },
         {
           "script": "50-vaapi/50-libva.sh",
           "repo": "https://github.com/intel/libva.git",
-          "commit": "f052e984e0c8bf10784198cc311b23c567b1367f"
+          "commit": "f052e984e0c8bf10784198cc311b23c567b1367f",
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "libva-f052e984e0c8bf10784198cc311b23c567b1367f.tar.gz",
+            "url": "https://github.com/intel/libva/archive/f052e984e0c8bf10784198cc311b23c567b1367f.tar.gz",
+            "sha256": "549d8b3984e7221572db3d4a9d45561d88197e553e067e09bc37352629278682",
+            "licensePath": "libva-f052e984e0c8bf10784198cc311b23c567b1367f/COPYING"
+          }
         },
         {
           "script": "50-vapoursynth.sh",
           "repo": "https://github.com/vapoursynth/vapoursynth.git",
-          "commit": "R81"
+          "commit": "R81",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "vapoursynth-R81.tar.gz",
+            "url": "https://github.com/vapoursynth/vapoursynth/archive/R81.tar.gz",
+            "sha256": "4ef8aa67d890fec387f7f5eeec3b54bb0cf6cf5579af2d64a8ea5373c71a6e84",
+            "licensePath": "vapoursynth-R81/COPYING.LESSER"
+          }
         },
         {
           "script": "50-vidstab.sh",
           "repo": "https://github.com/georgmartius/vid.stab.git",
-          "commit": "e2445c4081658318223762a696eb1c645c2d7168"
+          "commit": "e2445c4081658318223762a696eb1c645c2d7168",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "vid.stab-e2445c4081658318223762a696eb1c645c2d7168.tar.gz",
+            "url": "https://github.com/georgmartius/vid.stab/archive/e2445c4081658318223762a696eb1c645c2d7168.tar.gz",
+            "sha256": "39506541c073b2be1e376b59fc90e6a79ba4d16cbf4a4a2a58a6badc3a4ce1c3",
+            "licensePath": "vid.stab-e2445c4081658318223762a696eb1c645c2d7168/LICENSE"
+          }
         },
         {
           "script": "50-vvenc.sh",
           "repo": "https://github.com/fraunhoferhhi/vvenc.git",
-          "commit": "0e7508b811bbea3cd510956ddb3193f3a4c93684"
+          "commit": "0e7508b811bbea3cd510956ddb3193f3a4c93684",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "vvenc-0e7508b811bbea3cd510956ddb3193f3a4c93684.tar.gz",
+            "url": "https://github.com/fraunhoferhhi/vvenc/archive/0e7508b811bbea3cd510956ddb3193f3a4c93684.tar.gz",
+            "sha256": "3771b472b4a491cb3979dc858e6a8bb23552b7dd864e0a3f68c7d0ca0e0394b7",
+            "licensePath": "vvenc-0e7508b811bbea3cd510956ddb3193f3a4c93684/LICENSE.txt"
+          }
         },
         {
           "script": "50-whisper.sh",
           "repo": "https://github.com/ggml-org/whisper.cpp.git",
-          "commit": "231638a0717b7822784297e5980965ffcec05810"
+          "commit": "231638a0717b7822784297e5980965ffcec05810",
+          "shipsOn": []
         },
         {
           "script": "50-x264.sh",
           "repo": "https://code.videolan.org/videolan/x264.git",
-          "commit": "0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee"
+          "commit": "0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "50-x265.sh",
           "repo": "https://github.com/Multicorewareinc/x265.git",
-          "commit": "5143a2a00ad0cc600831654a248b96ec7307eb4a"
+          "commit": "5143a2a00ad0cc600831654a248b96ec7307eb4a",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "x265-5143a2a00ad0cc600831654a248b96ec7307eb4a.tar.gz",
+            "url": "https://github.com/Multicorewareinc/x265/archive/5143a2a00ad0cc600831654a248b96ec7307eb4a.tar.gz",
+            "sha256": "709e37c5d397c80b39d2810b4051b12b2d4f11b3e5ef5af9477a7580dc38f6d1",
+            "licensePath": "x265-5143a2a00ad0cc600831654a248b96ec7307eb4a/COPYING"
+          }
         },
         {
           "script": "50-xavs2.sh",
           "repo": "https://github.com/pkuvcl/xavs2.git",
-          "commit": "eae1e8b9d12468059bdd7dee893508e470fa83d8"
+          "commit": "eae1e8b9d12468059bdd7dee893508e470fa83d8",
+          "shipsOn": ["win64", "linux64"],
+          "source": {
+            "name": "xavs2-eae1e8b9d12468059bdd7dee893508e470fa83d8.tar.gz",
+            "url": "https://github.com/pkuvcl/xavs2/archive/eae1e8b9d12468059bdd7dee893508e470fa83d8.tar.gz",
+            "sha256": "48d69abb070e6326b8894fd88f61d696eb6d4626cd052fecfeb36b4d528c270c",
+            "licensePath": "xavs2-eae1e8b9d12468059bdd7dee893508e470fa83d8/COPYING"
+          }
         },
         {
           "script": "50-xvid.sh",
           "repo": "https://svn.xvid.org/trunk/xvidcore",
-          "svn": "2204"
+          "svn": "2204",
+          "shipsOn": ["win64", "linux64", "linuxarm64"]
         },
         {
           "script": "50-zimg.sh",
           "repo": "https://github.com/sekrit-twc/zimg.git",
-          "commit": "67e0603271c080e22c8429856dd4a8a56587e61e"
+          "commit": "67e0603271c080e22c8429856dd4a8a56587e61e",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "zimg-67e0603271c080e22c8429856dd4a8a56587e61e.tar.gz",
+            "url": "https://github.com/sekrit-twc/zimg/archive/67e0603271c080e22c8429856dd4a8a56587e61e.tar.gz",
+            "sha256": "539495d51fcd8c7ef9b89a611454e0c1173d18e8d4e743efdef67c4aa7e40d4f",
+            "licensePath": "zimg-67e0603271c080e22c8429856dd4a8a56587e61e/COPYING"
+          }
         },
         {
           "script": "50-zvbi.sh",
           "repo": "https://github.com/zapping-vbi/zvbi",
-          "commit": "34bb6f660c5c1bacd4a66cc7b22311e4ca3c1ab5"
+          "commit": "34bb6f660c5c1bacd4a66cc7b22311e4ca3c1ab5",
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "source": {
+            "name": "zvbi-34bb6f660c5c1bacd4a66cc7b22311e4ca3c1ab5.tar.gz",
+            "url": "https://github.com/zapping-vbi/zvbi/archive/34bb6f660c5c1bacd4a66cc7b22311e4ca3c1ab5.tar.gz",
+            "sha256": "5c671a9f052e41cf770372a263ee6258cb41f6c97ce884080f68b341ab81db1a",
+            "licensePath": "zvbi-34bb6f660c5c1bacd4a66cc7b22311e4ca3c1ab5/COPYING.md"
+          }
         }
-      ]
+      ],
+      "reason": "GitHub commit archives are pinned when the tree contains a license file (78 dependencies). nv-codec-headers has no license file in that commit. Non-GitHub pins (Videolan, GitLab, Savannah, SourceForge, SVN) are not fetched. ffbuild_enabled skips fdk-aac for gpl, whisper unconditionally, and libcurl when ffver <= 900. The complete flag is not a publish input."
     },
     {
       "id": "martin-riedl-macos-ffmpeg",

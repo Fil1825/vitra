@@ -213,6 +213,8 @@ async function install(sidecar) {
         ...(download.provenance ? { provenance: download.provenance } : {}),
         ...(download.sourceUrl ? { sourceUrl: download.sourceUrl } : {}),
         ...(download.sourceUrls ? { sourceUrls: download.sourceUrls } : {}),
+        ...(download.sourceOfferId ? { sourceOfferId: download.sourceOfferId } : {}),
+        ...(download.sourceClosure ? { sourceClosure: download.sourceClosure } : {}),
         ...(download.license ? { license: download.license } : {}),
       });
 
