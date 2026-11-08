@@ -66,7 +66,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/vitra-sidecar-archives
-          key: sidecar-archives-${{ hashFiles('scripts/sidecars/plan.mjs', 'scripts/sidecars/ytdlp-release.mjs') }}-${{ runner.os }}
+          key: sidecar-archives-v2-${{ hashFiles('scripts/sidecars/plan.mjs', 'scripts/sidecars/ytdlp-release.mjs') }}-x86_64-unknown-linux-gnu-ffmpeg
       - id: fetch-sidecars-ffmpeg
         env:
           VITRA_SIDECAR_ARCHIVE_CACHE: ${{ github.workspace }}/.cache/vitra-sidecar-archives
@@ -122,7 +122,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/vitra-sidecar-archives
-          key: sidecar-archives-${{ hashFiles('scripts/sidecars/plan.mjs', 'scripts/sidecars/ytdlp-release.mjs') }}-${{ runner.os }}
+          key: sidecar-archives-v2-${{ hashFiles('scripts/sidecars/plan.mjs', 'scripts/sidecars/ytdlp-release.mjs') }}-x86_64-unknown-linux-gnu-yt-dlp
       - id: fetch-sidecars-ytdlp
         env:
           VITRA_SIDECAR_ARCHIVE_CACHE: ${{ github.workspace }}/.cache/vitra-sidecar-archives
@@ -162,7 +162,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/vitra-sidecar-archives
-          key: sidecar-archives-${{ hashFiles('scripts/sidecars/plan.mjs', 'scripts/sidecars/ytdlp-release.mjs') }}-${{ runner.os }}
+          key: sidecar-archives-v2-${{ hashFiles('scripts/sidecars/plan.mjs', 'scripts/sidecars/ytdlp-release.mjs') }}-aarch64-apple-darwin-yt-dlp,ffmpeg
       - id: fetch-sidecars-macos
         env:
           VITRA_SIDECAR_ARCHIVE_CACHE: ${{ github.workspace }}/.cache/vitra-sidecar-archives
@@ -213,7 +213,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/vitra-sidecar-archives
-          key: sidecar-archives-${{ hashFiles('scripts/sidecars/plan.mjs', 'scripts/sidecars/ytdlp-release.mjs') }}-${{ runner.os }}
+          key: sidecar-archives-v2-${{ hashFiles('scripts/sidecars/plan.mjs', 'scripts/sidecars/ytdlp-release.mjs') }}-x86_64-pc-windows-msvc-mpv,yt-dlp,ffmpeg,deno
       - name: Fetch verified audio components
         id: fetch-sidecars-windows
         env:

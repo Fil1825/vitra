@@ -82,8 +82,8 @@ const DENO_RELEASE = `${GITHUB}/denoland/deno/releases/download/${DENO_VERSION}`
 const MARTIN_RIEDL = 'https://ffmpeg.martin-riedl.de/redirect/latest/macos';
 
 /**
- * Immutable BtbN autobuild tag (not the rolling `latest` slot). Hashes from that release's
- * checksums.sha256 at bump time; binary provenance uses the same tag in githubRelease.
+ * Dated BtbN autobuild release tag (not the rolling `latest` slot). Assets are fixed for this
+ * tag; hashes from that release's checksums.sha256 at bump time.
  */
 export const BTBN_RELEASE_TAG = 'autobuild-2026-11-07-12-47';
 

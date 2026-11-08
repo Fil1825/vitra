@@ -266,7 +266,7 @@ function storeVerifiedArchive(expected, file) {
  * Always re-hashes before unpack; cache hits are not trusted without a digest match.
  */
 async function downloadVerified(download, file) {
-  const expected = await expectedSha256(download);
+  const expected = download.checksum?.type === 'sibling' ? null : await expectedSha256(download);
   if (expected) {
     try {
       if (readVerifiedArchive(archiveCacheRoot, expected, file)) {

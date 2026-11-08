@@ -123,6 +123,12 @@ describe('planFor', () => {
     expect(linux.checksum.sha256).toBe(BTBN_PINS.linux64.sha256);
   });
 
+  it('uses sibling checksums for macOS FFmpeg (no early pinned digest)', () => {
+    const [download] = planFor('aarch64-apple-darwin').ffmpeg.downloads;
+    expect(download.checksum.type).toBe('sibling');
+    expect(download.checksum.sha256).toBeUndefined();
+  });
+
   it('lists GitHub REST release metadata for pinned GitHub-hosted binaries', () => {
     const yt = planFor('x86_64-unknown-linux-gnu')['yt-dlp'].downloads[0];
     expect(yt.githubRelease?.owner).toBe('yt-dlp');

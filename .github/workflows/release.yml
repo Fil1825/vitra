@@ -88,7 +88,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/vitra-sidecar-archives
-          key: sidecar-archives-${{ hashFiles('scripts/sidecars/plan.mjs', 'scripts/sidecars/ytdlp-release.mjs') }}-${{ runner.os }}
+          key: sidecar-archives-v2-${{ hashFiles('scripts/sidecars/plan.mjs', 'scripts/sidecars/ytdlp-release.mjs') }}-${{ matrix.target }}-mpv,yt-dlp,ffmpeg,deno
       - name: Fetch verified audio components
         id: fetch-sidecars
         env:
