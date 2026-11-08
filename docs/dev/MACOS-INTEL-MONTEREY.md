@@ -47,9 +47,9 @@ Linux, Windows, and Apple Silicon installers from Actions run 42512576166
 zip digests are in `scripts/release/reused-artifacts.json`. Intel from that run
 failed before the mpv link and is not pinned.
 
-Pushing this pull request starts only the Intel package. `release.yml` listens
-to `pull_request`, and the build job runs only when the matrix name is
-`macOS-Intel` (`macos-15-intel`). Merging to `main` does not run `release.yml`.
+A pull request's build matrix includes only macOS-Intel (`macos-15-intel`). A job
+`if` cannot read `matrix`: run 42516916666 died with `Unrecognized named-value:
+'matrix'` and created no jobs. Merging to `main` does not run `release.yml`.
 A `v*` tag still builds all four platforms; that is not this candidate's path.
 `workflow_dispatch` is not required. The job checks that application sources
 still match `76ea042` before packaging. Playback on a Monterey machine is still
