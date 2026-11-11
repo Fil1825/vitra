@@ -85,7 +85,7 @@ jobs:
       - name: Check release version
         run: node scripts/release/check-version.mjs
       - id: sidecar-archive-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .cache/vitra-sidecar-archives
           key: sidecar-archives-v3-${{ hashFiles('scripts/sidecars/plan.mjs', 'scripts/sidecars/ytdlp-release.mjs') }}-${{ matrix.target }}-mpv_yt-dlp_ffmpeg_deno
@@ -96,7 +96,7 @@ jobs:
         run: npm run fetch-sidecars -- --target ${{ matrix.target }} --require-checksums
       - name: Save verified sidecar archives
         if: steps.fetch-sidecars.outcome == 'success'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .cache/vitra-sidecar-archives
           key: ${{ steps.sidecar-archive-cache.outputs.cache-primary-key }}
@@ -124,7 +124,7 @@ jobs:
           done
       - name: Import Developer ID certificate
         if: runner.os == 'macOS' && inputs.sign_macos
-        uses: apple-actions/import-codesign-certs@63fff01cd422d4b7b855d40ca1e9d34d2de9427d # v3
+        uses: apple-actions/import-codesign-certs@288b8ec97b82c66b6f2a6baaf7acc8dfbcbe331c # v7.2.0
         with:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
