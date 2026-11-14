@@ -42,7 +42,22 @@ export function payloadDiff(baseText, headText) {
   return diffs;
 }
 
+/** A shallow checkout has HEAD only. The reused installers' commit is fetched on demand. */
+export function ensureGitCommit(rev) {
+  const have = spawnSync('git', ['cat-file', '-e', `${rev}^{commit}`]);
+  if (have.status === 0) return;
+  const fetched = spawnSync(
+    'git',
+    ['fetch', '--no-tags', '--depth', '1', 'https://github.com/Fil1825/vitra.git', rev],
+    { encoding: 'utf8' },
+  );
+  if (fetched.status !== 0) {
+    throw new Error(fetched.stderr || fetched.stdout || `git fetch ${rev} failed`);
+  }
+}
+
 function lsTree(rev) {
+  ensureGitCommit(rev);
   const result = spawnSync('git', ['ls-tree', '-r', rev], { encoding: 'utf8' });
   if (result.status !== 0) {
     throw new Error(result.stderr || `git ls-tree ${rev} failed`);

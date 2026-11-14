@@ -293,7 +293,15 @@ describe('publication gate', () => {
       path.join(import.meta.dirname, '../../.github/workflows/release.yml'),
       'utf8',
     );
-    const targets = [...workflow.matchAll(/^\s+target: (\S+)/gm)].map((match) => match[1]);
-    expect(targets).toEqual(RELEASE_TARGETS);
+    const targets = [
+      ...new Set(
+        [
+          ...workflow.matchAll(/^\s+target:\s*(\S+)/gm),
+          ...workflow.matchAll(/"target":"([^"]+)"/g),
+        ].map((match) => match[1]),
+      ),
+    ].sort();
+    expect(targets).toEqual([...RELEASE_TARGETS].sort());
+    expect(targets).toHaveLength(RELEASE_TARGETS.length);
   });
 });

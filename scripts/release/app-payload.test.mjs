@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 
 import { describe, expect, it } from 'vitest';
 
-import { payloadDiff } from './app-payload.mjs';
+import { ensureGitCommit, payloadDiff } from './app-payload.mjs';
 import { loadReuseDocument } from './reused-artifacts.mjs';
 
 function tree(lines) {
@@ -50,10 +50,11 @@ describe('application payload', () => {
 
   it('matches the commit that built the three reused installers', () => {
     const base = loadReuseDocument().appPayloadCommit;
+    ensureGitCommit(base);
     const listed = spawnSync('git', ['ls-tree', '-r', base], { encoding: 'utf8' });
     const head = spawnSync('git', ['ls-tree', '-r', 'HEAD'], { encoding: 'utf8' });
-    expect(listed.status).toBe(0);
-    expect(head.status).toBe(0);
+    expect(listed.status, listed.stderr).toBe(0);
+    expect(head.status, head.stderr).toBe(0);
     expect(payloadDiff(listed.stdout, head.stdout)).toEqual([]);
   });
 });
