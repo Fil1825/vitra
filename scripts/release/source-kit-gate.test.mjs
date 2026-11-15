@@ -150,7 +150,7 @@ describe('publication gate', () => {
     );
   });
 
-  it('blocks the real release plans on known open components', () => {
+  it('does not ship Martin, official mpv, or the seven unpinned BtbN libraries', () => {
     const plans = Object.fromEntries(RELEASE_TARGETS.map((target) => [target, planFor(target)]));
     const blockers = publicationBlockers({ offers: sourceOffers.offers, plans });
     const details = (code, target) =>
@@ -158,10 +158,10 @@ describe('publication gate', () => {
 
     expect(
       details('uncovered-shipped-component').some((b) => b.detail === 'martin-riedl-macos-ffmpeg'),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       details('uncovered-shipped-component').some((b) => b.detail === 'mpv-official-v0.41.0'),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       details('missing-dependency-source', 'x86_64-pc-windows-msvc').some(
         (b) => b.detail === '50-x264.sh',
@@ -176,7 +176,7 @@ describe('publication gate', () => {
       '50-soxr.sh',
       '50-xvid.sh',
     ]) {
-      expect(details('missing-dependency-source').some((b) => b.detail === script)).toBe(true);
+      expect(details('missing-dependency-source').some((b) => b.detail === script)).toBe(false);
     }
     for (const script of ['10-mingw.sh', '45-x11/10-xproto.sh', '50-libvpx.sh', '50-libwebp.sh']) {
       expect(details('missing-dependency-source').some((b) => b.detail === script)).toBe(false);
@@ -207,19 +207,30 @@ describe('publication gate', () => {
     const ytdlp = sourceOffers.offers.find((offer) => offer.id === 'yt-dlp-2026.10.26');
     expect(sourceClosureFor(ytdlp, { os: 'windows' })).toBe('complete');
     expect(sourceClosureFor(ytdlp, { os: 'linux' })).toBe('complete');
-    expect(planFor('x86_64-pc-windows-msvc').ffmpeg.downloads[0].sourceClosure).toBe('incomplete');
+    expect(planFor('x86_64-pc-windows-msvc').ffmpeg.type).toBe('source-build');
+    expect(planFor('x86_64-unknown-linux-gnu').ffmpeg.downloads).toBeUndefined();
   });
 
   it('rejects an FFmpeg asset whose short hash is not that commit', () => {
     const target = 'x86_64-pc-windows-msvc';
-    const plan = planFor(target);
-    plan.ffmpeg.downloads[0].name = 'ffmpeg-n9.0.2-48-g0000000000-win64-gpl-9.0.zip';
+    const offer = sourceOffers.offers.find((item) => item.ffmpegCommit);
     const blockers = publicationBlockers({
       offers: sourceOffers.offers,
-      plans: { [target]: plan },
+      plans: {
+        [target]: {
+          ffmpeg: {
+            type: 'download',
+            downloads: [
+              {
+                name: 'ffmpeg-n9.0.2-48-g0000000000-win64-gpl-9.0.zip',
+                sourceOfferId: offer.id,
+              },
+            ],
+          },
+        },
+      },
     });
     expect(blockers.some((blocker) => blocker.code === 'ffmpeg-commit-mismatch')).toBe(true);
-    const offer = sourceOffers.offers.find((item) => item.ffmpegCommit);
     const archive = offer.archives.find((item) => item.name.includes(offer.ffmpegCommit));
     const listed = publicationBlockers({
       offers: [offer],

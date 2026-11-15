@@ -1,28 +1,42 @@
 #!/usr/bin/env bash
-# Build Vitra's Intel macOS mpv from pinned sources (deployment target 12.0).
+# Build Vitra's macOS mpv, ffmpeg, and ffprobe from pinned sources.
+# x86_64 uses deployment target 12.0. arm64 uses deployment target 14.0.
+# The pins file is $VITRA_MPV_SOURCES, or intel-mpv-sources.json when unset.
 # Build tools may come from Homebrew; shipped libraries must not.
 # Usage: build-intel-mpv.sh <sidecar-output-dir>
 set -euo pipefail
 
 OUT=${1:?output directory required}
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-PINS="$SCRIPT_DIR/intel-mpv-sources.json"
+PINS="${VITRA_MPV_SOURCES:-$SCRIPT_DIR/intel-mpv-sources.json}"
 WORK=$(mktemp -d)
 PREFIX="$WORK/prefix"
 SRC="$WORK/src"
 OFFER="$OUT/mpv-corresponding-source"
 trap 'rm -rf "$WORK"' EXIT
 
-if [[ "$(uname -s)" != "Darwin" || "$(uname -m)" != "x86_64" ]]; then
-  echo "Intel mpv source build requires macOS x86_64 (got $(uname -s) $(uname -m))" >&2
+if [[ -x "$OUT/ffmpeg" && -x "$OUT/ffprobe" && -x "$OUT/mpv/mpv.app/Contents/MacOS/mpv" && -f "$OUT/mpv-corresponding-source.tar.gz" ]]; then
+  exit 0
+fi
+
+eval "$(python3 - "$PINS" <<'PY'
+import json, pathlib, shlex, sys
+pins = json.loads(pathlib.Path(sys.argv[1]).read_text())
+print(f"ARCH={shlex.quote(pins['arch'])}")
+print(f"DEPLOYMENT_TARGET={shlex.quote(pins['deploymentTarget'])}")
+PY
+)"
+
+if [[ "$(uname -s)" != "Darwin" || "$(uname -m)" != "$ARCH" ]]; then
+  echo "macOS mpv source build requires Darwin $ARCH (got $(uname -s) $(uname -m))" >&2
   exit 1
 fi
 
-export MACOSX_DEPLOYMENT_TARGET=12.0
+export MACOSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET"
 export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
-export CFLAGS="-arch x86_64 -mmacosx-version-min=12.0"
+export CFLAGS="-arch $ARCH -mmacosx-version-min=$DEPLOYMENT_TARGET"
 export CXXFLAGS="$CFLAGS"
-export LDFLAGS="-arch x86_64 -mmacosx-version-min=12.0"
+export LDFLAGS="-arch $ARCH -mmacosx-version-min=$DEPLOYMENT_TARGET"
 # Shipped libraries come only from the prefix below. Drop inherited
 # Homebrew search paths before any configure or Meson setup.
 unset PKG_CONFIG_PATH CPATH C_INCLUDE_PATH CPLUS_INCLUDE_PATH OBJC_INCLUDE_PATH LIBRARY_PATH CMAKE_PREFIX_PATH
@@ -47,7 +61,7 @@ if pkg-config --exists fontconfig \
 fi
 
 mkdir -p "$SRC" "$PREFIX" "$OFFER/tarballs" "$OFFER/licenses"
-cp "$PINS" "$OFFER/intel-mpv-sources.json"
+cp "$PINS" "$OFFER/$(basename "$PINS")"
 cp "$SCRIPT_DIR/build-intel-mpv.sh" "$OFFER/build-intel-mpv.sh"
 cp "$SCRIPT_DIR/mach-minos.py" "$OFFER/mach-minos.py"
 cp "$SCRIPT_DIR/mach-deps.py" "$OFFER/mach-deps.py"
@@ -111,18 +125,19 @@ for tree in ("freetype", "fribidi", "harfbuzz", "libass", "ffmpeg", "libplacebo"
             break
 PY
 
+JOBS="$(sysctl -n hw.ncpu)"
 (
   cd "$WORK/freetype"
   # Internal zlib only: do not link a host or Homebrew zlib.
   ./configure --prefix="$PREFIX" --enable-shared --disable-static \
     --with-zlib=no --with-png=no --with-harfbuzz=no --with-brotli=no --with-bzip2=no
-  make -j"$(sysctl -n hw.ncpu)"
+  make -j"$JOBS"
   make install
 )
 (
   cd "$WORK/fribidi"
   ./configure --prefix="$PREFIX" --enable-shared --disable-static
-  make -j"$(sysctl -n hw.ncpu)"
+  make -j"$JOBS"
   make install
 )
 (
@@ -140,7 +155,7 @@ PY
   cd "$WORK/libass"
   ./configure --prefix="$PREFIX" --enable-shared --disable-static \
     --disable-fontconfig --enable-coretext
-  make -j"$(sysctl -n hw.ncpu)"
+  make -j"$JOBS"
   make install
 )
 (
@@ -150,17 +165,19 @@ PY
   # the macOS 15 Intel runner, but libavcodec's shared link does not: library.mak
   # puts LDFLAGS before the objects and FFEXTRALIBS after them, and iconv_extralibs
   # stays empty. --extra-libs=-liconv is what reaches that link. Do not disable iconv.
+  # ffmpeg and ffprobe are the sidecar programs. No external codec libraries.
   ./configure --prefix="$PREFIX" --enable-shared --disable-static \
-    --arch=x86_64 --target-os=darwin \
+    --arch="$ARCH" --target-os=darwin \
     --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS" \
     --disable-autodetect \
     --enable-gpl --enable-version3 \
-    --disable-doc --disable-debug --disable-programs \
+    --disable-doc --disable-debug \
+    --disable-programs --enable-ffmpeg --enable-ffprobe \
     --enable-videotoolbox --enable-audiotoolbox \
     --enable-zlib --enable-iconv \
     --extra-libs=-liconv \
     --disable-bzlib --disable-lzma --disable-sdl2
-  make -j"$(sysctl -n hw.ncpu)"
+  make -j"$JOBS"
   make install
 )
 (
@@ -198,7 +215,7 @@ PY
     -D{swift-build,macos-cocoa-cb,macos-media-player}=enabled \
     -D{videotoolbox-pl,vulkan,macos-touchbar,lua,jpeg,lcms2}=disabled \
     -D{cdda,dvdnav,javascript,libarchive,libbluray,rubberband,uchardet,vapoursynth,zimg,shaderc,wayland,x11,manpage-build}=disabled \
-    -Dswift-flags="-target x86_64-apple-macos12.0" \
+    -Dswift-flags="-target ${ARCH}-apple-macos${DEPLOYMENT_TARGET}" \
     -Dc_args="$CFLAGS" -Dobjc_args="$CFLAGS -Wno-error=deprecated -Wno-error=deprecated-declarations" \
     -Dc_link_args="$LDFLAGS -liconv -framework CoreVideo -framework IOSurface"
   meson compile -C build
@@ -207,7 +224,32 @@ PY
 rm -rf "$OUT/mpv"
 mkdir -p "$OUT/mpv"
 cp -a "$WORK/mpv/build/mpv.app" "$OUT/mpv/mpv.app"
-python3 "$SCRIPT_DIR/mach-minos.py" "$OUT/mpv/mpv.app" --max 12.0
+cp "$PREFIX/bin/ffmpeg" "$PREFIX/bin/ffprobe" "$OUT/"
+cp -a "$PREFIX/lib/"*.dylib "$OUT/"
+python3 - "$OUT" "$PREFIX/lib" <<'PY'
+import pathlib, subprocess, sys
+out = pathlib.Path(sys.argv[1])
+prefix = sys.argv[2]
+machos = [out / "ffmpeg", out / "ffprobe"]
+machos += [path for path in out.glob("*.dylib") if path.is_file() and not path.is_symlink()]
+names = {path.name for path in machos}
+
+def load_commands(path):
+    text = subprocess.check_output(["otool", "-L", str(path)], text=True)
+    return [line.strip().split(" ", 1)[0] for line in text.splitlines()[1:]]
+
+for path in machos:
+    if path.suffix == ".dylib":
+        subprocess.check_call(["install_name_tool", "-id", f"@executable_path/{path.name}", str(path)])
+    for dep in load_commands(path):
+        base = pathlib.Path(dep).name
+        new = f"@executable_path/{base}"
+        if dep == new:
+            continue
+        if base in names or dep.startswith(prefix):
+            subprocess.check_call(["install_name_tool", "-change", dep, new, str(path)])
+PY
+python3 "$SCRIPT_DIR/mach-minos.py" "$OUT/mpv/mpv.app" "$OUT/ffmpeg" "$OUT/ffprobe" "$OUT"/*.dylib --max "$DEPLOYMENT_TARGET"
 python3 "$SCRIPT_DIR/mach-deps.py" "$OUT/mpv/mpv.app"
 
 python3 - "$PINS" "$OFFER/build-record.json" <<'PY'
@@ -222,6 +264,7 @@ record = {
     "deploymentTarget": pins["deploymentTarget"],
     "arch": pins["arch"],
     "recipe": "scripts/release/build-intel-mpv.sh",
+    "programs": ["mpv", "ffmpeg", "ffprobe"],
     "clang": show(["clang", "--version"]),
     "xcode": show(["xcodebuild", "-version"]),
     "sdk": show(["xcrun", "--sdk", "macosx", "--show-sdk-path"]),
@@ -230,4 +273,5 @@ record = {
 pathlib.Path(sys.argv[2]).write_text(json.dumps(record, indent=2) + "\n")
 PY
 tar -C "$OUT" -czf "$OUT/mpv-corresponding-source.tar.gz" mpv-corresponding-source
-echo "Intel mpv source build installed at $OUT/mpv/mpv.app"
+rm -rf "$OFFER"
+echo "macOS source build installed at $OUT (mpv, ffmpeg, ffprobe)"

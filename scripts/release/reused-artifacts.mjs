@@ -1,3 +1,5 @@
+import { planFor } from '../sidecars/plan.mjs';
+import { sourceRecipeFiles } from './source-kit-gate.mjs';
 import document from './reused-artifacts.json' with { type: 'json' };
 
 export const REUSE_REPO = 'Fil1825/vitra';
@@ -93,6 +95,22 @@ export function verifyReuseSet(doc, observations) {
       const missing = (pin.sourceTar.entries ?? []).filter((entry) => !entries.includes(entry));
       if (missing.length) {
         errors.push({ code: 'missing-intel-source', target, detail: missing.join(',') });
+      }
+    }
+    const recipeFiles = Object.values(planFor(target))
+      .filter((sidecar) => sidecar.type === 'source-build')
+      .flatMap((sidecar) => sourceRecipeFiles(sidecar, target));
+    if (recipeFiles.length) {
+      const entries = obs.sourceTarEntries ?? [];
+      const missing = [...new Set(recipeFiles)].filter(
+        (file) => !entries.some((entry) => entry.endsWith(`/${file}`) || entry === file),
+      );
+      if (!pin.sourceTar || missing.length) {
+        errors.push({
+          code: 'missing-intel-source',
+          target,
+          detail: missing.join(',') || 'source-tar',
+        });
       }
     }
   }

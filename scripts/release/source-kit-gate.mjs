@@ -16,6 +16,15 @@ export const INTEL_SOURCE_FILES = [
   'mach-deps.py',
 ];
 
+/** Recipe files a source-built sidecar must carry in its corresponding-source tar. */
+export function sourceRecipeFiles(sidecar, target) {
+  const files = [sidecar?.script, sidecar?.sources]
+    .filter(Boolean)
+    .map((file) => file.split('/').pop());
+  if (String(target).includes('apple')) files.push('mach-minos.py', 'mach-deps.py');
+  return files;
+}
+
 const MIT_SIDECARS = new Set(['deno']);
 
 function platformOf(target) {
@@ -116,7 +125,9 @@ export function publicationBlockers(input) {
         const published = input.manifests.some((manifest) => manifest.target === target);
         if (!published) continue;
         const entries = input.intelEntries?.[target] ?? [];
-        const missing = INTEL_SOURCE_FILES.filter((file) => !entryHas(entries, file));
+        const missing = sourceRecipeFiles(sidecar, target).filter(
+          (file) => !entryHas(entries, file),
+        );
         if (missing.length) {
           push(blockers, {
             code: 'missing-intel-source',
@@ -233,7 +244,7 @@ export function publicationBlockers(input) {
     const known = new Set();
     for (const sidecar of Object.values(plan)) {
       for (const download of sidecar.downloads ?? []) known.add(download.name);
-      if (sidecar.type === 'source-build') known.add('intel-mpv-source-build');
+      if (sidecar.type === 'source-build') known.add('pinned-source-build');
     }
     for (const sidecar of Object.values(manifest.sidecars ?? {})) {
       for (const download of sidecar.downloads ?? []) {

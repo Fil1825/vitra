@@ -6,8 +6,6 @@ import {
   expectedArchiveDigests,
   sidecarCacheScope,
 } from './archive-cache-key.mjs';
-import { BTBN_PINS } from './plan.mjs';
-
 describe('archive-cache-key helper', () => {
   it('isolates Linux ffmpeg-only from yt-dlp-only scopes', () => {
     expect(sidecarCacheScope(['ffmpeg'])).toBe('ffmpeg');
@@ -36,14 +34,11 @@ describe('archive-cache-key helper', () => {
     expect(arm).not.toContain(',');
   });
 
-  it('lists pinned digests for a scoped linux ffmpeg fetch', () => {
-    const digests = expectedArchiveDigests('x86_64-unknown-linux-gnu', ['ffmpeg']);
-    expect(digests).toEqual([
-      {
-        sidecar: 'ffmpeg',
-        name: BTBN_PINS.linux64.asset,
-        sha256: BTBN_PINS.linux64.sha256,
-      },
-    ]);
+  it('does not cache a downloaded archive for the source-built ffmpeg', () => {
+    expect(expectedArchiveDigests('x86_64-unknown-linux-gnu', ['ffmpeg'])).toEqual([]);
+    const yt = expectedArchiveDigests('x86_64-unknown-linux-gnu', ['yt-dlp']);
+    expect(yt).toEqual([]);
+    const deno = expectedArchiveDigests('x86_64-unknown-linux-gnu', ['deno']);
+    expect(deno[0].sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 });

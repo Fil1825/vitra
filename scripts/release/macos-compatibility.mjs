@@ -6,7 +6,7 @@ import { MPV_VERSION } from '../sidecars/plan.mjs';
 
 /** Vitra Info.plist minimum macOS (major.minor), per Rust target. */
 export const BUNDLE_MINIMUM_MACOS = {
-  'aarch64-apple-darwin': '14.0', // Sonoma — official macos-14-arm mpv
+  'aarch64-apple-darwin': '14.0', // Sonoma — source-built arm64 mpv
   'x86_64-apple-darwin': '12.0', // Monterey — source-built Intel mpv
 };
 
@@ -18,7 +18,11 @@ export const MPV_MACHO_MIN_MACOS = {
 
 /** Human-readable mpv source label for release notes / SBOM. */
 export const BUNDLED_MPV = {
-  'aarch64-apple-darwin': { version: MPV_VERSION, label: 'macos-14-arm', source: 'mpv-player' },
+  'aarch64-apple-darwin': {
+    version: MPV_VERSION,
+    label: 'vitra-arm64-source-build',
+    source: 'scripts/release/macos-arm64-mpv-sources.json',
+  },
   'x86_64-apple-darwin': {
     version: 'v0.41.0',
     label: 'vitra-intel-source-build',
@@ -44,9 +48,7 @@ export function mpvAssetFor(target) {
   if (!spec) {
     return null;
   }
-  if (target === 'x86_64-apple-darwin') {
-    return null;
-  }
+  if (spec.source.endsWith('.json')) return null;
   return `mpv-${spec.version}-${spec.label}.zip`;
 }
 

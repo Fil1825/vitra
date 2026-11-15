@@ -2,10 +2,10 @@
   "repo": "Fil1825/vitra",
   "version": "1.0.0-rc.1",
   "appPayloadCommit": "76ea04250e88d880c3b6a7e3abf182f29c6bbde2",
-  "note": "Each target records the Actions run that produced those bytes. Run 42512576166 built Linux, Windows, and Apple Silicon. Run 43638348270 built macOS Intel at 2adf1a5499f6a6c210ee4c29a8dcebd3c54ae156 and uploaded the Intel mpv source tarball inside that artifact. A v* tag still builds all four platforms and is not the reuse path. publish-reused.mjs checks these pins and refuses to create a GitHub Release. The three artifacts from run 42512576166 expire on 2026-11-22; the Intel artifact expires on 2026-11-28.",
+  "note": "The four previously pinned installers are superseded. Their bytes still contain Martin Riedl FFmpeg, official mpv, or a BtbN FFmpeg that links lame and xvid revisions without a stable official archive. This plan builds macOS mpv and ffmpeg from the pinned recipe (arm64 deployment target 14.0, Intel 12.0), Windows mpv with pinned shaderc and Vulkan, and Linux/Windows ffmpeg from the FFmpeg 7.1.1 tarball without libiconv, aom, ffnvcodec, lame, opencore-amr, soxr, or xvid. publish-reused stays closed until the new artifact zips and source tars are pinned. Linux artifact 13629864717 expires 2026-11-22T19:05:50Z. A v* tag is not the reuse path. publish-reused.mjs refuses to create a GitHub Release.",
   "targets": {
     "x86_64-unknown-linux-gnu": {
-      "status": "pinned",
+      "status": "superseded",
       "runId": 42512576166,
       "headSha": "76ea04250e88d880c3b6a7e3abf182f29c6bbde2",
       "artifactId": 13629864717,
@@ -17,7 +17,7 @@
       "expiresAt": "2026-11-22T19:05:50Z"
     },
     "x86_64-pc-windows-msvc": {
-      "status": "pinned",
+      "status": "superseded",
       "runId": 42512576166,
       "headSha": "76ea04250e88d880c3b6a7e3abf182f29c6bbde2",
       "artifactId": 13630826011,
@@ -29,7 +29,7 @@
       "expiresAt": "2026-11-22T19:11:03Z"
     },
     "aarch64-apple-darwin": {
-      "status": "pinned",
+      "status": "superseded",
       "runId": 42512576166,
       "headSha": "76ea04250e88d880c3b6a7e3abf182f29c6bbde2",
       "artifactId": 13630098011,
@@ -41,7 +41,7 @@
       "expiresAt": "2026-11-22T19:11:28Z"
     },
     "x86_64-apple-darwin": {
-      "status": "pinned",
+      "status": "superseded",
       "runId": 43638348270,
       "headSha": "2adf1a5499f6a6c210ee4c29a8dcebd3c54ae156",
       "artifactId": 14132604382,

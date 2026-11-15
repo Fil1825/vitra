@@ -130,15 +130,20 @@ async function main() {
       if (sidecar.type === 'source-build') {
         const present = sidecar.executables.every((e) => fs.existsSync(path.join(outDir, e)));
         if (present && !args.force) {
+          manifest.sidecars[name] = {
+            version: isHost ? probeVersion(sidecar) : null,
+            fetchedAt: new Date().toISOString(),
+            downloads: sourceBuildDownloads(sidecar),
+          };
           results.push({ name, status: 'already present (use --force to update)' });
           continue;
         }
         log(`▸ ${name}`);
-        const built = buildFromSource(sidecar);
+        buildFromSource(sidecar);
         manifest.sidecars[name] = {
           version: isHost ? probeVersion(sidecar) : null,
           fetchedAt: new Date().toISOString(),
-          downloads: built,
+          downloads: sourceBuildDownloads(sidecar),
         };
         results.push({ name, status: 'ok — source build' });
         continue;
@@ -175,9 +180,29 @@ async function main() {
   }
 }
 
+function sourceBuildDownloads(sidecar) {
+  const record = path.join(outDir, 'mpv-corresponding-source', 'build-record.json');
+  return [
+    {
+      name: 'pinned-source-build',
+      url: sidecar.script,
+      sources: sidecar.sources,
+      provenance: 'vitra-pinned-source-build',
+      sourceRecord: fs.existsSync(record) ? path.relative(ROOT, record) : null,
+    },
+  ];
+}
+
 function buildFromSource(sidecar) {
   const script = path.resolve(ROOT, sidecar.script);
-  const result = spawnSync('bash', [script, outDir], { cwd: ROOT, stdio: 'inherit' });
+  const result = spawnSync('bash', [script, outDir], {
+    cwd: ROOT,
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      VITRA_MPV_SOURCES: path.resolve(ROOT, sidecar.sources),
+    },
+  });
   if (result.status !== 0) {
     throw new Error(`source build failed (${result.status ?? 'signal'})`);
   }
@@ -186,16 +211,6 @@ function buildFromSource(sidecar) {
       throw new Error(`source build did not produce ${executable}`);
     }
   }
-  const record = path.join(outDir, 'mpv-corresponding-source', 'build-record.json');
-  return [
-    {
-      name: 'intel-mpv-source-build',
-      url: sidecar.script,
-      sources: sidecar.sources,
-      provenance: 'vitra-intel-mpv-source-build',
-      sourceRecord: fs.existsSync(record) ? path.relative(ROOT, record) : null,
-    },
-  ];
 }
 
 /** Downloads, verifies and unpacks every file of one sidecar. */

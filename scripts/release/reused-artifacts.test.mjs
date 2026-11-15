@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { planFor } from '../sidecars/plan.mjs';
-import { publicationBlockers } from './source-kit-gate.mjs';
+import { publicationBlockers, sourceRecipeFiles } from './source-kit-gate.mjs';
 import sourceOffers from './upstream-source-offers.json' with { type: 'json' };
 import {
   REQUIRED_TARGETS,
@@ -65,24 +65,27 @@ function observationsFrom(doc, patch = {}) {
   return observations;
 }
 
-function withIntel(doc) {
-  return {
-    ...doc,
-    targets: {
-      ...doc.targets,
-      'x86_64-apple-darwin': {
-        status: 'pinned',
-        runId: 9,
-        headSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-        artifactId: 1,
-        artifactName: 'Vitra-macOS-Intel',
-        size: 10,
-        sha256: 'b'.repeat(64),
-        packageName: 'Vitra_1.0.0-rc.1_x64.dmg',
-        arch: 'x64',
+function withPinned(doc) {
+  const targets = {};
+  for (const target of REQUIRED_TARGETS) {
+    const current = doc.targets[target];
+    const files = [
+      ...new Set(
+        Object.values(planFor(target))
+          .filter((sidecar) => sidecar.type === 'source-build')
+          .flatMap((sidecar) => sourceRecipeFiles(sidecar, target)),
+      ),
+    ];
+    targets[target] = {
+      ...current,
+      status: 'pinned',
+      sourceTar: {
+        sha256: current.sourceTar?.sha256 ?? 'b'.repeat(64),
+        entries: files.map((file) => `mpv-corresponding-source/${file}`),
       },
-    },
-  };
+    };
+  }
+  return { ...doc, targets };
 }
 
 describe('reused installer pins', () => {
@@ -94,7 +97,7 @@ describe('reused installer pins', () => {
     expect(doc.appPayloadCommit).toBe('76ea04250e88d880c3b6a7e3abf182f29c6bbde2');
     for (const [target, downloaded] of Object.entries(DOWNLOADED)) {
       const pin = doc.targets[target];
-      expect(pin.status).toBe('pinned');
+      expect(pin.status).toBe('superseded');
       expect(pin.runId).toBe(42512576166);
       expect(pin.headSha).toBe(doc.appPayloadCommit);
       expect(pin.artifactId).toBe(downloaded.artifactId);
@@ -103,7 +106,7 @@ describe('reused installer pins', () => {
       expect(pin.packageName).toBe(downloaded.packageName);
     }
     const intel = doc.targets['x86_64-apple-darwin'];
-    expect(intel.status).toBe('pinned');
+    expect(intel.status).toBe('superseded');
     expect(intel.runId).toBe(43638348270);
     expect(intel.headSha).toBe('2adf1a5499f6a6c210ee4c29a8dcebd3c54ae156');
     expect(intel.artifactId).toBe(14132604382);
@@ -115,25 +118,22 @@ describe('reused installer pins', () => {
     expect(doc.targets['x86_64-unknown-linux-gnu'].expiresAt).toBe('2026-11-22T19:05:50Z');
   });
 
-  it('accepts the pinned set and rejects a missing Intel pin or source tarball', () => {
-    expect(verifyReuseSet(doc, observationsFrom(doc))).toEqual([]);
-    const missing = {
-      ...doc,
-      targets: { ...doc.targets, 'x86_64-apple-darwin': { status: 'missing' } },
-    };
-    expect(verifyReuseSet(missing, observationsFrom(missing))).toEqual([
-      { code: 'missing-target', target: 'x86_64-apple-darwin' },
-    ]);
-    const wrongTar = observationsFrom(doc, {
+  it('accepts a complete pin and rejects the superseded installers', () => {
+    const pinned = withPinned(doc);
+    expect(verifyReuseSet(pinned, observationsFrom(pinned))).toEqual([]);
+    expect(verifyReuseSet(doc, observationsFrom(doc)).map((error) => error.code)).toEqual(
+      REQUIRED_TARGETS.map(() => 'missing-target'),
+    );
+    const wrongTar = observationsFrom(pinned, {
       'x86_64-apple-darwin': { sourceTarSha256: 'd'.repeat(64) },
     });
-    expect(verifyReuseSet(doc, wrongTar).some((error) => error.code === 'wrong-source-tar')).toBe(
-      true,
-    );
+    expect(
+      verifyReuseSet(pinned, wrongTar).some((error) => error.code === 'wrong-source-tar'),
+    ).toBe(true);
   });
 
   it('rejects the wrong repository, run, commit, artifact, or version', () => {
-    const complete = withIntel(doc);
+    const complete = withPinned(doc);
     const cases = [
       [{ repo: 'other/vitra' }, 'wrong-repo'],
       [{ runId: 1 }, 'wrong-run'],
@@ -165,7 +165,7 @@ describe('reused installer pins', () => {
   });
 
   it('rejects an expired zip and a zip whose bytes were substituted', () => {
-    const complete = withIntel(doc);
+    const complete = withPinned(doc);
     const expired = observationsFrom(complete, { 'aarch64-apple-darwin': { expired: true } });
     expect(verifyReuseSet(complete, expired).some((error) => error.code === 'expired')).toBe(true);
     const substituted = observationsFrom(complete, {
@@ -189,8 +189,8 @@ describe('reused installer pins', () => {
   it('states that a release commit is not the build commit of every file', () => {
     const notes = provenanceNotes(doc);
     expect(notes).toContain('were not all built from one commit');
-    expect(notes).toContain(DOWNLOADED['x86_64-unknown-linux-gnu'].sha256);
-    expect(notes).toContain('x86_64-apple-darwin: run 43638348270');
+    expect(notes).toContain('x86_64-unknown-linux-gnu: not pinned');
+    expect(notes).toContain('x86_64-apple-darwin: not pinned');
   });
 
   it('does not treat a skipped build matrix or an open source gate as publication', () => {
@@ -204,17 +204,17 @@ describe('reused installer pins', () => {
     expect(publicationDecision([], [])).toMatchObject({ ok: true });
   });
 
-  it('keeps Martin Riedl, official mpv, and the unpinned yt-dlp libraries open', () => {
+  it('does not ship Martin Riedl, official mpv, or the seven unpinned libraries', () => {
     const plans = Object.fromEntries(REQUIRED_TARGETS.map((target) => [target, planFor(target)]));
     const blockers = publicationBlockers({ offers: sourceOffers.offers, plans });
     const details = new Set(blockers.map((blocker) => blocker.detail));
-    expect(details.has('martin-riedl-macos-ffmpeg')).toBe(true);
-    expect(details.has('mpv-official-v0.41.0')).toBe(true);
+    expect(details.has('martin-riedl-macos-ffmpeg')).toBe(false);
+    expect(details.has('mpv-official-v0.41.0')).toBe(false);
     expect(details.has('GNU Readline')).toBe(false);
     expect(details.has('libintl')).toBe(false);
     expect(details.has('libidn2')).toBe(false);
     expect(details.has('libunistring')).toBe(false);
-    expect(details.has('50-aom.sh')).toBe(true);
+    expect(details.has('50-aom.sh')).toBe(false);
     for (const offer of sourceOffers.offers) expect(offer.complete).toBe(false);
   });
 });
@@ -222,14 +222,15 @@ describe('reused installer pins', () => {
 describe('release workflow launch', () => {
   const yaml = fs.readFileSync(path.join(root, '.github/workflows/release.yml'), 'utf8');
 
-  it('starts only the Intel package from a pull request and does not rebuild on main', () => {
+  it('rebuilds the four installers from a pull request and does not rebuild on main', () => {
     expect(yaml).not.toMatch(/branches:\s*\[main\]/);
     expect(yaml).not.toContain('pull_request_target');
     expect(yaml).toContain('pull_request:');
-    expect(yaml).toContain("matrix.name == 'macOS-Intel'");
     expect(yaml).toContain('macos-15-intel');
-    expect(yaml).toContain('app-payload.mjs');
-    expect(yaml).toContain(loadReuseDocument().appPayloadCommit);
+    expect(yaml).toContain('macos-15');
+    expect(yaml).toContain('windows-2022');
+    expect(yaml).toContain('ubuntu-24.04');
+    expect(yaml).not.toContain('app-payload.mjs');
     const pinned = yaml.slice(yaml.indexOf('publish-pinned:'));
     expect(pinned).not.toContain('needs:');
     expect(pinned).not.toContain('gh release create');

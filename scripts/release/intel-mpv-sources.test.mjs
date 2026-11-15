@@ -27,12 +27,20 @@ describe('Intel mpv source pins', () => {
   });
 
   it('keeps the recipe fail-closed on checksums and min OS', () => {
-    expect(recipe).toContain('MACOSX_DEPLOYMENT_TARGET=12.0');
+    expect(recipe).toContain('MACOSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET"');
     expect(recipe).toContain('checksum mismatch');
-    expect(recipe).toContain('--max 12.0');
+    expect(recipe).toContain('--max "$DEPLOYMENT_TARGET"');
     expect(recipe).not.toContain('stolendata');
     expect(planFor('x86_64-apple-darwin').mpv.sources).toBe(
       'scripts/release/intel-mpv-sources.json',
+    );
+    const arm = JSON.parse(
+      fs.readFileSync(path.join(import.meta.dirname, 'macos-arm64-mpv-sources.json'), 'utf8'),
+    );
+    expect(arm.deploymentTarget).toBe('14.0');
+    expect(arm.arch).toBe('arm64');
+    expect(arm.dependencies.find((dep) => dep.name === 'ffmpeg').sha256).toBe(
+      pins.dependencies.find((dep) => dep.name === 'ffmpeg').sha256,
     );
   });
 
@@ -76,8 +84,35 @@ describe('Intel mpv source pins', () => {
     expect(recipe).toContain('-liconv');
     expect(recipe).toContain('-framework CoreVideo');
     expect(recipe).toContain('-framework IOSurface');
-    expect(recipe).toContain('MACOSX_DEPLOYMENT_TARGET=12.0');
+    expect(recipe).toContain('MACOSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET"');
     expect(recipe).toContain('-D{gl,iconv,plain-gl}=enabled');
+  });
+
+  it('pins Windows shaderc and Vulkan and leaves the seven external codecs out', () => {
+    const windows = JSON.parse(
+      fs.readFileSync(path.join(import.meta.dirname, 'windows-mpv-sources.json'), 'utf8'),
+    );
+    const script = fs.readFileSync(path.join(import.meta.dirname, 'build-windows-mpv.sh'), 'utf8');
+    const gpl = fs.readFileSync(path.join(import.meta.dirname, 'build-gpl-ffmpeg.sh'), 'utf8');
+    expect(windows.shadercCommit).toBe('2737994b552137a85545f956e303d620e6ff232c');
+    expect(windows.vulkanTag).toBe('vulkan-sdk-1.4.363.0');
+    for (const name of [
+      'shaderc',
+      'spirv-tools',
+      'spirv-headers',
+      'glslang',
+      'vulkan-headers',
+      'vulkan-loader',
+    ]) {
+      const dep = windows.dependencies.find((item) => item.name === name);
+      expect(dep.sha256).toMatch(/^[0-9a-f]{64}$/);
+      expect(dep.url).toMatch(/^https:\/\/github.com\/(google|KhronosGroup)\//);
+    }
+    expect(script).toContain('-DUPDATE_DEPS=OFF');
+    expect(script).not.toContain('git clone');
+    expect(script).toContain('--disable-iconv');
+    expect(gpl).toContain('--disable-iconv');
+    expect(gpl).not.toContain('BtbN');
   });
 
   it('copies the recipe, pins, and Mach-O checkers into the source offer', () => {

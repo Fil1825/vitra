@@ -17,7 +17,7 @@ export { YT_DLP_VERSION };
 
 export const SIDECARS = ['mpv', 'yt-dlp', 'ffmpeg', 'deno'];
 
-/** Official mpv builds (arm / Windows), pinned with checksums at bump time. */
+/** mpv tag built by the pinned source recipes (not an official binary asset). */
 export const MPV_VERSION = 'v0.41.0';
 
 /** Intel macOS mpv is built from scripts/release/intel-mpv-sources.json (not a third-party binary). */
@@ -27,17 +27,20 @@ export const MPV_INTEL_SOURCE_BUILD = {
   minimumMacos: '12.0',
 };
 
-const MPV_BUILDS = {
-  'aarch64-apple-darwin': {
-    asset: `mpv-${MPV_VERSION}-macos-14-arm.zip`,
-    sha256: '5c96f9b21355fc0a11d2e2161ad65f33031070e9fb3f6bd9865fb459b94587e6',
-    source: 'mpv-player-github',
-  },
-  'x86_64-pc-windows-msvc': {
-    asset: `mpv-${MPV_VERSION}-x86_64-pc-windows-msvc.zip`,
-    sha256: '4e197f729f5071c6772f35fffd96e0f36e3e8a044bd9479b136bb09b7c6a80ff',
-    source: 'mpv-player-github',
-  },
+const MPV_ARM_SOURCE_BUILD = {
+  script: 'scripts/release/build-intel-mpv.sh',
+  sources: 'scripts/release/macos-arm64-mpv-sources.json',
+  minimumMacos: '14.0',
+};
+
+const MPV_WINDOWS_SOURCE_BUILD = {
+  script: 'scripts/release/build-windows-mpv.sh',
+  sources: 'scripts/release/windows-mpv-sources.json',
+};
+
+const GPL_FFMPEG_SOURCE_BUILD = {
+  script: 'scripts/release/build-gpl-ffmpeg.sh',
+  sources: 'scripts/release/gpl-ffmpeg-sources.json',
 };
 
 const TARGETS = {
@@ -75,13 +78,10 @@ const GITHUB = 'https://github.com';
 const YT_DLP_RELEASE = `${GITHUB}/yt-dlp/yt-dlp/releases/download/${YT_DLP_VERSION}`;
 const DENO_VERSION = 'v2.9.8';
 const DENO_RELEASE = `${GITHUB}/denoland/deno/releases/download/${DENO_VERSION}`;
-const MARTIN_DOWNLOAD = 'https://ffmpeg.martin-riedl.de/download/macos';
 
 /**
- * Martin Riedl macOS 9.0.2 builds, pinned to the versioned file rather than
- * `redirect/latest`. The digest is the publisher's sibling `.sha256`, checked
- * against the zip bytes. `redirect/latest` does not publish that sibling, and
- * the arm64 release redirect can 404 while this file is still there.
+ * Martin Riedl macOS 9.0.2 zips. The current plan does not download them.
+ * The digests stay so a later check can still recognise those bytes.
  */
 export const MARTIN_PINS = {
   arm64: {
@@ -157,16 +157,6 @@ export const BTBN_PINS = {
   },
 };
 
-function btbnGithubRelease(pin) {
-  return {
-    owner: 'BtbN',
-    repo: 'FFmpeg-Builds',
-    tag: BTBN_RELEASE_TAG,
-    asset: pin.asset,
-    assetId: pin.assetId,
-  };
-}
-
 function ytDlpGithubRelease(asset) {
   return { owner: 'yt-dlp', repo: 'yt-dlp', tag: YT_DLP_VERSION, asset };
 }
@@ -198,10 +188,6 @@ function denoGithubRelease(asset) {
   return { owner: 'denoland', repo: 'deno', tag: DENO_VERSION, asset };
 }
 
-function mpvGithubRelease(asset) {
-  return { owner: 'mpv-player', repo: 'mpv', tag: MPV_VERSION, asset };
-}
-
 /**
  * Returns what to fetch for every sidecar on `target`.
  *
@@ -223,18 +209,7 @@ export function planFor(target) {
   return {
     mpv: mpvPlan(target, info),
     'yt-dlp': ytDlpPlan(info, exe),
-    ffmpeg: {
-      type: 'download',
-      downloads:
-        info.os === 'macos'
-          ? martinRiedlDownloads(info.ffmpeg, info.os)
-          : [btbnDownload(info, exe)],
-      executables: [exe('ffmpeg'), exe('ffprobe')],
-      versionArgs: ['-version'],
-      ...(info.os === 'macos' && {
-        hint: 'Alternatively run `brew install ffmpeg`: Vitra also finds FFmpeg in Homebrew.',
-      }),
-    },
+    ffmpeg: ffmpegPlan(target, info, exe),
     deno: denoPlan(target, exe),
   };
 }
@@ -304,6 +279,21 @@ function ytDlpPlan(info, exe) {
   };
 }
 
+function sourceBuild(spec, executables) {
+  return {
+    type: 'source-build',
+    script: spec.script,
+    sources: spec.sources,
+    ...(spec.minimumMacos ? { minimumMacos: spec.minimumMacos } : {}),
+    executables,
+    versionArgs: executables[0].includes('mpv') ? ['--version'] : ['-version'],
+  };
+}
+
+function macosMpvSpec(target) {
+  return target === 'aarch64-apple-darwin' ? MPV_ARM_SOURCE_BUILD : MPV_INTEL_SOURCE_BUILD;
+}
+
 function mpvPlan(target, info) {
   if (info.os === 'linux') {
     return {
@@ -312,81 +302,20 @@ function mpvPlan(target, info) {
       hint: 'mpv has no official Linux binaries. Install it with your package manager, e.g. `sudo apt install mpv`.',
     };
   }
-  if (target === 'x86_64-apple-darwin') {
-    return {
-      type: 'source-build',
-      script: MPV_INTEL_SOURCE_BUILD.script,
-      sources: MPV_INTEL_SOURCE_BUILD.sources,
-      minimumMacos: MPV_INTEL_SOURCE_BUILD.minimumMacos,
-      executables: ['mpv/mpv.app/Contents/MacOS/mpv'],
-      versionArgs: ['--version'],
-    };
-  }
-  const build = MPV_BUILDS[target];
-  const download = {
-    name: build.asset,
-    urls: [`${GITHUB}/mpv-player/mpv/releases/download/${MPV_VERSION}/${build.asset}`],
-    githubRelease: mpvGithubRelease(build.asset),
-    checksum: { type: 'pinned', sha256: build.sha256 },
-    archive: 'zip',
-    provenance: build.source,
-    ...sourceLink('mpv-official-v0.41.0', { os: info.os }),
-  };
   if (info.os === 'macos') {
-    return {
-      type: 'download',
-      // The zip wraps a tarball that preserves the app bundle's code signature.
-      downloads: [
-        { ...download, nested: 'mpv.tar.gz', files: [{ find: 'mpv.app', to: 'mpv/mpv.app' }] },
-      ],
-      executables: ['mpv/mpv.app/Contents/MacOS/mpv'],
-      versionArgs: ['--version'],
-    };
+    return sourceBuild(macosMpvSpec(target), ['mpv/mpv.app/Contents/MacOS/mpv']);
   }
-  return {
-    type: 'download',
-    downloads: [
-      {
-        ...download,
-        files: ['mpv.exe', 'mpv.com', 'vulkan-1.dll'].map((f) => ({ find: f, to: `mpv/${f}` })),
-      },
-    ],
-    executables: ['mpv/mpv.exe'],
-    versionArgs: ['--version'],
-  };
+  return sourceBuild(MPV_WINDOWS_SOURCE_BUILD, ['mpv/mpv.exe']);
 }
 
-/** Static macOS FFmpeg 9.0.2 by Martin Riedl, pinned per architecture. */
-function martinRiedlDownloads(arch, os) {
-  const pin = MARTIN_PINS[arch];
-  if (!pin) {
-    throw new Error(`no pinned Martin Riedl FFmpeg build for platform ${arch}`);
+function ffmpegPlan(target, info, exe) {
+  if (info.os === 'macos') {
+    return sourceBuild(macosMpvSpec(target), ['ffmpeg', 'ffprobe']);
   }
-  return ['ffmpeg', 'ffprobe'].map((tool) => ({
-    name: `${tool}.zip`,
-    urls: [`${MARTIN_DOWNLOAD}/${arch}/${pin.id}/${tool}.zip`],
-    checksum: { type: 'pinned', sha256: pin[tool] },
-    archive: 'zip',
-    files: [{ find: tool, to: tool }],
-    ...sourceLink('martin-riedl-macos-ffmpeg', { os }),
-  }));
-}
-
-/** Static Windows/Linux builds by BtbN; pinned so CI does not depend on live checksums.sha256. */
-function btbnDownload(info, exe) {
-  const pin = BTBN_PINS[info.ffmpeg];
-  if (!pin) {
-    throw new Error(`no pinned BtbN FFmpeg build for platform ${info.ffmpeg}`);
+  if (info.os === 'windows') {
+    return sourceBuild(MPV_WINDOWS_SOURCE_BUILD, [exe('ffmpeg'), exe('ffprobe')]);
   }
-  return {
-    name: pin.asset,
-    urls: [`${GITHUB}/BtbN/FFmpeg-Builds/releases/download/${BTBN_RELEASE_TAG}/${pin.asset}`],
-    githubRelease: btbnGithubRelease(pin),
-    checksum: { type: 'pinned', sha256: pin.sha256 },
-    archive: info.os === 'windows' ? 'zip' : 'tar',
-    files: [exe('ffmpeg'), exe('ffprobe')].map((f) => ({ find: f, to: f })),
-    ...sourceLink('btbn-ffmpeg-n9.0.2-48-gd4070a14ce', { os: info.os, ffmpegKey: info.ffmpeg }),
-  };
+  return sourceBuild(GPL_FFMPEG_SOURCE_BUILD, [exe('ffmpeg'), exe('ffprobe')]);
 }
 
 /**
