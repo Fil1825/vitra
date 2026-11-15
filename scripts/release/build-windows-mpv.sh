@@ -69,7 +69,21 @@ EOF
 chmod +x "$WORK/bin/git"
 export PATH="$WORK/bin:$PATH"
 
-python3 - "$PINS" "$SRC" <<'PY'
+# mingw-w64-x86_64-python ships python.exe and removes python3.exe.
+# Git Bash has neither name until this MSYS2 PATH is in place. The py
+# launcher covers a runner that has not entered MSYS2 yet.
+if command -v python3 >/dev/null 2>&1; then
+  PYTHON=python3
+elif command -v python >/dev/null 2>&1; then
+  PYTHON=python
+elif command -v py >/dev/null 2>&1; then
+  PYTHON=py
+else
+  echo "python3 is required to build Windows mpv" >&2
+  exit 1
+fi
+
+"$PYTHON" - "$PINS" "$SRC" <<'PY'
 import hashlib, json, pathlib, subprocess, sys
 pins = json.loads(pathlib.Path(sys.argv[1]).read_text())
 src = pathlib.Path(sys.argv[2])
@@ -109,7 +123,7 @@ unpack "$SRC/spirv-headers.tar" "$WORK/shaderc/third_party/spirv-headers"
 unpack "$SRC/glslang.tar" "$WORK/shaderc/third_party/glslang"
 unpack "$SRC/vulkan-headers.tar" "$WORK/vulkan-headers"
 unpack "$SRC/vulkan-loader.tar" "$WORK/vulkan-loader"
-python3 - "$PINS" "$SRC" "$WORK/libplacebo" <<'PY'
+"$PYTHON" - "$PINS" "$SRC" "$WORK/libplacebo" <<'PY'
 import json, pathlib, subprocess, sys
 pins = json.loads(pathlib.Path(sys.argv[1]).read_text())
 src, tree = pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])
@@ -231,7 +245,7 @@ if [[ -z "$vulkan_dll" ]]; then
   exit 1
 fi
 cp "$vulkan_dll" "$OUT/mpv/vulkan-1.dll"
-python3 - "$PINS" "$OFFER/build-record.json" <<'PY'
+"$PYTHON" - "$PINS" "$OFFER/build-record.json" <<'PY'
 import json, pathlib, sys
 pins = json.loads(pathlib.Path(sys.argv[1]).read_text())
 pathlib.Path(sys.argv[2]).write_text(json.dumps({

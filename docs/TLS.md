@@ -4,7 +4,8 @@ Vitra's release FFmpeg sidecars verify HTTPS certificates. macOS uses the system
 Secure Transport framework. Linux and Windows link mbedTLS 3.6.7 from the official
 release archive in the source recipe (Apache-2.0 OR GPL-2.0-or-later). Those backends
 do not read `SSL_CERT_FILE` themselves, so analysis also passes that path as `-ca_file`
-on HTTPS inputs. SChannel is not used: it cannot load the PEM below. Vitra supplies
+on HTTPS inputs. Secure Transport opens that PEM with the `file` protocol, so the
+same HTTPS command allows `file` in `-protocol_whitelist`. SChannel is not used: it cannot load the PEM below. Vitra supplies
 trust to child processes only:
 
 - An existing `SSL_CERT_FILE` or `SSL_CERT_DIR` is preserved, including custom proxy roots.

@@ -68,6 +68,12 @@ impl Running {
     }
 }
 
+/// Protocols an HTTPS input may use. Secure Transport reads `-ca_file` through
+/// the `file` protocol; the https demuxer's own whitelist omits `file`, which
+/// fails the open before any certificate is checked. mbedTLS reads the PEM
+/// itself and still accepts this list.
+const HTTPS_PROTOCOLS: &str = "file,http,https,tls,rtp,tcp,udp,crypto,httpproxy,data";
+
 /// Put the configured CA bundle on HTTPS inputs. Secure Transport and mbedTLS
 /// honor `-ca_file` and do not read `SSL_CERT_FILE`. Local files and plain HTTP
 /// do not get the option.
@@ -78,7 +84,15 @@ fn with_certificate(mut args: Vec<OsString>, bundle: Option<OsString>) -> Vec<Os
     let Some(index) = args.iter().position(|arg| arg == "-tls_verify") else {
         return args;
     };
-    args.splice(index..index, [OsString::from("-ca_file"), bundle]);
+    args.splice(
+        index..index,
+        [
+            OsString::from("-protocol_whitelist"),
+            OsString::from(HTTPS_PROTOCOLS),
+            OsString::from("-ca_file"),
+            bundle,
+        ],
+    );
     args
 }
 
@@ -222,13 +236,27 @@ mod tests {
             Some("/tmp/ca.pem".into()),
         );
         assert_eq!(
-            &args[..4],
+            &args[..6],
             [
+                OsString::from("-protocol_whitelist"),
+                OsString::from(HTTPS_PROTOCOLS),
                 OsString::from("-ca_file"),
                 OsString::from("/tmp/ca.pem"),
                 OsString::from("-tls_verify"),
                 OsString::from("1"),
             ]
+        );
+        assert!(
+            args[1]
+                .to_string_lossy()
+                .split(',')
+                .any(|name| name == "file")
+        );
+        assert!(
+            args[1]
+                .to_string_lossy()
+                .split(',')
+                .any(|name| name == "https")
         );
     }
 
@@ -239,6 +267,7 @@ mod tests {
             Some("/tmp/ca.pem".into()),
         );
         assert!(args.iter().all(|arg| arg != "-ca_file"));
+        assert!(args.iter().all(|arg| arg != "-protocol_whitelist"));
     }
 
     #[test]

@@ -114,6 +114,9 @@ describe('Intel mpv source pins', () => {
     expect(script).toContain('--disable-iconv');
     expect(script).toContain('TMPDIR=/tmp');
     expect(script).toContain('C:/msys64');
+    expect(script).toContain('command -v python3');
+    expect(script).toContain('command -v python');
+    expect(script).toContain('"$PYTHON"');
     expect(gpl).toContain('--disable-iconv');
     expect(gpl).not.toContain('--disable-x86asm');
     expect(gpl).not.toContain('BtbN');
