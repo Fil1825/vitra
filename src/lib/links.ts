@@ -86,7 +86,7 @@ export interface DownloadJob {
   group: DownloadGroup | null;
 }
 
-export type AudioFormat = 'original' | 'mp3' | 'flac';
+export type AudioFormat = 'original' | 'mp3' | 'm4a' | 'flac';
 
 export const MP3_BITRATES = [128, 192, 256, 320] as const;
 
