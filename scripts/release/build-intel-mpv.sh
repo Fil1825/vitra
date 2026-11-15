@@ -44,12 +44,12 @@ export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
 export PATH="$PREFIX/bin:$PATH"
 
 if ! command -v brew >/dev/null; then
-  echo "Homebrew is required for build tools (meson, nasm), not for shipped libraries" >&2
+  echo "Homebrew is required for build tools (meson, nasm, cmake), not for shipped libraries" >&2
   exit 1
 fi
 export HOMEBREW_NO_AUTO_UPDATE=1
 mkdir -p "$PREFIX/lib/pkgconfig"
-brew install -q nasm meson ninja pkgconf autoconf automake libtool python3
+brew install -q nasm meson ninja pkgconf cmake autoconf automake libtool python3
 # Fail before compiling if pkg-config can still see host libraries.
 if pkg-config --exists fontconfig \
   || pkg-config --exists libpng \
@@ -94,6 +94,7 @@ cp -a "$SRC/." "$OFFER/tarballs/"
 
 unpack "$SRC/mpv.tar.gz" "$WORK/mpv"
 unpack "$SRC/ffmpeg.tar" "$WORK/ffmpeg"
+unpack "$SRC/mbedtls.tar" "$WORK/mbedtls"
 unpack "$SRC/libplacebo.tar" "$WORK/libplacebo"
 unpack "$SRC/freetype.tar" "$WORK/freetype"
 unpack "$SRC/fribidi.tar" "$WORK/fribidi"
@@ -117,7 +118,7 @@ python3 - "$WORK" "$OFFER/licenses" <<'PY'
 import pathlib, shutil, sys
 work, dest = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 dest.mkdir(parents=True, exist_ok=True)
-for tree in ("freetype", "fribidi", "harfbuzz", "libass", "ffmpeg", "libplacebo", "mpv"):
+for tree in ("freetype", "fribidi", "harfbuzz", "libass", "ffmpeg", "mbedtls", "libplacebo", "mpv"):
     root = work / tree
     for path in root.rglob("*"):
         if path.is_file() and path.name.lower().startswith(("license", "copying")) and path.stat().st_size < 2_000_000:
@@ -159,6 +160,24 @@ JOBS="$(sysctl -n hw.ncpu)"
   make install
 )
 (
+  # Static mbedTLS. FFmpeg 7.1.1's Secure Transport reports every
+  # SecTrustEvaluate failure as -9807, including a CA that signed the server
+  # certificate, so -ca_file cannot authenticate the HTTPS test. mbedTLS reads
+  # that PEM. SChannel is not used.
+  cmake -S "$WORK/mbedtls" -B "$WORK/mbedtls/build" -G "Unix Makefiles" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+    -DCMAKE_OSX_ARCHITECTURES="$ARCH" \
+    -DCMAKE_OSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" \
+    -DUSE_SHARED_MBEDTLS_LIBRARY=OFF \
+    -DUSE_STATIC_MBEDTLS_LIBRARY=ON \
+    -DENABLE_PROGRAMS=OFF \
+    -DENABLE_TESTING=OFF \
+    -DMBEDTLS_FATAL_WARNINGS=OFF
+  cmake --build "$WORK/mbedtls/build" -j"$JOBS"
+  cmake --install "$WORK/mbedtls/build"
+)
+(
   cd "$WORK/ffmpeg"
   # 7.1.1 with --disable-autodetect enables libc_iconv and only probes iconv in
   # libc (configure: "disabled iconv || enable libc_iconv"). That probe links on
@@ -166,15 +185,13 @@ JOBS="$(sysctl -n hw.ncpu)"
   # puts LDFLAGS before the objects and FFEXTRALIBS after them, and iconv_extralibs
   # stays empty. --extra-libs=-liconv is what reaches that link. Do not disable iconv.
   # ffmpeg and ffprobe are the sidecar programs. No external codec libraries.
-  # --disable-autodetect also drops Secure Transport. Enable it explicitly so
-  # HTTPS verifies certificates with the system Security framework. The app
-  # passes SSL_CERT_FILE as -ca_file; there is no extra TLS archive.
+  # --disable-autodetect drops TLS. mbedTLS is the pinned archive above.
   ./configure --prefix="$PREFIX" --enable-shared --disable-static \
     --arch="$ARCH" --target-os=darwin \
     --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS" \
     --disable-autodetect \
     --enable-gpl --enable-version3 \
-    --enable-securetransport \
+    --enable-mbedtls --pkg-config-flags=--static \
     --disable-doc --disable-debug \
     --disable-programs --enable-ffmpeg --enable-ffprobe \
     --enable-videotoolbox --enable-audiotoolbox \

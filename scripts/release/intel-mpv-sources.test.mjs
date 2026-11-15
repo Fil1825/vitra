@@ -42,6 +42,9 @@ describe('Intel mpv source pins', () => {
     expect(arm.dependencies.find((dep) => dep.name === 'ffmpeg').sha256).toBe(
       pins.dependencies.find((dep) => dep.name === 'ffmpeg').sha256,
     );
+    expect(arm.dependencies.find((dep) => dep.name === 'mbedtls').sha256).toBe(
+      pins.dependencies.find((dep) => dep.name === 'mbedtls').sha256,
+    );
   });
 
   it('builds HarfBuzz 10 with Meson and does not search Homebrew pkg-config', () => {
@@ -70,7 +73,8 @@ describe('Intel mpv source pins', () => {
     expect(disabled).toEqual(expect.arrayContaining(['videotoolbox-pl', 'vulkan']));
     expect(recipe).toContain('--enable-videotoolbox');
     expect(recipe).toContain('--enable-audiotoolbox');
-    expect(recipe).toContain('--enable-securetransport');
+    expect(recipe).toContain('--enable-mbedtls');
+    expect(recipe).not.toContain('--enable-securetransport');
     expect(recipe).toContain(
       '-Dc_link_args="$LDFLAGS -liconv -framework CoreVideo -framework IOSurface"',
     );
@@ -137,7 +141,12 @@ describe('Intel mpv source pins', () => {
       gplPins.mbedtls.sha256,
     );
     expect(script).toContain('--enable-mbedtls');
+    expect(script).toContain('Libs.private: -lbcrypt -lws2_32');
+    expect(script).toContain('prefix=${PREFIX}');
     expect(gpl).toContain('--enable-mbedtls');
+    expect(pins.dependencies.find((item) => item.name === 'mbedtls').sha256).toBe(
+      gplPins.mbedtls.sha256,
+    );
   });
 
   it('copies the recipe, pins, and Mach-O checkers into the source offer', () => {

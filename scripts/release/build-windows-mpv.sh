@@ -228,6 +228,16 @@ cp "$WORK/mbedtls/LICENSE" "$OFFER/licenses/mbedtls-LICENSE"
   cmake --build "$WORK/mbedtls/build" -j"$JOBS"
   cmake --install "$WORK/mbedtls/build"
 )
+# mingw cmake writes prefix=D:/... into the .pc files. pkg-config then prints
+# -ID:/..., and MSYS splits that colon into a path list, so FFmpeg's probe
+# cannot compile mbedtls/ssl.h. The templates also omit ws2_32 and bcrypt,
+# which the static libraries reference. Point prefix at this shell path.
+pc_dir="$PREFIX/lib/pkgconfig"
+sed -i "s|^prefix=.*|prefix=${PREFIX}|" \
+  "$pc_dir/mbedcrypto.pc" "$pc_dir/mbedtls.pc" "$pc_dir/mbedx509.pc"
+if ! grep -q '^Libs.private:' "$pc_dir/mbedcrypto.pc"; then
+  printf '\nLibs.private: -lbcrypt -lws2_32\n' >> "$pc_dir/mbedcrypto.pc"
+fi
 (
   cd "$WORK/ffmpeg"
   ./configure --prefix="$PREFIX" --disable-shared --enable-static \
