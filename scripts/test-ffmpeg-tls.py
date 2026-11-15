@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Test a real sidecar against local trusted/untrusted HTTPS; no external media needed."""
+"""Test a real sidecar against local trusted/untrusted HTTPS; no external media needed.
+
+The trusted PEM is a CA, and the server certificate is signed by it.
+Secure Transport rejects a self-signed end-entity used as the only anchor
+(SecTrustEvaluate -> kSecTrustResultRecoverableTrustFailure, FFmpeg -9807
+errSSLXCertChainInvalid). mbedTLS accepts that same file, so the fixture has
+to be a real chain for both backends. Verification stays on.
+"""
 
 import argparse
 import functools
@@ -25,10 +32,36 @@ def main():
                 ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
                  "-keyout", str(directory / f"{name}.key"),
                  "-out", str(directory / f"{name}.pem"), "-days", "1",
-                 "-subj", f"/CN=Vitra {name} test",
-                 "-addext", "subjectAltName=IP:127.0.0.1,DNS:localhost"],
+                 "-subj", f"/CN=Vitra {name} CA",
+                 "-addext", "basicConstraints=critical,CA:TRUE",
+                 "-addext", "keyUsage=critical,keyCertSign,cRLSign"],
                 check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
             )
+        subprocess.run(
+            ["openssl", "req", "-newkey", "rsa:2048", "-nodes",
+             "-keyout", str(directory / "server.key"),
+             "-out", str(directory / "server.csr"),
+             "-subj", "/CN=127.0.0.1",
+             "-addext", "subjectAltName=IP:127.0.0.1,DNS:localhost"],
+            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+        )
+        ext = directory / "server.ext"
+        ext.write_text(
+            "basicConstraints=CA:FALSE\n"
+            "subjectAltName=IP:127.0.0.1,DNS:localhost\n"
+            "extendedKeyUsage=serverAuth\n"
+            "keyUsage=digitalSignature,keyEncipherment\n"
+        )
+        subprocess.run(
+            ["openssl", "x509", "-req",
+             "-in", str(directory / "server.csr"),
+             "-CA", str(directory / "trusted.pem"),
+             "-CAkey", str(directory / "trusted.key"),
+             "-CAcreateserial",
+             "-out", str(directory / "server.pem"),
+             "-days", "1", "-extfile", str(ext)],
+            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+        )
         subprocess.run(
             [str(ffmpeg), "-nostdin", "-hide_banner", "-loglevel", "error",
              "-f", "lavfi", "-i", "sine=frequency=440:duration=6",
@@ -37,7 +70,7 @@ def main():
         handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=temporary)
         server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        context.load_cert_chain(directory / "trusted.pem", directory / "trusted.key")
+        context.load_cert_chain(directory / "server.pem", directory / "server.key")
         server.socket = context.wrap_socket(server.socket, server_side=True)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()

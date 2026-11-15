@@ -114,6 +114,9 @@ describe('Intel mpv source pins', () => {
     expect(script).toContain('--disable-iconv');
     expect(script).toContain('TMPDIR=/tmp');
     expect(script).toContain('C:/msys64');
+    expect(script).toContain('msys2.cmd');
+    expect(script).toContain('/mingw64/bin/cmake.exe');
+    expect(script).toContain('VITRA_MSYS_REEXEC');
     expect(script).toContain('command -v python3');
     expect(script).toContain('command -v python');
     expect(script).toContain('"$PYTHON"');

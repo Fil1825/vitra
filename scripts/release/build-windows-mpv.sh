@@ -14,28 +14,53 @@ OUT=${1:?output directory required}
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 PINS="${VITRA_MPV_SOURCES:-$SCRIPT_DIR/windows-mpv-sources.json}"
 
-# GitHub's setup-msys2 puts mingw gcc on Git Bash's PATH, and Git Bash reports
-# MSYSTEM=MINGW64. libtool then writes C:/Users/RUNNER~1/... and mingw ar cannot
-# open objs/.libs. Build only inside MSYS2, with temp files under /tmp.
-msys_root=$(cygpath -m / 2>/dev/null || true)
-case "$msys_root" in
-  C:/msys64|C:/msys64/) ;;
-  *)
-    MSYS_BASH=/c/msys64/usr/bin/bash.exe
-    if [[ ! -x "$MSYS_BASH" ]]; then
-      echo "MSYS2 mingw-w64 gcc is required to build Windows mpv" >&2
-      exit 1
-    fi
-    OUT_U=$(cygpath -u "$OUT")
-    ROOT_U=$(cygpath -u "$PWD")
-    PINS_U=$(cygpath -u "$PINS")
-    exec "$MSYS_BASH" -lc "export MSYSTEM=MINGW64 PATH=/mingw64/bin:/usr/bin:\$PATH TMPDIR=/tmp TEMP=/tmp TMP=/tmp VITRA_MPV_SOURCES='$PINS_U'; mkdir -p /tmp; cd '$ROOT_U' && exec bash scripts/release/build-windows-mpv.sh '$OUT_U'"
-    ;;
-esac
+# setup-msys2's default release install lives under RUNNER_TEMP/msys64, not in
+# the image copy at C:/msys64. That image has no mingw cmake, so bash reports
+# "cmake: command not found" (exit 127). Enter the MSYS2 whose mingw64 bin
+# contains cmake. Keep temp files under /tmp: Git Bash's libtool otherwise
+# writes C:/Users/RUNNER~1/... and mingw ar cannot open objs/.libs.
+# Do not pass PATH=a:/b on the bash.exe command line. MSYS2 rewrites that
+# colon list into semicolons and the rest of the command is dropped.
+if [[ ! -x /mingw64/bin/cmake.exe ]]; then
+  if [[ "${VITRA_MSYS_REEXEC:-}" == 1 ]]; then
+    echo "mingw cmake is not in this MSYS2 ($(cygpath -m / 2>/dev/null || echo unknown))" >&2
+    exit 1
+  fi
+  msys_bash=""
+  if [[ -n "${MSYS2_LOCATION:-}" && -x "${MSYS2_LOCATION}/usr/bin/bash.exe" ]]; then
+    msys_bash=$(cygpath -u "${MSYS2_LOCATION}/usr/bin/bash.exe")
+  fi
+  if [[ -z "$msys_bash" ]]; then
+    IFS=':' read -r -a path_entries <<< "${PATH:-}"
+    for entry in "${path_entries[@]}"; do
+      launcher="${entry}/msys2.cmd"
+      [[ -f "$launcher" ]] || continue
+      win_bash=$(awk 'match($0, /[A-Za-z]:\\[^ ]*usr\\bin\\bash.exe/) { print substr($0, RSTART, RLENGTH); exit }' "$launcher" | tr -d '\r')
+      if [[ -n "$win_bash" ]]; then
+        win_bash=${win_bash//\\//}
+        msys_bash=$(cygpath -u "$win_bash")
+        break
+      fi
+    done
+  fi
+  if [[ -z "$msys_bash" && -x /c/msys64/usr/bin/bash.exe ]]; then
+    msys_bash=/c/msys64/usr/bin/bash.exe
+  fi
+  if [[ -z "$msys_bash" || ! -x "$msys_bash" ]]; then
+    echo "MSYS2 mingw-w64 gcc is required to build Windows mpv" >&2
+    exit 1
+  fi
+  OUT_U=$(cygpath -u "$OUT")
+  ROOT_U=$(cygpath -u "$PWD")
+  PINS_U=$(cygpath -u "$PINS")
+  exec "$msys_bash" -lc "export MSYSTEM=MINGW64 MSYS2_PATH_TYPE=minimal TMPDIR=/tmp TEMP=/tmp TMP=/tmp VITRA_MSYS_REEXEC=1 VITRA_MPV_SOURCES='$PINS_U'; mkdir -p /tmp; cd '$ROOT_U' && exec bash scripts/release/build-windows-mpv.sh '$OUT_U'"
+fi
 export TMPDIR=/tmp
 export TEMP=/tmp
 export TMP=/tmp
 mkdir -p /tmp
+export PATH="/mingw64/bin:/usr/bin:${PATH:-}"
+hash -r
 
 if [[ -x "$OUT/ffmpeg.exe" && -x "$OUT/ffprobe.exe" && -x "$OUT/mpv/mpv.exe" && -f "$OUT/mpv-corresponding-source.tar.gz" ]]; then
   exit 0
@@ -70,9 +95,11 @@ chmod +x "$WORK/bin/git"
 export PATH="$WORK/bin:$PATH"
 
 # mingw-w64-x86_64-python ships python.exe and removes python3.exe.
-# Git Bash has neither name until this MSYS2 PATH is in place. The py
-# launcher covers a runner that has not entered MSYS2 yet.
-if command -v python3 >/dev/null 2>&1; then
+# Prefer that interpreter. Git Bash has neither name until this MSYS2 PATH
+# is in place. The py launcher covers a runner that has not entered MSYS2 yet.
+if [[ -x /mingw64/bin/python.exe ]]; then
+  PYTHON=/mingw64/bin/python.exe
+elif command -v python3 >/dev/null 2>&1; then
   PYTHON=python3
 elif command -v python >/dev/null 2>&1; then
   PYTHON=python
