@@ -169,6 +169,8 @@ describe('Intel mpv source pins', () => {
     expect(recipe).toContain('apply-pinned-patch.py');
     expect(script).toContain('sidecar ffmpeg is missing the libmp3lame encoder');
     expect(script).toContain('Libs.private: -lbcrypt -lws2_32');
+    expect(script).toContain('-Dc_link_args=-static-libgcc,-l:libstdc++.a,-l:libpthread.a');
+    expect(script).toContain('mpv.exe depends on a GCC runtime DLL');
     expect(script).toContain('prefix=${PREFIX}');
     expect(gpl).toContain('--enable-mbedtls');
     expect(gpl).toContain('--enable-libmp3lame');

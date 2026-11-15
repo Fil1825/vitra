@@ -302,10 +302,29 @@ fi
   meson compile -C build
   meson install -C build
 )
+# libplacebo (convert.cc) and shaderc/glslang are C++ static archives.
+# Their .pc files do not name libstdc++, and mpv links with the C driver,
+# so GCC 16 leaves std::to_chars/from_chars unresolved. A plain -lstdc++
+# selects libstdc++.dll.a. Name the static archives instead. libpthread.a
+# satisfies the pthread symbols inside that libstdc++.
+for pc in "$PREFIX/lib/pkgconfig/libplacebo.pc" \
+  "$PREFIX/lib/pkgconfig/shaderc.pc" \
+  "$PREFIX/lib/pkgconfig/shaderc_combined.pc" \
+  "$PREFIX/lib/pkgconfig/shaderc_static.pc" \
+  "$PREFIX/lib/pkgconfig/glslang.pc"; do
+  if [[ -f "$pc" ]] && ! grep -q 'libstdc++\.a' "$pc"; then
+    if grep -q '^Libs.private:' "$pc"; then
+      sed -i 's/^Libs.private:.*/& -l:libstdc++.a -l:libpthread.a/' "$pc"
+    else
+      printf '\nLibs.private: -l:libstdc++.a -l:libpthread.a\n' >> "$pc"
+    fi
+  fi
+done
 (
   cd "$WORK/mpv"
   meson setup build --prefix="$PREFIX" --buildtype=release --default-library=static \
     -Dlibmpv=false \
+    -Dc_link_args=-static-libgcc,-l:libstdc++.a,-l:libpthread.a \
     -D{d3d-hwaccel,wasapi,vulkan,shaderc,gl,gl-win32,plain-gl}=enabled \
     -D{iconv,lua,javascript,jpeg,lcms2,cocoa,videotoolbox-gl,videotoolbox-pl,swift-build}=disabled \
     -D{wayland,x11,vaapi,dvdnav,cdda,libarchive,libbluray,rubberband,uchardet,vapoursynth,zimg,manpage-build,spirv-cross,d3d11}=disabled
@@ -313,6 +332,11 @@ fi
 )
 mkdir -p "$OUT/mpv"
 cp "$WORK/mpv/build/mpv.exe" "$OUT/mpv/mpv.exe"
+if objdump -p "$OUT/mpv/mpv.exe" | grep -E -q 'libstdc\+\+-6\.dll|libgcc_s_seh-1\.dll|libwinpthread-1\.dll'; then
+  echo "mpv.exe depends on a GCC runtime DLL; libstdc++ must stay static" >&2
+  objdump -p "$OUT/mpv/mpv.exe" | grep 'DLL Name' >&2
+  exit 1
+fi
 cp "$PREFIX/bin/ffmpeg.exe" "$OUT/ffmpeg.exe"
 cp "$PREFIX/bin/ffprobe.exe" "$OUT/ffprobe.exe"
 # Do not pipe this into grep -q. pipefail plus grep -q closes the pipe as
