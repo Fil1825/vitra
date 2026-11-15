@@ -171,7 +171,12 @@ describe('Intel mpv source pins', () => {
     expect(script).toContain('Libs.private: -lbcrypt -lws2_32');
     expect(script).toContain('-Dc_link_args="-static-libgcc -l:libstdc++.a -l:libpthread.a"');
     expect(script).not.toContain('-Dc_link_args=-static-libgcc,');
-    expect(script).toContain('mpv.exe depends on a GCC runtime DLL');
+    expect(script).toContain('-Dvulkan=disabled');
+    expect(script).toContain('-Dopengl=enabled');
+    expect(script).toContain('-Dshaderc=disabled');
+    expect(script).toContain('--extra-ldexeflags="-static"');
+    expect(script).toContain('windows-dll-imports.mjs');
+    expect(script).not.toContain('"$OUT/mpv/vulkan-1.dll"');
     expect(script).toContain('prefix=${PREFIX}');
     expect(gpl).toContain('--enable-mbedtls');
     expect(gpl).toContain('--enable-libmp3lame');

@@ -2,7 +2,8 @@
 # Windows mpv, ffmpeg, and ffprobe from pinned sources.
 # shaderc is commit 2737994b552137a85545f956e303d620e6ff232c with the SPIR-V and
 # glslang revisions from that commit's DEPS file. Vulkan-Headers and
-# Vulkan-Loader are the tag vulkan-sdk-1.4.363.0. UPDATE_DEPS stays OFF.
+# Vulkan-Loader stay pinned at vulkan-sdk-1.4.363.0 with UPDATE_DEPS OFF.
+# The player links OpenGL and does not ship the loader.
 # FFmpeg is the pinned 7.1.1 release. MP3 uses the pinned LAME 3.100 tarball,
 # linked statically. The build does not link xvid, aom, soxr, opencore-amr,
 # ffnvcodec, or libiconv. HTTPS uses the pinned mbedTLS 3.6.7
@@ -14,6 +15,15 @@ set -euo pipefail
 OUT=${1:?output directory required}
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 PINS="${VITRA_MPV_SOURCES:-$SCRIPT_DIR/windows-mpv-sources.json}"
+
+# MSYS2_PATH_TYPE=minimal hides the runner's Node. Remember it before reexec.
+if [[ -z "${VITRA_NODE:-}" ]] && command -v node >/dev/null 2>&1; then
+  VITRA_NODE=$(command -v node)
+  if command -v cygpath >/dev/null 2>&1; then
+    VITRA_NODE=$(cygpath -u "$VITRA_NODE")
+  fi
+  export VITRA_NODE
+fi
 
 # setup-msys2's default release install lives under RUNNER_TEMP/msys64, not in
 # the image copy at C:/msys64. That image has no mingw cmake, so bash reports
@@ -54,7 +64,7 @@ if [[ ! -x /mingw64/bin/cmake.exe ]]; then
   OUT_U=$(cygpath -u "$OUT")
   ROOT_U=$(cygpath -u "$PWD")
   PINS_U=$(cygpath -u "$PINS")
-  exec "$msys_bash" -lc "export MSYSTEM=MINGW64 MSYS2_PATH_TYPE=minimal TMPDIR=/tmp TEMP=/tmp TMP=/tmp VITRA_MSYS_REEXEC=1 VITRA_MPV_SOURCES='$PINS_U'; mkdir -p /tmp; cd '$ROOT_U' && exec bash scripts/release/build-windows-mpv.sh '$OUT_U'"
+  exec "$msys_bash" -lc "export MSYSTEM=MINGW64 MSYS2_PATH_TYPE=minimal TMPDIR=/tmp TEMP=/tmp TMP=/tmp VITRA_MSYS_REEXEC=1 VITRA_MPV_SOURCES='$PINS_U' VITRA_NODE='$VITRA_NODE'; mkdir -p /tmp; cd '$ROOT_U' && exec bash scripts/release/build-windows-mpv.sh '$OUT_U'"
 fi
 export TMPDIR=/tmp
 export TEMP=/tmp
@@ -283,6 +293,7 @@ fi
     --enable-gpl --enable-version3 \
     --enable-mbedtls --enable-libmp3lame \
     --extra-cflags="-I$PREFIX/include" --extra-ldflags="-L$PREFIX/lib" \
+    --extra-ldexeflags="-static" \
     --disable-doc --disable-debug \
     --disable-programs --enable-ffmpeg --enable-ffprobe \
     --enable-d3d11va --enable-dxva2 \
@@ -292,19 +303,23 @@ fi
 )
 (
   cd "$WORK/libplacebo"
-  # d3d11 requires spirv-cross-c-shared, which is not pinned. Vulkan is the
-  # renderer. A disabled feature is not probed; an enabled one is required.
+  # d3d11 requires spirv-cross-c-shared, which is not pinned. OpenGL
+  # (opengl32.dll, a Windows system library) is the renderer. vulkan-1.dll is
+  # the Vulkan loader; the MinGW build of it imports libgcc and libwinpthread,
+  # and a machine without a Vulkan driver does not have that DLL either.
+  # shaderc only compiles SPIR-V for Vulkan. A disabled feature is not probed.
   meson setup build --prefix="$PREFIX" --buildtype=release --default-library=static \
     -Ddemos=false -Dtests=false \
-    -Dvulkan=enabled -Dshaderc=enabled -Dglslang=disabled \
-    -Dopengl=disabled -Dd3d11=disabled -Dunwind=disabled \
+    -Dvulkan=disabled -Dshaderc=disabled -Dglslang=disabled \
+    -Dopengl=enabled -Dd3d11=disabled -Dunwind=disabled \
     -Dlcms=disabled -Dlibdovi=disabled -Dxxhash=disabled
   meson compile -C build
   meson install -C build
 )
-# libplacebo (convert.cc) and shaderc/glslang are C++ static archives.
-# Their .pc files do not name libstdc++, and mpv links with the C driver,
-# so GCC 16 leaves std::to_chars/from_chars unresolved. A plain -lstdc++
+# libplacebo's convert.cc is a C++ static archive, and its .pc file does not
+# name libstdc++. The shaderc and glslang .pc files have the same gap. mpv
+# links with the C driver, so GCC 16 leaves std::to_chars/from_chars
+# unresolved. A plain -lstdc++
 # selects libstdc++.dll.a. Name the static archives instead. libpthread.a
 # satisfies the pthread symbols inside that libstdc++. Meson shell-splits
 # c_link_args on spaces. A comma-joined -D value becomes one argument.
@@ -326,20 +341,28 @@ done
   meson setup build --prefix="$PREFIX" --buildtype=release --default-library=static \
     -Dlibmpv=false \
     -Dc_link_args="-static-libgcc -l:libstdc++.a -l:libpthread.a" \
-    -D{d3d-hwaccel,wasapi,vulkan,shaderc,gl,gl-win32,plain-gl}=enabled \
+    -D{d3d-hwaccel,wasapi,gl,gl-win32,plain-gl}=enabled \
     -D{iconv,lua,javascript,jpeg,lcms2,cocoa,videotoolbox-gl,videotoolbox-pl,swift-build}=disabled \
-    -D{wayland,x11,vaapi,dvdnav,cdda,libarchive,libbluray,rubberband,uchardet,vapoursynth,zimg,manpage-build,spirv-cross,d3d11}=disabled
+    -D{wayland,x11,vaapi,dvdnav,cdda,libarchive,libbluray,rubberband,uchardet,vapoursynth,zimg,manpage-build,spirv-cross,d3d11,vulkan,shaderc}=disabled
   meson compile -C build
 )
 mkdir -p "$OUT/mpv"
 cp "$WORK/mpv/build/mpv.exe" "$OUT/mpv/mpv.exe"
-if objdump -p "$OUT/mpv/mpv.exe" | grep -E -q 'libstdc\+\+-6\.dll|libgcc_s_seh-1\.dll|libwinpthread-1\.dll'; then
-  echo "mpv.exe depends on a GCC runtime DLL; libstdc++ must stay static" >&2
-  objdump -p "$OUT/mpv/mpv.exe" | grep 'DLL Name' >&2
-  exit 1
-fi
 cp "$PREFIX/bin/ffmpeg.exe" "$OUT/ffmpeg.exe"
 cp "$PREFIX/bin/ffprobe.exe" "$OUT/ffprobe.exe"
+# Before the source tarball and the installer. vulkan-1.dll, libstdc++,
+# libgcc, libwinpthread, shaderc_shared, SDL2, and libass are not system DLLs.
+assert_system_dlls() {
+  local exe="$1"
+  if [[ -z "${VITRA_NODE:-}" || ! -x "${VITRA_NODE}" ]]; then
+    echo "node is required to check DLL imports of $exe" >&2
+    exit 1
+  fi
+  objdump -p "$exe" | "$VITRA_NODE" "$SCRIPT_DIR/windows-dll-imports.mjs" "$exe"
+}
+assert_system_dlls "$OUT/mpv/mpv.exe"
+assert_system_dlls "$OUT/ffmpeg.exe"
+assert_system_dlls "$OUT/ffprobe.exe"
 # Do not pipe this into grep -q. pipefail plus grep -q closes the pipe as
 # soon as it sees libmp3lame, ffmpeg dies with SIGPIPE, and the check
 # reports the encoder missing even though it was just compiled.
@@ -351,12 +374,6 @@ if ! grep -q libmp3lame <<<"$encoders"; then
   echo "sidecar ffmpeg is missing the libmp3lame encoder" >&2
   exit 1
 fi
-vulkan_dll=$(find "$PREFIX" -name 'vulkan-1.dll' -o -name 'libvulkan-1.dll' | head -n 1)
-if [[ -z "$vulkan_dll" ]]; then
-  echo "Vulkan-Loader did not install vulkan-1.dll" >&2
-  exit 1
-fi
-cp "$vulkan_dll" "$OUT/mpv/vulkan-1.dll"
 "$PYTHON" - "$PINS" "$OFFER/build-record.json" <<'PY'
 import json, pathlib, sys
 pins = json.loads(pathlib.Path(sys.argv[1]).read_text())

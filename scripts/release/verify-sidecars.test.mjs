@@ -5,7 +5,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { requiredSidecars } from './sidecars.mjs';
-import { assertLibmp3lameEncoder, findSidecars } from './verify-sidecars.mjs';
+import { assertLibmp3lameEncoder, findSidecars, formatSpawnFailure } from './verify-sidecars.mjs';
 
 describe('installed package verification', () => {
   it('rejects missing and ambiguous packages, not just a successful build command', () => {
@@ -67,5 +67,18 @@ process.exit(0);
 
   it('checks the Windows package binary as ffmpeg.exe', () => {
     expect(requiredSidecars('x86_64-pc-windows-msvc')).toContain('ffmpeg.exe');
+  });
+
+  it('reports a Windows loader abort with its exit code', () => {
+    const text = formatSpawnFailure('mpv/mpv.exe', {
+      status: 0xc0000135 | 0,
+      signal: null,
+      stderr: '',
+      error: null,
+    });
+    // spawnSync reports STATUS_DLL_NOT_FOUND as a signed 32-bit status.
+    expect(text).toContain('exit 0xc0000135');
+    expect(text).toContain('signal none');
+    expect(text).toContain('stderr (empty)');
   });
 });

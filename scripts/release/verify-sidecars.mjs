@@ -23,12 +23,23 @@ function spawnPackaged(program, args) {
   return spawnSync(program, args, options);
 }
 
+/** Describe a helper that did not run. A missing DLL exits 0xC0000135 with empty stderr. */
+export function formatSpawnFailure(program, result) {
+  const status =
+    result.status === null || result.status === undefined
+      ? 'none'
+      : `0x${(result.status >>> 0).toString(16)}`;
+  const signal = result.signal ?? 'none';
+  const stderr = (result.stderr ?? '').toString().trim() || '(empty)';
+  const spawn = result.error ? `, spawn ${result.error.message}` : '';
+  return `Packaged helper failed: ${program}: exit ${status}, signal ${signal}, stderr ${stderr}${spawn}`;
+}
+
 /** The packaged ffmpeg must be able to encode MP3. yt-dlp asks for this encoder by name. */
 export function assertLibmp3lameEncoder(program) {
   const result = spawnPackaged(program, ['-hide_banner', '-encoders']);
   if (result.error || result.status === null) {
-    const reason = result.error?.message ?? 'ffmpeg exited without a status';
-    throw new Error(`Packaged ffmpeg could not be started: ${program}: ${reason}`);
+    throw new Error(`Packaged ffmpeg could not be started: ${formatSpawnFailure(program, result)}`);
   }
   const text = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
   if (result.status !== 0 || !/(^|\s)libmp3lame(\s|$)/m.test(text)) {
@@ -68,10 +79,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const result = spawnPackaged(path.join(directory, program), [
       ffmpeg ? '-version' : '--version',
     ]);
-    if (result.error || result.status !== 0)
-      throw new Error(
-        `Packaged helper failed: ${program}: ${result.error?.message ?? result.stderr}`,
-      );
+    if (result.error || result.status !== 0) throw new Error(formatSpawnFailure(program, result));
     const base = path.basename(program);
     if (base === 'ffmpeg' || base === 'ffmpeg.exe')
       assertLibmp3lameEncoder(path.join(directory, program));
