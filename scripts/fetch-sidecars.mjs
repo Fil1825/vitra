@@ -195,6 +195,8 @@ function sourceBuildDownloads(sidecar) {
 
 function buildFromSource(sidecar) {
   const script = path.resolve(ROOT, sidecar.script);
+  const failureReport = path.join(outDir, 'source-build-failure.txt');
+  fs.rmSync(failureReport, { force: true });
   const result = spawnSync('bash', [script, outDir], {
     cwd: ROOT,
     stdio: 'inherit',
@@ -203,8 +205,11 @@ function buildFromSource(sidecar) {
       VITRA_MPV_SOURCES: path.resolve(ROOT, sidecar.sources),
     },
   });
+  const report = fs.existsSync(failureReport) ? fs.readFileSync(failureReport, 'utf8') : '';
+  fs.rmSync(failureReport, { force: true });
   if (result.status !== 0) {
-    throw new Error(`source build failed (${result.status ?? 'signal'})`);
+    const tail = report.trim() ? `\n${report.trimEnd()}` : '';
+    throw new Error(`source build failed (${result.status ?? 'signal'})${tail}`);
   }
   for (const executable of sidecar.executables) {
     if (!fs.existsSync(path.join(outDir, executable))) {

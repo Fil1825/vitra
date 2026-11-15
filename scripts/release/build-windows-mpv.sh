@@ -91,6 +91,9 @@ fi
 export HOME="$(cygpath -u "$USERPROFILE")"
 mkdir -p "$HOME"
 
+# A failed run leaves this next to the sidecars. Remove it before the cache
+# check so a later success cannot package the report.
+rm -f "$OUT/source-build-failure.txt"
 if [[ -x "$OUT/ffmpeg.exe" && -x "$OUT/ffprobe.exe" && -x "$OUT/mpv/mpv.exe" && -f "$OUT/mpv-corresponding-source.tar.gz" ]]; then
   exit 0
 fi
@@ -100,6 +103,52 @@ PREFIX="$WORK/prefix"
 SRC="$WORK/src"
 OFFER="$OUT/mpv-corresponding-source"
 trap 'rm -rf "$WORK"' EXIT
+
+# On failure, reprint the tail of the step that exited and any configure log
+# from that tree. fetch-sidecars reads the file into the summary at the end
+# of the log. The live build output is still streamed through tee.
+report_failed_step() {
+  local name=$1 status=$2 log=$3 dir=$4
+  local report="$OUT/source-build-failure.txt"
+  local extra
+  {
+    echo "===== FAILED STEP: ${name} (exit ${status}) ====="
+    echo "----- last 80 lines of ${name} -----"
+    if [[ -f "$log" ]]; then
+      tail -n 80 "$log" || true
+    else
+      echo "(no step log)"
+    fi
+    if [[ -n "$dir" && -d "$dir" ]]; then
+      while IFS= read -r extra; do
+        echo "----- last 80 lines of ${extra} -----"
+        tail -n 80 "$extra" || true
+      done < <(find "$dir" -maxdepth 3 -type f \( -name config.log -o -name meson-log.txt \) -print 2>/dev/null | sort)
+    fi
+    echo "===== END FAILED STEP: ${name} ====="
+  } >"$report"
+  cat "$report" >&2
+}
+
+run_step() {
+  local name=$1
+  local dir=$2
+  local fn=$3
+  shift 3
+  local log status
+  log=$(mktemp)
+  set +e
+  ( set -euo pipefail; "$fn" "$@" ) 2>&1 | tee "$log"
+  status=${PIPESTATUS[0]}
+  set -e
+  if [[ "$status" -ne 0 ]]; then
+    report_failed_step "$name" "$status" "$log" "$dir"
+    rm -f "$log"
+    exit "$status"
+  fi
+  rm -f "$log"
+}
+
 export PATH="/mingw64/bin:$PREFIX/bin:$PATH"
 unset PKG_CONFIG_PATH
 export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
@@ -216,20 +265,22 @@ cp "$SCRIPT_DIR/libplacebo-python314.patch" "$OFFER/patches/libplacebo-python314
 cp "$SCRIPT_DIR/apply-pinned-patch.py" "$OFFER/patches/apply-pinned-patch.py"
 
 JOBS="$(nproc)"
-(
+step_vulkan_headers() {
   cd "$WORK/vulkan-headers"
   cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" -DBUILD_TESTS=OFF
   ninja -j"$JOBS"
   ninja install
-)
-(
+}
+run_step "vulkan-headers" "$WORK/vulkan-headers" step_vulkan_headers
+step_vulkan_loader() {
   cd "$WORK/vulkan-loader"
   cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" \
     -DUPDATE_DEPS=OFF -DBUILD_TESTS=OFF
   ninja -j"$JOBS"
   ninja install
-)
-(
+}
+run_step "vulkan-loader" "$WORK/vulkan-loader" step_vulkan_loader
+step_shaderc() {
   cd "$WORK/shaderc"
   cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
@@ -237,48 +288,56 @@ JOBS="$(nproc)"
     -DSHADERC_SKIP_COPYRIGHT_CHECK=ON -DSPIRV_SKIP_TESTS=ON
   ninja -j"$JOBS"
   ninja install
-)
-# These .pc files name shared libraries (shaderc_shared, vulkan-1). mpv does
-# not link them. Leaving the files would let a later pkg-config probe do so.
+}
+run_step "shaderc" "$WORK/shaderc" step_shaderc
+# These .pc files name shared libraries (shaderc_shared, vulkan-1,
+# SPIRV-Tools-shared). mpv does not link them: Vulkan and shaderc stay
+# disabled. SPIRV-Tools-shared.pc is -lSPIRV-Tools-shared, which has no static
+# archive, so the pkg-config check fails the build if the file is left behind.
 rm -f "$PREFIX/lib/pkgconfig/vulkan.pc" \
   "$PREFIX/lib/pkgconfig/shaderc.pc" \
   "$PREFIX/lib/pkgconfig/shaderc_combined.pc" \
   "$PREFIX/lib/pkgconfig/shaderc_static.pc" \
-  "$PREFIX/lib/pkgconfig/glslang.pc"
+  "$PREFIX/lib/pkgconfig/glslang.pc" \
+  "$PREFIX/lib/pkgconfig"/SPIRV-Tools*.pc
 # Meson must not cmake-find an MSYS2 shared library after pkg-config misses.
 export CMAKE_PREFIX_PATH="$PREFIX"
 export CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH=OFF
 export CMAKE_FIND_USE_CMAKE_SYSTEM_PATH=OFF
-(
+step_zlib() {
   cd "$WORK/zlib"
   # Static only. mpv's zlib feature otherwise finds MSYS2's zlib1.dll.
   ./configure --static --prefix="$PREFIX"
   make -j"$JOBS"
   make install
-)
-(
+}
+run_step "zlib" "$WORK/zlib" step_zlib
+step_libiconv() {
   cd "$WORK/libiconv"
   # Static only. libass probes -liconv with the compiler and would link
   # MSYS2's libiconv-2.dll. The iconv program is not shipped.
   ./configure --prefix="$PREFIX" --disable-shared --enable-static --disable-nls
   make -j"$JOBS"
   make install
-)
-(
+}
+run_step "libiconv" "$WORK/libiconv" step_libiconv
+step_freetype() {
   cd "$WORK/freetype"
   # No system zlib, png, harfbuzz, brotli, or bzip2. Those are not pinned.
   ./configure --prefix="$PREFIX" --disable-shared --enable-static \
     --with-zlib=no --with-png=no --with-harfbuzz=no --with-brotli=no --with-bzip2=no
   make -j"$JOBS"
   make install
-)
-(
+}
+run_step "freetype" "$WORK/freetype" step_freetype
+step_fribidi() {
   cd "$WORK/fribidi"
   ./configure --prefix="$PREFIX" --disable-shared --enable-static
   make -j"$JOBS"
   make install
-)
-(
+}
+run_step "fribidi" "$WORK/fribidi" step_fribidi
+step_harfbuzz() {
   cd "$WORK/harfbuzz"
   meson setup build --prefix="$PREFIX" --buildtype=release --default-library=static \
     -Dprefer_static=true \
@@ -287,8 +346,9 @@ export CMAKE_FIND_USE_CMAKE_SYSTEM_PATH=OFF
     -Dtests=disabled -Ddocs=disabled -Dintrospection=disabled -Dutilities=disabled
   meson compile -C build
   meson install -C build
-)
-(
+}
+run_step "harfbuzz" "$WORK/harfbuzz" step_harfbuzz
+step_libass() {
   cd "$WORK/libass"
   # DirectWrite on desktop loads dwrite.dll at runtime and links gdi32.
   # libunibreak, fontconfig, and libpng are not pinned, so they stay off.
@@ -297,12 +357,13 @@ export CMAKE_FIND_USE_CMAKE_SYSTEM_PATH=OFF
       --disable-fontconfig --disable-libunibreak
   make -j"$JOBS"
   make install
-)
+}
+run_step "libass" "$WORK/libass" step_libass
 cp "$WORK/mbedtls/LICENSE" "$OFFER/licenses/mbedtls-LICENSE"
 cp "$WORK/lame/COPYING" "$OFFER/licenses/lame-COPYING"
 cp "$WORK/zlib/LICENSE" "$OFFER/licenses/zlib-LICENSE"
 cp "$WORK/libiconv/COPYING.LIB" "$OFFER/licenses/libiconv-COPYING.LIB"
-(
+step_lame() {
   cd "$WORK/lame"
   # Static only. The frontend does not ship. -fcommon keeps the 3.100
   # tentative definitions linkable on the mingw gcc this runner installs.
@@ -312,8 +373,9 @@ cp "$WORK/libiconv/COPYING.LIB" "$OFFER/licenses/libiconv-COPYING.LIB"
       --disable-frontend --disable-gtktest --disable-nasm
   make -j"$JOBS"
   make install
-)
-(
+}
+run_step "lame" "$WORK/lame" step_lame
+step_mbedtls() {
   cmake -S "$WORK/mbedtls" -B "$WORK/mbedtls/build" -G "Unix Makefiles" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$PREFIX" \
@@ -324,7 +386,8 @@ cp "$WORK/libiconv/COPYING.LIB" "$OFFER/licenses/libiconv-COPYING.LIB"
     -DMBEDTLS_FATAL_WARNINGS=OFF
   cmake --build "$WORK/mbedtls/build" -j"$JOBS"
   cmake --install "$WORK/mbedtls/build"
-)
+}
+run_step "mbedtls" "$WORK/mbedtls" step_mbedtls
 # mingw cmake writes prefix=D:/... into the .pc files. pkg-config then prints
 # -ID:/..., and MSYS splits that colon into a path list, so FFmpeg's probe
 # cannot compile mbedtls/ssl.h. The templates also omit ws2_32 and bcrypt,
@@ -365,8 +428,8 @@ pin_pkgconfig_static() {
   done
   shopt -u nullglob
 }
-pin_pkgconfig_static
-(
+run_step "pkg-config static libs" "$PREFIX" pin_pkgconfig_static
+step_ffmpeg() {
   cd "$WORK/ffmpeg"
   ./configure --prefix="$PREFIX" --disable-shared --enable-static \
     --arch=x86_64 --target-os=mingw32 --pkg-config-flags=--static \
@@ -383,8 +446,9 @@ pin_pkgconfig_static
     --disable-libxml2 --disable-libzimg
   make -j"$JOBS"
   make install
-)
-(
+}
+run_step "ffmpeg" "$WORK/ffmpeg" step_ffmpeg
+step_libplacebo() {
   cd "$WORK/libplacebo"
   # d3d11 requires spirv-cross-c-shared, which is not pinned. OpenGL
   # (opengl32.dll, a Windows system library) is the renderer. vulkan-1.dll is
@@ -399,7 +463,8 @@ pin_pkgconfig_static
     -Dlcms=disabled -Dlibdovi=disabled -Dxxhash=disabled
   meson compile -C build
   meson install -C build
-)
+}
+run_step "libplacebo" "$WORK/libplacebo" step_libplacebo
 # libplacebo's convert.cc is a C++ static archive, and its .pc file does not
 # name libstdc++. mpv links with the C driver, so GCC 16 leaves
 # std::to_chars/from_chars unresolved. A plain -lstdc++ selects
@@ -415,8 +480,8 @@ for pc in "$PREFIX/lib/pkgconfig/libplacebo.pc"; do
     fi
   fi
 done
-pin_pkgconfig_static
-(
+run_step "pkg-config static libs" "$PREFIX" pin_pkgconfig_static
+step_mpv() {
   cd "$WORK/mpv"
   meson setup build --prefix="$PREFIX" --buildtype=release --default-library=static \
     -Dlibmpv=false -Dprefer_static=true -Dzlib=enabled \
@@ -425,7 +490,8 @@ pin_pkgconfig_static
     -D{iconv,lua,javascript,jpeg,lcms2,cocoa,videotoolbox-gl,videotoolbox-pl,swift-build}=disabled \
     -D{wayland,x11,vaapi,dvdnav,cdda,caca,sixel,libarchive,libbluray,rubberband,uchardet,vapoursynth,zimg,manpage-build,spirv-cross,d3d11,vulkan,shaderc}=disabled
   meson compile -C build
-)
+}
+run_step "mpv" "$WORK/mpv" step_mpv
 mkdir -p "$OUT/mpv"
 cp "$WORK/mpv/build/mpv.exe" "$OUT/mpv/mpv.exe"
 cp "$PREFIX/bin/ffmpeg.exe" "$OUT/ffmpeg.exe"
@@ -440,20 +506,27 @@ assert_system_dlls() {
   fi
   objdump -p "$exe" | "$VITRA_NODE" "$SCRIPT_DIR/windows-dll-imports.mjs" "$exe"
 }
-assert_system_dlls "$OUT/mpv/mpv.exe"
-assert_system_dlls "$OUT/ffmpeg.exe"
-assert_system_dlls "$OUT/ffprobe.exe"
+check_dll_imports() {
+  assert_system_dlls "$OUT/mpv/mpv.exe"
+  assert_system_dlls "$OUT/ffmpeg.exe"
+  assert_system_dlls "$OUT/ffprobe.exe"
+}
+run_step "dll imports" "$OUT" check_dll_imports
 # Do not pipe this into grep -q. pipefail plus grep -q closes the pipe as
 # soon as it sees libmp3lame, ffmpeg dies with SIGPIPE, and the check
 # reports the encoder missing even though it was just compiled.
-encoders=$("$OUT/ffmpeg.exe" -hide_banner -encoders) || {
-  echo "sidecar ffmpeg failed to list encoders" >&2
-  exit 1
+check_ffmpeg_encoders() {
+  local encoders
+  encoders=$("$OUT/ffmpeg.exe" -hide_banner -encoders) || {
+    echo "sidecar ffmpeg failed to list encoders" >&2
+    exit 1
+  }
+  if ! grep -q libmp3lame <<<"$encoders"; then
+    echo "sidecar ffmpeg is missing the libmp3lame encoder" >&2
+    exit 1
+  fi
 }
-if ! grep -q libmp3lame <<<"$encoders"; then
-  echo "sidecar ffmpeg is missing the libmp3lame encoder" >&2
-  exit 1
-fi
+run_step "ffmpeg encoders" "$OUT" check_ffmpeg_encoders
 "$PYTHON" - "$PINS" "$OFFER/build-record.json" <<'PY'
 import json, pathlib, sys
 pins = json.loads(pathlib.Path(sys.argv[1]).read_text())

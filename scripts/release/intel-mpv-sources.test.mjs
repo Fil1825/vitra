@@ -183,6 +183,10 @@ describe('Intel mpv source pins', () => {
     expect(script).toContain('-Dzlib=enabled');
     expect(script).toContain('--disable-libunibreak');
     expect(script).toContain('CMAKE_FIND_USE_CMAKE_SYSTEM_PATH=OFF');
+    expect(script).toContain('"$PREFIX/lib/pkgconfig"/SPIRV-Tools*.pc');
+    expect(script).toContain('===== FAILED STEP:');
+    expect(script).toContain('meson-log.txt');
+    expect(script).toContain('source-build-failure.txt');
     expect(script).toContain('libiconv-COPYING.LIB');
     expect(script).toContain('zlib-LICENSE');
     const zlib = windows.dependencies.find((item) => item.name === 'zlib');

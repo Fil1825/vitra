@@ -323,7 +323,12 @@ function ffmpegPlan(target, info, exe) {
  * manifest or leftovers of an interrupted fetch.
  */
 export function bundledEntries(names) {
-  return names.filter((name) => name !== 'manifest.json' && !name.startsWith('.')).sort();
+  return names
+    .filter(
+      (name) =>
+        name !== 'manifest.json' && name !== 'source-build-failure.txt' && !name.startsWith('.'),
+    )
+    .sort();
 }
 
 /**

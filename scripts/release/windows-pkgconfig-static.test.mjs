@@ -23,4 +23,28 @@ Libs.private: -l:libcharset.a -lws2_32
       /shaderc_shared/,
     );
   });
+
+  it('rejects the SPIRV-Tools shared pkg-config line from the pinned cmake template', () => {
+    // SPIRV-Tools 71f287f cmake/SPIRV-Tools-shared.pc.in substitutes
+    // SPIRV_SHARED_LIBRARIES as -lSPIRV-Tools-shared. There is no static archive.
+    const shared = 'Libs: -L${libdir} -lSPIRV-Tools-shared\nCflags: -I${includedir}\n';
+    expect(() =>
+      rewritePkgconfigLibs(shared, [
+        ...archives,
+        'libSPIRV-Tools.a',
+        'libSPIRV-Tools-opt.a',
+        'libSPIRV-Tools-link.a',
+      ]),
+    ).toThrow(/-lSPIRV-Tools-shared/);
+    const staticPc = 'Libs: -L${libdir} -lSPIRV-Tools-link -lSPIRV-Tools-opt -lSPIRV-Tools\n';
+    expect(
+      rewritePkgconfigLibs(staticPc, [
+        'libSPIRV-Tools.a',
+        'libSPIRV-Tools-opt.a',
+        'libSPIRV-Tools-link.a',
+      ]),
+    ).toBe(
+      'Libs: -L${libdir} -l:libSPIRV-Tools-link.a -l:libSPIRV-Tools-opt.a -l:libSPIRV-Tools.a\n',
+    );
+  });
 });

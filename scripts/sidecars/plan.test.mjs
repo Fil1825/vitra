@@ -206,7 +206,15 @@ describe('planFor', () => {
 describe('bundledEntries', () => {
   it('ships the programs only', () => {
     expect(
-      bundledEntries(['yt-dlp', 'manifest.json', '.work-abc', 'mpv', 'ffprobe', 'ffmpeg']),
+      bundledEntries([
+        'yt-dlp',
+        'manifest.json',
+        '.work-abc',
+        'mpv',
+        'ffprobe',
+        'ffmpeg',
+        'source-build-failure.txt',
+      ]),
     ).toEqual(['ffmpeg', 'ffprobe', 'mpv', 'yt-dlp']);
   });
 });
