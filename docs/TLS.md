@@ -45,10 +45,10 @@ python3 scripts/test-ffmpeg-tls.py --ffmpeg src-tauri/sidecars/aarch64-apple-dar
 ```
 
 On Linux replace the target with `x86_64-unknown-linux-gnu`. The script uses the OpenSSL
-command only to mint a temporary CA and a server certificate signed by that CA. Secure
-Transport rejects a self-signed end-entity used as the only trust anchor (`-9807`,
-`errSSLXCertChainInvalid`); the untrusted case is a different CA that did not sign the
-server certificate. It also needs Python 3, Cargo, and
+command only to mint a temporary CA and a server certificate signed by that CA, from a
+private config. LibreSSL otherwise copies `basicConstraints` from the system
+`openssl.cnf` and from `-addext`, and mbedTLS 3.6.7 rejects that duplicate (`-9472`).
+The untrusted case is a different CA that did not sign the server certificate. It also needs Python 3, Cargo, and
 the Tauri build prerequisites. It runs offline after the initial Rust
 build has downloaded dependencies (`cargo test --workspace`). It creates temporary local
 HTTP/HTTPS audio servers and runs the real analysis decoder. The assertions require five

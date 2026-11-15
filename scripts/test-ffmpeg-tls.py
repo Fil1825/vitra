@@ -2,10 +2,12 @@
 """Test a real sidecar against local trusted/untrusted HTTPS; no external media needed.
 
 The trusted PEM is a CA, and the server certificate is signed by it.
-Secure Transport rejects a self-signed end-entity used as the only anchor
-(SecTrustEvaluate -> kSecTrustResultRecoverableTrustFailure, FFmpeg -9807
-errSSLXCertChainInvalid). mbedTLS accepts that same file, so the fixture has
-to be a real chain for both backends. Verification stays on.
+macOS runners use LibreSSL. Its system openssl.cnf already adds
+basicConstraints, and ``req -addext basicConstraints=...`` appends a second
+copy. mbedTLS 3.6.7 rejects that duplicate as -9472
+(MBEDTLS_ERR_X509_INVALID_EXTENSIONS). OpenSSL 3 merges the duplicate, which
+is why the same commands pass on Linux. Each certificate is minted from a
+private config so the system openssl.cnf is not consulted. Verification stays on.
 """
 
 import argparse
@@ -19,6 +21,62 @@ import tempfile
 import threading
 
 
+def mint_fixture(directory):
+    """Write trusted/untrusted CAs and a server certificate signed by the trusted CA."""
+    for name in ("trusted", "untrusted"):
+        config = directory / f"{name}.cnf"
+        config.write_text(
+            "[req]\n"
+            "distinguished_name = dn\n"
+            "x509_extensions = ext\n"
+            "prompt = no\n"
+            "[dn]\n"
+            f"CN = Vitra {name} CA\n"
+            "[ext]\n"
+            "basicConstraints = critical,CA:TRUE\n"
+            "keyUsage = critical,keyCertSign,cRLSign\n"
+        )
+        subprocess.run(
+            ["openssl", "req", "-config", str(config), "-x509",
+             "-newkey", "rsa:2048", "-nodes",
+             "-keyout", str(directory / f"{name}.key"),
+             "-out", str(directory / f"{name}.pem"), "-days", "1"],
+            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+        )
+    request = directory / "server-req.cnf"
+    request.write_text(
+        "[req]\n"
+        "distinguished_name = dn\n"
+        "prompt = no\n"
+        "[dn]\n"
+        "CN = 127.0.0.1\n"
+    )
+    subprocess.run(
+        ["openssl", "req", "-config", str(request), "-newkey", "rsa:2048",
+         "-nodes", "-keyout", str(directory / "server.key"),
+         "-out", str(directory / "server.csr")],
+        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+    )
+    ext = directory / "server.ext"
+    ext.write_text(
+        "[server]\n"
+        "basicConstraints = CA:FALSE\n"
+        "subjectAltName = IP:127.0.0.1,DNS:localhost\n"
+        "extendedKeyUsage = serverAuth\n"
+        "keyUsage = digitalSignature,keyEncipherment\n"
+    )
+    subprocess.run(
+        ["openssl", "x509", "-req",
+         "-in", str(directory / "server.csr"),
+         "-CA", str(directory / "trusted.pem"),
+         "-CAkey", str(directory / "trusted.key"),
+         "-CAcreateserial",
+         "-out", str(directory / "server.pem"),
+         "-days", "1", "-extfile", str(ext), "-extensions", "server"],
+        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ffmpeg", required=True, type=Path)
@@ -27,41 +85,7 @@ def main():
     repo = Path(__file__).resolve().parent.parent
     with tempfile.TemporaryDirectory(prefix="vitra-https-") as temporary:
         directory = Path(temporary)
-        for name in ("trusted", "untrusted"):
-            subprocess.run(
-                ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
-                 "-keyout", str(directory / f"{name}.key"),
-                 "-out", str(directory / f"{name}.pem"), "-days", "1",
-                 "-subj", f"/CN=Vitra {name} CA",
-                 "-addext", "basicConstraints=critical,CA:TRUE",
-                 "-addext", "keyUsage=critical,keyCertSign,cRLSign"],
-                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-            )
-        subprocess.run(
-            ["openssl", "req", "-newkey", "rsa:2048", "-nodes",
-             "-keyout", str(directory / "server.key"),
-             "-out", str(directory / "server.csr"),
-             "-subj", "/CN=127.0.0.1",
-             "-addext", "subjectAltName=IP:127.0.0.1,DNS:localhost"],
-            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-        )
-        ext = directory / "server.ext"
-        ext.write_text(
-            "basicConstraints=CA:FALSE\n"
-            "subjectAltName=IP:127.0.0.1,DNS:localhost\n"
-            "extendedKeyUsage=serverAuth\n"
-            "keyUsage=digitalSignature,keyEncipherment\n"
-        )
-        subprocess.run(
-            ["openssl", "x509", "-req",
-             "-in", str(directory / "server.csr"),
-             "-CA", str(directory / "trusted.pem"),
-             "-CAkey", str(directory / "trusted.key"),
-             "-CAcreateserial",
-             "-out", str(directory / "server.pem"),
-             "-days", "1", "-extfile", str(ext)],
-            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-        )
+        mint_fixture(directory)
         subprocess.run(
             [str(ffmpeg), "-nostdin", "-hide_banner", "-loglevel", "error",
              "-f", "lavfi", "-i", "sine=frequency=440:duration=6",
