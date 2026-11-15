@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -151,6 +152,21 @@ describe('Intel mpv source pins', () => {
     expect(script).toContain('-Dd3d11=disabled');
     expect(script).toContain('export USERPROFILE');
     expect(script).toContain('HOMEDRIVE');
+    expect(script).toContain('apply-pinned-patch.py');
+    expect(script).toContain('libplacebo-python314.patch');
+    const patchSha = 'eeafbb49f56668e3596d2d4f5857ed0219a9285cbf0a8a174bd8d3615d39823d';
+    const patchFile = fs.readFileSync(path.join(import.meta.dirname, 'libplacebo-python314.patch'));
+    expect(createHash('sha256').update(patchFile).digest('hex')).toBe(patchSha);
+    const armPins = JSON.parse(
+      fs.readFileSync(path.join(import.meta.dirname, 'macos-arm64-mpv-sources.json'), 'utf8'),
+    );
+    for (const doc of [windows, pins, armPins]) {
+      const patch = doc.dependencies.find((item) => item.name === 'libplacebo').patches[0];
+      expect(patch.upstreamCommit).toBe('12509c0f1ee8c22ae163017f0a5e7b8a9d983a17');
+      expect(patch.file).toBe('libplacebo-python314.patch');
+      expect(patch.sha256).toBe(patchSha);
+    }
+    expect(recipe).toContain('apply-pinned-patch.py');
     expect(script).toContain('sidecar ffmpeg is missing the libmp3lame encoder');
     expect(script).toContain('Libs.private: -lbcrypt -lws2_32');
     expect(script).toContain('prefix=${PREFIX}');

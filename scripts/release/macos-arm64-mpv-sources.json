@@ -37,6 +37,14 @@
       "url": "https://github.com/haasn/libplacebo/archive/refs/tags/v7.349.0.tar.gz",
       "sha256": "627e32439a0b3d2b90368ead7e919f470ee7446c87cc0f7841bbe319b23aa8b1",
       "license": "LGPL-2.1-or-later",
+      "patches": [
+        {
+          "name": "python314-elementtree",
+          "upstreamCommit": "12509c0f1ee8c22ae163017f0a5e7b8a9d983a17",
+          "file": "libplacebo-python314.patch",
+          "sha256": "eeafbb49f56668e3596d2d4f5857ed0219a9285cbf0a8a174bd8d3615d39823d"
+        }
+      ],
       "submodules": [
         {
           "name": "glad",

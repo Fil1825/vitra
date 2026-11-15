@@ -182,6 +182,12 @@ for dep in pins["dependencies"]:
         dest.mkdir(parents=True, exist_ok=True)
         subprocess.check_call(["tar", "-xf", str(archive), "-C", str(dest), "--strip-components=1"])
 PY
+# libplacebo 7.349.0 passes ET.parse() into ElementTree(). Python 3.14
+# rejects that. The pinned patch is upstream 12509c0f (getroot()).
+"$PYTHON" "$SCRIPT_DIR/apply-pinned-patch.py" "$PINS" libplacebo "$WORK/libplacebo" "$SCRIPT_DIR"
+mkdir -p "$OFFER/patches"
+cp "$SCRIPT_DIR/libplacebo-python314.patch" "$OFFER/patches/libplacebo-python314.patch"
+cp "$SCRIPT_DIR/apply-pinned-patch.py" "$OFFER/patches/apply-pinned-patch.py"
 
 JOBS="$(nproc)"
 (
