@@ -7,19 +7,14 @@ on:
   push:
     tags: ['v*']
   pull_request:
+    # Pin files, source offers, and this workflow are outside the filter so
+    # recording an installer does not start another macOS-Intel build.
     paths:
-      - .github/workflows/release.yml
       - scripts/release/build-intel-mpv.sh
       - scripts/release/intel-mpv-sources.json
       - scripts/release/intel-mpv-sources.test.mjs
-      - scripts/release/app-payload.mjs
-      - scripts/release/app-payload.test.mjs
-      - scripts/release/reused-artifacts.json
-      - scripts/release/reused-artifacts.mjs
-      - scripts/release/reused-artifacts.test.mjs
-      - scripts/release/publish-reused.mjs
-      - scripts/release/release-workflow.test.mjs
-      - docs/dev/MACOS-INTEL-MONTEREY.md
+      - scripts/release/mach-deps.py
+      - scripts/release/mach-minos.py
   workflow_dispatch:
     inputs:
       scope:
@@ -249,6 +244,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+      - name: Install bsdtar for CentOS source RPMs
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools
       - name: Stage pinned source archives without publishing
         run: node scripts/release/stage-source-offers.mjs --mode prepare corresponding-source
       - uses: actions/upload-artifact@v7

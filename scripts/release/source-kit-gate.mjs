@@ -58,6 +58,11 @@ export function coverageGaps(offer, platform = {}) {
     if (!sourcePinned(dep.source)) {
       gaps.push({ code: 'missing-dependency-source', detail: dep.script });
     }
+    for (const sub of dep.submodules ?? []) {
+      if (!sourcePinned(sub.source)) {
+        gaps.push({ code: 'missing-dependency-source', detail: sub.name });
+      }
+    }
   }
   for (const bundled of offer.bundledSources ?? []) {
     const platforms = bundled.platforms ?? ['all'];
@@ -186,7 +191,7 @@ export function publicationBlockers(input) {
         const pinned = [
           ...(offer.dependencies ?? [])
             .filter((dep) => depShipsOn(dep, platform.ffmpegKey))
-            .map((dep) => dep.source),
+            .flatMap((dep) => [dep.source, ...(dep.submodules ?? []).map((sub) => sub.source)]),
           ...(offer.bundledSources ?? [])
             .filter((bundled) => appliesTo(bundled.platforms ?? ['all'], platform.os))
             .map((bundled) => bundled.source),

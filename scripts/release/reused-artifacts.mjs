@@ -81,6 +81,20 @@ export function verifyReuseSet(doc, observations) {
     const arch = archFromPackage(obs.packageName ?? '');
     if (pin.arch && arch !== pin.arch)
       errors.push({ code: 'wrong-arch', target, detail: arch ?? '' });
+    if (pin.sourceTar) {
+      if (obs.sourceTarSha256 !== pin.sourceTar.sha256) {
+        errors.push({
+          code: 'wrong-source-tar',
+          target,
+          detail: obs.sourceTarSha256 ?? '',
+        });
+      }
+      const entries = obs.sourceTarEntries ?? [];
+      const missing = (pin.sourceTar.entries ?? []).filter((entry) => !entries.includes(entry));
+      if (missing.length) {
+        errors.push({ code: 'missing-intel-source', target, detail: missing.join(',') });
+      }
+    }
   }
   return errors;
 }

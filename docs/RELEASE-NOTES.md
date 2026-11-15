@@ -6,7 +6,7 @@
 
 **Intel mpv:** built from pinned sources in [`scripts/release/intel-mpv-sources.json`](scripts/release/intel-mpv-sources.json) for macOS 12, not from the stolendata binary. The corresponding-source tarball is produced next to the sidecar. Mach-O checks are not a Monterey playback test; that hardware run is still postponed.
 
-**Other bundled GPL programs:** a prepare job can upload `corresponding-source` as an Actions artifact. Publish refuses the GitHub Release while Martin Riedl FFmpeg, official Apple Silicon / Windows mpv, BtbN dependencies without archived source, or Linux yt-dlp libraries (GNU Readline, libintl, libidn2, libunistring) stay open. yt-dlp's git archive, mutagen 1.48.1, and the PyInstaller 6.22.0 sdist are pinned. libstdc++ / libgcc use the GCC runtime exception.
+**Other bundled GPL programs:** a prepare job can upload `corresponding-source` as an Actions artifact. Publish refuses the GitHub Release while Martin Riedl FFmpeg, official Apple Silicon / Windows mpv, or the remaining BtbN dependencies (libiconv, aom, ffnvcodec, lame, opencore-amr, soxr, xvid) stay open. The four installer zips are pinned for reuse and are not rebuilt by a `v*` tag. Linux, Windows, and Apple Silicon artifacts from run 42512576166 expire on 2026-11-22; the Intel artifact from run 43638348270 expires on 2026-11-28. libstdc++ / libgcc use the GCC runtime exception.
 
 ## Highlights since 0.1.1
 

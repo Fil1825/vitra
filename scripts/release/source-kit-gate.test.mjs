@@ -170,30 +170,28 @@ describe('publication gate', () => {
     for (const script of [
       '20-libiconv.sh',
       '50-aom.sh',
-      '50-libvpx.sh',
-      '50-libwebp.sh',
+      '50-ffnvcodec.sh',
+      '50-libmp3lame.sh',
+      '50-opencore-amr.sh',
+      '50-soxr.sh',
       '50-xvid.sh',
     ]) {
       expect(details('missing-dependency-source').some((b) => b.detail === script)).toBe(true);
     }
-    expect(
-      details('missing-dependency-source', 'x86_64-unknown-linux-gnu').some(
-        (b) => b.detail === '10-mingw.sh',
-      ),
-    ).toBe(false);
-    expect(
-      details('missing-dependency-source', 'x86_64-pc-windows-msvc').some(
-        (b) => b.detail === '10-mingw.sh',
-      ),
-    ).toBe(true);
+    for (const script of ['10-mingw.sh', '45-x11/10-xproto.sh', '50-libvpx.sh', '50-libwebp.sh']) {
+      expect(details('missing-dependency-source').some((b) => b.detail === script)).toBe(false);
+    }
+    expect(details('missing-dependency-source').some((b) => b.detail === 'graphengine')).toBe(
+      false,
+    );
     expect(blockers.some((b) => b.detail === '50-fdk-aac.sh' || b.detail === '50-whisper.sh')).toBe(
       false,
     );
     expect(
       details('missing-dependency-source', 'x86_64-unknown-linux-gnu').some(
-        (b) => b.detail === 'GNU Readline',
+        (b) => b.detail === 'GNU Readline' || b.detail === 'libidn2',
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       details('missing-dependency-source', 'x86_64-pc-windows-msvc').some(
         (b) => b.detail === 'GNU Readline',
@@ -208,7 +206,7 @@ describe('publication gate', () => {
 
     const ytdlp = sourceOffers.offers.find((offer) => offer.id === 'yt-dlp-2026.10.26');
     expect(sourceClosureFor(ytdlp, { os: 'windows' })).toBe('complete');
-    expect(sourceClosureFor(ytdlp, { os: 'linux' })).toBe('incomplete');
+    expect(sourceClosureFor(ytdlp, { os: 'linux' })).toBe('complete');
     expect(planFor('x86_64-pc-windows-msvc').ffmpeg.downloads[0].sourceClosure).toBe('incomplete');
   });
 

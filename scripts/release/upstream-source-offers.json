@@ -14,7 +14,7 @@
           "sha256": "7d5da51731c3f5f5db13d16249fae085e170cc58807c43d68dcb41b7ede99a0d"
         }
       ],
-      "reason": "Linux bundles still include unpinned GPL/LGPL libraries (GNU Readline, libintl, libidn2, libunistring). libstdc++ and libgcc are GPL-3.0-with-GCC-exception and are not a GCC source duty. The complete flag is not a publish input.",
+      "reason": "yt-dlp_linux from release 2026.10.26 (SHA2-256SUMS 767ba9dce7052aa196f8b12652f433d76de128ba168966fa84b6394d5e6c6795) has a PyInstaller table of contents naming libreadline.so.6 and readline.cpython-314. It does not name libidn2, libintl, or libunistring. The build image ghcr.io/yt-dlp/manylinux2014_x86_64-shared@sha256:c685c67c54dcbd8cafd0dac3cf7988f6bda193ad0310b9f15593facf63646b4b (tag 2026.10.26-5) installed readline-6.2-11.el7 and logged \"Cannot find libidn2\". The CentOS 7.9 vault primary.xml checksum of readline-6.2-11.el7.src.rpm matches the pinned archive. libstdc++ and libgcc are GPL-3.0-with-GCC-exception and are not a GCC source duty. The complete flag is not a publish input.",
       "bundledSources": [
         {
           "name": "mutagen",
@@ -45,25 +45,14 @@
           "name": "GNU Readline",
           "license": "GPL-3.0-or-later",
           "platforms": ["linux"],
-          "reason": "THIRD_PARTY_LICENSES.txt marks it Linux-only. The license URL is an unpinned upstream tree."
-        },
-        {
-          "name": "libintl",
-          "license": "LGPL-2.1-or-later",
-          "platforms": ["linux"],
-          "reason": "Linux-only. The license URL tracks gettext master, not a commit."
-        },
-        {
-          "name": "libidn2",
-          "license": "LGPL-3.0-or-later",
-          "platforms": ["linux"],
-          "reason": "Linux-only. The license URL tracks libidn2 master."
-        },
-        {
-          "name": "libunistring",
-          "license": "LGPL-3.0-or-later",
-          "platforms": ["linux"],
-          "reason": "Linux-only. The license URL tracks HEAD."
+          "version": "6.2-11.el7",
+          "note": "Soname libreadline.so.6 in the shipped yt-dlp_linux binary. Corresponding source is the CentOS 7.9 source RPM, whose vault.centos.org primary.xml SHA-256 matches this file. COPYING is inside the readline-6.2.tar.gz payload member; readline.spec is the member the kit checks and records License: GPLv3+.",
+          "source": {
+            "name": "readline-6.2-11.el7.src.rpm",
+            "url": "https://vault.centos.org/7.9.2009/os/Source/SPackages/readline-6.2-11.el7.src.rpm",
+            "sha256": "9678eb2f67b1784e5fba3ed0d59cba3ce6f3a3936936dfae956f7aed44b4cbf0",
+            "licensePath": "readline.spec"
+          }
         }
       ]
     },
@@ -107,7 +96,14 @@
           "script": "10-mingw.sh",
           "repo": "https://git.code.sf.net/p/mingw-w64/mingw-w64.git",
           "commit": "7213d719fe344553aa24fef7cc7dedee4940d594",
-          "shipsOn": ["win64"]
+          "shipsOn": ["win64"],
+          "note": "SCRIPT_REPO is git.code.sf.net. The same commit 7213d719fe344553aa24fef7cc7dedee4940d594 is on the mingw-w64 GitHub mirror, and the archive directory is that commit.",
+          "source": {
+            "name": "mingw-w64-7213d719fe344553aa24fef7cc7dedee4940d594.tar.gz",
+            "url": "https://github.com/mingw-w64/mingw-w64/archive/7213d719fe344553aa24fef7cc7dedee4940d594.tar.gz",
+            "sha256": "97a1551f6629faf578886dbf78a35a0ddd80569d362f85be016e3c1f773fe224",
+            "licensePath": "mingw-w64-7213d719fe344553aa24fef7cc7dedee4940d594/COPYING"
+          }
         },
         {
           "script": "10-xorg-macros.sh",
@@ -443,7 +439,13 @@
           "script": "45-x11/10-xproto.sh",
           "repo": "https://gitlab.freedesktop.org/xorg/proto/xorgproto.git",
           "commit": "6d3907b6d5dc4aa7d7ee6ee5d7d8714e7466630b",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "xorgproto-6d3907b6d5dc4aa7d7ee6ee5d7d8714e7466630b.tar.gz",
+            "url": "https://gitlab.freedesktop.org/xorg/proto/xorgproto/-/archive/6d3907b6d5dc4aa7d7ee6ee5d7d8714e7466630b/xorgproto-6d3907b6d5dc4aa7d7ee6ee5d7d8714e7466630b.tar.gz",
+            "sha256": "2f41108995a0e85fc3f8bb8ca2e5649b827052d3d18135766ad50e248fb142b3",
+            "licensePath": "xorgproto-6d3907b6d5dc4aa7d7ee6ee5d7d8714e7466630b/COPYING-x11proto"
+          }
         },
         {
           "script": "45-x11/10-xtrans.sh",
@@ -1115,13 +1117,27 @@
           "script": "50-libvpx.sh",
           "repo": "https://chromium.googlesource.com/webm/libvpx",
           "commit": "900b2a52b69e9d4ab72eb855c365da1100c50eb1",
-          "shipsOn": ["win64", "linux64", "linuxarm64"]
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "note": "SCRIPT_REPO is chromium.googlesource.com/webm/libvpx. The same commit is on github.com/webmproject/libvpx, and the archive directory is that commit.",
+          "source": {
+            "name": "libvpx-900b2a52b69e9d4ab72eb855c365da1100c50eb1.tar.gz",
+            "url": "https://github.com/webmproject/libvpx/archive/900b2a52b69e9d4ab72eb855c365da1100c50eb1.tar.gz",
+            "sha256": "bd5b93e6a96f60be6fbb766157be0c45629e697659494422c6edd3f790dc3a6e",
+            "licensePath": "libvpx-900b2a52b69e9d4ab72eb855c365da1100c50eb1/LICENSE"
+          }
         },
         {
           "script": "50-libwebp.sh",
           "repo": "https://chromium.googlesource.com/webm/libwebp",
           "commit": "1844042d1ca751e62e61df7617dba19c98588339",
-          "shipsOn": ["win64", "linux64", "linuxarm64"]
+          "shipsOn": ["win64", "linux64", "linuxarm64"],
+          "note": "SCRIPT_REPO is chromium.googlesource.com/webm/libwebp. The same commit is on github.com/webmproject/libwebp, and the archive directory is that commit.",
+          "source": {
+            "name": "libwebp-1844042d1ca751e62e61df7617dba19c98588339.tar.gz",
+            "url": "https://github.com/webmproject/libwebp/archive/1844042d1ca751e62e61df7617dba19c98588339.tar.gz",
+            "sha256": "c73c0c9d109d492363db43f461e0797edb77b188ed67f0e83c392730ba85b009",
+            "licensePath": "libwebp-1844042d1ca751e62e61df7617dba19c98588339/COPYING"
+          }
         },
         {
           "script": "50-libzmq.sh",
@@ -1403,7 +1419,13 @@
           "script": "50-vaapi/40-libdrm.sh",
           "repo": "https://gitlab.freedesktop.org/mesa/drm.git",
           "commit": "b97cbde15c5c3abfe44d78e8f57139e50f612fec",
-          "shipsOn": ["linux64", "linuxarm64"]
+          "shipsOn": ["linux64", "linuxarm64"],
+          "source": {
+            "name": "libdrm-b97cbde15c5c3abfe44d78e8f57139e50f612fec.tar.gz",
+            "url": "https://gitlab.freedesktop.org/mesa/drm/-/archive/b97cbde15c5c3abfe44d78e8f57139e50f612fec/drm-b97cbde15c5c3abfe44d78e8f57139e50f612fec.tar.gz",
+            "sha256": "379d0881f6e7509ba5c0dca6ce045d7e68ffcbb4bed4cee5b598ab843fcb8cb2",
+            "licensePath": "libdrm-b97cbde15c5c3abfe44d78e8f57139e50f612fec/LICENSES/MIT.txt"
+          }
         },
         {
           "script": "50-vaapi/50-libva.sh",
@@ -1511,7 +1533,21 @@
             "url": "https://github.com/sekrit-twc/zimg/archive/67e0603271c080e22c8429856dd4a8a56587e61e.tar.gz",
             "sha256": "539495d51fcd8c7ef9b89a611454e0c1173d18e8d4e743efdef67c4aa7e40d4f",
             "licensePath": "zimg-67e0603271c080e22c8429856dd4a8a56587e61e/COPYING"
-          }
+          },
+          "submodules": [
+            {
+              "name": "graphengine",
+              "path": "graphengine",
+              "repo": "https://github.com/sekrit-twc/graphengine.git",
+              "commit": "cb5b2ce13384ec2491f0c37256ea210034799f69",
+              "source": {
+                "name": "graphengine-cb5b2ce13384ec2491f0c37256ea210034799f69.tar.gz",
+                "url": "https://github.com/sekrit-twc/graphengine/archive/cb5b2ce13384ec2491f0c37256ea210034799f69.tar.gz",
+                "sha256": "663bc958094280e3dabfa76a408296a51f5222f56115fd7782eae737edeaa179",
+                "licensePath": "graphengine-cb5b2ce13384ec2491f0c37256ea210034799f69/COPYING"
+              }
+            }
+          ]
         },
         {
           "script": "50-zvbi.sh",
@@ -1526,14 +1562,14 @@
           }
         }
       ],
-      "reason": "Commit archives are pinned where a refetch of the URL matched the local gzip tarball, the script commit, and a license file inside the archive. Still without a source archive: 10-mingw.sh, 20-libiconv.sh, 45-x11/10-xproto.sh, 50-aom.sh, 50-fdk-aac.sh, 50-ffnvcodec.sh, 50-libcurl/50-libcurl.sh, 50-libmp3lame.sh, 50-libvpx.sh, 50-libwebp.sh, 50-opencore-amr.sh, 50-soxr.sh, 50-vaapi/40-libdrm.sh, 50-whisper.sh, 50-xvid.sh. ffbuild_enabled skips fdk-aac for gpl, whisper unconditionally, and libcurl when ffver <= 900. The complete flag is not a publish input."
+      "reason": "Commit archives are pinned where a refetch of the URL matched a stable gzip tarball, the script commit, and a license file inside the archive. graphengine cb5b2ce13384ec2491f0c37256ea210034799f69 is the submodule of zimg 67e0603271c080e22c8429856dd4a8a56587e61e; two downloads of its GitHub archive matched. Still without a source archive: 20-libiconv.sh (Savannah snapshot was HTTP 400/502), 50-aom.sh (two gitiles +archive downloads differed), 50-ffnvcodec.sh (the commit archive has no license file), 50-libmp3lame.sh, 50-opencore-amr.sh, 50-soxr.sh, and 50-xvid.sh (SourceForge snapshot URLs returned an unstable script page, not a tarball). ffbuild_enabled skips fdk-aac for gpl, whisper unconditionally, and libcurl when ffver <= 900. The complete flag is not a publish input."
     },
     {
       "id": "martin-riedl-macos-ffmpeg",
       "component": "ffmpeg",
       "license": "GPL-3.0-or-later",
       "complete": false,
-      "reason": "Pinned binaries are the versioned 9.0.2 zips from 2026-09-20: arm64 1789931890_9.0.2 and amd64 1789931006_9.0.2. Their publisher .sha256 files match the zip bytes. redirect/latest is not used: its .sha256 sibling is not published, and the arm64 release redirect can 404. versions.txt beside those files lists harfbuzz 14.4.0 and x264 0.165.x. git.martin-riedl.de/ffmpeg/build-script has no tags. Branch main (2026-08-17) pins ffmpeg 9.0.1 and harfbuzz 14.3.0, which is not this binary. script/build-x264.sh downloads the floating archive x264-master.tar.gz and there is no version/x264 file."
+      "reason": "Pinned binaries are the versioned 9.0.2 zips from 2026-09-20: arm64 1789931890_9.0.2 and amd64 1789931006_9.0.2. Their publisher .sha256 files match the zip bytes. redirect/latest is not used: its .sha256 sibling is not published, and the arm64 release redirect can 404. versions.txt beside those files lists harfbuzz 14.4.0 and x264 0.165.x. git.martin-riedl.de/ffmpeg/build-script has no tags. Branch main (2026-08-17) pins ffmpeg 9.0.1 and harfbuzz 14.3.0, which is not this binary. script/build-x264.sh downloads the floating archive x264-master.tar.gz and there is no version/x264 file. Honest alternative for a later build: replace these macOS ffmpeg/ffprobe sidecars with the pinned Intel recipe (FFmpeg 7.1.1 and intel-mpv-sources.json), using deployment target 14.0 on arm64. That is a new native build, not corresponding source for the zips already pinned."
     },
     {
       "id": "mpv-official-v0.41.0",
@@ -1541,7 +1577,7 @@
       "version": "v0.41.0",
       "license": "GPL-2.0-or-later",
       "complete": false,
-      "reason": "The v0.41.0 release assets are the binaries only. Job macos for macos-14-arm runs brew update and brew install ffmpeg libplacebo libass without matrix.homebrew, so the bundled libraries are not pinned. ci/build-win32.ps1 clones shaderc with --depth 1 and builds vulkan-loader with UPDATE_DEPS=ON after meson wrap update-db. The mpv tag is the player source, not the corresponding source of those binaries."
+      "reason": "The v0.41.0 release assets are the binaries only. Job macos for macos-14-arm runs brew update and brew install ffmpeg libplacebo libass without matrix.homebrew, so the bundled libraries are not pinned. ci/build-win32.ps1 clones shaderc with --depth 1 and builds vulkan-loader with UPDATE_DEPS=ON after meson wrap update-db. The mpv tag is the player source, not the corresponding source of those binaries. Honest alternative for a later build: rebuild Apple Silicon from the pinned Intel recipe at deployment target 14.0, and rebuild Windows with shaderc and Vulkan dependencies pinned instead of cloning shaderc at HEAD and setting UPDATE_DEPS=ON. That replaces these release assets; it does not document them."
     }
   ]
 }

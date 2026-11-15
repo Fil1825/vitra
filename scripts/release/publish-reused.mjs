@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { createReadStream } from 'node:fs';
+import { createReadStream, writeFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -45,6 +45,27 @@ function zipNames(zip) {
   return result.stdout.split('\n').filter(Boolean);
 }
 
+function sourceTarObservation(zip, pin) {
+  if (!pin.sourceTar) return {};
+  const names = zipNames(zip);
+  const entry =
+    names.find((name) => name === pin.sourceTar.path) ??
+    names.find((name) => name.endsWith(`/${pin.sourceTar.path.split('/').pop()}`));
+  if (!entry) return { sourceTarSha256: '', sourceTarEntries: [] };
+  const extracted = spawnSync('unzip', ['-p', zip, entry], { maxBuffer: 128 * 1024 * 1024 });
+  if (extracted.status !== 0) {
+    throw new Error(extracted.stderr?.toString() || `cannot extract ${entry}`);
+  }
+  const tar = `${zip}.source.tar.gz`;
+  writeFileSync(tar, extracted.stdout);
+  const listed = spawnSync('tar', ['-tzf', tar], { encoding: 'utf8' });
+  if (listed.status !== 0) throw new Error(listed.stderr || `cannot list ${entry}`);
+  return {
+    sourceTarSha256: createHash('sha256').update(extracted.stdout).digest('hex'),
+    sourceTarEntries: listed.stdout.split('\n').filter(Boolean),
+  };
+}
+
 async function observe(doc) {
   if (doc.repo !== REUSE_REPO) {
     throw new Error(`refusing to download artifacts from ${doc.repo}`);
@@ -68,6 +89,7 @@ async function observe(doc) {
         expired: meta.expired,
         sha256: await sha256File(zip),
         packageName: packageNameFromZipListing(zipNames(zip)),
+        ...sourceTarObservation(zip, pin),
       };
     } finally {
       await rm(dir, { recursive: true, force: true });

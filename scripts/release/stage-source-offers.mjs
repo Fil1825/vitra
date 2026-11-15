@@ -42,23 +42,29 @@ export function tarListLines(stdout) {
     .filter(Boolean);
 }
 
-export function listTarEntries(archive) {
-  const result = spawnSync('tar', ['-tzf', archive], {
-    encoding: 'utf8',
-    maxBuffer: 8 * 1024 * 1024,
-  });
+function archiveListCommand(archive) {
+  if (archive.endsWith('.src.rpm') || archive.endsWith('.rpm')) return ['bsdtar', ['-tf', archive]];
+  return ['tar', ['-tzf', archive]];
+}
+
+export function listArchiveMembers(archive) {
+  const [bin, args] = archiveListCommand(archive);
+  const result = spawnSync(bin, args, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+  if (result.error?.code === 'ENOENT') {
+    throw new Error(`${bin} is required to list ${archive}`);
+  }
   if (result.status !== 0) {
-    throw new Error(result.stderr || `cannot list ${archive}`);
+    throw new Error(result.stderr || result.error?.message || `cannot list ${archive}`);
   }
   return tarListLines(result.stdout);
 }
 
+export function listTarEntries(archive) {
+  return listArchiveMembers(archive);
+}
+
 function tarHasEntry(archive, entry) {
-  const result = spawnSync('tar', ['-tzf', archive, entry], {
-    encoding: 'utf8',
-    maxBuffer: 1024 * 1024,
-  });
-  return result.status === 0 && tarListLines(result.stdout).includes(entry);
+  return listArchiveMembers(archive).includes(entry);
 }
 
 function tarText(archive, entry) {
@@ -142,6 +148,9 @@ function pinnedSources(offers) {
     }
     for (const dep of offer.dependencies ?? []) {
       if (dep.source?.url && dep.source?.sha256 && dep.source?.name) sources.push(dep.source);
+      for (const sub of dep.submodules ?? []) {
+        if (sub.source?.url && sub.source?.sha256 && sub.source?.name) sources.push(sub.source);
+      }
     }
     for (const bundled of offer.bundledSources ?? []) {
       if (bundled.source?.url && bundled.source?.sha256 && bundled.source?.name) {
@@ -264,11 +273,15 @@ export async function stageSourceOffers(outDir, options = {}) {
       if (ffmpeg) assertFfmpegCommitArchive(path.join(outDir, ffmpeg.name), offer.ffmpegCommit);
     }
     for (const dep of [...(offer.dependencies ?? []), ...(offer.bundledSources ?? [])]) {
-      if (!dep.source?.licensePath || !dep.source?.name) continue;
-      const file = path.join(outDir, dep.source.name);
-      if (!fs.existsSync(file)) continue;
-      if (!tarHasEntry(file, dep.source.licensePath)) {
-        throw new Error(`${dep.source.name} does not contain ${dep.source.licensePath}`);
+      const sources = [dep.source, ...(dep.submodules ?? []).map((sub) => sub.source)].filter(
+        (source) => source?.licensePath && source?.name,
+      );
+      for (const source of sources) {
+        const file = path.join(outDir, source.name);
+        if (!fs.existsSync(file)) continue;
+        if (!tarHasEntry(file, source.licensePath)) {
+          throw new Error(`${source.name} does not contain ${source.licensePath}`);
+        }
       }
     }
   }

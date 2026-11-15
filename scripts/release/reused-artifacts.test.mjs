@@ -53,6 +53,12 @@ function observationsFrom(doc, patch = {}) {
       expired: false,
       sha256: pin.sha256,
       packageName: pin.packageName,
+      ...(pin.sourceTar
+        ? {
+            sourceTarSha256: pin.sourceTar.sha256,
+            sourceTarEntries: pin.sourceTar.entries,
+          }
+        : {}),
       ...patch[target],
     };
   }
@@ -82,7 +88,7 @@ function withIntel(doc) {
 describe('reused installer pins', () => {
   const doc = loadReuseDocument();
 
-  it('records the three downloaded artifact zips and leaves Intel unpinned', () => {
+  it('records the four downloaded artifact zips', () => {
     expect(doc.repo).toBe('Fil1825/vitra');
     expect(doc.version).toBe('1.0.0-rc.1');
     expect(doc.appPayloadCommit).toBe('76ea04250e88d880c3b6a7e3abf182f29c6bbde2');
@@ -96,14 +102,34 @@ describe('reused installer pins', () => {
       expect(pin.sha256).toBe(downloaded.sha256);
       expect(pin.packageName).toBe(downloaded.packageName);
     }
-    expect(doc.targets['x86_64-apple-darwin'].status).toBe('missing');
+    const intel = doc.targets['x86_64-apple-darwin'];
+    expect(intel.status).toBe('pinned');
+    expect(intel.runId).toBe(43638348270);
+    expect(intel.headSha).toBe('2adf1a5499f6a6c210ee4c29a8dcebd3c54ae156');
+    expect(intel.artifactId).toBe(14132604382);
+    expect(intel.sha256).toBe('573ea7b5ed750e2e4d44d106f77e553eac5664575143ac4dc7fb6ee4878551a6');
+    expect(intel.sourceTar.sha256).toBe(
+      'cbaafbcb06057c9e7f2fdeb2c71d29a8521a25010b0148d86379337afdcfc736',
+    );
+    expect(intel.expiresAt).toBe('2026-11-28T21:30:33Z');
+    expect(doc.targets['x86_64-unknown-linux-gnu'].expiresAt).toBe('2026-11-22T19:05:50Z');
   });
 
-  it('accepts a complete set and rejects a missing Intel pin', () => {
-    const complete = withIntel(doc);
-    expect(verifyReuseSet(complete, observationsFrom(complete))).toEqual([]);
-    const errors = verifyReuseSet(doc, observationsFrom(doc));
-    expect(errors).toEqual([{ code: 'missing-target', target: 'x86_64-apple-darwin' }]);
+  it('accepts the pinned set and rejects a missing Intel pin or source tarball', () => {
+    expect(verifyReuseSet(doc, observationsFrom(doc))).toEqual([]);
+    const missing = {
+      ...doc,
+      targets: { ...doc.targets, 'x86_64-apple-darwin': { status: 'missing' } },
+    };
+    expect(verifyReuseSet(missing, observationsFrom(missing))).toEqual([
+      { code: 'missing-target', target: 'x86_64-apple-darwin' },
+    ]);
+    const wrongTar = observationsFrom(doc, {
+      'x86_64-apple-darwin': { sourceTarSha256: 'd'.repeat(64) },
+    });
+    expect(verifyReuseSet(doc, wrongTar).some((error) => error.code === 'wrong-source-tar')).toBe(
+      true,
+    );
   });
 
   it('rejects the wrong repository, run, commit, artifact, or version', () => {
@@ -164,7 +190,7 @@ describe('reused installer pins', () => {
     const notes = provenanceNotes(doc);
     expect(notes).toContain('were not all built from one commit');
     expect(notes).toContain(DOWNLOADED['x86_64-unknown-linux-gnu'].sha256);
-    expect(notes).toContain('x86_64-apple-darwin: not pinned');
+    expect(notes).toContain('x86_64-apple-darwin: run 43638348270');
   });
 
   it('does not treat a skipped build matrix or an open source gate as publication', () => {
@@ -184,10 +210,11 @@ describe('reused installer pins', () => {
     const details = new Set(blockers.map((blocker) => blocker.detail));
     expect(details.has('martin-riedl-macos-ffmpeg')).toBe(true);
     expect(details.has('mpv-official-v0.41.0')).toBe(true);
-    expect(details.has('GNU Readline')).toBe(true);
-    expect(details.has('libintl')).toBe(true);
-    expect(details.has('libidn2')).toBe(true);
-    expect(details.has('libunistring')).toBe(true);
+    expect(details.has('GNU Readline')).toBe(false);
+    expect(details.has('libintl')).toBe(false);
+    expect(details.has('libidn2')).toBe(false);
+    expect(details.has('libunistring')).toBe(false);
+    expect(details.has('50-aom.sh')).toBe(true);
     for (const offer of sourceOffers.offers) expect(offer.complete).toBe(false);
   });
 });
