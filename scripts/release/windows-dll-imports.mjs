@@ -47,7 +47,16 @@ export const WINDOWS_SYSTEM_DLLS = new Set(
     'rpcrt4.dll',
     'secur32.dll',
     'setupapi.dll',
+    // Avicap32.dll is Video for Windows (capCreateCaptureWindow). Microsoft
+    // documents the minimum client as Windows 2000 Professional, and the DLL
+    // still ships in System32. Vitra's Windows builds target Windows 10/11.
+    // mpv links it for DirectShow.
+    'avicap32.dll',
     'shell32.dll',
+    // Shcore.dll is SetProcessDpiAwareness (shellscalingapi.h). Microsoft
+    // documents the minimum client as Windows 8.1. Windows 10 and 11 include
+    // it in System32, which is Vitra's supported Windows baseline.
+    'shcore.dll',
     'shlwapi.dll',
     'user32.dll',
     'userenv.dll',

@@ -5,8 +5,9 @@
 # Vulkan-Loader stay pinned at vulkan-sdk-1.4.363.0 with UPDATE_DEPS OFF.
 # The player links OpenGL and does not ship the loader.
 # FFmpeg is the pinned 7.1.1 release. MP3 uses the pinned LAME 3.100 tarball,
-# linked statically. The build does not link xvid, aom, soxr, opencore-amr,
-# ffnvcodec, or libiconv. HTTPS uses the pinned mbedTLS 3.6.7
+# linked statically. FFmpeg does not link xvid, aom, soxr, opencore-amr,
+# ffnvcodec, or libiconv. mpv links the pinned static zlib and GNU libiconv.
+# HTTPS uses the pinned mbedTLS 3.6.7
 # archive (Apache-2.0 OR GPL-2.0-or-later). SChannel cannot load the PEM in
 # SSL_CERT_FILE, which is how Vitra supplies OS roots and custom proxy CAs.
 # Usage: build-windows-mpv.sh <sidecar-output-dir>
@@ -120,6 +121,19 @@ esac
 exec /usr/bin/git "$@"
 EOF
 chmod +x "$WORK/bin/git"
+# MSYS2's pkg-config searches /mingw64 even when PKG_CONFIG_LIBDIR is set,
+# which is how mpv found the distro zlib 1.3.2. This wrapper only sees $PREFIX.
+pkgconf_bin=/mingw64/bin/pkgconf.exe
+if [[ ! -x "$pkgconf_bin" ]]; then
+  pkgconf_bin=/mingw64/bin/pkg-config.exe
+fi
+cat >"$WORK/bin/pkg-config" <<EOF
+#!/bin/sh
+unset PKG_CONFIG_PATH
+export PKG_CONFIG_LIBDIR='$PREFIX/lib/pkgconfig'
+exec '$pkgconf_bin' "\$@"
+EOF
+chmod +x "$WORK/bin/pkg-config"
 export PATH="$WORK/bin:$PATH"
 
 # mingw-w64-x86_64-python ships python.exe and removes python3.exe.
@@ -168,6 +182,8 @@ unpack "$SRC/mpv.tar.gz" "$WORK/mpv"
 unpack "$SRC/ffmpeg.tar" "$WORK/ffmpeg"
 unpack "$SRC/mbedtls.tar" "$WORK/mbedtls"
 unpack "$SRC/lame.tar" "$WORK/lame"
+unpack "$SRC/zlib.tar" "$WORK/zlib"
+unpack "$SRC/libiconv.tar" "$WORK/libiconv"
 unpack "$SRC/libplacebo.tar" "$WORK/libplacebo"
 unpack "$SRC/freetype.tar" "$WORK/freetype"
 unpack "$SRC/fribidi.tar" "$WORK/fribidi"
@@ -222,8 +238,35 @@ JOBS="$(nproc)"
   ninja -j"$JOBS"
   ninja install
 )
+# These .pc files name shared libraries (shaderc_shared, vulkan-1). mpv does
+# not link them. Leaving the files would let a later pkg-config probe do so.
+rm -f "$PREFIX/lib/pkgconfig/vulkan.pc" \
+  "$PREFIX/lib/pkgconfig/shaderc.pc" \
+  "$PREFIX/lib/pkgconfig/shaderc_combined.pc" \
+  "$PREFIX/lib/pkgconfig/shaderc_static.pc" \
+  "$PREFIX/lib/pkgconfig/glslang.pc"
+# Meson must not cmake-find an MSYS2 shared library after pkg-config misses.
+export CMAKE_PREFIX_PATH="$PREFIX"
+export CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH=OFF
+export CMAKE_FIND_USE_CMAKE_SYSTEM_PATH=OFF
+(
+  cd "$WORK/zlib"
+  # Static only. mpv's zlib feature otherwise finds MSYS2's zlib1.dll.
+  ./configure --static --prefix="$PREFIX"
+  make -j"$JOBS"
+  make install
+)
+(
+  cd "$WORK/libiconv"
+  # Static only. libass probes -liconv with the compiler and would link
+  # MSYS2's libiconv-2.dll. The iconv program is not shipped.
+  ./configure --prefix="$PREFIX" --disable-shared --enable-static --disable-nls
+  make -j"$JOBS"
+  make install
+)
 (
   cd "$WORK/freetype"
+  # No system zlib, png, harfbuzz, brotli, or bzip2. Those are not pinned.
   ./configure --prefix="$PREFIX" --disable-shared --enable-static \
     --with-zlib=no --with-png=no --with-harfbuzz=no --with-brotli=no --with-bzip2=no
   make -j"$JOBS"
@@ -238,6 +281,7 @@ JOBS="$(nproc)"
 (
   cd "$WORK/harfbuzz"
   meson setup build --prefix="$PREFIX" --buildtype=release --default-library=static \
+    -Dprefer_static=true \
     -Dfreetype=enabled -Dglib=disabled -Dgobject=disabled -Dcairo=disabled \
     -Dchafa=disabled -Dicu=disabled -Dgraphite2=disabled \
     -Dtests=disabled -Ddocs=disabled -Dintrospection=disabled -Dutilities=disabled
@@ -246,12 +290,18 @@ JOBS="$(nproc)"
 )
 (
   cd "$WORK/libass"
-  ./configure --prefix="$PREFIX" --disable-shared --enable-static --disable-fontconfig
+  # DirectWrite on desktop loads dwrite.dll at runtime and links gdi32.
+  # libunibreak, fontconfig, and libpng are not pinned, so they stay off.
+  CPPFLAGS="-I$PREFIX/include" LDFLAGS="-L$PREFIX/lib" LIBS="-l:libiconv.a -l:libcharset.a" \
+    ./configure --prefix="$PREFIX" --disable-shared --enable-static \
+      --disable-fontconfig --disable-libunibreak
   make -j"$JOBS"
   make install
 )
 cp "$WORK/mbedtls/LICENSE" "$OFFER/licenses/mbedtls-LICENSE"
 cp "$WORK/lame/COPYING" "$OFFER/licenses/lame-COPYING"
+cp "$WORK/zlib/LICENSE" "$OFFER/licenses/zlib-LICENSE"
+cp "$WORK/libiconv/COPYING.LIB" "$OFFER/licenses/libiconv-COPYING.LIB"
 (
   cd "$WORK/lame"
   # Static only. The frontend does not ship. -fcommon keeps the 3.100
@@ -285,6 +335,37 @@ sed -i "s|^prefix=.*|prefix=${PREFIX}|" \
 if ! grep -q '^Libs.private:' "$pc_dir/mbedcrypto.pc"; then
   printf '\nLibs.private: -lbcrypt -lws2_32\n' >> "$pc_dir/mbedcrypto.pc"
 fi
+# Rewrite every -lfoo in our .pc files to -l:libfoo.a when that archive
+# exists. Anything else, other than a Windows system import library, fails
+# here — before ffmpeg and mpv are linked — instead of as a DLL import.
+pin_pkgconfig_static() {
+  local archives=()
+  local archive base printed name
+  shopt -s nullglob
+  for archive in "$PREFIX/lib"/lib*.a; do
+    base=$(basename "$archive")
+    [[ "$base" == *.dll.a ]] && continue
+    archives+=("$base")
+  done
+  shopt -u nullglob
+  for name in libpthread.a libstdc++.a libgcc.a libgcc_eh.a libmingw32.a \
+    libmingwex.a libmoldname.a libm.a libssp.a libatomic.a libmingwthrd.a; do
+    printed=$(gcc -print-file-name="$name")
+    if [[ "$printed" == */* || "$printed" == *\\* ]]; then
+      archives+=("$(basename "$printed")")
+    fi
+  done
+  if [[ -z "${VITRA_NODE:-}" || ! -x "${VITRA_NODE}" ]]; then
+    echo "node is required to check pkg-config libraries" >&2
+    exit 1
+  fi
+  shopt -s nullglob
+  for archive in "$PREFIX/lib/pkgconfig"/*.pc; do
+    "$VITRA_NODE" "$SCRIPT_DIR/windows-pkgconfig-static.mjs" "$archive" "${archives[@]}"
+  done
+  shopt -u nullglob
+}
+pin_pkgconfig_static
 (
   cd "$WORK/ffmpeg"
   ./configure --prefix="$PREFIX" --disable-shared --enable-static \
@@ -297,7 +378,9 @@ fi
     --disable-doc --disable-debug \
     --disable-programs --enable-ffmpeg --enable-ffprobe \
     --enable-d3d11va --enable-dxva2 \
-    --disable-iconv --disable-zlib --disable-bzlib --disable-lzma --disable-sdl2
+    --disable-iconv --disable-zlib --disable-bzlib --disable-lzma --disable-sdl2 \
+    --disable-libass --disable-libfreetype --disable-libfribidi --disable-libharfbuzz \
+    --disable-libxml2 --disable-libzimg
   make -j"$JOBS"
   make install
 )
@@ -309,6 +392,7 @@ fi
   # and a machine without a Vulkan driver does not have that DLL either.
   # shaderc only compiles SPIR-V for Vulkan. A disabled feature is not probed.
   meson setup build --prefix="$PREFIX" --buildtype=release --default-library=static \
+    -Dprefer_static=true \
     -Ddemos=false -Dtests=false \
     -Dvulkan=disabled -Dshaderc=disabled -Dglslang=disabled \
     -Dopengl=enabled -Dd3d11=disabled -Dunwind=disabled \
@@ -317,17 +401,12 @@ fi
   meson install -C build
 )
 # libplacebo's convert.cc is a C++ static archive, and its .pc file does not
-# name libstdc++. The shaderc and glslang .pc files have the same gap. mpv
-# links with the C driver, so GCC 16 leaves std::to_chars/from_chars
-# unresolved. A plain -lstdc++
-# selects libstdc++.dll.a. Name the static archives instead. libpthread.a
-# satisfies the pthread symbols inside that libstdc++. Meson shell-splits
-# c_link_args on spaces. A comma-joined -D value becomes one argument.
-for pc in "$PREFIX/lib/pkgconfig/libplacebo.pc" \
-  "$PREFIX/lib/pkgconfig/shaderc.pc" \
-  "$PREFIX/lib/pkgconfig/shaderc_combined.pc" \
-  "$PREFIX/lib/pkgconfig/shaderc_static.pc" \
-  "$PREFIX/lib/pkgconfig/glslang.pc"; do
+# name libstdc++. mpv links with the C driver, so GCC 16 leaves
+# std::to_chars/from_chars unresolved. A plain -lstdc++ selects
+# libstdc++.dll.a. Name the static archives instead. libpthread.a satisfies
+# the pthread symbols inside that libstdc++. Meson shell-splits c_link_args
+# on spaces. A comma-joined -D value becomes one argument.
+for pc in "$PREFIX/lib/pkgconfig/libplacebo.pc"; do
   if [[ -f "$pc" ]] && ! grep -q 'libstdc++\.a' "$pc"; then
     if grep -q '^Libs.private:' "$pc"; then
       sed -i 's/^Libs.private:.*/& -l:libstdc++.a -l:libpthread.a/' "$pc"
@@ -336,14 +415,15 @@ for pc in "$PREFIX/lib/pkgconfig/libplacebo.pc" \
     fi
   fi
 done
+pin_pkgconfig_static
 (
   cd "$WORK/mpv"
   meson setup build --prefix="$PREFIX" --buildtype=release --default-library=static \
-    -Dlibmpv=false \
-    -Dc_link_args="-static-libgcc -l:libstdc++.a -l:libpthread.a" \
+    -Dlibmpv=false -Dprefer_static=true -Dzlib=enabled \
+    -Dc_link_args="-static -static-libgcc -l:libstdc++.a -l:libpthread.a" \
     -D{d3d-hwaccel,wasapi,gl,gl-win32,plain-gl}=enabled \
     -D{iconv,lua,javascript,jpeg,lcms2,cocoa,videotoolbox-gl,videotoolbox-pl,swift-build}=disabled \
-    -D{wayland,x11,vaapi,dvdnav,cdda,libarchive,libbluray,rubberband,uchardet,vapoursynth,zimg,manpage-build,spirv-cross,d3d11,vulkan,shaderc}=disabled
+    -D{wayland,x11,vaapi,dvdnav,cdda,caca,sixel,libarchive,libbluray,rubberband,uchardet,vapoursynth,zimg,manpage-build,spirv-cross,d3d11,vulkan,shaderc}=disabled
   meson compile -C build
 )
 mkdir -p "$OUT/mpv"

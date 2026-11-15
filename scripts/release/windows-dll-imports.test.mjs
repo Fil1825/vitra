@@ -19,6 +19,10 @@ describe('Windows sidecar DLL imports', () => {
     expect(unexpectedDllImports(dllImports(dump))).toEqual(['vulkan-1.dll']);
   });
 
+  it('allows Shcore and Avicap32, which ship with Windows 10', () => {
+    expect(unexpectedDllImports(['SHCORE.dll', 'AVICAP32.dll', 'KERNEL32.dll'])).toEqual([]);
+  });
+
   it('rejects MinGW runtime and shared codec libraries', () => {
     expect(
       unexpectedDllImports([
@@ -28,6 +32,8 @@ describe('Windows sidecar DLL imports', () => {
         'shaderc_shared.dll',
         'SDL2.dll',
         'libass-9.dll',
+        'libiconv-2.dll',
+        'zlib1.dll',
       ]),
     ).toEqual([
       'libstdc++-6.dll',
@@ -36,6 +42,8 @@ describe('Windows sidecar DLL imports', () => {
       'shaderc_shared.dll',
       'SDL2.dll',
       'libass-9.dll',
+      'libiconv-2.dll',
+      'zlib1.dll',
     ]);
   });
 });

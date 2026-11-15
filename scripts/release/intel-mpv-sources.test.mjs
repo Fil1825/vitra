@@ -169,13 +169,34 @@ describe('Intel mpv source pins', () => {
     expect(recipe).toContain('apply-pinned-patch.py');
     expect(script).toContain('sidecar ffmpeg is missing the libmp3lame encoder');
     expect(script).toContain('Libs.private: -lbcrypt -lws2_32');
-    expect(script).toContain('-Dc_link_args="-static-libgcc -l:libstdc++.a -l:libpthread.a"');
+    expect(script).toContain(
+      '-Dc_link_args="-static -static-libgcc -l:libstdc++.a -l:libpthread.a"',
+    );
     expect(script).not.toContain('-Dc_link_args=-static-libgcc,');
     expect(script).toContain('-Dvulkan=disabled');
     expect(script).toContain('-Dopengl=enabled');
     expect(script).toContain('-Dshaderc=disabled');
     expect(script).toContain('--extra-ldexeflags="-static"');
     expect(script).toContain('windows-dll-imports.mjs');
+    expect(script).toContain('windows-pkgconfig-static.mjs');
+    expect(script).toContain('-Dprefer_static=true');
+    expect(script).toContain('-Dzlib=enabled');
+    expect(script).toContain('--disable-libunibreak');
+    expect(script).toContain('CMAKE_FIND_USE_CMAKE_SYSTEM_PATH=OFF');
+    expect(script).toContain('libiconv-COPYING.LIB');
+    expect(script).toContain('zlib-LICENSE');
+    const zlib = windows.dependencies.find((item) => item.name === 'zlib');
+    const iconv = windows.dependencies.find((item) => item.name === 'libiconv');
+    expect(zlib.version).toBe('1.4');
+    expect(zlib.license).toBe('Zlib');
+    expect(zlib.licensePath).toBe('LICENSE');
+    expect(zlib.url).toBe('https://zlib.net/zlib-1.4.tar.gz');
+    expect(zlib.sha256).toBe('02dd159783677a749c04adbdd02b55b8a2bcc7e054f51b76b549199a916ad584');
+    expect(iconv.version).toBe('1.18');
+    expect(iconv.license).toBe('LGPL-2.1-or-later');
+    expect(iconv.licensePath).toBe('COPYING.LIB');
+    expect(iconv.url).toBe('https://ftp.gnu.org/gnu/libiconv/libiconv-1.18.tar.gz');
+    expect(iconv.sha256).toBe('3b08f5f4f9b4eb82f151a7040bfd6fe6c6fb922efe4b1659c66ea933276965e8');
     expect(script).not.toContain('"$OUT/mpv/vulkan-1.dll"');
     expect(script).toContain('prefix=${PREFIX}');
     expect(gpl).toContain('--enable-mbedtls');
