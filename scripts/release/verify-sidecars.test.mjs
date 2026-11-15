@@ -28,29 +28,44 @@ describe('installed package verification', () => {
 
   it('accepts a packaged ffmpeg that lists libmp3lame and rejects one that does not', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vitra-ffmpeg-'));
-    const program = path.join(root, 'ffmpeg');
-    const write = (body) => {
-      fs.writeFileSync(program, body);
+    const script = path.join(root, 'ffmpeg-fake.mjs');
+    // Windows does not run an extensionless `#!/bin/sh` file. The fake is a
+    // Node script. Unix executes it through its shebang; Windows through a
+    // .cmd that calls this Node. The packaged binary itself is ffmpeg.exe.
+    const write = (source) => {
+      fs.writeFileSync(script, source);
+      if (process.platform === 'win32') {
+        const program = path.join(root, 'ffmpeg.cmd');
+        fs.writeFileSync(program, `@echo off\r\n"${process.execPath}" "${script}" %*\r\n`);
+        return program;
+      }
+      const program = path.join(root, 'ffmpeg');
+      fs.writeFileSync(program, `#!${process.execPath}\n${source}`);
       fs.chmodSync(program, 0o755);
+      return program;
     };
     try {
-      write(`#!/bin/sh
-for arg in "$@"; do
-  if [ "$arg" = "-encoders" ]; then
-    echo " A....D libmp3lame           libmp3lame MP3"
-    exit 0
-  fi
-done
-exit 1
+      const listed = write(`if (process.argv.includes('-encoders')) {
+  console.log(' A....D libmp3lame           libmp3lame MP3');
+  process.exit(0);
+}
+process.exit(1);
 `);
-      expect(() => assertLibmp3lameEncoder(program)).not.toThrow();
-      write(`#!/bin/sh
-echo " A....D aac"
-exit 0
+      expect(() => assertLibmp3lameEncoder(listed)).not.toThrow();
+      const missing = write(`console.log(' A....D aac');
+process.exit(0);
 `);
-      expect(() => assertLibmp3lameEncoder(program)).toThrow(/libmp3lame/);
+      expect(() => assertLibmp3lameEncoder(missing)).toThrow(
+        /Packaged ffmpeg is missing the libmp3lame encoder/,
+      );
+      const absent = path.join(root, 'no-such-ffmpeg');
+      expect(() => assertLibmp3lameEncoder(absent)).toThrow(/could not be started/);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it('checks the Windows package binary as ffmpeg.exe', () => {
+    expect(requiredSidecars('x86_64-pc-windows-msvc')).toContain('ffmpeg.exe');
   });
 });

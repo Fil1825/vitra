@@ -5,12 +5,31 @@ import { fileURLToPath } from 'node:url';
 
 import { assertSidecars, requiredSidecars } from './sidecars.mjs';
 
+function quoteCmd(value) {
+  return `"${String(value).replaceAll('"', '""')}"`;
+}
+
+/** Run a packaged helper. Windows CreateProcess runs `ffmpeg.exe` directly.
+ * A `.cmd` launcher (used by the unit fake) goes through cmd.exe. */
+function spawnPackaged(program, args) {
+  const options = { encoding: 'utf8', timeout: 120_000, windowsHide: true };
+  if (process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(program)) {
+    const command = [quoteCmd(program), ...args.map(quoteCmd)].join(' ');
+    return spawnSync(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `"${command}"`], {
+      ...options,
+      windowsVerbatimArguments: true,
+    });
+  }
+  return spawnSync(program, args, options);
+}
+
 /** The packaged ffmpeg must be able to encode MP3. yt-dlp asks for this encoder by name. */
 export function assertLibmp3lameEncoder(program) {
-  const result = spawnSync(program, ['-hide_banner', '-encoders'], {
-    encoding: 'utf8',
-    timeout: 120_000,
-  });
+  const result = spawnPackaged(program, ['-hide_banner', '-encoders']);
+  if (result.error || result.status === null) {
+    const reason = result.error?.message ?? 'ffmpeg exited without a status';
+    throw new Error(`Packaged ffmpeg could not be started: ${program}: ${reason}`);
+  }
   const text = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
   if (result.status !== 0 || !/(^|\s)libmp3lame(\s|$)/m.test(text)) {
     throw new Error(`Packaged ffmpeg is missing the libmp3lame encoder: ${program}`);
@@ -46,11 +65,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const directory = findSidecars(path.resolve(root), target);
   for (const program of requiredSidecars(target)) {
     const ffmpeg = /^ff(mpeg|probe)/.test(path.basename(program));
-    const result = spawnSync(path.join(directory, program), [ffmpeg ? '-version' : '--version'], {
-      encoding: 'utf8',
-      timeout: 120_000,
-    });
-    if (result.status !== 0)
+    const result = spawnPackaged(path.join(directory, program), [
+      ffmpeg ? '-version' : '--version',
+    ]);
+    if (result.error || result.status !== 0)
       throw new Error(
         `Packaged helper failed: ${program}: ${result.error?.message ?? result.stderr}`,
       );
