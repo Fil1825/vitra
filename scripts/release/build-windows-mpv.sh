@@ -306,7 +306,8 @@ fi
 # Their .pc files do not name libstdc++, and mpv links with the C driver,
 # so GCC 16 leaves std::to_chars/from_chars unresolved. A plain -lstdc++
 # selects libstdc++.dll.a. Name the static archives instead. libpthread.a
-# satisfies the pthread symbols inside that libstdc++.
+# satisfies the pthread symbols inside that libstdc++. Meson shell-splits
+# c_link_args on spaces. A comma-joined -D value becomes one argument.
 for pc in "$PREFIX/lib/pkgconfig/libplacebo.pc" \
   "$PREFIX/lib/pkgconfig/shaderc.pc" \
   "$PREFIX/lib/pkgconfig/shaderc_combined.pc" \
@@ -324,7 +325,7 @@ done
   cd "$WORK/mpv"
   meson setup build --prefix="$PREFIX" --buildtype=release --default-library=static \
     -Dlibmpv=false \
-    -Dc_link_args=-static-libgcc,-l:libstdc++.a,-l:libpthread.a \
+    -Dc_link_args="-static-libgcc -l:libstdc++.a -l:libpthread.a" \
     -D{d3d-hwaccel,wasapi,vulkan,shaderc,gl,gl-win32,plain-gl}=enabled \
     -D{iconv,lua,javascript,jpeg,lcms2,cocoa,videotoolbox-gl,videotoolbox-pl,swift-build}=disabled \
     -D{wayland,x11,vaapi,dvdnav,cdda,libarchive,libbluray,rubberband,uchardet,vapoursynth,zimg,manpage-build,spirv-cross,d3d11}=disabled
