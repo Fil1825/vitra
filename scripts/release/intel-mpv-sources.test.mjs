@@ -70,6 +70,7 @@ describe('Intel mpv source pins', () => {
     expect(disabled).toEqual(expect.arrayContaining(['videotoolbox-pl', 'vulkan']));
     expect(recipe).toContain('--enable-videotoolbox');
     expect(recipe).toContain('--enable-audiotoolbox');
+    expect(recipe).toContain('--enable-securetransport');
     expect(recipe).toContain(
       '-Dc_link_args="$LDFLAGS -liconv -framework CoreVideo -framework IOSurface"',
     );
@@ -111,8 +112,26 @@ describe('Intel mpv source pins', () => {
     expect(script).toContain('-DUPDATE_DEPS=OFF');
     expect(script).not.toContain('git clone');
     expect(script).toContain('--disable-iconv');
+    expect(script).toContain('TMPDIR=/tmp');
+    expect(script).toContain('C:/msys64');
     expect(gpl).toContain('--disable-iconv');
+    expect(gpl).not.toContain('--disable-x86asm');
     expect(gpl).not.toContain('BtbN');
+    const gplPins = JSON.parse(
+      fs.readFileSync(path.join(import.meta.dirname, 'gpl-ffmpeg-sources.json'), 'utf8'),
+    );
+    expect(gplPins.mbedtls.version).toBe('3.6.7');
+    expect(gplPins.mbedtls.sha256).toBe(
+      'a7e8bcbec0e6f761b4af24f25677626b35f762f68eef79c08677a363212d11f6',
+    );
+    expect(gplPins.mbedtls.url).toBe(
+      'https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.7/mbedtls-3.6.7.tar.bz2',
+    );
+    expect(windows.dependencies.find((item) => item.name === 'mbedtls').sha256).toBe(
+      gplPins.mbedtls.sha256,
+    );
+    expect(script).toContain('--enable-mbedtls');
+    expect(gpl).toContain('--enable-mbedtls');
   });
 
   it('copies the recipe, pins, and Mach-O checkers into the source offer', () => {

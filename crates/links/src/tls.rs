@@ -19,6 +19,13 @@ fn setting(command: &Command, name: &str) -> Option<OsString> {
         .filter(|value| !value.is_empty())
 }
 
+/// CA bundle this child will use (`SSL_CERT_FILE`), after [`configure`].
+/// FFmpeg's Secure Transport and mbedTLS backends do not read that variable
+/// themselves; the analysis passes the path as `-ca_file`.
+pub fn configured_certificate_file(command: &Command) -> Option<OsString> {
+    setting(command, "SSL_CERT_FILE")
+}
+
 #[cfg(any(not(windows), test))]
 fn certificate_file(paths: &[&Path]) -> Option<PathBuf> {
     paths

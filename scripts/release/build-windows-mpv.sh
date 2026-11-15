@@ -4,7 +4,9 @@
 # glslang revisions from that commit's DEPS file. Vulkan-Headers and
 # Vulkan-Loader are the tag vulkan-sdk-1.4.363.0. UPDATE_DEPS stays OFF.
 # FFmpeg is the pinned 7.1.1 release and does not link lame, xvid, aom, soxr,
-# opencore-amr, ffnvcodec, or libiconv.
+# opencore-amr, ffnvcodec, or libiconv. HTTPS uses the pinned mbedTLS 3.6.7
+# archive (Apache-2.0 OR GPL-2.0-or-later). SChannel cannot load the PEM in
+# SSL_CERT_FILE, which is how Vitra supplies OS roots and custom proxy CAs.
 # Usage: build-windows-mpv.sh <sidecar-output-dir>
 set -euo pipefail
 
@@ -12,17 +14,28 @@ OUT=${1:?output directory required}
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 PINS="${VITRA_MPV_SOURCES:-$SCRIPT_DIR/windows-mpv-sources.json}"
 
-if ! command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1; then
-  MSYS_BASH=/c/msys64/usr/bin/bash.exe
-  if [[ ! -x "$MSYS_BASH" ]]; then
-    echo "MSYS2 mingw-w64 gcc is required to build Windows mpv" >&2
-    exit 1
-  fi
-  OUT_U=$(cygpath -u "$OUT")
-  ROOT_U=$(cygpath -u "$PWD")
-  PINS_U=$(cygpath -u "$PINS")
-  exec "$MSYS_BASH" -lc "export MSYSTEM=MINGW64; export PATH=/mingw64/bin:\$PATH; export VITRA_MPV_SOURCES='$PINS_U'; cd '$ROOT_U' && exec bash scripts/release/build-windows-mpv.sh '$OUT_U'"
-fi
+# GitHub's setup-msys2 puts mingw gcc on Git Bash's PATH, and Git Bash reports
+# MSYSTEM=MINGW64. libtool then writes C:/Users/RUNNER~1/... and mingw ar cannot
+# open objs/.libs. Build only inside MSYS2, with temp files under /tmp.
+msys_root=$(cygpath -m / 2>/dev/null || true)
+case "$msys_root" in
+  C:/msys64|C:/msys64/) ;;
+  *)
+    MSYS_BASH=/c/msys64/usr/bin/bash.exe
+    if [[ ! -x "$MSYS_BASH" ]]; then
+      echo "MSYS2 mingw-w64 gcc is required to build Windows mpv" >&2
+      exit 1
+    fi
+    OUT_U=$(cygpath -u "$OUT")
+    ROOT_U=$(cygpath -u "$PWD")
+    PINS_U=$(cygpath -u "$PINS")
+    exec "$MSYS_BASH" -lc "export MSYSTEM=MINGW64 PATH=/mingw64/bin:/usr/bin:\$PATH TMPDIR=/tmp TEMP=/tmp TMP=/tmp VITRA_MPV_SOURCES='$PINS_U'; mkdir -p /tmp; cd '$ROOT_U' && exec bash scripts/release/build-windows-mpv.sh '$OUT_U'"
+    ;;
+esac
+export TMPDIR=/tmp
+export TEMP=/tmp
+export TMP=/tmp
+mkdir -p /tmp
 
 if [[ -x "$OUT/ffmpeg.exe" && -x "$OUT/ffprobe.exe" && -x "$OUT/mpv/mpv.exe" && -f "$OUT/mpv-corresponding-source.tar.gz" ]]; then
   exit 0
@@ -84,6 +97,7 @@ unpack() {
 
 unpack "$SRC/mpv.tar.gz" "$WORK/mpv"
 unpack "$SRC/ffmpeg.tar" "$WORK/ffmpeg"
+unpack "$SRC/mbedtls.tar" "$WORK/mbedtls"
 unpack "$SRC/libplacebo.tar" "$WORK/libplacebo"
 unpack "$SRC/freetype.tar" "$WORK/freetype"
 unpack "$SRC/fribidi.tar" "$WORK/fribidi"
@@ -160,12 +174,27 @@ JOBS="$(nproc)"
   make -j"$JOBS"
   make install
 )
+cp "$WORK/mbedtls/LICENSE" "$OFFER/licenses/mbedtls-LICENSE"
+(
+  cmake -S "$WORK/mbedtls" -B "$WORK/mbedtls/build" -G "Unix Makefiles" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+    -DUSE_SHARED_MBEDTLS_LIBRARY=OFF \
+    -DUSE_STATIC_MBEDTLS_LIBRARY=ON \
+    -DENABLE_PROGRAMS=OFF \
+    -DENABLE_TESTING=OFF \
+    -DMBEDTLS_FATAL_WARNINGS=OFF
+  cmake --build "$WORK/mbedtls/build" -j"$JOBS"
+  cmake --install "$WORK/mbedtls/build"
+)
 (
   cd "$WORK/ffmpeg"
   ./configure --prefix="$PREFIX" --disable-shared --enable-static \
     --arch=x86_64 --target-os=mingw32 --pkg-config-flags=--static \
     --disable-autodetect \
     --enable-gpl --enable-version3 \
+    --enable-mbedtls \
+    --extra-cflags="-I$PREFIX/include" --extra-ldflags="-L$PREFIX/lib" \
     --disable-doc --disable-debug \
     --disable-programs --enable-ffmpeg --enable-ffprobe \
     --enable-d3d11va --enable-dxva2 \

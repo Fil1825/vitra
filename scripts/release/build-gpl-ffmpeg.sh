@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # GPL ffmpeg and ffprobe from the pinned FFmpeg 7.1.1 release tarball.
+# HTTPS uses the pinned mbedTLS 3.6.7 release (Apache-2.0 OR GPL-2.0-or-later).
 # No external codec libraries: libiconv, aom, ffnvcodec, lame, opencore-amr,
 # soxr, and xvid are not configured. libiconv's Savannah commit, aom's gitiles
 # archive, and the SourceForge svn trees for lame r7113 and xvid r2204 are not
 # stable official archives, so this build does not link them.
+# x86 assembly stays enabled. The CI and release jobs install nasm.
 # Usage: build-gpl-ffmpeg.sh <sidecar-output-dir>
 set -euo pipefail
 
@@ -31,31 +33,51 @@ python3 - "$PINS" "$WORK" <<'PY'
 import hashlib, json, pathlib, subprocess, sys
 pins = json.loads(pathlib.Path(sys.argv[1]).read_text())
 work = pathlib.Path(sys.argv[2])
-ffmpeg = pins["ffmpeg"]
-dest = work / "ffmpeg.tar.xz"
-print("fetch ffmpeg", flush=True)
-subprocess.check_call(["curl", "-fsSL", "--retry", "5", "--retry-all-errors", "-o", str(dest), ffmpeg["url"]])
-digest = hashlib.sha256(dest.read_bytes()).hexdigest()
-if digest != ffmpeg["sha256"]:
-    raise SystemExit(f"checksum mismatch for ffmpeg: expected {ffmpeg['sha256']}, got {digest}")
+for name, filename in (("ffmpeg", "ffmpeg.tar.xz"), ("mbedtls", "mbedtls.tar.bz2")):
+    spec = pins[name]
+    dest = work / filename
+    print(f"fetch {name}", flush=True)
+    subprocess.check_call(["curl", "-fsSL", "--retry", "5", "--retry-all-errors", "-o", str(dest), spec["url"]])
+    digest = hashlib.sha256(dest.read_bytes()).hexdigest()
+    if digest != spec["sha256"]:
+        raise SystemExit(f"checksum mismatch for {name}: expected {spec['sha256']}, got {digest}")
 PY
 cp "$WORK/ffmpeg.tar.xz" "$OFFER/tarballs/ffmpeg.tar.xz"
-mkdir -p "$WORK/ffmpeg"
+cp "$WORK/mbedtls.tar.bz2" "$OFFER/tarballs/mbedtls.tar.bz2"
+mkdir -p "$WORK/ffmpeg" "$WORK/mbedtls"
 tar -xf "$WORK/ffmpeg.tar.xz" -C "$WORK/ffmpeg" --strip-components=1
+tar -xf "$WORK/mbedtls.tar.bz2" -C "$WORK/mbedtls" --strip-components=1
 license=$(find "$WORK/ffmpeg" -maxdepth 2 -iname 'COPYING*' -o -iname 'LICENSE*' | head -n 1)
 if [[ -n "$license" ]]; then
   cp "$license" "$OFFER/licenses/ffmpeg-$(basename "$license")"
 fi
+cp "$WORK/mbedtls/LICENSE" "$OFFER/licenses/mbedtls-LICENSE"
+
+JOBS="$(nproc)"
+cmake -S "$WORK/mbedtls" -B "$WORK/mbedtls/build" -G "Unix Makefiles" \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+  -DUSE_SHARED_MBEDTLS_LIBRARY=OFF \
+  -DUSE_STATIC_MBEDTLS_LIBRARY=ON \
+  -DENABLE_PROGRAMS=OFF \
+  -DENABLE_TESTING=OFF \
+  -DMBEDTLS_FATAL_WARNINGS=OFF
+cmake --build "$WORK/mbedtls/build" -j"$JOBS"
+cmake --install "$WORK/mbedtls/build"
+export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
+export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
 
 (
   cd "$WORK/ffmpeg"
   ./configure --prefix="$PREFIX" --disable-shared --enable-static \
     --disable-autodetect \
     --enable-gpl --enable-version3 \
+    --enable-mbedtls --pkg-config-flags=--static \
+    --extra-cflags="-I$PREFIX/include" --extra-ldflags="-L$PREFIX/lib" \
     --disable-doc --disable-debug \
     --disable-programs --enable-ffmpeg --enable-ffprobe \
     --disable-iconv --disable-zlib --disable-bzlib --disable-lzma --disable-sdl2
-  make -j"$(nproc)"
+  make -j"$JOBS"
   make install
 )
 cp "$PREFIX/bin/ffmpeg" "$PREFIX/bin/ffprobe" "$OUT/"

@@ -1,7 +1,11 @@
 # HTTPS audio analysis
 
-Vitra's release FFmpeg sidecars use OpenSSL. Their build-time certificate directory may
-not exist on the user's machine. Vitra supplies trust to child processes only:
+Vitra's release FFmpeg sidecars verify HTTPS certificates. macOS uses the system
+Secure Transport framework. Linux and Windows link mbedTLS 3.6.7 from the official
+release archive in the source recipe (Apache-2.0 OR GPL-2.0-or-later). Those backends
+do not read `SSL_CERT_FILE` themselves, so analysis also passes that path as `-ca_file`
+on HTTPS inputs. SChannel is not used: it cannot load the PEM below. Vitra supplies
+trust to child processes only:
 
 - An existing `SSL_CERT_FILE` or `SSL_CERT_DIR` is preserved, including custom proxy roots.
 - macOS uses `/etc/ssl/cert.pem`.
@@ -36,8 +40,9 @@ npm run fetch-sidecars -- --only ffmpeg
 python3 scripts/test-ffmpeg-tls.py --ffmpeg src-tauri/sidecars/aarch64-apple-darwin/ffmpeg
 ```
 
-On Linux replace the target with `x86_64-unknown-linux-gnu`. The script requires OpenSSL,
-Python 3, Cargo, and the Tauri build prerequisites. It runs offline after the initial Rust
+On Linux replace the target with `x86_64-unknown-linux-gnu`. The script uses the OpenSSL
+command only to mint the temporary test certificates. It also needs Python 3, Cargo, and
+the Tauri build prerequisites. It runs offline after the initial Rust
 build has downloaded dependencies (`cargo test --workspace`). It creates temporary local
 HTTP/HTTPS audio servers and runs the real analysis decoder. The assertions require five
 seconds of decoded audio with trusted roots, successful plain HTTP, and rejection with

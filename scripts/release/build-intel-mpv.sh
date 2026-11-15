@@ -166,11 +166,15 @@ JOBS="$(sysctl -n hw.ncpu)"
   # puts LDFLAGS before the objects and FFEXTRALIBS after them, and iconv_extralibs
   # stays empty. --extra-libs=-liconv is what reaches that link. Do not disable iconv.
   # ffmpeg and ffprobe are the sidecar programs. No external codec libraries.
+  # --disable-autodetect also drops Secure Transport. Enable it explicitly so
+  # HTTPS verifies certificates with the system Security framework. The app
+  # passes SSL_CERT_FILE as -ca_file; there is no extra TLS archive.
   ./configure --prefix="$PREFIX" --enable-shared --disable-static \
     --arch="$ARCH" --target-os=darwin \
     --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS" \
     --disable-autodetect \
     --enable-gpl --enable-version3 \
+    --enable-securetransport \
     --disable-doc --disable-debug \
     --disable-programs --enable-ffmpeg --enable-ffprobe \
     --enable-videotoolbox --enable-audiotoolbox \
