@@ -5,6 +5,18 @@ import { fileURLToPath } from 'node:url';
 
 import { assertSidecars, requiredSidecars } from './sidecars.mjs';
 
+/** The packaged ffmpeg must be able to encode MP3. yt-dlp asks for this encoder by name. */
+export function assertLibmp3lameEncoder(program) {
+  const result = spawnSync(program, ['-hide_banner', '-encoders'], {
+    encoding: 'utf8',
+    timeout: 120_000,
+  });
+  const text = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+  if (result.status !== 0 || !/(^|\s)libmp3lame(\s|$)/m.test(text)) {
+    throw new Error(`Packaged ffmpeg is missing the libmp3lame encoder: ${program}`);
+  }
+}
+
 /** Find the resource directory in an extracted/installed package, never in the source tree. */
 export function findSidecars(root, target) {
   const found = [];
@@ -42,6 +54,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       throw new Error(
         `Packaged helper failed: ${program}: ${result.error?.message ?? result.stderr}`,
       );
+    const base = path.basename(program);
+    if (base === 'ffmpeg' || base === 'ffmpeg.exe')
+      assertLibmp3lameEncoder(path.join(directory, program));
     console.log(`${program}: ${(result.stdout || result.stderr).split('\n')[0]}`);
   }
 }

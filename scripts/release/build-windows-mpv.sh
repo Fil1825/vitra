@@ -3,8 +3,9 @@
 # shaderc is commit 2737994b552137a85545f956e303d620e6ff232c with the SPIR-V and
 # glslang revisions from that commit's DEPS file. Vulkan-Headers and
 # Vulkan-Loader are the tag vulkan-sdk-1.4.363.0. UPDATE_DEPS stays OFF.
-# FFmpeg is the pinned 7.1.1 release and does not link lame, xvid, aom, soxr,
-# opencore-amr, ffnvcodec, or libiconv. HTTPS uses the pinned mbedTLS 3.6.7
+# FFmpeg is the pinned 7.1.1 release. MP3 uses the pinned LAME 3.100 tarball,
+# linked statically. The build does not link xvid, aom, soxr, opencore-amr,
+# ffnvcodec, or libiconv. HTTPS uses the pinned mbedTLS 3.6.7
 # archive (Apache-2.0 OR GPL-2.0-or-later). SChannel cannot load the PEM in
 # SSL_CERT_FILE, which is how Vitra supplies OS roots and custom proxy CAs.
 # Usage: build-windows-mpv.sh <sidecar-output-dir>
@@ -139,6 +140,7 @@ unpack() {
 unpack "$SRC/mpv.tar.gz" "$WORK/mpv"
 unpack "$SRC/ffmpeg.tar" "$WORK/ffmpeg"
 unpack "$SRC/mbedtls.tar" "$WORK/mbedtls"
+unpack "$SRC/lame.tar" "$WORK/lame"
 unpack "$SRC/libplacebo.tar" "$WORK/libplacebo"
 unpack "$SRC/freetype.tar" "$WORK/freetype"
 unpack "$SRC/fribidi.tar" "$WORK/fribidi"
@@ -216,6 +218,18 @@ JOBS="$(nproc)"
   make install
 )
 cp "$WORK/mbedtls/LICENSE" "$OFFER/licenses/mbedtls-LICENSE"
+cp "$WORK/lame/COPYING" "$OFFER/licenses/lame-COPYING"
+(
+  cd "$WORK/lame"
+  # Static only. The frontend does not ship. -fcommon keeps the 3.100
+  # tentative definitions linkable on the mingw gcc this runner installs.
+  CFLAGS="${CFLAGS:-} -O2 -fcommon" \
+    ./configure --prefix="$PREFIX" --host=x86_64-w64-mingw32 \
+      --disable-shared --enable-static \
+      --disable-frontend --disable-gtktest --disable-nasm
+  make -j"$JOBS"
+  make install
+)
 (
   cmake -S "$WORK/mbedtls" -B "$WORK/mbedtls/build" -G "Unix Makefiles" \
     -DCMAKE_BUILD_TYPE=Release \
@@ -244,7 +258,7 @@ fi
     --arch=x86_64 --target-os=mingw32 --pkg-config-flags=--static \
     --disable-autodetect \
     --enable-gpl --enable-version3 \
-    --enable-mbedtls \
+    --enable-mbedtls --enable-libmp3lame \
     --extra-cflags="-I$PREFIX/include" --extra-ldflags="-L$PREFIX/lib" \
     --disable-doc --disable-debug \
     --disable-programs --enable-ffmpeg --enable-ffprobe \
@@ -255,10 +269,12 @@ fi
 )
 (
   cd "$WORK/libplacebo"
+  # CMake 4.4 fails the optional libunwind lookup with "Could not determine
+  # home directory" (CI job 132826044687). Playback does not use libunwind.
   meson setup build --prefix="$PREFIX" --buildtype=release --default-library=static \
     -Ddemos=false -Dtests=false \
     -Dvulkan=enabled -Dshaderc=enabled -Dglslang=disabled \
-    -Dopengl=disabled -Dd3d11=enabled \
+    -Dopengl=disabled -Dd3d11=enabled -Dunwind=disabled \
     -Dlcms=disabled -Dlibdovi=disabled -Dxxhash=disabled
   meson compile -C build
   meson install -C build
@@ -276,6 +292,10 @@ mkdir -p "$OUT/mpv"
 cp "$WORK/mpv/build/mpv.exe" "$OUT/mpv/mpv.exe"
 cp "$PREFIX/bin/ffmpeg.exe" "$OUT/ffmpeg.exe"
 cp "$PREFIX/bin/ffprobe.exe" "$OUT/ffprobe.exe"
+if ! "$OUT/ffmpeg.exe" -hide_banner -encoders | grep -q libmp3lame; then
+  echo "sidecar ffmpeg is missing the libmp3lame encoder" >&2
+  exit 1
+fi
 vulkan_dll=$(find "$PREFIX" -name 'vulkan-1.dll' -o -name 'libvulkan-1.dll' | head -n 1)
 if [[ -z "$vulkan_dll" ]]; then
   echo "Vulkan-Loader did not install vulkan-1.dll" >&2

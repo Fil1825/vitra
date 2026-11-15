@@ -6,7 +6,7 @@
 
 **Intel mpv:** built from pinned sources in [`scripts/release/intel-mpv-sources.json`](scripts/release/intel-mpv-sources.json) for macOS 12, not from the stolendata binary. The corresponding-source tarball is produced next to the sidecar. Mach-O checks are not a Monterey playback test; that hardware run is still postponed.
 
-**Other bundled GPL programs:** macOS ffmpeg/ffprobe and Apple Silicon mpv are built from the Intel recipe (arm64 deployment target 14.0, Intel 12.0). Windows mpv is built with pinned shaderc `2737994b` and Vulkan `vulkan-sdk-1.4.363.0` (`UPDATE_DEPS=OFF`). FFmpeg on every platform is the official 7.1.1 tarball and does not link libiconv, aom, ffnvcodec, lame, opencore-amr, soxr, or xvid. The four previous installer zips are superseded. `publish-reused` stays closed until the new zips and source tars are pinned. Linux artifact 13629864717 expires on 2026-11-22. libstdc++ / libgcc use the GCC runtime exception.
+**Other bundled GPL programs:** macOS ffmpeg/ffprobe and Apple Silicon mpv are built from the Intel recipe (arm64 deployment target 14.0, Intel 12.0). Windows mpv is built with pinned shaderc `2737994b` and Vulkan `vulkan-sdk-1.4.363.0` (`UPDATE_DEPS=OFF`). FFmpeg on every platform is the official 7.1.1 tarball plus LAME 3.100 (`lame-3.100.tar.gz`, static `--enable-libmp3lame`) and does not link libiconv, aom, ffnvcodec, opencore-amr, soxr, or xvid. The four previous installer zips are superseded. `publish-reused` stays closed until the new zips and source tars are pinned. Linux artifact 13629864717 expires on 2026-11-22. libstdc++ / libgcc use the GCC runtime exception.
 
 ## Highlights since 0.1.1
 

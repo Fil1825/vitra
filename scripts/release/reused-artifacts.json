@@ -2,7 +2,7 @@
   "repo": "Fil1825/vitra",
   "version": "1.0.0-rc.1",
   "appPayloadCommit": "76ea04250e88d880c3b6a7e3abf182f29c6bbde2",
-  "note": "The four previously pinned installers are superseded. Their bytes still contain Martin Riedl FFmpeg, official mpv, or a BtbN FFmpeg that links lame and xvid revisions without a stable official archive. This plan builds macOS mpv and ffmpeg from the pinned recipe (arm64 deployment target 14.0, Intel 12.0), Windows mpv with pinned shaderc and Vulkan, and Linux/Windows ffmpeg from the FFmpeg 7.1.1 tarball without libiconv, aom, ffnvcodec, lame, opencore-amr, soxr, or xvid. publish-reused stays closed until the new artifact zips and source tars are pinned. Linux artifact 13629864717 expires 2026-11-22T19:05:50Z. A v* tag is not the reuse path. publish-reused.mjs refuses to create a GitHub Release.",
+  "note": "The four previously pinned installers are superseded. Their bytes still contain Martin Riedl FFmpeg, official mpv, or a BtbN FFmpeg that links lame and xvid revisions without a stable official archive. This plan builds macOS mpv and ffmpeg from the pinned recipe (arm64 deployment target 14.0, Intel 12.0), Windows mpv with pinned shaderc and Vulkan, and Linux/Windows ffmpeg from the FFmpeg 7.1.1 tarball with static LAME 3.100 (`lame-3.100.tar.gz`) and without libiconv, aom, ffnvcodec, opencore-amr, soxr, or xvid. publish-reused stays closed until the new artifact zips and source tars are pinned. Linux artifact 13629864717 expires 2026-11-22T19:05:50Z. A v* tag is not the reuse path. publish-reused.mjs refuses to create a GitHub Release.",
   "targets": {
     "x86_64-unknown-linux-gnu": {
       "status": "superseded",

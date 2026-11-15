@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # GPL ffmpeg and ffprobe from the pinned FFmpeg 7.1.1 release tarball.
 # HTTPS uses the pinned mbedTLS 3.6.7 release (Apache-2.0 OR GPL-2.0-or-later).
-# No external codec libraries: libiconv, aom, ffnvcodec, lame, opencore-amr,
-# soxr, and xvid are not configured. libiconv's Savannah commit, aom's gitiles
-# archive, and the SourceForge svn trees for lame r7113 and xvid r2204 are not
-# stable official archives, so this build does not link them.
+# MP3 uses the pinned LAME 3.100 release tarball (LGPL-2.0-or-later), linked
+# statically. libiconv, aom, ffnvcodec, opencore-amr, soxr, and xvid are not
+# configured: those archives are not stable. An earlier GPL build used lame
+# svn r7113, which is not this release tarball.
 # x86 assembly stays enabled. The CI and release jobs install nasm.
 # Usage: build-gpl-ffmpeg.sh <sidecar-output-dir>
 set -euo pipefail
@@ -33,7 +33,7 @@ python3 - "$PINS" "$WORK" <<'PY'
 import hashlib, json, pathlib, subprocess, sys
 pins = json.loads(pathlib.Path(sys.argv[1]).read_text())
 work = pathlib.Path(sys.argv[2])
-for name, filename in (("ffmpeg", "ffmpeg.tar.xz"), ("mbedtls", "mbedtls.tar.bz2")):
+for name, filename in (("ffmpeg", "ffmpeg.tar.xz"), ("mbedtls", "mbedtls.tar.bz2"), ("lame", "lame.tar.gz")):
     spec = pins[name]
     dest = work / filename
     print(f"fetch {name}", flush=True)
@@ -44,14 +44,17 @@ for name, filename in (("ffmpeg", "ffmpeg.tar.xz"), ("mbedtls", "mbedtls.tar.bz2
 PY
 cp "$WORK/ffmpeg.tar.xz" "$OFFER/tarballs/ffmpeg.tar.xz"
 cp "$WORK/mbedtls.tar.bz2" "$OFFER/tarballs/mbedtls.tar.bz2"
-mkdir -p "$WORK/ffmpeg" "$WORK/mbedtls"
+cp "$WORK/lame.tar.gz" "$OFFER/tarballs/lame.tar.gz"
+mkdir -p "$WORK/ffmpeg" "$WORK/mbedtls" "$WORK/lame"
 tar -xf "$WORK/ffmpeg.tar.xz" -C "$WORK/ffmpeg" --strip-components=1
 tar -xf "$WORK/mbedtls.tar.bz2" -C "$WORK/mbedtls" --strip-components=1
+tar -xf "$WORK/lame.tar.gz" -C "$WORK/lame" --strip-components=1
 license=$(find "$WORK/ffmpeg" -maxdepth 2 -iname 'COPYING*' -o -iname 'LICENSE*' | head -n 1)
 if [[ -n "$license" ]]; then
   cp "$license" "$OFFER/licenses/ffmpeg-$(basename "$license")"
 fi
 cp "$WORK/mbedtls/LICENSE" "$OFFER/licenses/mbedtls-LICENSE"
+cp "$WORK/lame/COPYING" "$OFFER/licenses/lame-COPYING"
 
 JOBS="$(nproc)"
 cmake -S "$WORK/mbedtls" -B "$WORK/mbedtls/build" -G "Unix Makefiles" \
@@ -64,6 +67,17 @@ cmake -S "$WORK/mbedtls" -B "$WORK/mbedtls/build" -G "Unix Makefiles" \
   -DMBEDTLS_FATAL_WARNINGS=OFF
 cmake --build "$WORK/mbedtls/build" -j"$JOBS"
 cmake --install "$WORK/mbedtls/build"
+(
+  cd "$WORK/lame"
+  # Static only. The frontend does not ship, and nasm objects are not needed
+  # for the encoder FFmpeg links. -fcommon keeps gcc 10+ from rejecting the
+  # 3.100 tentative definitions.
+  CFLAGS="${CFLAGS:-} -O2 -fcommon" \
+    ./configure --prefix="$PREFIX" --disable-shared --enable-static \
+      --disable-frontend --disable-gtktest --disable-nasm
+  make -j"$JOBS"
+  make install
+)
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
 export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
 
@@ -72,7 +86,7 @@ export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
   ./configure --prefix="$PREFIX" --disable-shared --enable-static \
     --disable-autodetect \
     --enable-gpl --enable-version3 \
-    --enable-mbedtls --pkg-config-flags=--static \
+    --enable-mbedtls --enable-libmp3lame --pkg-config-flags=--static \
     --extra-cflags="-I$PREFIX/include" --extra-ldflags="-L$PREFIX/lib" \
     --disable-doc --disable-debug \
     --disable-programs --enable-ffmpeg --enable-ffprobe \
@@ -81,6 +95,10 @@ export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
   make install
 )
 cp "$PREFIX/bin/ffmpeg" "$PREFIX/bin/ffprobe" "$OUT/"
+if ! "$OUT/ffmpeg" -hide_banner -encoders | grep -q libmp3lame; then
+  echo "sidecar ffmpeg is missing the libmp3lame encoder" >&2
+  exit 1
+fi
 python3 - "$PINS" "$OFFER/build-record.json" <<'PY'
 import json, pathlib, sys
 pins = json.loads(pathlib.Path(sys.argv[1]).read_text())

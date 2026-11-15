@@ -45,6 +45,9 @@ describe('Intel mpv source pins', () => {
     expect(arm.dependencies.find((dep) => dep.name === 'mbedtls').sha256).toBe(
       pins.dependencies.find((dep) => dep.name === 'mbedtls').sha256,
     );
+    expect(arm.dependencies.find((dep) => dep.name === 'lame').sha256).toBe(
+      pins.dependencies.find((dep) => dep.name === 'lame').sha256,
+    );
   });
 
   it('builds HarfBuzz 10 with Meson and does not search Homebrew pkg-config', () => {
@@ -74,6 +77,8 @@ describe('Intel mpv source pins', () => {
     expect(recipe).toContain('--enable-videotoolbox');
     expect(recipe).toContain('--enable-audiotoolbox');
     expect(recipe).toContain('--enable-mbedtls');
+    expect(recipe).toContain('--enable-libmp3lame');
+    expect(recipe).toContain('sidecar ffmpeg is missing the libmp3lame encoder');
     expect(recipe).not.toContain('--enable-securetransport');
     expect(recipe).toContain(
       '-Dc_link_args="$LDFLAGS -liconv -framework CoreVideo -framework IOSurface"',
@@ -93,7 +98,7 @@ describe('Intel mpv source pins', () => {
     expect(recipe).toContain('-D{gl,iconv,plain-gl}=enabled');
   });
 
-  it('pins Windows shaderc and Vulkan and leaves the seven external codecs out', () => {
+  it('pins Windows shaderc, Vulkan, and LAME 3.100', () => {
     const windows = JSON.parse(
       fs.readFileSync(path.join(import.meta.dirname, 'windows-mpv-sources.json'), 'utf8'),
     );
@@ -141,9 +146,28 @@ describe('Intel mpv source pins', () => {
       gplPins.mbedtls.sha256,
     );
     expect(script).toContain('--enable-mbedtls');
+    expect(script).toContain('--enable-libmp3lame');
+    expect(script).toContain('-Dunwind=disabled');
+    expect(script).toContain('sidecar ffmpeg is missing the libmp3lame encoder');
     expect(script).toContain('Libs.private: -lbcrypt -lws2_32');
     expect(script).toContain('prefix=${PREFIX}');
     expect(gpl).toContain('--enable-mbedtls');
+    expect(gpl).toContain('--enable-libmp3lame');
+    expect(gpl).toContain('lame-COPYING');
+    expect(gpl).toContain('sidecar ffmpeg is missing the libmp3lame encoder');
+    expect(gplPins.lame.version).toBe('3.100');
+    expect(gplPins.lame.sha256).toBe(
+      'ddfe36cab873794038ae2c1210557ad34857a4b6bdc515785d1da9e175b1da1e',
+    );
+    expect(gplPins.lame.url).toBe(
+      'https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz',
+    );
+    expect(gplPins.lame.license).toBe('LGPL-2.0-or-later');
+    expect(gplPins.omittedLibraries).not.toContain('lame');
+    expect(windows.dependencies.find((item) => item.name === 'lame').sha256).toBe(
+      gplPins.lame.sha256,
+    );
+    expect(pins.dependencies.find((item) => item.name === 'lame').sha256).toBe(gplPins.lame.sha256);
     expect(pins.dependencies.find((item) => item.name === 'mbedtls').sha256).toBe(
       gplPins.mbedtls.sha256,
     );

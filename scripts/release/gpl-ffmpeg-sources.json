@@ -12,5 +12,12 @@
     "license": "Apache-2.0 OR GPL-2.0-or-later",
     "licensePath": "LICENSE"
   },
-  "omittedLibraries": ["libiconv", "aom", "ffnvcodec", "lame", "opencore-amr", "soxr", "xvid"]
+  "lame": {
+    "version": "3.100",
+    "url": "https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz",
+    "sha256": "ddfe36cab873794038ae2c1210557ad34857a4b6bdc515785d1da9e175b1da1e",
+    "license": "LGPL-2.0-or-later",
+    "licensePath": "COPYING"
+  },
+  "omittedLibraries": ["libiconv", "aom", "ffnvcodec", "opencore-amr", "soxr", "xvid"]
 }

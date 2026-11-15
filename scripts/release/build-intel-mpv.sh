@@ -95,6 +95,7 @@ cp -a "$SRC/." "$OFFER/tarballs/"
 unpack "$SRC/mpv.tar.gz" "$WORK/mpv"
 unpack "$SRC/ffmpeg.tar" "$WORK/ffmpeg"
 unpack "$SRC/mbedtls.tar" "$WORK/mbedtls"
+unpack "$SRC/lame.tar" "$WORK/lame"
 unpack "$SRC/libplacebo.tar" "$WORK/libplacebo"
 unpack "$SRC/freetype.tar" "$WORK/freetype"
 unpack "$SRC/fribidi.tar" "$WORK/fribidi"
@@ -118,7 +119,7 @@ python3 - "$WORK" "$OFFER/licenses" <<'PY'
 import pathlib, shutil, sys
 work, dest = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 dest.mkdir(parents=True, exist_ok=True)
-for tree in ("freetype", "fribidi", "harfbuzz", "libass", "ffmpeg", "mbedtls", "libplacebo", "mpv"):
+for tree in ("freetype", "fribidi", "harfbuzz", "libass", "ffmpeg", "mbedtls", "lame", "libplacebo", "mpv"):
     root = work / tree
     for path in root.rglob("*"):
         if path.is_file() and path.name.lower().startswith(("license", "copying")) and path.stat().st_size < 2_000_000:
@@ -178,20 +179,35 @@ JOBS="$(sysctl -n hw.ncpu)"
   cmake --install "$WORK/mbedtls/build"
 )
 (
+  cd "$WORK/lame"
+  # config.sub in LAME 3.100 accepts aarch64, not Apple's arm64 uname.
+  lame_cpu="$ARCH"
+  [[ "$lame_cpu" == arm64 ]] && lame_cpu=aarch64
+  # Static only. The frontend does not ship. -fcommon keeps the 3.100
+  # tentative definitions linkable. Headers land in the prefix FFmpeg searches.
+  CFLAGS="$CFLAGS -O2 -fcommon" \
+    ./configure --prefix="$PREFIX" --host="${lame_cpu}-apple-darwin" \
+      --disable-shared --enable-static \
+      --disable-frontend --disable-gtktest --disable-nasm
+  make -j"$JOBS"
+  make install
+)
+(
   cd "$WORK/ffmpeg"
   # 7.1.1 with --disable-autodetect enables libc_iconv and only probes iconv in
   # libc (configure: "disabled iconv || enable libc_iconv"). That probe links on
   # the macOS 15 Intel runner, but libavcodec's shared link does not: library.mak
   # puts LDFLAGS before the objects and FFEXTRALIBS after them, and iconv_extralibs
   # stays empty. --extra-libs=-liconv is what reaches that link. Do not disable iconv.
-  # ffmpeg and ffprobe are the sidecar programs. No external codec libraries.
-  # --disable-autodetect drops TLS. mbedTLS is the pinned archive above.
+  # ffmpeg and ffprobe are the sidecar programs. LAME 3.100 is the MP3 encoder,
+  # linked from the static archive above. --disable-autodetect drops TLS.
+  # mbedTLS is the pinned archive above.
   ./configure --prefix="$PREFIX" --enable-shared --disable-static \
     --arch="$ARCH" --target-os=darwin \
-    --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS" \
+    --extra-cflags="$CFLAGS -I$PREFIX/include" --extra-ldflags="$LDFLAGS -L$PREFIX/lib" \
     --disable-autodetect \
     --enable-gpl --enable-version3 \
-    --enable-mbedtls --pkg-config-flags=--static \
+    --enable-mbedtls --enable-libmp3lame --pkg-config-flags=--static \
     --disable-doc --disable-debug \
     --disable-programs --enable-ffmpeg --enable-ffprobe \
     --enable-videotoolbox --enable-audiotoolbox \
@@ -270,6 +286,10 @@ for path in machos:
         if base in names or dep.startswith(prefix):
             subprocess.check_call(["install_name_tool", "-change", dep, new, str(path)])
 PY
+if ! "$OUT/ffmpeg" -hide_banner -encoders | grep -q libmp3lame; then
+  echo "sidecar ffmpeg is missing the libmp3lame encoder" >&2
+  exit 1
+fi
 python3 "$SCRIPT_DIR/mach-minos.py" "$OUT/mpv/mpv.app" "$OUT/ffmpeg" "$OUT/ffprobe" "$OUT"/*.dylib --max "$DEPLOYMENT_TARGET"
 python3 "$SCRIPT_DIR/mach-deps.py" "$OUT/mpv/mpv.app"
 

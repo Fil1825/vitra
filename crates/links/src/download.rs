@@ -16,8 +16,6 @@ pub enum AudioFormat {
     Original,
     Mp3,
     /// AAC in an M4A file. yt-dlp selects FFmpeg's built-in `aac` encoder.
-    /// The pinned sidecar has that encoder. It does not link libmp3lame, so an
-    /// MP3 request fails there with "Encoder not found".
     M4a,
     Flac,
 }
