@@ -24,6 +24,28 @@ Libs.private: -l:libcharset.a -lws2_32
     );
   });
 
+  it('rewrites the mingw libavdevice line once those crt archives are named', () => {
+    const text =
+      'Libs: -L${libdir}  -lavdevice -lpsapi -lole32 -lstrmiids -luuid -loleaut32 -lshlwapi -lgdi32 -lm -latomic -lvfw32\n';
+    const crt = [
+      'libavdevice.a',
+      'libpsapi.a',
+      'libole32.a',
+      'libstrmiids.a',
+      'libuuid.a',
+      'liboleaut32.a',
+      'libshlwapi.a',
+      'libgdi32.a',
+      'libm.a',
+      'libatomic.a',
+      'libvfw32.a',
+    ];
+    expect(rewritePkgconfigLibs(text, crt, [])).toBe(
+      'Libs: -L${libdir}  -l:libavdevice.a -l:libpsapi.a -l:libole32.a -l:libstrmiids.a -l:libuuid.a -l:liboleaut32.a -l:libshlwapi.a -l:libgdi32.a -l:libm.a -l:libatomic.a -l:libvfw32.a\n',
+    );
+    expect(() => rewritePkgconfigLibs(text, ['libavdevice.a'], [])).toThrow(/-lpsapi/);
+  });
+
   it('rejects the SPIRV-Tools shared pkg-config line from the pinned cmake template', () => {
     // SPIRV-Tools 71f287f cmake/SPIRV-Tools-shared.pc.in substitutes
     // SPIRV_SHARED_LIBRARIES as -lSPIRV-Tools-shared. There is no static archive.

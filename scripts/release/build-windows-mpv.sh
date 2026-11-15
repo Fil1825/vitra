@@ -399,33 +399,85 @@ if ! grep -q '^Libs.private:' "$pc_dir/mbedcrypto.pc"; then
   printf '\nLibs.private: -lbcrypt -lws2_32\n' >> "$pc_dir/mbedcrypto.pc"
 fi
 # Rewrite every -lfoo in our .pc files to -l:libfoo.a when that archive
-# exists. Anything else, other than a Windows system import library, fails
-# here — before ffmpeg and mpv are linked — instead of as a DLL import.
+# exists. Any other -l name is accepted only when gcc's crt has libfoo.a (or
+# libfoo.dll.a) and windows-crt-link.mjs says it is a system import library
+# (every DLL it references is on the sidecar allowlist) or a crt data library
+# with no DLL imports (uuid, strmiids). That covers psapi, vfw32, and the next
+# mingw system import lib without a second hand-written list. A third-party
+# archive such as libbz2.a still fails here, before ffmpeg and mpv are linked.
 pin_pkgconfig_static() {
   local archives=()
-  local archive base printed name
+  local archive base printed name token kind chosen a_path dll_path
+  local -a system_link=()
+  local -A have=()
   shopt -s nullglob
   for archive in "$PREFIX/lib"/lib*.a; do
     base=$(basename "$archive")
     [[ "$base" == *.dll.a ]] && continue
     archives+=("$base")
+    have["${base%.a}"]=1
   done
   shopt -u nullglob
   for name in libpthread.a libstdc++.a libgcc.a libgcc_eh.a libmingw32.a \
     libmingwex.a libmoldname.a libm.a libssp.a libatomic.a libmingwthrd.a; do
     printed=$(gcc -print-file-name="$name")
     if [[ "$printed" == */* || "$printed" == *\\* ]]; then
-      archives+=("$(basename "$printed")")
+      base=$(basename "$printed")
+      archives+=("$base")
+      have["${base%.a}"]=1
     fi
   done
   if [[ -z "${VITRA_NODE:-}" || ! -x "${VITRA_NODE}" ]]; then
     echo "node is required to check pkg-config libraries" >&2
     exit 1
   fi
+  export NM="$(gcc -print-prog-name=nm)"
   shopt -s nullglob
-  for archive in "$PREFIX/lib/pkgconfig"/*.pc; do
-    "$VITRA_NODE" "$SCRIPT_DIR/windows-pkgconfig-static.mjs" "$archive" "${archives[@]}"
-  done
+  local -a pc_files=("$PREFIX/lib/pkgconfig"/*.pc)
+  local -A seen=()
+  local system_csv=""
+  if ((${#pc_files[@]})); then
+    while IFS= read -r token; do
+      [[ -z "$token" || "$token" == :* ]] && continue
+      token=${token,,}
+      [[ -n "${seen[$token]:-}" ]] && continue
+      seen[$token]=1
+      [[ -n "${have[lib$token]:-}" ]] && continue
+      a_path=$(gcc -print-file-name="lib${token}.a")
+      dll_path=$(gcc -print-file-name="lib${token}.dll.a")
+      chosen=""
+      kind=""
+      if [[ "$a_path" == */* || "$a_path" == *\\* ]]; then
+        if kind=$("$VITRA_NODE" "$SCRIPT_DIR/windows-crt-link.mjs" "$a_path"); then
+          chosen=$a_path
+        fi
+      fi
+      if [[ -z "$chosen" && ( "$dll_path" == */* || "$dll_path" == *\\* ) ]]; then
+        if kind=$("$VITRA_NODE" "$SCRIPT_DIR/windows-crt-link.mjs" "$dll_path"); then
+          chosen=$dll_path
+        fi
+      fi
+      if [[ -z "$chosen" ]]; then
+        echo "pkg-config -l${token} is not a pinned static archive or a Windows system import library" >&2
+        exit 1
+      fi
+      if [[ "$kind" == system-import && "$chosen" == *.dll.a ]]; then
+        system_link+=("$token")
+      else
+        base=$(basename "$chosen")
+        archives+=("$base")
+        have["${base%.a}"]=1
+      fi
+    done < <(grep -h -E '^Libs(\.private)?:' "${pc_files[@]}" \
+      | grep -o -E -- '-l[^[:space:]]+' | sed 's/^-l//' || true)
+    if ((${#system_link[@]})); then
+      system_csv=$(IFS=,; echo "${system_link[*]}")
+    fi
+    for archive in "${pc_files[@]}"; do
+      "$VITRA_NODE" "$SCRIPT_DIR/windows-pkgconfig-static.mjs" \
+        --system "$system_csv" "$archive" "${archives[@]}"
+    done
+  fi
   shopt -u nullglob
 }
 run_step "pkg-config static libs" "$PREFIX" pin_pkgconfig_static

@@ -179,6 +179,7 @@ describe('Intel mpv source pins', () => {
     expect(script).toContain('--extra-ldexeflags="-static"');
     expect(script).toContain('windows-dll-imports.mjs');
     expect(script).toContain('windows-pkgconfig-static.mjs');
+    expect(script).toContain('windows-crt-link.mjs');
     expect(script).toContain('-Dprefer_static=true');
     expect(script).toContain('-Dzlib=enabled');
     expect(script).toContain('--disable-libunibreak');

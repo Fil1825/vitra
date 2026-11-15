@@ -3,7 +3,10 @@
 // archive (.a) instead of an MSYS2 import library (.dll.a). A -l name that is
 // neither one of our archives nor a Windows system import library fails the
 // build. That is earlier than the DLL import check, and it names the library.
-// Usage: node windows-pkgconfig-static.mjs FILE.pc libfoo.a libz.a ...
+// The build script passes --system only for crt import libraries that
+// windows-crt-link.mjs has already accepted. The set below is that same
+// contract for callers that do not pass --system.
+// Usage: node windows-pkgconfig-static.mjs [--system name,name] FILE.pc libfoo.a ...
 
 import fs from 'node:fs';
 
@@ -50,6 +53,7 @@ export const WINDOWS_SYSTEM_LINK_NAMES = new Set(
     'oleaut32',
     'opengl32',
     'pathcch',
+    'psapi',
     'powrprof',
     'propsys',
     'rpcrt4',
@@ -64,6 +68,7 @@ export const WINDOWS_SYSTEM_LINK_NAMES = new Set(
     'uuid',
     'uxtheme',
     'version',
+    'vfw32',
     'winhttp',
     'wininet',
     'winmm',
@@ -84,7 +89,7 @@ export function staticLinkNames(archiveNames) {
   return names;
 }
 
-function rewriteFlag(token, staticLibs, missing) {
+function rewriteFlag(token, staticLibs, system, missing) {
   const exact = /^-l:lib(.+)\.a$/i.exec(token);
   if (exact) {
     const name = exact[1].toLowerCase();
@@ -100,18 +105,26 @@ function rewriteFlag(token, staticLibs, missing) {
   if (!plain) return token;
   const name = plain[1].toLowerCase();
   if (staticLibs.has(name)) return `-l:lib${plain[1]}.a`;
-  if (WINDOWS_SYSTEM_LINK_NAMES.has(name)) return token;
+  if (system.has(name)) return token;
   missing.push(token);
   return token;
 }
 
-/** Rewrite Libs and Libs.private. Throws when a -l flag has no static archive. */
-export function rewritePkgconfigLibs(text, archiveNames) {
+/**
+ * Rewrite Libs and Libs.private. `systemLinkNames` replaces the documented
+ * set when the caller has already checked the mingw-w64 crt (pass [] to
+ * admit nothing by name). An omitted set uses WINDOWS_SYSTEM_LINK_NAMES.
+ */
+export function rewritePkgconfigLibs(text, archiveNames, systemLinkNames) {
   const staticLibs = staticLinkNames(archiveNames);
+  const system =
+    systemLinkNames === undefined
+      ? WINDOWS_SYSTEM_LINK_NAMES
+      : new Set([...systemLinkNames].map((name) => String(name).toLowerCase()));
   const missing = [];
   const rewritten = String(text).replace(/^Libs(?:\.private)?:.*$/gm, (line) =>
     line.replace(/(^|\s)(-l\S+)/g, (full, lead, flag) => {
-      return lead + rewriteFlag(flag, staticLibs, missing);
+      return lead + rewriteFlag(flag, staticLibs, system, missing);
     }),
   );
   if (missing.length > 0) {
@@ -123,15 +136,29 @@ export function rewritePkgconfigLibs(text, archiveNames) {
 }
 
 function main() {
-  const [file, ...archives] = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  let systemLinkNames;
+  const positionals = [];
+  for (let i = 0; i < args.length; i += 1) {
+    if (args[i] === '--system') {
+      const value = args[i + 1] ?? '';
+      i += 1;
+      systemLinkNames = value.split(',').filter(Boolean);
+      continue;
+    }
+    positionals.push(args[i]);
+  }
+  const [file, ...archives] = positionals;
   if (!file) {
-    console.error('Usage: node windows-pkgconfig-static.mjs FILE.pc libfoo.a ...');
+    console.error(
+      'Usage: node windows-pkgconfig-static.mjs [--system name,name] FILE.pc libfoo.a ...',
+    );
     process.exit(2);
   }
   const original = fs.readFileSync(file, 'utf8');
   let rewritten;
   try {
-    rewritten = rewritePkgconfigLibs(original, archives);
+    rewritten = rewritePkgconfigLibs(original, archives, systemLinkNames);
   } catch (error) {
     console.error(`${file}: ${error.message}`);
     process.exit(1);

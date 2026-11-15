@@ -23,6 +23,12 @@ describe('Windows sidecar DLL imports', () => {
     expect(unexpectedDllImports(['SHCORE.dll', 'AVICAP32.dll', 'KERNEL32.dll'])).toEqual([]);
   });
 
+  it('allows the system DLLs behind the mingw psapi and vfw32 import libraries', () => {
+    expect(
+      unexpectedDllImports(['PSAPI.DLL', 'AVIFIL32.dll', 'MSVFW32.dll', 'AVICAP32.dll']),
+    ).toEqual([]);
+  });
+
   it('rejects MinGW runtime and shared codec libraries', () => {
     expect(
       unexpectedDllImports([

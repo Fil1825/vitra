@@ -50,8 +50,18 @@ export const WINDOWS_SYSTEM_DLLS = new Set(
     // Avicap32.dll is Video for Windows (capCreateCaptureWindow). Microsoft
     // documents the minimum client as Windows 2000 Professional, and the DLL
     // still ships in System32. Vitra's Windows builds target Windows 10/11.
-    // mpv links it for DirectShow.
+    // mpv links it for DirectShow. The mingw vfw32 import library also
+    // references Avifil32.dll (AVIFile) and Msvfw32.dll (DrawDib), both of
+    // which ship in System32 on the same baseline.
     'avicap32.dll',
+    'avifil32.dll',
+    'msvfw32.dll',
+    // Psapi.dll is EnumProcessModules and the rest of the Process Status API.
+    // Microsoft documents the minimum client as Windows XP. Windows 7 and
+    // later also export those functions from Kernel32, but the mingw import
+    // library still names Psapi.dll, and System32 on Windows 10/11 still
+    // contains it. FFmpeg's libavdevice links it.
+    'psapi.dll',
     'shell32.dll',
     // Shcore.dll is SetProcessDpiAwareness (shellscalingapi.h). Microsoft
     // documents the minimum client as Windows 8.1. Windows 10 and 11 include
