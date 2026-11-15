@@ -148,6 +148,9 @@ describe('Intel mpv source pins', () => {
     expect(script).toContain('--enable-mbedtls');
     expect(script).toContain('--enable-libmp3lame');
     expect(script).toContain('-Dunwind=disabled');
+    expect(script).toContain('-Dd3d11=disabled');
+    expect(script).toContain('export USERPROFILE');
+    expect(script).toContain('HOMEDRIVE');
     expect(script).toContain('sidecar ffmpeg is missing the libmp3lame encoder');
     expect(script).toContain('Libs.private: -lbcrypt -lws2_32');
     expect(script).toContain('prefix=${PREFIX}');

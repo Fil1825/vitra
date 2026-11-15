@@ -62,6 +62,23 @@ export TMP=/tmp
 mkdir -p /tmp
 export PATH="/mingw64/bin:/usr/bin:${PATH:-}"
 hash -r
+# Meson's cmake probe uses Windows Python's Path.home(). That only accepts
+# USERPROFILE or HOMEDRIVE+HOMEPATH. An MSYS login shell often has neither,
+# so a missing library aborts with "Could not determine home directory"
+# instead of being skipped. libunwind and spirv-cross-c-shared both died
+# this way. A disabled feature is not looked up; required:false still is
+# (ffnvcodec, sdl2), so the variables have to be set before the first meson.
+if [[ -z "${USERPROFILE:-}" ]]; then
+  export USERPROFILE="$(cygpath -w /tmp)"
+fi
+USERPROFILE="$(cygpath -w "$USERPROFILE")"
+export USERPROFILE
+if [[ -z "${HOMEDRIVE:-}" || -z "${HOMEPATH:-}" ]]; then
+  export HOMEDRIVE="${USERPROFILE%%:*}:"
+  export HOMEPATH="${USERPROFILE#*:}"
+fi
+export HOME="$(cygpath -u "$USERPROFILE")"
+mkdir -p "$HOME"
 
 if [[ -x "$OUT/ffmpeg.exe" && -x "$OUT/ffprobe.exe" && -x "$OUT/mpv/mpv.exe" && -f "$OUT/mpv-corresponding-source.tar.gz" ]]; then
   exit 0
@@ -269,12 +286,12 @@ fi
 )
 (
   cd "$WORK/libplacebo"
-  # CMake 4.4 fails the optional libunwind lookup with "Could not determine
-  # home directory" (CI job 132826044687). Playback does not use libunwind.
+  # d3d11 requires spirv-cross-c-shared, which is not pinned. Vulkan is the
+  # renderer. A disabled feature is not probed; an enabled one is required.
   meson setup build --prefix="$PREFIX" --buildtype=release --default-library=static \
     -Ddemos=false -Dtests=false \
     -Dvulkan=enabled -Dshaderc=enabled -Dglslang=disabled \
-    -Dopengl=disabled -Dd3d11=enabled -Dunwind=disabled \
+    -Dopengl=disabled -Dd3d11=disabled -Dunwind=disabled \
     -Dlcms=disabled -Dlibdovi=disabled -Dxxhash=disabled
   meson compile -C build
   meson install -C build
@@ -283,16 +300,23 @@ fi
   cd "$WORK/mpv"
   meson setup build --prefix="$PREFIX" --buildtype=release --default-library=static \
     -Dlibmpv=false \
-    -D{d3d11,d3d-hwaccel,wasapi,vulkan,shaderc,gl,gl-win32,plain-gl}=enabled \
+    -D{d3d-hwaccel,wasapi,vulkan,shaderc,gl,gl-win32,plain-gl}=enabled \
     -D{iconv,lua,javascript,jpeg,lcms2,cocoa,videotoolbox-gl,videotoolbox-pl,swift-build}=disabled \
-    -D{wayland,x11,vaapi,dvdnav,cdda,libarchive,libbluray,rubberband,uchardet,vapoursynth,zimg,manpage-build,spirv-cross}=disabled
+    -D{wayland,x11,vaapi,dvdnav,cdda,libarchive,libbluray,rubberband,uchardet,vapoursynth,zimg,manpage-build,spirv-cross,d3d11}=disabled
   meson compile -C build
 )
 mkdir -p "$OUT/mpv"
 cp "$WORK/mpv/build/mpv.exe" "$OUT/mpv/mpv.exe"
 cp "$PREFIX/bin/ffmpeg.exe" "$OUT/ffmpeg.exe"
 cp "$PREFIX/bin/ffprobe.exe" "$OUT/ffprobe.exe"
-if ! "$OUT/ffmpeg.exe" -hide_banner -encoders | grep -q libmp3lame; then
+# Do not pipe this into grep -q. pipefail plus grep -q closes the pipe as
+# soon as it sees libmp3lame, ffmpeg dies with SIGPIPE, and the check
+# reports the encoder missing even though it was just compiled.
+encoders=$("$OUT/ffmpeg.exe" -hide_banner -encoders) || {
+  echo "sidecar ffmpeg failed to list encoders" >&2
+  exit 1
+}
+if ! grep -q libmp3lame <<<"$encoders"; then
   echo "sidecar ffmpeg is missing the libmp3lame encoder" >&2
   exit 1
 fi

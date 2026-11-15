@@ -95,7 +95,14 @@ export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
   make install
 )
 cp "$PREFIX/bin/ffmpeg" "$PREFIX/bin/ffprobe" "$OUT/"
-if ! "$OUT/ffmpeg" -hide_banner -encoders | grep -q libmp3lame; then
+# Do not pipe this into grep -q. pipefail plus grep -q closes the pipe as
+# soon as it sees libmp3lame, ffmpeg dies with SIGPIPE, and the check
+# reports the encoder missing even though it was just compiled.
+encoders=$("$OUT/ffmpeg" -hide_banner -encoders) || {
+  echo "sidecar ffmpeg failed to list encoders" >&2
+  exit 1
+}
+if ! grep -q libmp3lame <<<"$encoders"; then
   echo "sidecar ffmpeg is missing the libmp3lame encoder" >&2
   exit 1
 fi
