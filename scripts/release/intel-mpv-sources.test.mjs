@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -27,12 +28,26 @@ describe('Intel mpv source pins', () => {
   });
 
   it('keeps the recipe fail-closed on checksums and min OS', () => {
-    expect(recipe).toContain('MACOSX_DEPLOYMENT_TARGET=12.0');
+    expect(recipe).toContain('MACOSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET"');
     expect(recipe).toContain('checksum mismatch');
-    expect(recipe).toContain('--max 12.0');
+    expect(recipe).toContain('--max "$DEPLOYMENT_TARGET"');
     expect(recipe).not.toContain('stolendata');
     expect(planFor('x86_64-apple-darwin').mpv.sources).toBe(
       'scripts/release/intel-mpv-sources.json',
+    );
+    const arm = JSON.parse(
+      fs.readFileSync(path.join(import.meta.dirname, 'macos-arm64-mpv-sources.json'), 'utf8'),
+    );
+    expect(arm.deploymentTarget).toBe('14.0');
+    expect(arm.arch).toBe('arm64');
+    expect(arm.dependencies.find((dep) => dep.name === 'ffmpeg').sha256).toBe(
+      pins.dependencies.find((dep) => dep.name === 'ffmpeg').sha256,
+    );
+    expect(arm.dependencies.find((dep) => dep.name === 'mbedtls').sha256).toBe(
+      pins.dependencies.find((dep) => dep.name === 'mbedtls').sha256,
+    );
+    expect(arm.dependencies.find((dep) => dep.name === 'lame').sha256).toBe(
+      pins.dependencies.find((dep) => dep.name === 'lame').sha256,
     );
   });
 
@@ -49,13 +64,166 @@ describe('Intel mpv source pins', () => {
     expect(recipe).toContain('rubberband');
   });
 
+  it('keeps VideoToolbox on the OpenGL path and does not ask for Vulkan', () => {
+    const enabled = [...recipe.matchAll(/-D\{([^}]+)\}=enabled/g)].flatMap((match) =>
+      match[1].split(','),
+    );
+    const disabled = [...recipe.matchAll(/-D\{([^}]+)\}=disabled/g)].flatMap((match) =>
+      match[1].split(','),
+    );
+    expect(enabled).toEqual(expect.arrayContaining(['gl-cocoa', 'videotoolbox-gl', 'plain-gl']));
+    expect(enabled).not.toContain('videotoolbox-pl');
+    expect(enabled).not.toContain('vulkan');
+    expect(disabled).toEqual(expect.arrayContaining(['videotoolbox-pl', 'vulkan']));
+    expect(recipe).toContain('--enable-videotoolbox');
+    expect(recipe).toContain('--enable-audiotoolbox');
+    expect(recipe).toContain('--enable-mbedtls');
+    expect(recipe).toContain('--enable-libmp3lame');
+    expect(recipe).toContain('sidecar ffmpeg is missing the libmp3lame encoder');
+    expect(recipe).not.toContain('--enable-securetransport');
+    expect(recipe).toContain(
+      '-Dc_link_args="$LDFLAGS -liconv -framework CoreVideo -framework IOSurface"',
+    );
+    expect(recipe).toContain(", '-L/usr/local/lib'");
+    expect(recipe).toContain('Homebrew link path the recipe removes');
+  });
+
   it('links libiconv into the shared FFmpeg build without dropping iconv', () => {
     expect(recipe).toContain('--enable-iconv');
     expect(recipe).not.toContain('--disable-iconv');
     expect(recipe).toContain('--extra-libs=-liconv');
-    expect(recipe).toContain('-Dc_link_args="$LDFLAGS -liconv"');
-    expect(recipe).toContain('MACOSX_DEPLOYMENT_TARGET=12.0');
+    expect(recipe).toContain('-liconv');
+    expect(recipe).toContain('-framework CoreVideo');
+    expect(recipe).toContain('-framework IOSurface');
+    expect(recipe).toContain('MACOSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET"');
     expect(recipe).toContain('-D{gl,iconv,plain-gl}=enabled');
+  });
+
+  it('pins Windows shaderc, Vulkan, and LAME 3.100', () => {
+    const windows = JSON.parse(
+      fs.readFileSync(path.join(import.meta.dirname, 'windows-mpv-sources.json'), 'utf8'),
+    );
+    const script = fs.readFileSync(path.join(import.meta.dirname, 'build-windows-mpv.sh'), 'utf8');
+    const gpl = fs.readFileSync(path.join(import.meta.dirname, 'build-gpl-ffmpeg.sh'), 'utf8');
+    expect(windows.shadercCommit).toBe('2737994b552137a85545f956e303d620e6ff232c');
+    expect(windows.vulkanTag).toBe('vulkan-sdk-1.4.363.0');
+    for (const name of [
+      'shaderc',
+      'spirv-tools',
+      'spirv-headers',
+      'glslang',
+      'vulkan-headers',
+      'vulkan-loader',
+    ]) {
+      const dep = windows.dependencies.find((item) => item.name === name);
+      expect(dep.sha256).toMatch(/^[0-9a-f]{64}$/);
+      expect(dep.url).toMatch(/^https:\/\/github.com\/(google|KhronosGroup)\//);
+    }
+    expect(script).toContain('-DUPDATE_DEPS=OFF');
+    expect(script).not.toContain('git clone');
+    expect(script).toContain('--disable-iconv');
+    expect(script).toContain('TMPDIR=/tmp');
+    expect(script).toContain('C:/msys64');
+    expect(script).toContain('msys2.cmd');
+    expect(script).toContain('/mingw64/bin/cmake.exe');
+    expect(script).toContain('VITRA_MSYS_REEXEC');
+    expect(script).toContain('command -v python3');
+    expect(script).toContain('command -v python');
+    expect(script).toContain('"$PYTHON"');
+    expect(gpl).toContain('--disable-iconv');
+    expect(gpl).not.toContain('--disable-x86asm');
+    expect(gpl).not.toContain('BtbN');
+    const gplPins = JSON.parse(
+      fs.readFileSync(path.join(import.meta.dirname, 'gpl-ffmpeg-sources.json'), 'utf8'),
+    );
+    expect(gplPins.mbedtls.version).toBe('3.6.7');
+    expect(gplPins.mbedtls.sha256).toBe(
+      'a7e8bcbec0e6f761b4af24f25677626b35f762f68eef79c08677a363212d11f6',
+    );
+    expect(gplPins.mbedtls.url).toBe(
+      'https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.7/mbedtls-3.6.7.tar.bz2',
+    );
+    expect(windows.dependencies.find((item) => item.name === 'mbedtls').sha256).toBe(
+      gplPins.mbedtls.sha256,
+    );
+    expect(script).toContain('--enable-mbedtls');
+    expect(script).toContain('--enable-libmp3lame');
+    expect(script).toContain('-Dunwind=disabled');
+    expect(script).toContain('-Dd3d11=disabled');
+    expect(script).toContain('export USERPROFILE');
+    expect(script).toContain('HOMEDRIVE');
+    expect(script).toContain('apply-pinned-patch.py');
+    expect(script).toContain('libplacebo-python314.patch');
+    const patchSha = 'eeafbb49f56668e3596d2d4f5857ed0219a9285cbf0a8a174bd8d3615d39823d';
+    const patchFile = fs.readFileSync(path.join(import.meta.dirname, 'libplacebo-python314.patch'));
+    expect(createHash('sha256').update(patchFile).digest('hex')).toBe(patchSha);
+    const armPins = JSON.parse(
+      fs.readFileSync(path.join(import.meta.dirname, 'macos-arm64-mpv-sources.json'), 'utf8'),
+    );
+    for (const doc of [windows, pins, armPins]) {
+      const patch = doc.dependencies.find((item) => item.name === 'libplacebo').patches[0];
+      expect(patch.upstreamCommit).toBe('12509c0f1ee8c22ae163017f0a5e7b8a9d983a17');
+      expect(patch.file).toBe('libplacebo-python314.patch');
+      expect(patch.sha256).toBe(patchSha);
+    }
+    expect(recipe).toContain('apply-pinned-patch.py');
+    expect(script).toContain('sidecar ffmpeg is missing the libmp3lame encoder');
+    expect(script).toContain('Libs.private: -lbcrypt -lws2_32');
+    expect(script).toContain(
+      '-Dc_link_args="-static -static-libgcc -l:libstdc++.a -l:libpthread.a"',
+    );
+    expect(script).not.toContain('-Dc_link_args=-static-libgcc,');
+    expect(script).toContain('-Dvulkan=disabled');
+    expect(script).toContain('-Dopengl=enabled');
+    expect(script).toContain('-Dshaderc=disabled');
+    expect(script).toContain('--extra-ldexeflags="-static"');
+    expect(script).toContain('windows-dll-imports.mjs');
+    expect(script).toContain('windows-pkgconfig-static.mjs');
+    expect(script).toContain('windows-crt-link.mjs');
+    expect(script).toContain('-Dprefer_static=true');
+    expect(script).toContain('-Dzlib=enabled');
+    expect(script).toContain('--disable-libunibreak');
+    expect(script).toContain('CMAKE_FIND_USE_CMAKE_SYSTEM_PATH=OFF');
+    expect(script).toContain('"$PREFIX/lib/pkgconfig"/SPIRV-Tools*.pc');
+    expect(script).toContain('===== FAILED STEP:');
+    expect(script).toContain('meson-log.txt');
+    expect(script).toContain('source-build-failure.txt');
+    expect(script).toContain('libiconv-COPYING.LIB');
+    expect(script).toContain('zlib-LICENSE');
+    const zlib = windows.dependencies.find((item) => item.name === 'zlib');
+    const iconv = windows.dependencies.find((item) => item.name === 'libiconv');
+    expect(zlib.version).toBe('1.4');
+    expect(zlib.license).toBe('Zlib');
+    expect(zlib.licensePath).toBe('LICENSE');
+    expect(zlib.url).toBe('https://zlib.net/zlib-1.4.tar.gz');
+    expect(zlib.sha256).toBe('02dd159783677a749c04adbdd02b55b8a2bcc7e054f51b76b549199a916ad584');
+    expect(iconv.version).toBe('1.18');
+    expect(iconv.license).toBe('LGPL-2.1-or-later');
+    expect(iconv.licensePath).toBe('COPYING.LIB');
+    expect(iconv.url).toBe('https://ftp.gnu.org/gnu/libiconv/libiconv-1.18.tar.gz');
+    expect(iconv.sha256).toBe('3b08f5f4f9b4eb82f151a7040bfd6fe6c6fb922efe4b1659c66ea933276965e8');
+    expect(script).not.toContain('"$OUT/mpv/vulkan-1.dll"');
+    expect(script).toContain('prefix=${PREFIX}');
+    expect(gpl).toContain('--enable-mbedtls');
+    expect(gpl).toContain('--enable-libmp3lame');
+    expect(gpl).toContain('lame-COPYING');
+    expect(gpl).toContain('sidecar ffmpeg is missing the libmp3lame encoder');
+    expect(gplPins.lame.version).toBe('3.100');
+    expect(gplPins.lame.sha256).toBe(
+      'ddfe36cab873794038ae2c1210557ad34857a4b6bdc515785d1da9e175b1da1e',
+    );
+    expect(gplPins.lame.url).toBe(
+      'https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz',
+    );
+    expect(gplPins.lame.license).toBe('LGPL-2.0-or-later');
+    expect(gplPins.omittedLibraries).not.toContain('lame');
+    expect(windows.dependencies.find((item) => item.name === 'lame').sha256).toBe(
+      gplPins.lame.sha256,
+    );
+    expect(pins.dependencies.find((item) => item.name === 'lame').sha256).toBe(gplPins.lame.sha256);
+    expect(pins.dependencies.find((item) => item.name === 'mbedtls').sha256).toBe(
+      gplPins.mbedtls.sha256,
+    );
   });
 
   it('copies the recipe, pins, and Mach-O checkers into the source offer', () => {

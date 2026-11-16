@@ -160,6 +160,7 @@
       "formatHints": {
         "original": "The site’s own audio (usually Opus or M4A), not re-encoded: the best quality.",
         "mp3": "Converted to MP3: plays everywhere.",
+        "m4a": "Converted to AAC in an M4A file with FFmpeg's built-in encoder.",
         "flac": "Converted to FLAC: lossless container, but no better than the original."
       },
       "bitrate": "MP3 bitrate, kbit/s",

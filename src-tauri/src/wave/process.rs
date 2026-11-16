@@ -68,6 +68,34 @@ impl Running {
     }
 }
 
+/// Protocols an HTTPS input may use. Secure Transport reads `-ca_file` through
+/// the `file` protocol; the https demuxer's own whitelist omits `file`, which
+/// fails the open before any certificate is checked. mbedTLS reads the PEM
+/// itself and still accepts this list.
+const HTTPS_PROTOCOLS: &str = "file,http,https,tls,rtp,tcp,udp,crypto,httpproxy,data";
+
+/// Put the configured CA bundle on HTTPS inputs. Secure Transport and mbedTLS
+/// honor `-ca_file` and do not read `SSL_CERT_FILE`. Local files and plain HTTP
+/// do not get the option.
+fn with_certificate(mut args: Vec<OsString>, bundle: Option<OsString>) -> Vec<OsString> {
+    let Some(bundle) = bundle else {
+        return args;
+    };
+    let Some(index) = args.iter().position(|arg| arg == "-tls_verify") else {
+        return args;
+    };
+    args.splice(
+        index..index,
+        [
+            OsString::from("-protocol_whitelist"),
+            OsString::from(HTTPS_PROTOCOLS),
+            OsString::from("-ca_file"),
+            bundle,
+        ],
+    );
+    args
+}
+
 /// Runs FFmpeg with `args` and returns what it wrote (raw samples).
 pub async fn decode(
     ffmpeg: &Path,
@@ -77,6 +105,10 @@ pub async fn decode(
     let mut command = low_priority(ffmpeg);
     links::tls::configure(command.as_std_mut())
         .map_err(|err| format!("FFmpeg failed: TLS setup: {err}"))?;
+    let args = with_certificate(
+        args,
+        links::tls::configured_certificate_file(command.as_std()),
+    );
     command
         .args(args)
         .stdin(Stdio::null())
@@ -193,6 +225,52 @@ mod tests {
     }
 
     #[test]
+    fn https_args_receive_the_ca_bundle_before_verification() {
+        let args = with_certificate(
+            vec![
+                "-tls_verify".into(),
+                "1".into(),
+                "-i".into(),
+                "https://example.test".into(),
+            ],
+            Some("/tmp/ca.pem".into()),
+        );
+        assert_eq!(
+            &args[..6],
+            [
+                OsString::from("-protocol_whitelist"),
+                OsString::from(HTTPS_PROTOCOLS),
+                OsString::from("-ca_file"),
+                OsString::from("/tmp/ca.pem"),
+                OsString::from("-tls_verify"),
+                OsString::from("1"),
+            ]
+        );
+        assert!(
+            args[1]
+                .to_string_lossy()
+                .split(',')
+                .any(|name| name == "file")
+        );
+        assert!(
+            args[1]
+                .to_string_lossy()
+                .split(',')
+                .any(|name| name == "https")
+        );
+    }
+
+    #[test]
+    fn local_files_do_not_receive_a_ca_bundle() {
+        let args = with_certificate(
+            vec!["-i".into(), "song.wav".into()],
+            Some("/tmp/ca.pem".into()),
+        );
+        assert!(args.iter().all(|arg| arg != "-ca_file"));
+        assert!(args.iter().all(|arg| arg != "-protocol_whitelist"));
+    }
+
+    #[test]
     fn tls_cause_survives_the_final_io_error() {
         let message = failure_message(
             "[tls] certificate verify failed\nError opening input files: Input/output error\n",
@@ -246,17 +324,26 @@ mod tests {
 
         let mut command = std::process::Command::new(ffmpeg);
         command
-            .args(args)
             .env("SSL_CERT_FILE", untrusted)
             .env_remove("SSL_CERT_DIR");
         links::tls::configure(&mut command).unwrap();
+        command.args(with_certificate(
+            args,
+            links::tls::configured_certificate_file(&command),
+        ));
         let rejected = command.output().unwrap();
         assert!(
             !rejected.status.success(),
             "an untrusted certificate must be rejected"
         );
         let stderr = String::from_utf8_lossy(&rejected.stderr).to_lowercase();
-        assert!(stderr.contains("certificate"), "{stderr}");
+        // mbedTLS says "certificate". Secure Transport reports the failed
+        // handshake after evaluating the anchors in `-ca_file`.
+        assert!(
+            stderr.contains("certificate")
+                || stderr.contains("unable to negotiate tls/ssl session"),
+            "{stderr}"
+        );
     }
 
     #[tokio::test]

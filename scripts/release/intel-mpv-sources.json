@@ -16,11 +16,35 @@
       "license": "GPL-2.0-or-later"
     },
     {
+      "name": "mbedtls",
+      "version": "3.6.7",
+      "url": "https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.7/mbedtls-3.6.7.tar.bz2",
+      "sha256": "a7e8bcbec0e6f761b4af24f25677626b35f762f68eef79c08677a363212d11f6",
+      "license": "Apache-2.0 OR GPL-2.0-or-later",
+      "licensePath": "LICENSE"
+    },
+    {
+      "name": "lame",
+      "version": "3.100",
+      "url": "https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz",
+      "sha256": "ddfe36cab873794038ae2c1210557ad34857a4b6bdc515785d1da9e175b1da1e",
+      "license": "LGPL-2.0-or-later",
+      "licensePath": "COPYING"
+    },
+    {
       "name": "libplacebo",
       "version": "7.349.0",
       "url": "https://github.com/haasn/libplacebo/archive/refs/tags/v7.349.0.tar.gz",
       "sha256": "627e32439a0b3d2b90368ead7e919f470ee7446c87cc0f7841bbe319b23aa8b1",
       "license": "LGPL-2.1-or-later",
+      "patches": [
+        {
+          "name": "python314-elementtree",
+          "upstreamCommit": "12509c0f1ee8c22ae163017f0a5e7b8a9d983a17",
+          "file": "libplacebo-python314.patch",
+          "sha256": "eeafbb49f56668e3596d2d4f5857ed0219a9285cbf0a8a174bd8d3615d39823d"
+        }
+      ],
       "submodules": [
         {
           "name": "glad",

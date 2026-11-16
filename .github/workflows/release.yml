@@ -1,13 +1,40 @@
 name: Release candidates
 
+# A pull request builds the four installers whose sidecar bytes changed.
+# workflow_dispatch scope intel-only still builds only macOS-Intel.
+# A push to main does not run this file.
+# A v* tag still builds all four platforms; that is not this candidate's path.
 on:
   push:
-    branches: [main]
     tags: ['v*']
+  pull_request:
+    # Pin files, source offers, and this workflow are outside the filter so
+    # recording an installer does not start another macOS-Intel build.
+    paths:
+      - .github/workflows/release.yml
+      - scripts/fetch-sidecars.mjs
+      - scripts/sidecars/plan.mjs
+      - scripts/release/build-intel-mpv.sh
+      - scripts/release/build-windows-mpv.sh
+      - scripts/release/build-gpl-ffmpeg.sh
+      - scripts/release/intel-mpv-sources.json
+      - scripts/release/macos-arm64-mpv-sources.json
+      - scripts/release/windows-mpv-sources.json
+      - scripts/release/gpl-ffmpeg-sources.json
+      - scripts/release/mach-deps.py
+      - scripts/release/mach-minos.py
   workflow_dispatch:
     inputs:
+      scope:
+        description: 'intel-only builds macOS-Intel. full builds four platforms. publish-pinned builds nothing. The Actions tool catalog cannot dispatch this.'
+        type: choice
+        options:
+          - intel-only
+          - full
+          - publish-pinned
+        default: intel-only
       publish_release:
-        description: 'Publish the versioned prerelease after all platform checks pass (main only)'
+        description: 'Publish after the full four-platform build (main only). This does not publish the pinned mixed-run artifacts.'
         type: boolean
         default: false
       sign_macos:
@@ -29,32 +56,24 @@ concurrency:
 jobs:
   build:
     name: ${{ matrix.name }}
+    # `matrix` is not a job-if context: GitHub evaluates the if before strategy
+    # expansion. Run 42516916666 failed with no jobs on that named-value.
+    # publish-pinned skips this job. A pull request uses the four-platform list.
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.scope != 'publish-pinned')
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 90
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: macOS-Apple-Silicon
-            runner: macos-15
-            target: aarch64-apple-darwin
-            bundles: app,dmg
-            config: ''
-          - name: macOS-Intel
-            runner: macos-15-intel
-            target: x86_64-apple-darwin
-            bundles: app,dmg
-            config: --config src-tauri/tauri.intel.conf.json
-          - name: Windows-x64
-            runner: windows-2022
-            target: x86_64-pc-windows-msvc
-            bundles: nsis
-            config: ''
-          - name: Linux-x64
-            runner: ubuntu-24.04
-            target: x86_64-unknown-linux-gnu
-            bundles: deb
-            config: --config src-tauri/tauri.linux.conf.json
+        include: >-
+          ${{ fromJSON(
+            (github.event_name == 'workflow_dispatch' && inputs.scope == 'intel-only')
+            && '[{"name":"macOS-Intel","runner":"macos-15-intel","target":"x86_64-apple-darwin","bundles":"app,dmg","config":"--config src-tauri/tauri.intel.conf.json"}]'
+            || '[{"name":"macOS-Apple-Silicon","runner":"macos-15","target":"aarch64-apple-darwin","bundles":"app,dmg","config":""},{"name":"macOS-Intel","runner":"macos-15-intel","target":"x86_64-apple-darwin","bundles":"app,dmg","config":"--config src-tauri/tauri.intel.conf.json"},{"name":"Windows-x64","runner":"windows-2022","target":"x86_64-pc-windows-msvc","bundles":"nsis","config":""},{"name":"Linux-x64","runner":"ubuntu-24.04","target":"x86_64-unknown-linux-gnu","bundles":"deb","config":"--config src-tauri/tauri.linux.conf.json"}]'
+          ) }}
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
       APPLE_SIGNING_IDENTITY: ${{ inputs.sign_macos && secrets.APPLE_SIGNING_IDENTITY || '-' }}
@@ -80,7 +99,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev mpv
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev mpv nasm pkg-config cmake
       - run: npm ci
       - name: Check release version
         run: node scripts/release/check-version.mjs
@@ -89,6 +108,25 @@ jobs:
         with:
           path: .cache/vitra-sidecar-archives
           key: sidecar-archives-v3-${{ hashFiles('scripts/sidecars/plan.mjs', 'scripts/sidecars/ytdlp-release.mjs') }}-${{ matrix.target }}-mpv_yt-dlp_ffmpeg_deno
+      - name: Install the MSYS2 toolchain for the Windows source build
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2.33.0
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-meson
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-nasm
+            mingw-w64-x86_64-python
+            autoconf
+            automake
+            make
+            libtool
+            pkgconf
       - name: Fetch verified audio components
         id: fetch-sidecars
         env:
@@ -100,12 +138,12 @@ jobs:
         with:
           path: .cache/vitra-sidecar-archives
           key: ${{ steps.sidecar-archive-cache.outputs.cache-primary-key }}
-      - name: Verify Intel mpv bundle load closure
-        if: matrix.target == 'x86_64-apple-darwin'
-        run: python3 scripts/release/mach-deps.py src-tauri/sidecars/x86_64-apple-darwin/mpv/mpv.app --warn-stale-rpath
-      - name: Strip stale builder RPATHs from Intel mpv
-        if: runner.os == 'macOS' && matrix.target == 'x86_64-apple-darwin'
-        run: node scripts/release/strip-macos-rpaths.mjs src-tauri/sidecars/x86_64-apple-darwin/mpv/mpv.app
+      - name: Verify macOS mpv bundle load closure
+        if: runner.os == 'macOS'
+        run: python3 scripts/release/mach-deps.py src-tauri/sidecars/${{ matrix.target }}/mpv/mpv.app --warn-stale-rpath
+      - name: Strip stale builder RPATHs from macOS mpv
+        if: runner.os == 'macOS'
+        run: node scripts/release/strip-macos-rpaths.mjs src-tauri/sidecars/${{ matrix.target }}/mpv/mpv.app
       - name: Require official macOS signing credentials
         if: runner.os == 'macOS' && inputs.sign_macos
         shell: bash
@@ -214,6 +252,9 @@ jobs:
 
   source-kit:
     name: Corresponding source (prepare)
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.scope == 'full')
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -223,6 +264,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+      - name: Install bsdtar for CentOS source RPMs
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools
       - name: Stage pinned source archives without publishing
         run: node scripts/release/stage-source-offers.mjs --mode prepare corresponding-source
       - uses: actions/upload-artifact@v7
@@ -234,7 +277,9 @@ jobs:
 
   release:
     name: Publish tested prerelease installers
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release && github.ref == 'refs/heads/main')
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.scope == 'full' && inputs.publish_release && github.ref == 'refs/heads/main')
     needs: [build, source-kit]
     runs-on: ubuntu-24.04
     permissions:
@@ -296,3 +341,24 @@ jobs:
             gh release create "$RELEASE_TAG" release-assets/* --target "$RELEASE_SHA" --draft --title "Vitra $RELEASE_TAG" --notes-file docs/RELEASE-NOTES.md
           fi
           gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false
+
+  # Checks the three reused artifacts plus a future Intel pin without building.
+  # It does not create a release. workflow_dispatch is not available to the
+  # Actions tool catalog (get/list only), and a Cloud VM dispatch previously
+  # returned 403. This pull request does not run the job.
+  publish-pinned:
+    name: Check pinned installers
+    if: github.event_name == 'workflow_dispatch' && inputs.scope == 'publish-pinned' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Refuse unless four pins and the source gate both hold
+        run: node scripts/release/publish-reused.mjs

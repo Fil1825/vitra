@@ -16,6 +16,15 @@ export const INTEL_SOURCE_FILES = [
   'mach-deps.py',
 ];
 
+/** Recipe files a source-built sidecar must carry in its corresponding-source tar. */
+export function sourceRecipeFiles(sidecar, target) {
+  const files = [sidecar?.script, sidecar?.sources]
+    .filter(Boolean)
+    .map((file) => file.split('/').pop());
+  if (String(target).includes('apple')) files.push('mach-minos.py', 'mach-deps.py');
+  return files;
+}
+
 const MIT_SIDECARS = new Set(['deno']);
 
 function platformOf(target) {
@@ -57,6 +66,11 @@ export function coverageGaps(offer, platform = {}) {
     if (!depShipsOn(dep, ffmpegKey)) continue;
     if (!sourcePinned(dep.source)) {
       gaps.push({ code: 'missing-dependency-source', detail: dep.script });
+    }
+    for (const sub of dep.submodules ?? []) {
+      if (!sourcePinned(sub.source)) {
+        gaps.push({ code: 'missing-dependency-source', detail: sub.name });
+      }
     }
   }
   for (const bundled of offer.bundledSources ?? []) {
@@ -111,7 +125,9 @@ export function publicationBlockers(input) {
         const published = input.manifests.some((manifest) => manifest.target === target);
         if (!published) continue;
         const entries = input.intelEntries?.[target] ?? [];
-        const missing = INTEL_SOURCE_FILES.filter((file) => !entryHas(entries, file));
+        const missing = sourceRecipeFiles(sidecar, target).filter(
+          (file) => !entryHas(entries, file),
+        );
         if (missing.length) {
           push(blockers, {
             code: 'missing-intel-source',
@@ -186,7 +202,7 @@ export function publicationBlockers(input) {
         const pinned = [
           ...(offer.dependencies ?? [])
             .filter((dep) => depShipsOn(dep, platform.ffmpegKey))
-            .map((dep) => dep.source),
+            .flatMap((dep) => [dep.source, ...(dep.submodules ?? []).map((sub) => sub.source)]),
           ...(offer.bundledSources ?? [])
             .filter((bundled) => appliesTo(bundled.platforms ?? ['all'], platform.os))
             .map((bundled) => bundled.source),
@@ -228,7 +244,7 @@ export function publicationBlockers(input) {
     const known = new Set();
     for (const sidecar of Object.values(plan)) {
       for (const download of sidecar.downloads ?? []) known.add(download.name);
-      if (sidecar.type === 'source-build') known.add('intel-mpv-source-build');
+      if (sidecar.type === 'source-build') known.add('pinned-source-build');
     }
     for (const sidecar of Object.values(manifest.sidecars ?? {})) {
       for (const download of sidecar.downloads ?? []) {

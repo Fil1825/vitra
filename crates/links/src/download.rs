@@ -15,6 +15,8 @@ pub enum AudioFormat {
     #[default]
     Original,
     Mp3,
+    /// AAC in an M4A file. yt-dlp selects FFmpeg's built-in `aac` encoder.
+    M4a,
     Flac,
 }
 
@@ -56,6 +58,10 @@ pub fn download_args(url: &str, options: &DownloadOptions) -> Vec<OsString> {
             push("mp3");
             push("--audio-quality");
             push(&format!("{bitrate}K"));
+        }
+        AudioFormat::M4a => {
+            push("--audio-format");
+            push("m4a");
         }
         AudioFormat::Flac => {
             push("--audio-format");
@@ -227,6 +233,9 @@ mod tests {
         let mp3 = args(AudioFormat::Mp3);
         assert!(has_pair(&mp3, "--audio-format", "mp3"));
         assert!(has_pair(&mp3, "--audio-quality", "256K"));
+        let m4a = args(AudioFormat::M4a);
+        assert!(has_pair(&m4a, "--audio-format", "m4a"));
+        assert!(!m4a.contains(&"--audio-quality".to_owned()));
         let flac = args(AudioFormat::Flac);
         assert!(has_pair(&flac, "--audio-format", "flac"));
         assert!(!flac.contains(&"--audio-quality".to_owned()));

@@ -188,6 +188,28 @@ async fn downloads_and_converts_with_progress() {
 }
 
 #[tokio::test]
+async fn downloads_and_converts_to_m4a() {
+    let Some(ytdlp) = ytdlp() else { return };
+    let base = serve();
+    let out = tempfile::tempdir().unwrap();
+    let options = DownloadOptions {
+        format: AudioFormat::M4a,
+        mp3_bitrate: 192,
+        dir: out.path().join("Music"),
+        temp_dir: out.path().join("tmp"),
+        file_stem: "Vitra Test - Aurora".into(),
+        ffmpeg: ytdlp.ffmpeg.clone(),
+    };
+    let (_cancel, never) = tokio::sync::watch::channel(false);
+    let path = ytdlp
+        .download(&format!("{base}/one.flac"), &options, never, |_| {})
+        .await
+        .unwrap();
+    assert_eq!(path, out.path().join("Music/Vitra Test - Aurora.m4a"));
+    assert!(path.is_file());
+}
+
+#[tokio::test]
 async fn a_cancelled_download_stops() {
     let Some(ytdlp) = ytdlp() else { return };
     let base = serve();

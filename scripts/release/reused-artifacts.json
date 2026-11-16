@@ -1,0 +1,92 @@
+{
+  "repo": "Fil1825/vitra",
+  "version": "1.0.0-rc.1",
+  "appPayloadCommit": "1307519bc4ad82870c01e7821cbb3afb070b8557",
+  "note": "The four installer records below are superseded. They are the source builds from Actions run 43772604652, commit 1307519bc4ad82870c01e7821cbb3afb070b8557, and they are the bytes published as v1.0.0-rc.1. The application payload has since changed, so these records do not claim to match HEAD. The next green installers will be pinned again. publish-reused.mjs refuses a set that is not pinned and refuses to create a GitHub Release.",
+  "targets": {
+    "x86_64-unknown-linux-gnu": {
+      "status": "superseded",
+      "runId": 43772604652,
+      "headSha": "1307519bc4ad82870c01e7821cbb3afb070b8557",
+      "artifactId": 14185725871,
+      "artifactName": "Vitra-Linux-x64",
+      "size": 150903684,
+      "sha256": "491632c18f54bcf2819d643cffb10d487b5fc38e17fc1ba74b5843d24da8e3c5",
+      "packageName": "Vitra_1.0.0-rc.1_amd64.deb",
+      "arch": "amd64",
+      "expiresAt": "2026-11-29T23:16:34Z",
+      "sourceTar": {
+        "path": "src-tauri/sidecars/x86_64-unknown-linux-gnu/mpv-corresponding-source.tar.gz",
+        "sha256": "7390728aa5651a83105d7c95feeb8fa3a9c8210e637e7f098e738d31099a0b08",
+        "entries": [
+          "mpv-corresponding-source/build-gpl-ffmpeg.sh",
+          "mpv-corresponding-source/gpl-ffmpeg-sources.json"
+        ]
+      }
+    },
+    "x86_64-pc-windows-msvc": {
+      "status": "superseded",
+      "runId": 43772604652,
+      "headSha": "1307519bc4ad82870c01e7821cbb3afb070b8557",
+      "artifactId": 14187285439,
+      "artifactName": "Vitra-Windows-x64",
+      "size": 238525172,
+      "sha256": "a7945292c093de0b41f5ab9e683c36a0ce0f2d0523564992b472b4b211721c3d",
+      "packageName": "Vitra_1.0.0-rc.1_x64-setup.exe",
+      "arch": "x64",
+      "expiresAt": "2026-11-29T23:55:30Z",
+      "sourceTar": {
+        "path": "src-tauri/sidecars/x86_64-pc-windows-msvc/mpv-corresponding-source.tar.gz",
+        "sha256": "a5ec34464980c9c46232df22ed20570ca84357c9b8504b47dcd680b780d8bdd5",
+        "entries": [
+          "mpv-corresponding-source/build-windows-mpv.sh",
+          "mpv-corresponding-source/windows-mpv-sources.json"
+        ]
+      }
+    },
+    "aarch64-apple-darwin": {
+      "status": "superseded",
+      "runId": 43772604652,
+      "headSha": "1307519bc4ad82870c01e7821cbb3afb070b8557",
+      "artifactId": 14186070710,
+      "artifactName": "Vitra-macOS-Apple-Silicon",
+      "size": 255289984,
+      "sha256": "6081eedc792330dbaa96ca4c35fe7c51f1a495c87b0862bc5072760a95fb46cf",
+      "packageName": "Vitra_1.0.0-rc.1_aarch64.dmg",
+      "arch": "aarch64",
+      "expiresAt": "2026-11-29T23:26:43Z",
+      "sourceTar": {
+        "path": "src-tauri/sidecars/aarch64-apple-darwin/mpv-corresponding-source.tar.gz",
+        "sha256": "f2378703cb0f2fcafa0089060707a624841f9d993fb77aa2026f57a66a1f22fb",
+        "entries": [
+          "mpv-corresponding-source/build-intel-mpv.sh",
+          "mpv-corresponding-source/macos-arm64-mpv-sources.json",
+          "mpv-corresponding-source/mach-minos.py",
+          "mpv-corresponding-source/mach-deps.py"
+        ]
+      }
+    },
+    "x86_64-apple-darwin": {
+      "status": "superseded",
+      "runId": 43772604652,
+      "headSha": "1307519bc4ad82870c01e7821cbb3afb070b8557",
+      "artifactId": 14185737506,
+      "artifactName": "Vitra-macOS-Intel",
+      "size": 264963601,
+      "sha256": "f8410a6398ecea712d24987a73d19c2c2368b07f371efbde256e53b53ed2f16d",
+      "packageName": "Vitra_1.0.0-rc.1_x64.dmg",
+      "arch": "x64",
+      "expiresAt": "2026-11-29T23:28:08Z",
+      "sourceTar": {
+        "path": "src-tauri/sidecars/x86_64-apple-darwin/mpv-corresponding-source.tar.gz",
+        "sha256": "3fbbbeb3266cc7a4baa42512bea1cbf82acd1f65fb85a44d71a78694e1ab515a",
+        "entries": [
+          "mpv-corresponding-source/build-intel-mpv.sh",
+          "mpv-corresponding-source/intel-mpv-sources.json",
+          "mpv-corresponding-source/mach-minos.py",
+          "mpv-corresponding-source/mach-deps.py"
+        ]
+      }
+    }
+  }
+}

@@ -6,7 +6,7 @@
 
 **Intel mpv:** built from pinned sources in [`scripts/release/intel-mpv-sources.json`](scripts/release/intel-mpv-sources.json) for macOS 12, not from the stolendata binary. The corresponding-source tarball is produced next to the sidecar. Mach-O checks are not a Monterey playback test; that hardware run is still postponed.
 
-**Other bundled GPL programs:** a prepare job can upload `corresponding-source` as an Actions artifact. Publish refuses the GitHub Release while Martin Riedl FFmpeg, official Apple Silicon / Windows mpv, BtbN dependencies without archived source, or Linux yt-dlp libraries (GNU Readline, libintl, libidn2, libunistring) stay open. yt-dlp's git archive, mutagen 1.48.1, and the PyInstaller 6.22.0 sdist are pinned. libstdc++ / libgcc use the GCC runtime exception.
+**Other bundled GPL programs:** macOS ffmpeg/ffprobe and Apple Silicon mpv are built from the Intel recipe (arm64 deployment target 14.0, Intel 12.0). Windows mpv is built with pinned shaderc `2737994b` and Vulkan `vulkan-sdk-1.4.363.0` (`UPDATE_DEPS=OFF`). FFmpeg on every platform is the official 7.1.1 tarball plus LAME 3.100 (`lame-3.100.tar.gz`, static `--enable-libmp3lame`) and does not link libiconv, aom, ffnvcodec, opencore-amr, soxr, or xvid. The four installer zips are pinned from Actions run 43772604652 (commit `1307519bc4ad82870c01e7821cbb3afb070b8557`). Linux artifact 14185725871 expires 2026-11-29T23:16:34Z. libstdc++ / libgcc use the GCC runtime exception.
 
 ## Highlights since 0.1.1
 
@@ -18,7 +18,7 @@
 
 | Target      | Minimum                          | Bundled playback                                     |
 | ----------- | -------------------------------- | ---------------------------------------------------- |
-| macOS arm64 | 14 (Sonoma)                      | official mpv 0.41                                    |
+| macOS arm64 | 14 (Sonoma)                      | source-built mpv 0.41, deployment target 14.0        |
 | macOS Intel | 12 (Monterey)                    | source-built mpv 0.41 — **no hardware sign-off yet** |
 | Windows x64 | 10/11                            | mpv 0.41                                             |
 | Linux deb   | compatible Debian / Ubuntu 24.04 | system `mpv`                                         |

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   BTBN_PINS,
-  BTBN_RELEASE_TAG,
   DENO_VERSION_PIN,
   MARTIN_PINS,
   SIDECARS,
@@ -43,13 +42,24 @@ describe('planFor', () => {
     expect(Object.keys(plan).sort()).toEqual([...SIDECARS].sort());
   });
 
-  it('pins mpv builds with a checksum', () => {
-    for (const target of ['aarch64-apple-darwin', 'x86_64-pc-windows-msvc']) {
-      const [download] = planFor(target).mpv.downloads;
-      expect(download.checksum.type).toBe('pinned');
-      expect(download.checksum.sha256).toMatch(/^[0-9a-f]{64}$/);
-      expect(download.urls[0]).toContain(download.name);
-    }
+  it('builds mpv from pinned sources on macOS and Windows', () => {
+    const arm = planFor('aarch64-apple-darwin').mpv;
+    expect(arm.type).toBe('source-build');
+    expect(arm.script).toBe('scripts/release/build-intel-mpv.sh');
+    expect(arm.sources).toBe('scripts/release/macos-arm64-mpv-sources.json');
+    expect(arm.minimumMacos).toBe('14.0');
+    expect(arm.downloads).toBeUndefined();
+    const intel = planFor('x86_64-apple-darwin').mpv;
+    expect(intel.type).toBe('source-build');
+    expect(intel.script).toBe('scripts/release/build-intel-mpv.sh');
+    expect(intel.minimumMacos).toBe('12.0');
+    const windows = planFor('x86_64-pc-windows-msvc').mpv;
+    expect(windows).toMatchObject({
+      type: 'source-build',
+      script: 'scripts/release/build-windows-mpv.sh',
+      sources: 'scripts/release/windows-mpv-sources.json',
+      executables: ['mpv/mpv.exe'],
+    });
   });
 
   it('builds Intel mpv from pinned sources instead of a third-party binary', () => {
@@ -62,7 +72,6 @@ describe('planFor', () => {
 
   it('keeps the mpv app bundle intact on macOS', () => {
     const mpv = planFor('aarch64-apple-darwin').mpv;
-    expect(mpv.downloads[0].files).toEqual([{ find: 'mpv.app', to: 'mpv/mpv.app' }]);
     expect(mpv.executables).toEqual(['mpv/mpv.app/Contents/MacOS/mpv']);
   });
 
@@ -102,55 +111,33 @@ describe('planFor', () => {
     }
   });
 
-  it('pins BtbN FFmpeg assets on Windows and Linux', () => {
-    const win = planFor('x86_64-pc-windows-msvc').ffmpeg.downloads[0];
+  it('builds FFmpeg from pinned sources instead of BtbN or Martin Riedl', () => {
+    const win = planFor('x86_64-pc-windows-msvc').ffmpeg;
     expect(win).toMatchObject({
-      name: BTBN_PINS.win64.asset,
-      checksum: { type: 'pinned', sha256: BTBN_PINS.win64.sha256 },
+      type: 'source-build',
+      script: 'scripts/release/build-windows-mpv.sh',
+      executables: ['ffmpeg.exe', 'ffprobe.exe'],
     });
-    expect(win.urls[0]).toContain(`/releases/download/${BTBN_RELEASE_TAG}/`);
-    expect(win.urls[0]).not.toContain('/download/latest/');
-    expect(win.githubRelease).toEqual({
-      owner: 'BtbN',
-      repo: 'FFmpeg-Builds',
-      tag: BTBN_RELEASE_TAG,
-      asset: BTBN_PINS.win64.asset,
-      assetId: BTBN_PINS.win64.assetId,
+    const linux = planFor('x86_64-unknown-linux-gnu').ffmpeg;
+    expect(linux).toMatchObject({
+      type: 'source-build',
+      script: 'scripts/release/build-gpl-ffmpeg.sh',
+      sources: 'scripts/release/gpl-ffmpeg-sources.json',
     });
-    const linux = planFor('x86_64-unknown-linux-gnu').ffmpeg.downloads[0];
-    expect(linux.checksum.sha256).toBe(BTBN_PINS.linux64.sha256);
-    const offer = sourceOffer('btbn-ffmpeg-n9.0.2-48-gd4070a14ce');
-    expect(offer.complete).toBe(false);
-    expect(linux.sourceOfferId).toBe(offer.id);
-    expect(linux.sourceClosure).toBe('incomplete');
-    expect(linux.sourceUrls).toEqual(offer.archives.map((archive) => archive.url));
-    expect(linux.license).toBe('GPL-3.0-or-later');
-    for (const pin of Object.values(BTBN_PINS)) {
-      expect(pin.asset).toContain(offer.ffmpegCommit.slice(0, 10));
-    }
-  });
-
-  it('pins versioned Martin Riedl FFmpeg builds and refuses redirect/latest', () => {
-    for (const [target, arch] of [
-      ['aarch64-apple-darwin', 'arm64'],
-      ['x86_64-apple-darwin', 'amd64'],
-    ]) {
-      const downloads = planFor(target).ffmpeg.downloads;
-      expect(downloads.map((download) => download.name)).toEqual(['ffmpeg.zip', 'ffprobe.zip']);
-      const pin = MARTIN_PINS[arch];
-      for (const download of downloads) {
-        const tool = download.name.replace(/\.zip$/, '');
-        expect(download.checksum).toEqual({ type: 'pinned', sha256: pin[tool] });
-        expect(download.urls).toEqual([
-          `https://ffmpeg.martin-riedl.de/download/macos/${arch}/${pin.id}/${tool}.zip`,
-        ]);
-        expect(download.urls.join(' ')).not.toMatch(/redirect\/latest|\/snapshot\//);
-        expect(download.sourceUrls).toBeUndefined();
-        expect(download.sourceOfferId).toBe('martin-riedl-macos-ffmpeg');
-        expect(download.sourceClosure).toBe('incomplete');
-      }
-    }
+    expect(planFor('aarch64-apple-darwin').ffmpeg.sources).toBe(
+      'scripts/release/macos-arm64-mpv-sources.json',
+    );
+    expect(planFor('x86_64-apple-darwin').ffmpeg.sources).toBe(
+      'scripts/release/intel-mpv-sources.json',
+    );
+    expect(sourceOffer('btbn-ffmpeg-n9.0.2-48-gd4070a14ce').complete).toBe(false);
     expect(sourceOffer('martin-riedl-macos-ffmpeg').complete).toBe(false);
+    for (const pin of Object.values(BTBN_PINS)) {
+      expect(pin.asset).toContain(
+        sourceOffer('btbn-ffmpeg-n9.0.2-48-gd4070a14ce').ffmpegCommit.slice(0, 10),
+      );
+    }
+    expect(MARTIN_PINS.arm64.id).toBe('1789931890_9.0.2');
   });
 
   it('looks up a sibling checksum on the resolved file, not the redirect', () => {
@@ -170,22 +157,22 @@ describe('planFor', () => {
     const ytSource = sourceOffer('yt-dlp-2026.10.26');
     expect(ytSource.version).toBe(YT_DLP_VERSION);
     expect(yt.sourceOfferId).toBe(ytSource.id);
-    expect(yt.sourceClosure).toBe('incomplete');
+    expect(yt.sourceClosure).toBe('complete');
     expect(yt.sourceUrls).toEqual(ytSource.archives.map((archive) => archive.url));
     expect(yt.license).toBe('Unlicense');
     const deno = planFor('x86_64-pc-windows-msvc').deno.downloads[0];
     expect(deno.githubRelease?.repo).toBe('deno');
-    const mpv = planFor('x86_64-pc-windows-msvc').mpv.downloads[0];
-    expect(mpv.githubRelease?.tag).toBe('v0.41.0');
+    expect(planFor('x86_64-pc-windows-msvc').mpv.type).toBe('source-build');
+    expect(planFor('x86_64-pc-windows-msvc').mpv.downloads).toBeUndefined();
   });
 
   it('does not expect OpenPGP signatures from sidecars that do not publish them', () => {
     const linux = planFor('x86_64-unknown-linux-gnu');
     expect(linux.deno.downloads[0].checksum.signature).toBeUndefined();
-    expect(linux.ffmpeg.downloads[0].signature).toBeUndefined();
+    expect(linux.ffmpeg.downloads).toBeUndefined();
     const mac = planFor('aarch64-apple-darwin');
-    expect(mac.mpv.downloads[0].checksum.signature).toBeUndefined();
-    expect(mac.ffmpeg.downloads[0].checksum.signature).toBeUndefined();
+    expect(mac.mpv.downloads).toBeUndefined();
+    expect(mac.ffmpeg.downloads).toBeUndefined();
     expect(mac.deno.downloads[0].checksum.signature).toBeUndefined();
   });
 
@@ -219,7 +206,15 @@ describe('planFor', () => {
 describe('bundledEntries', () => {
   it('ships the programs only', () => {
     expect(
-      bundledEntries(['yt-dlp', 'manifest.json', '.work-abc', 'mpv', 'ffprobe', 'ffmpeg']),
+      bundledEntries([
+        'yt-dlp',
+        'manifest.json',
+        '.work-abc',
+        'mpv',
+        'ffprobe',
+        'ffmpeg',
+        'source-build-failure.txt',
+      ]),
     ).toEqual(['ffmpeg', 'ffprobe', 'mpv', 'yt-dlp']);
   });
 });

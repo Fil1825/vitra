@@ -32,11 +32,10 @@ const MAX_FAILURES: usize = 5;
 
 const RESTART_WINDOW: Duration = Duration::from_secs(60);
 
-/// Programs mpv's yt-dlp hook runs for links.
+/// Where the bundled yt-dlp is, so mpv's hook uses it instead of searching PATH.
 #[derive(Debug, Clone, Default)]
 struct LinkHelpers {
     ytdlp: Option<PathBuf>,
-    deno: Option<PathBuf>,
 }
 
 impl Player {
@@ -253,10 +252,27 @@ impl Player {
         Ok(())
     }
 
-    /// What mpv's yt-dlp hook passes on to yt-dlp: our JavaScript runtime and, when the user
-    /// chose one, the browser to take cookies from (age-restricted videos). The hook reads
-    /// them for every link it opens, so a change applies to the next one.
+    /// What mpv's yt-dlp hook passes on to yt-dlp: an audio-only format, our JavaScript
+    /// runtime and, when the user chose one, the browser to take cookies from. The hook
+    /// reads them for every link it opens, so a change applies to the next one.
+    ///
+    /// `ytdl-format` and `ytdl-raw-options` exist only in an mpv built with Lua. The
+    /// Windows and macOS builds disable Lua. An unknown option on the command line makes
+    /// mpv exit 1 before its IPC server exists, so these are set after the connection is
+    /// up. A build without the hook logs the error and still plays local files.
     pub(super) async fn set_ytdl_options(&self, client: &Client) {
+        let format = command(
+            client,
+            vec![
+                json!("set_property"),
+                json!("ytdl-format"),
+                json!("bestaudio/best"),
+            ],
+        )
+        .await;
+        if let Err(err) = format {
+            log::warn!("mpv has no yt-dlp hook (ytdl-format): {err}");
+        }
         let paths = sidecar::search_paths(&self.0.app);
         let mut options = serde_json::Map::new();
         if let Some(deno) = paths.locate(Sidecar::Deno) {
@@ -356,7 +372,6 @@ fn mpv_args(with_newer_options: bool, helpers: &LinkHelpers) -> Vec<OsString> {
         "--input-default-bindings=no",
         "--input-media-keys=no",
         "--audio-client-name=Vitra",
-        "--ytdl-format=bestaudio/best",
         // Opens the preloaded next file early, so gapless transitions don't wait on disk
         // or network.
         "--prefetch-playlist=yes",
@@ -375,14 +390,11 @@ fn mpv_args(with_newer_options: bool, helpers: &LinkHelpers) -> Vec<OsString> {
     }
     // mpv looks for yt-dlp only next to itself and on PATH. `-append` takes one key=value
     // pair, so paths with commas are safe.
+    // `script-opts` stays: cplugins (on in the Windows and macOS builds) register it.
+    // The Lua-only `ytdl-*` options do not, and are applied later over IPC.
     if let Some(ytdlp) = &helpers.ytdlp {
         let mut arg = OsString::from("--script-opts-append=ytdl_hook-ytdl_path=");
         arg.push(ytdlp);
-        args.push(arg);
-    }
-    if let Some(deno) = &helpers.deno {
-        let mut arg = OsString::from("--ytdl-raw-options-append=js-runtimes=deno:");
-        arg.push(deno);
         args.push(arg);
     }
     // Debugging aid, e.g. VITRA_MPV_ARGS="--ao=null --log-file=/tmp/mpv.log".
@@ -492,7 +504,6 @@ async fn supervise(player: Player, deck: usize) {
     );
     let helpers = LinkHelpers {
         ytdlp: paths.locate(Sidecar::YtDlp).map(|found| found.path),
-        deno: paths.locate(Sidecar::Deno).map(|found| found.path),
     };
     let stop = &player.0.stop[deck];
     let wanted = || player.0.wanted[deck].load(Ordering::Relaxed);
@@ -599,19 +610,21 @@ mod tests {
     }
 
     #[test]
-    fn links_use_our_yt_dlp_and_deno() {
+    fn links_point_at_our_yt_dlp_without_lua_options() {
         let helpers = LinkHelpers {
             ytdlp: Some(PathBuf::from("/Apps/Vitra, Inc/yt-dlp")),
-            deno: Some(PathBuf::from("/bin/deno")),
         };
         let args = mpv_args(true, &helpers);
-        assert!(args.contains(&"--ytdl-format=bestaudio/best".into()));
+        assert!(args.iter().any(|arg| arg == "--load-scripts=no"));
         assert!(
             args.contains(
                 &"--script-opts-append=ytdl_hook-ytdl_path=/Apps/Vitra, Inc/yt-dlp".into()
             )
         );
-        assert!(args.contains(&"--ytdl-raw-options-append=js-runtimes=deno:/bin/deno".into()));
+        assert!(args.iter().all(|arg| {
+            let text = arg.to_string_lossy();
+            !text.starts_with("--ytdl") && !text.contains("ytdl-raw-options")
+        }));
         assert!(
             mpv_args(true, &LinkHelpers::default())
                 .iter()
