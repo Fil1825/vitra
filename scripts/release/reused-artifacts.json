@@ -1,59 +1,85 @@
 {
   "repo": "Fil1825/vitra",
   "version": "1.0.0-rc.1",
-  "appPayloadCommit": "76ea04250e88d880c3b6a7e3abf182f29c6bbde2",
-  "note": "The four previously pinned installers are superseded. Their bytes still contain Martin Riedl FFmpeg, official mpv, or a BtbN FFmpeg that links lame and xvid revisions without a stable official archive. This plan builds macOS mpv and ffmpeg from the pinned recipe (arm64 deployment target 14.0, Intel 12.0), Windows mpv with pinned shaderc and Vulkan, and Linux/Windows ffmpeg from the FFmpeg 7.1.1 tarball with static LAME 3.100 (`lame-3.100.tar.gz`) and without libiconv, aom, ffnvcodec, opencore-amr, soxr, or xvid. publish-reused stays closed until the new artifact zips and source tars are pinned. Linux artifact 13629864717 expires 2026-11-22T19:05:50Z. A v* tag is not the reuse path. publish-reused.mjs refuses to create a GitHub Release.",
+  "appPayloadCommit": "1307519bc4ad82870c01e7821cbb3afb070b8557",
+  "note": "The four installers are the source builds from Actions run 43772604652, commit 1307519bc4ad82870c01e7821cbb3afb070b8557. macOS mpv and ffmpeg use the pinned recipe (arm64 deployment target 14.0, Intel 12.0). Windows mpv uses pinned shaderc and Vulkan. Linux and Windows ffmpeg use the FFmpeg 7.1.1 tarball, static LAME 3.100, and mbedTLS 3.6.7, without libiconv, aom, ffnvcodec, opencore-amr, soxr, or xvid. These zips replace the earlier installer pins. The earliest artifact, Linux 14185725871, expires 2026-11-29T23:16:34Z. A v* tag is not the reuse path: it rebuilds. publish-reused.mjs checks these pins and refuses to create a GitHub Release.",
   "targets": {
     "x86_64-unknown-linux-gnu": {
-      "status": "superseded",
-      "runId": 42512576166,
-      "headSha": "76ea04250e88d880c3b6a7e3abf182f29c6bbde2",
-      "artifactId": 13629864717,
+      "status": "pinned",
+      "runId": 43772604652,
+      "headSha": "1307519bc4ad82870c01e7821cbb3afb070b8557",
+      "artifactId": 14185725871,
       "artifactName": "Vitra-Linux-x64",
-      "size": 232932785,
-      "sha256": "6a1aa256b992c820b2f9ec35c8b3858db69bf02ec2eb2bc6f0211cb42f00d332",
+      "size": 150903684,
+      "sha256": "491632c18f54bcf2819d643cffb10d487b5fc38e17fc1ba74b5843d24da8e3c5",
       "packageName": "Vitra_1.0.0-rc.1_amd64.deb",
       "arch": "amd64",
-      "expiresAt": "2026-11-22T19:05:50Z"
+      "expiresAt": "2026-11-29T23:16:34Z",
+      "sourceTar": {
+        "path": "src-tauri/sidecars/x86_64-unknown-linux-gnu/mpv-corresponding-source.tar.gz",
+        "sha256": "7390728aa5651a83105d7c95feeb8fa3a9c8210e637e7f098e738d31099a0b08",
+        "entries": [
+          "mpv-corresponding-source/build-gpl-ffmpeg.sh",
+          "mpv-corresponding-source/gpl-ffmpeg-sources.json"
+        ]
+      }
     },
     "x86_64-pc-windows-msvc": {
-      "status": "superseded",
-      "runId": 42512576166,
-      "headSha": "76ea04250e88d880c3b6a7e3abf182f29c6bbde2",
-      "artifactId": 13630826011,
+      "status": "pinned",
+      "runId": 43772604652,
+      "headSha": "1307519bc4ad82870c01e7821cbb3afb070b8557",
+      "artifactId": 14187285439,
       "artifactName": "Vitra-Windows-x64",
-      "size": 171959682,
-      "sha256": "5fa00d1ae113eef2617b2f7e6649df0761fabd3e19c157d41d3abb5f80c36893",
+      "size": 238525172,
+      "sha256": "a7945292c093de0b41f5ab9e683c36a0ce0f2d0523564992b472b4b211721c3d",
       "packageName": "Vitra_1.0.0-rc.1_x64-setup.exe",
       "arch": "x64",
-      "expiresAt": "2026-11-22T19:11:03Z"
+      "expiresAt": "2026-11-29T23:55:30Z",
+      "sourceTar": {
+        "path": "src-tauri/sidecars/x86_64-pc-windows-msvc/mpv-corresponding-source.tar.gz",
+        "sha256": "a5ec34464980c9c46232df22ed20570ca84357c9b8504b47dcd680b780d8bdd5",
+        "entries": [
+          "mpv-corresponding-source/build-windows-mpv.sh",
+          "mpv-corresponding-source/windows-mpv-sources.json"
+        ]
+      }
     },
     "aarch64-apple-darwin": {
-      "status": "superseded",
-      "runId": 42512576166,
-      "headSha": "76ea04250e88d880c3b6a7e3abf182f29c6bbde2",
-      "artifactId": 13630098011,
+      "status": "pinned",
+      "runId": 43772604652,
+      "headSha": "1307519bc4ad82870c01e7821cbb3afb070b8557",
+      "artifactId": 14186070710,
       "artifactName": "Vitra-macOS-Apple-Silicon",
-      "size": 196595124,
-      "sha256": "243c15227b4ed535b52da8e701471aa455637dda3ef495e032598efc9230337e",
+      "size": 255289984,
+      "sha256": "6081eedc792330dbaa96ca4c35fe7c51f1a495c87b0862bc5072760a95fb46cf",
       "packageName": "Vitra_1.0.0-rc.1_aarch64.dmg",
       "arch": "aarch64",
-      "expiresAt": "2026-11-22T19:11:28Z"
+      "expiresAt": "2026-11-29T23:26:43Z",
+      "sourceTar": {
+        "path": "src-tauri/sidecars/aarch64-apple-darwin/mpv-corresponding-source.tar.gz",
+        "sha256": "f2378703cb0f2fcafa0089060707a624841f9d993fb77aa2026f57a66a1f22fb",
+        "entries": [
+          "mpv-corresponding-source/build-intel-mpv.sh",
+          "mpv-corresponding-source/macos-arm64-mpv-sources.json",
+          "mpv-corresponding-source/mach-minos.py",
+          "mpv-corresponding-source/mach-deps.py"
+        ]
+      }
     },
     "x86_64-apple-darwin": {
-      "status": "superseded",
-      "runId": 43638348270,
-      "headSha": "2adf1a5499f6a6c210ee4c29a8dcebd3c54ae156",
-      "artifactId": 14132604382,
+      "status": "pinned",
+      "runId": 43772604652,
+      "headSha": "1307519bc4ad82870c01e7821cbb3afb070b8557",
+      "artifactId": 14185737506,
       "artifactName": "Vitra-macOS-Intel",
-      "size": 325016838,
-      "sha256": "573ea7b5ed750e2e4d44d106f77e553eac5664575143ac4dc7fb6ee4878551a6",
+      "size": 264963601,
+      "sha256": "f8410a6398ecea712d24987a73d19c2c2368b07f371efbde256e53b53ed2f16d",
       "packageName": "Vitra_1.0.0-rc.1_x64.dmg",
       "arch": "x64",
-      "expiresAt": "2026-11-28T21:30:33Z",
+      "expiresAt": "2026-11-29T23:28:08Z",
       "sourceTar": {
         "path": "src-tauri/sidecars/x86_64-apple-darwin/mpv-corresponding-source.tar.gz",
-        "sha256": "cbaafbcb06057c9e7f2fdeb2c71d29a8521a25010b0148d86379337afdcfc736",
+        "sha256": "3fbbbeb3266cc7a4baa42512bea1cbf82acd1f65fb85a44d71a78694e1ab515a",
         "entries": [
           "mpv-corresponding-source/build-intel-mpv.sh",
           "mpv-corresponding-source/intel-mpv-sources.json",

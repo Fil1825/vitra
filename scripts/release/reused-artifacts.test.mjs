@@ -18,24 +18,46 @@ import {
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
+const BUILD = '1307519bc4ad82870c01e7821cbb3afb070b8557';
+const RUN = 43772604652;
+const RETIRED = [13629864717, 13630826011, 13630098011, 14132604382];
+
 const DOWNLOADED = {
   'x86_64-unknown-linux-gnu': {
-    artifactId: 13629864717,
-    size: 232932785,
-    sha256: '6a1aa256b992c820b2f9ec35c8b3858db69bf02ec2eb2bc6f0211cb42f00d332',
+    artifactId: 14185725871,
+    artifactName: 'Vitra-Linux-x64',
+    size: 150903684,
+    sha256: '491632c18f54bcf2819d643cffb10d487b5fc38e17fc1ba74b5843d24da8e3c5',
     packageName: 'Vitra_1.0.0-rc.1_amd64.deb',
+    expiresAt: '2026-11-29T23:16:34Z',
+    sourceTarSha256: '7390728aa5651a83105d7c95feeb8fa3a9c8210e637e7f098e738d31099a0b08',
   },
   'x86_64-pc-windows-msvc': {
-    artifactId: 13630826011,
-    size: 171959682,
-    sha256: '5fa00d1ae113eef2617b2f7e6649df0761fabd3e19c157d41d3abb5f80c36893',
+    artifactId: 14187285439,
+    artifactName: 'Vitra-Windows-x64',
+    size: 238525172,
+    sha256: 'a7945292c093de0b41f5ab9e683c36a0ce0f2d0523564992b472b4b211721c3d',
     packageName: 'Vitra_1.0.0-rc.1_x64-setup.exe',
+    expiresAt: '2026-11-29T23:55:30Z',
+    sourceTarSha256: 'a5ec34464980c9c46232df22ed20570ca84357c9b8504b47dcd680b780d8bdd5',
   },
   'aarch64-apple-darwin': {
-    artifactId: 13630098011,
-    size: 196595124,
-    sha256: '243c15227b4ed535b52da8e701471aa455637dda3ef495e032598efc9230337e',
+    artifactId: 14186070710,
+    artifactName: 'Vitra-macOS-Apple-Silicon',
+    size: 255289984,
+    sha256: '6081eedc792330dbaa96ca4c35fe7c51f1a495c87b0862bc5072760a95fb46cf',
     packageName: 'Vitra_1.0.0-rc.1_aarch64.dmg',
+    expiresAt: '2026-11-29T23:26:43Z',
+    sourceTarSha256: 'f2378703cb0f2fcafa0089060707a624841f9d993fb77aa2026f57a66a1f22fb',
+  },
+  'x86_64-apple-darwin': {
+    artifactId: 14185737506,
+    artifactName: 'Vitra-macOS-Intel',
+    size: 264963601,
+    sha256: 'f8410a6398ecea712d24987a73d19c2c2368b07f371efbde256e53b53ed2f16d',
+    packageName: 'Vitra_1.0.0-rc.1_x64.dmg',
+    expiresAt: '2026-11-29T23:28:08Z',
+    sourceTarSha256: '3fbbbeb3266cc7a4baa42512bea1cbf82acd1f65fb85a44d71a78694e1ab515a',
   },
 };
 
@@ -91,45 +113,50 @@ function withPinned(doc) {
 describe('reused installer pins', () => {
   const doc = loadReuseDocument();
 
-  it('records the four downloaded artifact zips', () => {
+  it('records the four source-built artifact zips and drops the old pins', () => {
     expect(doc.repo).toBe('Fil1825/vitra');
     expect(doc.version).toBe('1.0.0-rc.1');
-    expect(doc.appPayloadCommit).toBe('76ea04250e88d880c3b6a7e3abf182f29c6bbde2');
+    expect(doc.appPayloadCommit).toBe(BUILD);
+    const recorded = JSON.stringify(doc);
+    for (const id of RETIRED) expect(recorded).not.toContain(String(id));
+    expect(recorded).not.toContain('Martin Riedl');
+    expect(recorded).not.toContain('BtbN');
     for (const [target, downloaded] of Object.entries(DOWNLOADED)) {
       const pin = doc.targets[target];
-      expect(pin.status).toBe('superseded');
-      expect(pin.runId).toBe(42512576166);
-      expect(pin.headSha).toBe(doc.appPayloadCommit);
+      expect(pin.status).toBe('pinned');
+      expect(pin.runId).toBe(RUN);
+      expect(pin.headSha).toBe(BUILD);
       expect(pin.artifactId).toBe(downloaded.artifactId);
+      expect(pin.artifactName).toBe(downloaded.artifactName);
       expect(pin.size).toBe(downloaded.size);
       expect(pin.sha256).toBe(downloaded.sha256);
       expect(pin.packageName).toBe(downloaded.packageName);
+      expect(pin.expiresAt).toBe(downloaded.expiresAt);
+      expect(pin.sourceTar.sha256).toBe(downloaded.sourceTarSha256);
     }
-    const intel = doc.targets['x86_64-apple-darwin'];
-    expect(intel.status).toBe('superseded');
-    expect(intel.runId).toBe(43638348270);
-    expect(intel.headSha).toBe('2adf1a5499f6a6c210ee4c29a8dcebd3c54ae156');
-    expect(intel.artifactId).toBe(14132604382);
-    expect(intel.sha256).toBe('573ea7b5ed750e2e4d44d106f77e553eac5664575143ac4dc7fb6ee4878551a6');
-    expect(intel.sourceTar.sha256).toBe(
-      'cbaafbcb06057c9e7f2fdeb2c71d29a8521a25010b0148d86379337afdcfc736',
-    );
-    expect(intel.expiresAt).toBe('2026-11-28T21:30:33Z');
-    expect(doc.targets['x86_64-unknown-linux-gnu'].expiresAt).toBe('2026-11-22T19:05:50Z');
   });
 
-  it('accepts a complete pin and rejects the superseded installers', () => {
-    const pinned = withPinned(doc);
-    expect(verifyReuseSet(pinned, observationsFrom(pinned))).toEqual([]);
-    expect(verifyReuseSet(doc, observationsFrom(doc)).map((error) => error.code)).toEqual(
-      REQUIRED_TARGETS.map(() => 'missing-target'),
-    );
-    const wrongTar = observationsFrom(pinned, {
+  it('accepts the pinned installers and rejects a superseded target', () => {
+    expect(verifyReuseSet(doc, observationsFrom(doc))).toEqual([]);
+    const superseded = {
+      ...doc,
+      targets: {
+        ...doc.targets,
+        'x86_64-unknown-linux-gnu': {
+          ...doc.targets['x86_64-unknown-linux-gnu'],
+          status: 'superseded',
+        },
+      },
+    };
+    expect(
+      verifyReuseSet(superseded, observationsFrom(superseded)).map((error) => error.code),
+    ).toEqual(['missing-target']);
+    const wrongTar = observationsFrom(doc, {
       'x86_64-apple-darwin': { sourceTarSha256: 'd'.repeat(64) },
     });
-    expect(
-      verifyReuseSet(pinned, wrongTar).some((error) => error.code === 'wrong-source-tar'),
-    ).toBe(true);
+    expect(verifyReuseSet(doc, wrongTar).some((error) => error.code === 'wrong-source-tar')).toBe(
+      true,
+    );
   });
 
   it('rejects the wrong repository, run, commit, artifact, or version', () => {
@@ -188,9 +215,18 @@ describe('reused installer pins', () => {
 
   it('states that a release commit is not the build commit of every file', () => {
     const notes = provenanceNotes(doc);
-    expect(notes).toContain('were not all built from one commit');
-    expect(notes).toContain('x86_64-unknown-linux-gnu: not pinned');
-    expect(notes).toContain('x86_64-apple-darwin: not pinned');
+    expect(notes).toContain(`were built from commit ${BUILD}`);
+    expect(notes).toContain('is not the build commit of every file');
+    expect(notes).toContain('artifact 14185725871 Vitra-Linux-x64');
+    expect(notes).not.toContain('not pinned');
+    const mixed = provenanceNotes({
+      ...doc,
+      targets: {
+        ...doc.targets,
+        'x86_64-apple-darwin': { ...doc.targets['x86_64-apple-darwin'], headSha: 'a'.repeat(40) },
+      },
+    });
+    expect(mixed).toContain('were not all built from one commit');
   });
 
   it('does not treat a skipped build matrix or an open source gate as publication', () => {

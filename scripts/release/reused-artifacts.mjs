@@ -126,8 +126,14 @@ export function publicationDecision(reuseErrors, blockers) {
 }
 
 export function provenanceNotes(doc) {
+  const pinned = REQUIRED_TARGETS.map((target) => doc?.targets?.[target]).filter(
+    (pin) => pin?.status === 'pinned',
+  );
+  const shas = new Set(pinned.map((pin) => pin.headSha));
   const lines = [
-    'These installer bytes were not all built from one commit.',
+    pinned.length === REQUIRED_TARGETS.length && shas.size === 1
+      ? `These installer bytes were built from commit ${[...shas][0]}.`
+      : 'These installer bytes were not all built from one commit.',
     'The release commit records the pins below. It is not the build commit of every file.',
     '',
   ];

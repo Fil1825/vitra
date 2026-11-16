@@ -40,19 +40,16 @@ depend on the third-party builder. GPLv2+ applies to mpv; Vitra is GPLv3.
 - **yt-dlp / ffmpeg / deno** Intel sidecars are unchanged; confirm their Mach-O minOS ≤ 12.0 in
   release verify (`scripts/release/verify-macos.py`).
 
-## This candidate's Intel installer
+## This candidate's installers
 
-Linux, Windows, and Apple Silicon installers from Actions run 42512576166
-(commit `76ea04250e88d880c3b6a7e3abf182f29c6bbde2`) stay as built. Their artifact
-zip digests are in `scripts/release/reused-artifacts.json`. Intel from that run
-failed before the mpv link and is not pinned.
+All four installers are the source builds from Actions run 43772604652
+(commit `1307519bc4ad82870c01e7821cbb3afb070b8557`). Artifact ids, sizes, zip
+SHA-256, and corresponding-source tar SHA-256 are in
+`scripts/release/reused-artifacts.json`. Linux artifact 14185725871 expires
+2026-11-29T23:16:34Z.
 
-A pull request's build matrix includes only macOS-Intel (`macos-15-intel`). A job
-`if` cannot read `matrix`: run 42516916666 died with `Unrecognized named-value:
-'matrix'` and created no jobs. Merging to `main` does not run `release.yml`.
-A `v*` tag still builds all four platforms; that is not this candidate's path.
-`workflow_dispatch` is not required. The job checks that application sources
-still match `76ea042` before packaging. Playback on a Monterey machine is still
+Merging to `main` does not run `release.yml`. A `v*` tag still builds all four
+platforms; that is not the reuse path. Playback on a Monterey machine is still
 not verified, and this VM cannot sign the result.
 
 ## Source build

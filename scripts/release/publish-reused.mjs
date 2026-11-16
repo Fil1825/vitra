@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { createReadStream, writeFileSync } from 'node:fs';
+import { closeSync, createReadStream, openSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -27,6 +27,20 @@ function gh(args) {
     throw new Error((result.stderr || result.stdout || 'gh failed').trim());
   }
   return result.stdout;
+}
+
+/** gh 2.103 has no `api --output`. The zip is larger than spawnSync's stdout buffer. */
+function ghToFile(args, file) {
+  const fd = openSync(file, 'w');
+  try {
+    const result = spawnSync('gh', args, { stdio: ['ignore', fd, 'pipe'] });
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      throw new Error((result.stderr || 'gh failed').toString().trim());
+    }
+  } finally {
+    closeSync(fd);
+  }
 }
 
 function sha256File(file) {
@@ -78,7 +92,7 @@ async function observe(doc) {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'vitra-reuse-'));
     const zip = path.join(dir, 'artifact.zip');
     try {
-      gh(['api', `repos/${doc.repo}/actions/artifacts/${pin.artifactId}/zip`, '--output', zip]);
+      ghToFile(['api', `repos/${doc.repo}/actions/artifacts/${pin.artifactId}/zip`], zip);
       observations[target] = {
         repo: doc.repo,
         runId: meta.workflow_run?.id,
