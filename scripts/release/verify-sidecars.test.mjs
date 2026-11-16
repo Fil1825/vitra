@@ -99,40 +99,34 @@ process.exit(0);
       process.platform === 'win32'
         ? `\\\\.\\pipe\\vitra-mpv-test-${process.pid}`
         : path.join(root, 'ipc.sock');
-    const launcher = (name, source) => {
-      const script = path.join(root, `${name}.mjs`);
-      fs.writeFileSync(script, source);
-      if (process.platform === 'win32') {
-        const program = path.join(root, `${name}.cmd`);
-        fs.writeFileSync(program, `@echo off\r\n"${process.execPath}" "${script}" %*\r\n`);
-        return program;
-      }
-      const program = path.join(root, name);
-      const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
-      fs.writeFileSync(
-        program,
-        `#!/bin/sh\nexec ${quote(process.execPath)} ${quote(script)} "$@"\n`,
-      );
-      fs.chmodSync(program, 0o755);
-      return program;
+    // node.exe is spawned directly. A .cmd launcher goes through cmd.exe, which
+    // rewrites the named-pipe argument before the fake can listen on it.
+    const script = (name, source) => {
+      const file = path.join(root, `${name}.mjs`);
+      fs.writeFileSync(file, source);
+      return file;
     };
-    const program = launcher(
+    const ready = script(
       'mpv',
       `import net from 'node:net';
 const ipc = process.argv.find((arg) => arg.startsWith('--input-ipc-server='));
 if (!ipc || process.argv.some((arg) => arg.startsWith('--ytdl') || arg.includes('ytdl-raw-options'))) {
   process.exit(1);
 }
-net.createServer((socket) => socket.end()).listen(ipc.slice('--input-ipc-server='.length));
+const server = net.createServer((socket) => socket.end());
+server.on('error', () => process.exit(2));
+server.listen(ipc.slice('--input-ipc-server='.length));
 setInterval(() => {}, 1000);
 `,
     );
-    const refuse = launcher('mpv-refuse', 'process.exit(1);\n');
+    const refuse = script('mpv-refuse', 'process.exit(1);\n');
     try {
-      await expect(assertWindowsPlaybackIpc(program, undefined, endpoint)).resolves.toBeUndefined();
-      await expect(assertWindowsPlaybackIpc(refuse, undefined, endpoint)).rejects.toThrow(
-        /mpv exited before its IPC server came up \(exit code: 1\)/,
-      );
+      await expect(
+        assertWindowsPlaybackIpc(process.execPath, undefined, endpoint, [ready]),
+      ).resolves.toBeUndefined();
+      await expect(
+        assertWindowsPlaybackIpc(process.execPath, undefined, endpoint, [refuse]),
+      ).rejects.toThrow(/mpv exited before its IPC server came up \(exit code: 1\)/);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

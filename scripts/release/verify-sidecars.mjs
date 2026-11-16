@@ -74,16 +74,9 @@ export function windowsPlaybackArgs(ytdlp, pipe) {
   return args;
 }
 
+/** CreateProcess, never cmd.exe. cmd.exe rewrites `\\.\pipe\...` before the program sees it. */
 function spawnEngine(program, args) {
-  const options = { windowsHide: true, stdio: 'ignore' };
-  if (process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(program)) {
-    const command = [quoteCmd(program), ...args.map(quoteCmd)].join(' ');
-    return spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', command], {
-      ...options,
-      windowsVerbatimArguments: true,
-    });
-  }
-  return spawn(program, args, options);
+  return spawn(program, args, { windowsHide: true, stdio: 'ignore' });
 }
 
 function connectIpc(endpoint) {
@@ -113,9 +106,9 @@ function stopEngine(child) {
  * a connection. `endpoint` overrides the named pipe so a unit fake can listen on
  * a Unix socket.
  */
-export async function assertWindowsPlaybackIpc(program, ytdlp, endpoint) {
+export async function assertWindowsPlaybackIpc(program, ytdlp, endpoint, lead = []) {
   const pipe = endpoint ?? `\\\\.\\pipe\\vitra-mpv0-${process.pid}`;
-  const args = windowsPlaybackArgs(ytdlp, pipe);
+  const args = [...lead, ...windowsPlaybackArgs(ytdlp, pipe)];
   const luaOnly = args.filter(
     (arg) => arg.startsWith('--ytdl') || arg.includes('ytdl-raw-options'),
   );

@@ -2,10 +2,10 @@
   "repo": "Fil1825/vitra",
   "version": "1.0.0-rc.1",
   "appPayloadCommit": "1307519bc4ad82870c01e7821cbb3afb070b8557",
-  "note": "The four installers are the source builds from Actions run 43772604652, commit 1307519bc4ad82870c01e7821cbb3afb070b8557. macOS mpv and ffmpeg use the pinned recipe (arm64 deployment target 14.0, Intel 12.0). Windows mpv uses pinned shaderc and Vulkan. Linux and Windows ffmpeg use the FFmpeg 7.1.1 tarball, static LAME 3.100, and mbedTLS 3.6.7, without libiconv, aom, ffnvcodec, opencore-amr, soxr, or xvid. These zips replace the earlier installer pins. The earliest artifact, Linux 14185725871, expires 2026-11-29T23:16:34Z. A v* tag is not the reuse path: it rebuilds. publish-reused.mjs checks these pins and refuses to create a GitHub Release.",
+  "note": "The four installer records below are superseded. They are the source builds from Actions run 43772604652, commit 1307519bc4ad82870c01e7821cbb3afb070b8557, and they are the bytes published as v1.0.0-rc.1. The application payload has since changed, so these records do not claim to match HEAD. The next green installers will be pinned again. publish-reused.mjs refuses a set that is not pinned and refuses to create a GitHub Release.",
   "targets": {
     "x86_64-unknown-linux-gnu": {
-      "status": "pinned",
+      "status": "superseded",
       "runId": 43772604652,
       "headSha": "1307519bc4ad82870c01e7821cbb3afb070b8557",
       "artifactId": 14185725871,
@@ -25,7 +25,7 @@
       }
     },
     "x86_64-pc-windows-msvc": {
-      "status": "pinned",
+      "status": "superseded",
       "runId": 43772604652,
       "headSha": "1307519bc4ad82870c01e7821cbb3afb070b8557",
       "artifactId": 14187285439,
@@ -45,7 +45,7 @@
       }
     },
     "aarch64-apple-darwin": {
-      "status": "pinned",
+      "status": "superseded",
       "runId": 43772604652,
       "headSha": "1307519bc4ad82870c01e7821cbb3afb070b8557",
       "artifactId": 14186070710,
@@ -67,7 +67,7 @@
       }
     },
     "x86_64-apple-darwin": {
-      "status": "pinned",
+      "status": "superseded",
       "runId": 43772604652,
       "headSha": "1307519bc4ad82870c01e7821cbb3afb070b8557",
       "artifactId": 14185737506,

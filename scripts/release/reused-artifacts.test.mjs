@@ -113,7 +113,7 @@ function withPinned(doc) {
 describe('reused installer pins', () => {
   const doc = loadReuseDocument();
 
-  it('records the four source-built artifact zips and drops the old pins', () => {
+  it('records the four source-built artifact zips and supersedes them', () => {
     expect(doc.repo).toBe('Fil1825/vitra');
     expect(doc.version).toBe('1.0.0-rc.1');
     expect(doc.appPayloadCommit).toBe(BUILD);
@@ -123,7 +123,7 @@ describe('reused installer pins', () => {
     expect(recorded).not.toContain('BtbN');
     for (const [target, downloaded] of Object.entries(DOWNLOADED)) {
       const pin = doc.targets[target];
-      expect(pin.status).toBe('pinned');
+      expect(pin.status).toBe('superseded');
       expect(pin.runId).toBe(RUN);
       expect(pin.headSha).toBe(BUILD);
       expect(pin.artifactId).toBe(downloaded.artifactId);
@@ -137,13 +137,20 @@ describe('reused installer pins', () => {
   });
 
   it('accepts the pinned installers and rejects a superseded target', () => {
-    expect(verifyReuseSet(doc, observationsFrom(doc))).toEqual([]);
+    expect(verifyReuseSet(doc, observationsFrom(doc)).map((error) => error.code)).toEqual([
+      'missing-target',
+      'missing-target',
+      'missing-target',
+      'missing-target',
+    ]);
+    const complete = withPinned(doc);
+    expect(verifyReuseSet(complete, observationsFrom(complete))).toEqual([]);
     const superseded = {
-      ...doc,
+      ...complete,
       targets: {
-        ...doc.targets,
+        ...complete.targets,
         'x86_64-unknown-linux-gnu': {
-          ...doc.targets['x86_64-unknown-linux-gnu'],
+          ...complete.targets['x86_64-unknown-linux-gnu'],
           status: 'superseded',
         },
       },
@@ -151,12 +158,12 @@ describe('reused installer pins', () => {
     expect(
       verifyReuseSet(superseded, observationsFrom(superseded)).map((error) => error.code),
     ).toEqual(['missing-target']);
-    const wrongTar = observationsFrom(doc, {
+    const wrongTar = observationsFrom(complete, {
       'x86_64-apple-darwin': { sourceTarSha256: 'd'.repeat(64) },
     });
-    expect(verifyReuseSet(doc, wrongTar).some((error) => error.code === 'wrong-source-tar')).toBe(
-      true,
-    );
+    expect(
+      verifyReuseSet(complete, wrongTar).some((error) => error.code === 'wrong-source-tar'),
+    ).toBe(true);
   });
 
   it('rejects the wrong repository, run, commit, artifact, or version', () => {
@@ -214,16 +221,23 @@ describe('reused installer pins', () => {
   });
 
   it('states that a release commit is not the build commit of every file', () => {
-    const notes = provenanceNotes(doc);
+    const live = provenanceNotes(doc);
+    expect(live).toContain('were not all built from one commit');
+    expect(live).toContain('- x86_64-unknown-linux-gnu: not pinned');
+    const notes = provenanceNotes(withPinned(doc));
     expect(notes).toContain(`were built from commit ${BUILD}`);
     expect(notes).toContain('is not the build commit of every file');
     expect(notes).toContain('artifact 14185725871 Vitra-Linux-x64');
     expect(notes).not.toContain('not pinned');
+    const pinned = withPinned(doc);
     const mixed = provenanceNotes({
-      ...doc,
+      ...pinned,
       targets: {
-        ...doc.targets,
-        'x86_64-apple-darwin': { ...doc.targets['x86_64-apple-darwin'], headSha: 'a'.repeat(40) },
+        ...pinned.targets,
+        'x86_64-apple-darwin': {
+          ...pinned.targets['x86_64-apple-darwin'],
+          headSha: 'a'.repeat(40),
+        },
       },
     });
     expect(mixed).toContain('were not all built from one commit');
