@@ -92,13 +92,42 @@ function connectIpc(endpoint) {
   });
 }
 
-function stopEngine(child) {
-  if (!child.pid || child.exitCode !== null) return;
-  if (process.platform === 'win32') {
-    spawnSync('taskkill', ['/pid', String(child.pid), '/t', '/f'], { windowsHide: true });
-    return;
+function childHasExited(child) {
+  return child.exitCode !== null || child.signalCode !== null;
+}
+
+function waitForExit(child) {
+  return new Promise((resolve) => {
+    if (childHasExited(child)) {
+      resolve();
+      return;
+    }
+    child.once('exit', () => resolve());
+    if (childHasExited(child)) resolve();
+  });
+}
+
+/** Kill mpv and wait until it has exited, so its IPC server cannot accept another client. */
+async function stopEngine(child, endpoint) {
+  if (child.pid && !childHasExited(child)) {
+    if (process.platform === 'win32') {
+      spawnSync('taskkill', ['/pid', String(child.pid), '/t', '/f'], { windowsHide: true });
+    } else {
+      try {
+        child.kill('SIGKILL');
+      } catch {
+        /* already gone */
+      }
+    }
+    await Promise.race([waitForExit(child), new Promise((resolve) => setTimeout(resolve, 5_000))]);
   }
-  child.kill('SIGKILL');
+  // A Unix socket file outlives the process. Remove it only after the listener is gone.
+  if (!endpoint || endpoint.startsWith('\\\\')) return;
+  try {
+    if (fs.lstatSync(endpoint).isSocket()) fs.unlinkSync(endpoint);
+  } catch {
+    /* named pipe, or the file was never created */
+  }
 }
 
 /**
@@ -127,7 +156,7 @@ export async function assertWindowsPlaybackIpc(program, ytdlp, endpoint, lead = 
     }
     throw new Error('mpv IPC pipe never came up');
   } finally {
-    stopEngine(child);
+    await stopEngine(child, pipe);
   }
 }
 

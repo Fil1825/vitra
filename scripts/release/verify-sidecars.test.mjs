@@ -95,10 +95,10 @@ process.exit(0);
 
   it('waits for the IPC server and reports an early exit', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vitra-mpv-ipc-'));
-    const endpoint =
+    const endpoint = (name) =>
       process.platform === 'win32'
-        ? `\\\\.\\pipe\\vitra-mpv-test-${process.pid}`
-        : path.join(root, 'ipc.sock');
+        ? `\\\\.\\pipe\\vitra-mpv-test-${process.pid}-${name}`
+        : path.join(root, `ipc-${name}.sock`);
     // node.exe is spawned directly. A .cmd launcher goes through cmd.exe, which
     // rewrites the named-pipe argument before the fake can listen on it.
     const script = (name, source) => {
@@ -122,10 +122,10 @@ setInterval(() => {}, 1000);
     const refuse = script('mpv-refuse', 'process.exit(1);\n');
     try {
       await expect(
-        assertWindowsPlaybackIpc(process.execPath, undefined, endpoint, [ready]),
+        assertWindowsPlaybackIpc(process.execPath, undefined, endpoint('ready'), [ready]),
       ).resolves.toBeUndefined();
       await expect(
-        assertWindowsPlaybackIpc(process.execPath, undefined, endpoint, [refuse]),
+        assertWindowsPlaybackIpc(process.execPath, undefined, endpoint('refuse'), [refuse]),
       ).rejects.toThrow(/mpv exited before its IPC server came up \(exit code: 1\)/);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
