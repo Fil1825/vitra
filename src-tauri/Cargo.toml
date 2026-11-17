@@ -57,7 +57,7 @@ objc2-itunes-library = { version = "0.3.2", default-features = false, features =
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 # The system's media controls on Windows (SMTC) and Linux (MPRIS, through libdbus); macOS
 # has its own above.
-souvlaki = "0.8.3"
+souvlaki = "0.9.3"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 # The state of Alt and the mouse button for the mini player, and its rounded corners
