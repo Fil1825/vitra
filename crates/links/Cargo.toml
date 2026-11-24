@@ -16,7 +16,7 @@ thiserror = "2"
 # Already in the tree via Tauri; parses pasted links.
 url = "2.5"
 # Already in the tree via Tauri; checks yt-dlp release files against their signed hashes.
-sha2 = "0.10"
+sha2 = "0.11"
 # Pure-Rust OpenPGP. Verifies yt-dlp's detached signature over SHA2-256SUMS.
 # Default features pull in bzip2, which signature checks do not use.
 pgp = { version = "0.21", default-features = false }
@@ -25,7 +25,7 @@ tokio = { version = "1.54", features = ["io-util", "macros", "process", "rt", "s
 [target.'cfg(windows)'.dependencies]
 # OpenSSL sidecars need PEM roots; read Windows trust through the OS, not a bundled list.
 rustls-native-certs = "0.8"
-base64 = "0.22"
+base64 = "0.23"
 tempfile = "3"
 
 [dev-dependencies]
@@ -33,7 +33,7 @@ tokio = { version = "1.54", features = ["io-util", "macros", "process", "rt", "r
 tempfile = "3"
 # Integration tests sign a checksum file with a key they hold. Same crate as above.
 pgp = { version = "0.21", default-features = false }
-rand = "0.8"
+rand = "0.10"
 
 [lints]
 workspace = true
